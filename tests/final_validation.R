@@ -4,6 +4,11 @@
 cat("🎯 ZZedc Modernization Final Validation\n")
 cat("======================================\n\n")
 
+# Set working directory to project root if not already there
+if (basename(getwd()) == "tests") {
+  setwd("..")
+}
+
 # Test 1: Security - No hardcoded credentials
 cat("🔐 Security Validation:\n")
 

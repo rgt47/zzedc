@@ -1,0 +1,391 @@
+name: Dependency Management
+
+on:
+  schedule:
+    # Check dependencies daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      update_type:
+        description: 'Type of update to perform'
+        required: true
+        default: 'check'
+        type: choice
+        options:
+          - check
+          - minor
+          - major
+      create_pr:
+        description: 'Create pull request for updates'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+  GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  # Check dependency status
+  dependency-check:
+    runs-on: ubuntu-latest
+    name: Check Dependencies
+    outputs:
+      updates-available: ${{ steps.check.outputs.updates-available }}
+      security-updates: ${{ steps.security.outputs.security-updates }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Install dependency management tools
+        run: |
+          install.packages(c("pak", "desc", "remotes", "renv"))
+        shell: Rscript {0}
+
+      - name: Check for package updates
+        id: check
+        run: |
+          cat("📦 Dependency Update Check\n")
+          cat("=========================\n\n")
+
+          # Read current dependencies from DESCRIPTION
+          if (file.exists("DESCRIPTION")) {
+            deps <- desc::desc_get_deps()
+            cat("Current dependencies:\n")
+            print(deps[deps$type %in% c("Depends", "Imports", "Suggests"), ])
+
+            # Check for available updates
+            cat("\n🔍 Checking for available updates...\n")
+
+            available_updates <- character(0)
+            security_updates <- character(0)
+
+            # Get currently installed versions
+            installed_pkgs <- installed.packages()
+
+            for (i in 1:nrow(deps)) {
+              pkg <- deps$package[i]
+              if (pkg == "R" || pkg == "") next
+
+              # Skip if package not in standard repos
+              tryCatch({
+                available_ver <- available.packages()[pkg, "Version"]
+                if (pkg %in% rownames(installed_pkgs)) {
+                  current_ver <- installed_pkgs[pkg, "Version"]
+
+                  if (package_version(available_ver) > package_version(current_ver)) {
+                    update_info <- paste0(pkg, ": ", current_ver, " -> ", available_ver)
+                    available_updates <- c(available_updates, update_info)
+                    cat("📈 Update available:", update_info, "\n")
+                  }
+                }
+              }, error = function(e) {
+                cat("⚠️  Could not check updates for", pkg, ":", e$message, "\n")
+              })
+            }
+
+            if (length(available_updates) > 0) {
+              cat("\n📊 Summary:", length(available_updates), "updates available\n")
+              writeLines(available_updates, "available_updates.txt")
+              cat("updates-available=true\n", file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+            } else {
+              cat("\n✅ All packages are up to date\n")
+              cat("updates-available=false\n", file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+            }
+
+          } else {
+            cat("❌ DESCRIPTION file not found\n")
+            cat("updates-available=false\n", file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+          }
+        shell: Rscript {0}
+
+      - name: Security vulnerability check
+        id: security
+        run: |
+          cat("🛡️  Security Vulnerability Check\n")
+          cat("=================================\n\n")
+
+          # Install oysteR for vulnerability scanning
+          if (!requireNamespace("oysteR", quietly = TRUE)) {
+            install.packages("oysteR")
+          }
+
+          security_issues <- character(0)
+
+          tryCatch({
+            # Scan for vulnerabilities
+            vulns <- oysteR::audit_deps()
+
+            if (nrow(vulns) > 0) {
+              cat("⚠️  Security vulnerabilities found:\n")
+              print(vulns)
+
+              # Extract package names with vulnerabilities
+              vuln_packages <- unique(vulns$package)
+              security_issues <- paste0(vuln_packages, collapse = ", ")
+
+              # Write vulnerability details
+              write.csv(vulns, "security_vulnerabilities.csv", row.names = FALSE)
+
+              cat("security-updates=true\n", file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+              cat("🚨 Security updates needed for:", security_issues, "\n")
+            } else {
+              cat("✅ No security vulnerabilities found\n")
+              cat("security-updates=false\n", file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+            }
+          }, error = function(e) {
+            cat("⚠️  Security scan failed:", e$message, "\n")
+            cat("security-updates=unknown\n", file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+          })
+        shell: Rscript {0}
+        continue-on-error: true
+
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: |
+            available_updates.txt
+            security_vulnerabilities.csv
+        if: always()
+
+  # Update dependencies if requested
+  dependency-update:
+    needs: dependency-check
+    if: github.event.inputs.update_type != 'check' && (needs.dependency-check.outputs.updates-available == 'true' || needs.dependency-check.outputs.security-updates == 'true')
+    runs-on: ubuntu-latest
+    name: Update Dependencies
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Install dependency tools
+        run: |
+          install.packages(c("pak", "desc", "remotes"))
+        shell: Rscript {0}
+
+      - name: Update dependencies
+        run: |
+          cat("🔄 Updating Dependencies\n")
+          cat("=======================\n\n")
+
+          update_type <- "${{ github.event.inputs.update_type }}"
+          cat("Update type:", update_type, "\n\n")
+
+          # Read current DESCRIPTION
+          if (!file.exists("DESCRIPTION")) {
+            stop("DESCRIPTION file not found")
+          }
+
+          # Backup original DESCRIPTION
+          file.copy("DESCRIPTION", "DESCRIPTION.backup")
+
+          # Get current dependencies
+          deps <- desc::desc_get_deps()
+          deps_to_update <- deps[deps$type %in% c("Depends", "Imports", "Suggests") &
+                               deps$package != "R" & deps$package != "", ]
+
+          updated_packages <- character(0)
+          failed_updates <- character(0)
+
+          for (i in 1:nrow(deps_to_update)) {
+            pkg <- deps_to_update$package[i]
+            current_constraint <- deps_to_update$version[i]
+
+            cat("Checking", pkg, "...\n")
+
+            tryCatch({
+              # Get latest version
+              latest_ver <- available.packages()[pkg, "Version"]
+
+              if (update_type == "minor") {
+                # For minor updates, only update patch versions
+                if (!is.na(current_constraint) && current_constraint != "*") {
+                  # Parse version constraint
+                  constraint_ver <- gsub(">=\\s*|>\\s*|<=\\s*|<\\s*|==\\s*", "", current_constraint)
+                  if (package_version(latest_ver) > package_version(constraint_ver)) {
+                    # Check if it's a minor update (same major.minor)
+                    latest_parts <- strsplit(latest_ver, "\\.")[[1]]
+                    constraint_parts <- strsplit(constraint_ver, "\\.")[[1]]
+
+                    if (length(latest_parts) >= 2 && length(constraint_parts) >= 2 &&
+                        latest_parts[1] == constraint_parts[1] &&
+                        latest_parts[2] == constraint_parts[2]) {
+                      # Update constraint to latest patch version
+                      new_constraint <- paste0(">= ", latest_ver)
+                      desc::desc_set_dep(pkg, type = deps_to_update$type[i], version = new_constraint)
+                      updated_packages <- c(updated_packages, paste0(pkg, " (", latest_ver, ")"))
+                      cat("✅ Updated", pkg, "to", latest_ver, "\n")
+                    }
+                  }
+                } else {
+                  # No version constraint, add one
+                  new_constraint <- paste0(">= ", latest_ver)
+                  desc::desc_set_dep(pkg, type = deps_to_update$type[i], version = new_constraint)
+                  updated_packages <- c(updated_packages, paste0(pkg, " (", latest_ver, ")"))
+                  cat("✅ Added constraint for", pkg, ":", latest_ver, "\n")
+                }
+              } else if (update_type == "major") {
+                # For major updates, update to latest version
+                new_constraint <- paste0(">= ", latest_ver)
+                desc::desc_set_dep(pkg, type = deps_to_update$type[i], version = new_constraint)
+                updated_packages <- c(updated_packages, paste0(pkg, " (", latest_ver, ")"))
+                cat("✅ Updated", pkg, "to", latest_ver, "\n")
+              }
+
+            }, error = function(e) {
+              cat("❌ Failed to update", pkg, ":", e$message, "\n")
+              failed_updates <- c(failed_updates, pkg)
+            })
+          }
+
+          # Summary
+          cat("\n📊 Update Summary:\n")
+          cat("==================\n")
+          cat("✅ Successfully updated:", length(updated_packages), "packages\n")
+          if (length(updated_packages) > 0) {
+            cat("Packages updated:\n")
+            for (pkg in updated_packages) {
+              cat("  -", pkg, "\n")
+            }
+          }
+
+          if (length(failed_updates) > 0) {
+            cat("❌ Failed to update:", length(failed_updates), "packages\n")
+            for (pkg in failed_updates) {
+              cat("  -", pkg, "\n")
+            }
+          }
+
+          # Write summary for PR
+          update_summary <- paste0(
+            "## Dependency Updates\n\n",
+            "**Update Type**: ", update_type, "\n",
+            "**Packages Updated**: ", length(updated_packages), "\n",
+            "**Failed Updates**: ", length(failed_updates), "\n\n"
+          )
+
+          if (length(updated_packages) > 0) {
+            update_summary <- paste0(update_summary, "### Updated Packages\n")
+            for (pkg in updated_packages) {
+              update_summary <- paste0(update_summary, "- ", pkg, "\n")
+            }
+            update_summary <- paste0(update_summary, "\n")
+          }
+
+          if (length(failed_updates) > 0) {
+            update_summary <- paste0(update_summary, "### Failed Updates\n")
+            for (pkg in failed_updates) {
+              update_summary <- paste0(update_summary, "- ", pkg, "\n")
+            }
+          }
+
+          writeLines(update_summary, "update_summary.md")
+
+          # Set output for PR creation
+          if (length(updated_packages) > 0) {
+            cat("changes-made=true\n", file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+          } else {
+            cat("changes-made=false\n", file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+          }
+        shell: Rscript {0}
+
+      - name: Run tests after updates
+        run: |
+          cat("🧪 Testing Updated Dependencies\n")
+          cat("==============================\n\n")
+
+          # Try to install updated packages and run basic tests
+          tryCatch({
+            # Install updated packages
+            pak::pkg_install(".", dependencies = TRUE)
+
+            # Load the package to check basic functionality
+            library(zzedc)
+
+            # Run a simple test
+            if (exists("launch_zzedc")) {
+              cat("✅ Package loads successfully\n")
+            } else {
+              stop("Main functions not available")
+            }
+
+            cat("✅ Dependency updates appear to be working\n")
+          }, error = function(e) {
+            cat("❌ Dependency update test failed:", e$message, "\n")
+            stop("Dependency updates broke the package")
+          })
+        shell: Rscript {0}
+
+      - name: Create Pull Request
+        if: github.event.inputs.create_pr == 'true' && steps.dependency-update.outputs.changes-made == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update dependencies (${{ github.event.inputs.update_type }})"
+          title: "🔄 Dependency Updates (${{ github.event.inputs.update_type }})"
+          body-path: update_summary.md
+          branch: dependency-updates-${{ github.run_number }}
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+
+  # Generate dependency report
+  dependency-report:
+    needs: [dependency-check]
+    if: always()
+    runs-on: ubuntu-latest
+    name: Dependency Report
+
+    steps:
+      - name: Generate dependency summary
+        run: |
+          echo "## 📦 ZZedc Dependency Management Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Dependency Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Check Type | Status | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Updates Available | ${{ needs.dependency-check.outputs.updates-available }} | Package version updates |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Issues | ${{ needs.dependency-check.outputs.security-updates }} | Known vulnerabilities |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.dependency-check.outputs.updates-available }}" = "true" ]; then
+            echo "### 📈 Updates Available" >> $GITHUB_STEP_SUMMARY
+            echo "- Package updates are available" >> $GITHUB_STEP_SUMMARY
+            echo "- Run workflow with 'minor' or 'major' update type to apply" >> $GITHUB_STEP_SUMMARY
+            echo "- Check artifacts for detailed update list" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.dependency-check.outputs.security-updates }}" = "true" ]; then
+            echo "### 🚨 Security Vulnerabilities" >> $GITHUB_STEP_SUMMARY
+            echo "- **ACTION REQUIRED**: Security vulnerabilities found in dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "- Review vulnerability report in artifacts" >> $GITHUB_STEP_SUMMARY
+            echo "- Update affected packages immediately" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "### 🔧 Management Options" >> $GITHUB_STEP_SUMMARY
+          echo "- **Check Only**: Daily automated dependency checks" >> $GITHUB_STEP_SUMMARY
+          echo "- **Minor Updates**: Patch version updates (safe)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Major Updates**: All available updates (test thoroughly)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Auto PR**: Automatically create pull requests for updates" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Dependency Health" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Regular automated dependency monitoring" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Security vulnerability scanning" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Automated testing after updates" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Pull request workflow for changes" >> $GITHUB_STEP_SUMMARY
