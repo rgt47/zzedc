@@ -1,0 +1,11 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be 7 characters
+visit_date,Visit Date,D,date,1,,,
+race,Race/Ethnicity,L,select,1,White:Black or African American:Asian:Hispanic/Latino:Native American:Other:Prefer not to answer,,
+education_years,Years of Education,N,numeric,1,,,education_years >= 6 && education_years <= 25,Education must be 6-25 years
+employment_status,Employment Status,L,select,1,Full-time:Part-time:Student:Unemployed:Disabled:Retired,,
+marital_status,Marital Status,L,select,1,Single:Married:Divorced:Widowed:Separated,,
+household_income,Annual Household Income,L,select,0,<$25k:$25k-$50k:$50k-$75k:$75k-$100k:>$100k:Prefer not to answer,,
+insurance_type,Insurance Type,L,select,0,Private:Medicare:Medicaid:Uninsured:Other,,
+emergency_contact_name,Emergency Contact Name,C,text,1,,
+emergency_contact_phone,Emergency Contact Phone,C,text,1,,,length(emergency_contact_phone) >= 10,Please enter valid phone number

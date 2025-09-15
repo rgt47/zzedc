@@ -1,0 +1,176 @@
+# ZZedc Configuration File
+# Environment-specific settings
+
+default:
+  # Database configuration
+  database:
+    path: "data/memory001_study.db"
+    pool_size: 5
+
+  # Security settings
+  auth:
+    salt_env_var: "ZZEDC_SALT"
+    default_salt: "zzedc_development_salt_2024"
+    max_failed_attempts: 3
+    session_timeout_minutes: 30
+
+  # Application settings
+  app:
+    name: "ZZedc - Electronic Data Capture"
+    version: "1.0.0"
+    debug: true
+
+  # UI settings
+  ui:
+    theme: "flatly"
+    primary_color: "#2c3e50"
+
+development:
+  # Inherits from default
+  database:
+    path: "data/memory001_study_dev.db"
+
+production:
+  # Production overrides
+  database:
+    path: "/var/data/memory001_study_prod.db"
+    pool_size: 10
+
+  auth:
+    default_salt: "zzedc_production_salt_2024_secure"
+
+  app:
+    debug: false
+
+  # Logging
+  logging:
+    level: "INFO"
+    file: "/var/log/zzedc/app.log"
+
+testing:
+  # Testing configuration
+  database:
+    path: ":memory:"
+
+  auth:
+    default_salt: "test_salt_123"
+    max_failed_attempts: 1
+
+# GDPR Compliance Configuration
+gdpr:
+  # Privacy and compliance settings
+  enabled: true
+
+  # Legal basis for processing (Article 6 GDPR)
+  legal_basis:
+    regular_data: "legitimate_interest"  # For operational data
+    special_category: "explicit_consent" # For health data (Article 9)
+
+  # Data retention periods (in months)
+  retention:
+    clinical_data: 300      # 25 years (regulatory requirement)
+    audit_logs: 84          # 7 years
+    consent_records: 300    # 25 years
+    user_accounts: 12       # 1 year after inactivity
+
+  # Data subject rights
+  rights:
+    enable_access: true      # Right to access (Article 15)
+    enable_rectification: true # Right to rectification (Article 16)
+    enable_erasure: true     # Right to erasure (Article 17)
+    enable_portability: true # Right to data portability (Article 20)
+
+  # Privacy notices
+  privacy_notice:
+    show_banner: true
+    require_acknowledgment: true
+    languages: ["en", "de", "fr", "es"]
+
+  # Consent management
+  consent:
+    granular_consent: true
+    withdrawal_enabled: true
+    consent_log_retention: 300
+
+  # Breach notification
+  breach_response:
+    auto_detection: true
+    notification_email: "dpo@yourorganization.org"
+    authority_contact: "your-supervisory-authority@example.org"
+
+  # Data minimization
+  data_minimization:
+    enabled: true
+    purpose_limitation: true
+    optional_fields_marked: true
+
+# 21 CFR Part 11 Compliance Configuration
+cfr_part11:
+  # FDA electronic records and signatures compliance
+  enabled: true
+
+  # Electronic signature settings
+  electronic_signatures:
+    enabled: true
+    required_components: ["printed_name", "date_time", "meaning"]
+    signature_methods: ["password", "biometric", "smart_card"]
+    validation_required: true
+
+  # Audit trail requirements
+  audit_trail:
+    enhanced_logging: true
+    immutable_records: true
+    hash_chaining: true
+    retention_years: 25
+
+  # System validation
+  validation:
+    level: "operational"  # basic, operational, full
+    iq_required: true     # Installation Qualification
+    oq_required: true     # Operational Qualification
+    pq_required: true     # Performance Qualification
+    change_control: true
+
+  # Training and competency
+  training:
+    mandatory_training: ["cfr_part11_basics", "electronic_signatures", "data_integrity"]
+    renewal_period_months: 12
+    competency_threshold: 80
+
+  # Data integrity controls
+  data_integrity:
+    backup_validation: true
+    corruption_detection: true
+    migration_controls: true
+    periodic_checks: true
+
+# Dual Compliance Integration
+dual_compliance:
+  # Integrate GDPR and 21 CFR Part 11 requirements
+  enabled: true
+  primary_jurisdiction: "EU"  # EU, US, or global
+
+  # Conflict resolution
+  conflict_resolution:
+    retention_priority: "regulatory"  # regulatory, privacy, hybrid
+    erasure_review_required: true
+    regulatory_hold_enabled: true
+
+  # Cross-border considerations
+  international_transfers:
+    adequacy_checks: true
+    scc_required: true  # Standard Contractual Clauses
+    transfer_impact_assessment: true
+
+  # Integrated audit requirements
+  audit_integration:
+    dual_trail_enabled: true
+    gdpr_audit_focus: ["consent", "rights_exercise", "processing_activities"]
+    cfr_audit_focus: ["signatures", "data_integrity", "system_access"]
+    inspector_dashboard: true
+
+  # Training integration
+  training_integration:
+    dual_compliance_modules: true
+    role_based_training: true
+    competency_matrix: true

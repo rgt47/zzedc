@@ -1,0 +1,13 @@
+c("examdate", "ndreason", "previd", "rescrn", "rgcomm", "viscode", 
+"vistype", "examdate", "ptage", "ptagerprt", "ptcomm", "ptdob", 
+"pteducat", "ptethnic", "ptgender", "pthome", "ptlang", "ptmarry", 
+"ptnotrt", "ptothome", "ptplang", "ptpspec", "ptrace", "ptrtyr", 
+"ptwork", "viscode", "done", "mmarea", "mmareacm", "mmball", 
+"mmballdl", "mmcity", "mmcitycm", "mmcomm", "mmdate", "mmdatecm", 
+"mmday", "mmdaycm", "mmdltr", "mmdraw", "mmflag", "mmflagdl", 
+"mmfloor", "mmflrcm", "mmfold", "mmhand", "mmhospcm", "mmhospit", 
+"mmlltr", "mmmnthcm", "mmmonth", "mmoltr", "mmonflr", "mmpencil", 
+"mmread", "mmrepeat", "mmrltr", "mmscore", "mmseason", "mmsesncm", 
+"mmstate", "mmstcm", "mmtree", "mmtreedl", "mmtrials", "mmwatch", 
+"mmwltr", "mmworld", "mmwrite", "mmyear", "mmyearcm", "ndreason", 
+"viscode", "wordlist")

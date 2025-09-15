@@ -1,0 +1,11 @@
+workingname,fullname,visits
+screening,Screening & Enrollment,screening
+demographics,Demographics,baseline
+medical_history,Medical History,baseline
+adhd_rating,ADHD Rating Scale,"baseline,week4,week8,week12"
+conners_adult,Conners Adult ADHD Rating Scale,"baseline,week4,week8,week12"
+side_effects,Side Effects Checklist,"week4,week8,week12"
+vital_signs,Vital Signs,"baseline,week4,week8,week12"
+medication_compliance,Medication Compliance,"week4,week8,week12"
+adverse_events,Adverse Events,"baseline,week4,week8,week12"
+study_completion,Study Completion,week12

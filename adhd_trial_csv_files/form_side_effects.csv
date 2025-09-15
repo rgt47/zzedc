@@ -1,0 +1,16 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be 7 characters
+visit_code,Visit,L,select,1,week4:week8:week12,,
+assessment_date,Assessment Date,D,date,1,,,
+se_appetite,Decreased appetite,L,radio,0,None:Mild:Moderate:Severe,,
+se_insomnia,Sleep problems/insomnia,L,radio,0,None:Mild:Moderate:Severe,,
+se_headache,Headache,L,radio,0,None:Mild:Moderate:Severe,,
+se_nausea,Nausea,L,radio,0,None:Mild:Moderate:Severe,,
+se_dizziness,Dizziness,L,radio,0,None:Mild:Moderate:Severe,,
+se_dry_mouth,Dry mouth,L,radio,0,None:Mild:Moderate:Severe,,
+se_constipation,Constipation,L,radio,0,None:Mild:Moderate:Severe,,
+se_mood_changes,Mood changes/irritability,L,radio,0,None:Mild:Moderate:Severe,,
+se_anxiety,Increased anxiety,L,radio,0,None:Mild:Moderate:Severe,,
+se_heart_rate,Increased heart rate,L,radio,0,None:Mild:Moderate:Severe,,
+se_other,Other side effects,C,textarea,0,,
+se_any_severe,Any severe side effects?,L,radio,1,Yes:No,,

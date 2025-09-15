@@ -1,0 +1,26 @@
+name: Render Research Paper (Container)
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    paths:
+      - 'analysis/report/**'
+      - 'R/**'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    container: rocker/tidyverse:latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Render report to PDF
+        run: |
+          Rscript -e "rmarkdown::render('analysis/report/report.Rmd')"
+      
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-report-pdf
+          path: analysis/report/report.pdf

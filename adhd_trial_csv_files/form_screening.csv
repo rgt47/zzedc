@@ -1,0 +1,14 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be exactly 7 characters
+screening_date,Screening Date,D,date,1,,,screening_date <= today(),Screening date cannot be in future
+age,Age (years),N,numeric,1,,,age >= 18 && age <= 65,Age must be 18-65 years
+gender,Gender,L,radio,1,Male:Female:Other,,
+inclusion_adhd,Meets ADHD criteria?,L,radio,1,Yes:No,,
+inclusion_age,Age 18-65?,L,radio,1,Yes:No,,
+inclusion_consent,Informed consent signed?,L,radio,1,Yes:No,,
+exclusion_pregnancy,Currently pregnant?,L,radio,1,Yes:No,gender=='Female',
+exclusion_medication,Taking excluded medications?,L,radio,1,Yes:No,,
+exclusion_psychosis,History of psychosis?,L,radio,1,Yes:No,,
+eligible,Overall Eligibility,L,radio,1,Eligible:Not Eligible,,
+randomization_group,Randomization Group,L,radio,0,Active:Placebo,eligible=='Eligible',
+notes,Screening Notes,C,textarea,0,,

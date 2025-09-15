@@ -1,0 +1,13 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be 7 characters
+completion_date,Study Completion Date,D,date,1,,,
+completion_status,Completion Status,L,radio,1,Completed:Early_Termination:Lost_to_Follow_up:Withdrawn_Consent,,
+early_termination_reason,Reason for Early Termination,L,select,0,Adverse_Event:Lack_of_Efficacy:Protocol_Violation:Participant_Request:Investigator_Decision:Lost_to_Follow_up:Other,completion_status=='Early_Termination',
+final_dose,Final Study Drug Dose,C,text,0,,
+total_study_days,Total Days in Study,N,numeric,1,,,total_study_days >= 1,Must be at least 1 day
+protocol_deviations,Protocol Deviations,L,checkbox,0,Missed_Visit:Wrong_Dose:Concomitant_Medication:Inclusion_Criteria:Exclusion_Criteria:Other:None,,
+overall_tolerability,Overall Tolerability,L,radio,0,Excellent:Good:Fair:Poor,,
+would_recommend,Would recommend to others?,L,radio,0,Definitely:Probably:Unsure:Probably_Not:Definitely_Not,,
+final_assessment,Final Clinical Assessment,C,textarea,0,,
+investigator_signature,Investigator Signature,C,text,1,,
+signature_date,Signature Date,D,date,1,,,signature_date <= today(),Signature date cannot be future

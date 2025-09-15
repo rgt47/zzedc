@@ -1,0 +1,73 @@
+name: Analysis Workflow (Data Science)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    container: rocker/tidyverse:latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check renv synchronization
+        run: |
+          Rscript check_renv_for_commit.R --quiet --fail-on-issues
+      
+      - name: Validate data analysis structure
+        run: |
+          Rscript -e "if (dir.exists('data')) cat('✅ data/ directory found\\n')"
+          Rscript -e "if (dir.exists('analysis')) cat('✅ analysis/ directory found\\n')"
+          Rscript -e "if (dir.exists('outputs')) cat('✅ outputs/ directory found\\n')"
+          Rscript -e "if (file.exists('renv.lock')) cat('✅ renv.lock found\\n')"
+      
+      - name: Run data validation scripts
+        run: |
+          if [ -f "scripts/validate_data.R" ]; then
+            Rscript scripts/validate_data.R
+          else
+            echo "No data validation script found"
+          fi
+      
+      - name: Run exploratory analysis
+        run: |
+          if [ -d "analysis/exploratory" ]; then
+            find analysis/exploratory -name "*.R" -exec Rscript {} \;
+            find analysis/exploratory -name "*.Rmd" -exec Rscript -e "rmarkdown::render('{}')" \;
+          fi
+      
+      - name: Run statistical modeling
+        run: |
+          if [ -d "analysis/modeling" ]; then
+            find analysis/modeling -name "*.R" -exec Rscript {} \;
+            find analysis/modeling -name "*.Rmd" -exec Rscript -e "rmarkdown::render('{}')" \;
+          fi
+      
+      - name: Generate analysis reports
+        run: |
+          if [ -d "reports" ]; then
+            find reports -name "*.Rmd" -exec Rscript -e "rmarkdown::render('{}')" \;
+          fi
+      
+      - name: Run targets pipeline (if present)
+        run: |
+          if [ -f "_targets.R" ]; then
+            Rscript -e "targets::tar_make()"
+          else
+            echo "No targets pipeline found"
+          fi
+      
+      - name: Upload analysis outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-outputs
+          path: |
+            outputs/
+            reports/*.html
+            reports/*.pdf
+        if: always()

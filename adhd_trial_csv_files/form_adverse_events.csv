@@ -1,0 +1,19 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be 7 characters
+visit_code,Visit,L,select,1,baseline:week4:week8:week12,,
+assessment_date,Assessment Date,D,date,1,,,
+ae_number,AE Number,N,numeric,1,,,ae_number >= 1,AE number must be positive
+ae_description,Event Description,C,textarea,1,,
+ae_start_date,Start Date,D,date,1,,,ae_start_date <= today(),Start date cannot be future
+ae_end_date,End Date,D,date,0,,,ae_end_date >= ae_start_date,End date must be after start date
+ae_ongoing,Ongoing?,L,radio,1,Yes:No,,
+ae_severity,Severity,L,radio,1,Mild:Moderate:Severe:Life_Threatening,,
+ae_relationship,Relationship to study drug,L,radio,1,Unrelated:Unlikely:Possible:Probable:Definite,,
+ae_action_taken,Action taken with study drug,L,radio,0,None:Dose_Reduced:Temporarily_Stopped:Permanently_Stopped,,
+ae_outcome,Outcome,L,radio,1,Recovered:Recovering:Not_Recovered:Fatal:Unknown,,
+ae_serious,Serious Adverse Event?,L,radio,1,Yes:No,,
+ae_expected,Expected event?,L,radio,1,Yes:No,,
+ae_hospitalization,Required hospitalization?,L,radio,0,Yes:No,ae_serious=='Yes',
+ae_life_threatening,Life threatening?,L,radio,0,Yes:No,ae_serious=='Yes',
+reporter_name,Reporter Name,C,text,1,,
+notes,Additional Notes,C,textarea,0,,

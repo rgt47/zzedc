@@ -1,0 +1,5 @@
+username,password,full_name,email,role,site_id,active
+drschen,adhd2024!,Dr. Sarah Chen,schen@university.edu,PI,1,1
+alex_r,biostat123,Alex Rodriguez,arodriguez@university.edu,Admin,1,1
+maria_s,psych456,Maria Santos,msantos@university.edu,Coordinator,1,1
+backup_admin,backup789,Backup Admin,backup@university.edu,Admin,1,0
