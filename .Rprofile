@@ -1,6 +1,6 @@
 # Activate renv for this project
 if (file.exists("renv/activate.R")) {
-  source("renv/activate.R")
+  # source("renv/activate.R")
 }
 
 # Set CRAN mirror

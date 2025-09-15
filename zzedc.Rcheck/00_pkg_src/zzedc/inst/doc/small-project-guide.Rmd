@@ -1,0 +1,228 @@
+---
+title: "ZZedc for Small Clinical Studies"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ZZedc for Small Clinical Studies}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# ZZedc for Small Clinical Studies
+
+This vignette demonstrates how to use ZZedc for small clinical studies (typically 10-50 participants) with simple data collection requirements.
+
+## Overview
+
+Small clinical studies benefit from ZZedc's straightforward setup and intuitive interface. This guide covers:
+
+- Quick setup for small teams
+- Basic data entry workflows
+- Simple reporting and exports
+- Essential quality control
+
+## Prerequisites
+
+```{r setup}
+library(zzedc)
+library(shiny)
+library(DT)
+```
+
+## Quick Setup for Small Studies
+
+### 1. Launch ZZedc
+
+For small studies, you can get started immediately with the built-in sample data:
+
+```{r launch}
+# Launch ZZedc application
+launch_zzedc(
+  host = "127.0.0.1",
+  port = 3838,
+  launch.browser = TRUE
+)
+```
+
+### 2. Initial Configuration
+
+Small studies typically need minimal configuration:
+
+```{r config}
+# Basic configuration for small study
+config_setup <- list(
+  study_name = "Pilot Sleep Study",
+  principal_investigator = "Dr. Smith",
+  site_count = 1,
+  target_enrollment = 25,
+  study_phase = "Pilot"
+)
+```
+
+## Data Entry Workflow
+
+### Simple Data Collection
+
+For small studies, focus on essential data points:
+
+```{r data_entry}
+# Example data structure for small study
+small_study_data <- data.frame(
+  subject_id = paste0("SS_", sprintf("%03d", 1:25)),
+  enrollment_date = seq(as.Date("2024-01-01"), by = "week", length.out = 25),
+  age = sample(18:65, 25, replace = TRUE),
+  gender = sample(c("M", "F"), 25, replace = TRUE),
+  baseline_score = round(rnorm(25, 50, 10), 1),
+  status = sample(c("Active", "Completed", "Withdrawn"), 25,
+                  replace = TRUE, prob = c(0.6, 0.3, 0.1))
+)
+
+# Display sample data
+head(small_study_data)
+```
+
+### Key Features for Small Studies
+
+#### 1. **Simplified Forms**
+- Demographics only
+- Primary endpoint measures
+- Adverse event tracking
+- Visit completion status
+
+#### 2. **Real-time Data Review**
+Navigate to the **EDC** tab for data entry:
+- Each row represents one participant
+- Built-in validation prevents common errors
+- Save progress automatically
+
+#### 3. **Quick Quality Checks**
+```{r quality_checks}
+# Basic data quality metrics
+quality_summary <- function(data) {
+  list(
+    total_subjects = nrow(data),
+    complete_cases = sum(complete.cases(data)),
+    missing_data_pct = round(mean(is.na(data)) * 100, 1),
+    enrollment_rate = paste(nrow(data), "subjects enrolled")
+  )
+}
+
+# Example quality check
+quality_summary(small_study_data)
+```
+
+## Essential Reports for Small Studies
+
+### 1. Enrollment Summary
+```{r enrollment_report}
+# Simple enrollment tracking
+enrollment_summary <- small_study_data %>%
+  group_by(status) %>%
+  summarise(
+    count = n(),
+    percentage = round(n() / nrow(small_study_data) * 100, 1)
+  )
+
+print(enrollment_summary)
+```
+
+### 2. Basic Demographics
+```{r demographics}
+# Demographics summary
+demo_summary <- list(
+  age_stats = summary(small_study_data$age),
+  gender_distribution = table(small_study_data$gender),
+  baseline_score_mean = round(mean(small_study_data$baseline_score, na.rm = TRUE), 1)
+)
+
+demo_summary
+```
+
+## Data Export for Small Studies
+
+### Simple CSV Export
+For small studies, CSV export is often sufficient:
+
+```{r export}
+# Export data for analysis
+# In the ZZedc interface, use Export tab > CSV format
+# Alternatively, save data programmatically:
+write.csv(small_study_data, "small_study_export.csv", row.names = FALSE)
+```
+
+### Analysis-Ready Format
+```{r analysis_format}
+# Prepare data for statistical analysis
+analysis_data <- small_study_data %>%
+  select(subject_id, age, gender, baseline_score, status) %>%
+  mutate(
+    age_group = cut(age, breaks = c(0, 30, 50, 100),
+                    labels = c("18-30", "31-50", "51+")),
+    completed = ifelse(status == "Completed", 1, 0)
+  )
+
+head(analysis_data)
+```
+
+## Best Practices for Small Studies
+
+### 1. **Keep It Simple**
+- Focus on primary endpoints
+- Limit data collection to essentials
+- Use standard forms when possible
+
+### 2. **Regular Data Review**
+```{r review_schedule}
+# Suggested review schedule for small studies
+review_schedule <- data.frame(
+  activity = c("Data entry review", "Missing data check", "Protocol deviations", "Export backup"),
+  frequency = c("Daily", "Weekly", "Weekly", "Weekly"),
+  responsible = c("Research assistant", "PI", "PI", "Data manager")
+)
+
+print(review_schedule)
+```
+
+### 3. **Quality Control Checklist**
+- [ ] All enrolled subjects have complete demographics
+- [ ] Visit dates are chronologically correct
+- [ ] Missing data is documented with reasons
+- [ ] Adverse events are properly coded
+- [ ] Data export matches source documents
+
+## Troubleshooting Common Issues
+
+### Data Entry Problems
+- **Duplicate IDs**: Use sequential numbering (001, 002, etc.)
+- **Date formats**: Ensure consistent YYYY-MM-DD format
+- **Missing values**: Document reasons in comments field
+
+### Export Issues
+- **File permissions**: Ensure write access to export directory
+- **Data formatting**: Check for special characters in text fields
+- **Backup copies**: Always maintain multiple export copies
+
+## Next Steps
+
+Once your small study data collection is complete:
+
+1. **Final data export** in multiple formats (CSV, SPSS, SAS)
+2. **Data cleaning** and validation
+3. **Statistical analysis** using your preferred software
+4. **Archive study data** according to regulatory requirements
+
+For more complex studies or multi-site coordination, see the [Medium Project Guide](medium-project-guide.html) vignette.
+
+## Support
+
+For questions about ZZedc:
+- Email: rgthomas47@gmail.com
+- GitHub: https://github.com/rgt47/zzedc
+- Documentation: See other vignettes for advanced features

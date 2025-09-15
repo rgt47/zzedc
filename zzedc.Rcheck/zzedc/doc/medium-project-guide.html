@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>ZZedc for Medium-Scale Clinical Studies</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">ZZedc for Medium-Scale Clinical
+Studies</h1>
+
+
+
+<div id="zzedc-for-medium-scale-clinical-studies" class="section level1">
+<h1>ZZedc for Medium-Scale Clinical Studies</h1>
+<p>This vignette demonstrates how to use ZZedc for medium-scale clinical
+studies (50-500 participants) with complex data collection requirements,
+multiple sites, and advanced quality control needs.</p>
+<div id="overview" class="section level2">
+<h2>Overview</h2>
+<p>Medium-scale studies require robust data management capabilities.
+This guide covers:</p>
+<ul>
+<li>Multi-site setup and coordination</li>
+<li>Complex data collection workflows</li>
+<li>Advanced quality control and monitoring</li>
+<li>Regulatory compliance features</li>
+<li>Team collaboration tools</li>
+</ul>
+</div>
+<div id="prerequisites" class="section level2">
+<h2>Prerequisites</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">library</span>(shiny)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">library</span>(DT)</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="fu">library</span>(config)</span></code></pre></div>
+</div>
+<div id="study-setup-for-medium-projects" class="section level2">
+<h2>Study Setup for Medium Projects</h2>
+<div id="configuration-management" class="section level3">
+<h3>1. Configuration Management</h3>
+<p>Medium studies benefit from detailed configuration:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Comprehensive study configuration</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>study_config <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="at">study =</span> <span class="fu">list</span>(</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>    <span class="at">name =</span> <span class="st">&quot;Multi-Site Cardiovascular Prevention Trial&quot;</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>    <span class="at">protocol_number =</span> <span class="st">&quot;CVD-2024-001&quot;</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>    <span class="at">phase =</span> <span class="st">&quot;Phase III&quot;</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>    <span class="at">sponsor =</span> <span class="st">&quot;Academic Medical Center&quot;</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>    <span class="at">principal_investigator =</span> <span class="st">&quot;Dr. Johnson&quot;</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>    <span class="at">target_enrollment =</span> <span class="dv">300</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>    <span class="at">study_duration_months =</span> <span class="dv">24</span></span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>  ),</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>  <span class="at">sites =</span> <span class="fu">list</span>(</span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a>    <span class="at">site_001 =</span> <span class="fu">list</span>(<span class="at">name =</span> <span class="st">&quot;University Hospital&quot;</span>, <span class="at">target =</span> <span class="dv">100</span>, <span class="at">pi =</span> <span class="st">&quot;Dr. Smith&quot;</span>),</span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>    <span class="at">site_002 =</span> <span class="fu">list</span>(<span class="at">name =</span> <span class="st">&quot;Community Medical&quot;</span>, <span class="at">target =</span> <span class="dv">100</span>, <span class="at">pi =</span> <span class="st">&quot;Dr. Brown&quot;</span>),</span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a>    <span class="at">site_003 =</span> <span class="fu">list</span>(<span class="at">name =</span> <span class="st">&quot;Regional Health&quot;</span>, <span class="at">target =</span> <span class="dv">100</span>, <span class="at">pi =</span> <span class="st">&quot;Dr. Davis&quot;</span>)</span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a>  ),</span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a>  <span class="at">database =</span> <span class="fu">list</span>(</span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a>    <span class="at">backup_frequency =</span> <span class="st">&quot;daily&quot;</span>,</span>
+<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a>    <span class="at">audit_trail =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a>    <span class="at">user_access_logging =</span> <span class="cn">TRUE</span></span>
+<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a>  )</span>
+<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="launch-with-configuration" class="section level3">
+<h3>2. Launch with Configuration</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Launch ZZedc with study-specific settings</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">launch_zzedc</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="at">host =</span> <span class="st">&quot;0.0.0.0&quot;</span>,  <span class="co"># Allow network access for multi-site</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">port =</span> <span class="dv">3838</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">launch.browser =</span> <span class="cn">TRUE</span></span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>)</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a><span class="co"># Configuration file should be placed in study directory</span></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a><span class="co"># config.yml example for medium studies:</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">default</span><span class="kw">:</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="at">  </span><span class="fu">app</span><span class="kw">:</span></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="at">    </span><span class="fu">name</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;CVD Prevention Trial&quot;</span></span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="at">    </span><span class="fu">version</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;2.0.0&quot;</span></span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a><span class="at">    </span><span class="fu">debug</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span></span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a><span class="at">  </span><span class="fu">database</span><span class="kw">:</span></span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a><span class="at">    </span><span class="fu">path</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;data/cvd_study.db&quot;</span></span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a><span class="at">    </span><span class="fu">pool_size</span><span class="kw">:</span><span class="at"> </span><span class="dv">10</span></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a><span class="at">    </span><span class="fu">backup_enabled</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a><span class="at">  </span><span class="fu">auth</span><span class="kw">:</span></span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a><span class="at">    </span><span class="fu">session_timeout_minutes</span><span class="kw">:</span><span class="at"> </span><span class="dv">60</span></span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a><span class="at">    </span><span class="fu">max_failed_attempts</span><span class="kw">:</span><span class="at"> </span><span class="dv">3</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a><span class="at">    </span><span class="fu">audit_trail</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a><span class="at">  </span><span class="fu">ui</span><span class="kw">:</span></span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a><span class="at">    </span><span class="fu">theme</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;flatly&quot;</span></span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a><span class="at">    </span><span class="fu">primary_color</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;#2c3e50&quot;</span></span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a><span class="fu">production</span><span class="kw">:</span></span>
+<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a><span class="at">  </span><span class="fu">inherits</span><span class="kw">:</span><span class="at"> default</span></span>
+<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a><span class="at">  </span><span class="fu">app</span><span class="kw">:</span></span>
+<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a><span class="at">    </span><span class="fu">debug</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span></span>
+<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a><span class="at">  </span><span class="fu">database</span><span class="kw">:</span></span>
+<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a><span class="at">    </span><span class="fu">pool_size</span><span class="kw">:</span><span class="at"> </span><span class="dv">20</span></span>
+<span id="cb4-24"><a href="#cb4-24" tabindex="-1"></a><span class="at">  </span><span class="fu">logging</span><span class="kw">:</span></span>
+<span id="cb4-25"><a href="#cb4-25" tabindex="-1"></a><span class="at">    </span><span class="fu">level</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;INFO&quot;</span></span>
+<span id="cb4-26"><a href="#cb4-26" tabindex="-1"></a><span class="at">    </span><span class="fu">file</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;logs/production.log&quot;</span></span></code></pre></div>
+</div>
+</div>
+<div id="advanced-data-management" class="section level2">
+<h2>Advanced Data Management</h2>
+<div id="complex-data-structures" class="section level3">
+<h3>Complex Data Structures</h3>
+<p>Medium studies often require sophisticated data models:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Example complex data structure</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>create_study_schema <span class="ot">&lt;-</span> <span class="cf">function</span>() {</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="co"># Demographics table</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  demographics <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>    <span class="at">subject_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>    <span class="at">site_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>    <span class="at">initials =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>    <span class="at">date_of_birth =</span> <span class="fu">as.Date</span>(<span class="fu">character</span>()),</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>    <span class="at">gender =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>    <span class="at">race =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>    <span class="at">ethnicity =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a>    <span class="at">enrollment_date =</span> <span class="fu">as.Date</span>(<span class="fu">character</span>()),</span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>  )</span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a>  <span class="co"># Visit schedule</span></span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a>  visit_schedule <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a>    <span class="at">visit_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a>    <span class="at">subject_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a>    <span class="at">visit_name =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a>    <span class="at">planned_date =</span> <span class="fu">as.Date</span>(<span class="fu">character</span>()),</span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a>    <span class="at">actual_date =</span> <span class="fu">as.Date</span>(<span class="fu">character</span>()),</span>
+<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a>    <span class="at">visit_status =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a>  )</span>
+<span id="cb5-27"><a href="#cb5-27" tabindex="-1"></a></span>
+<span id="cb5-28"><a href="#cb5-28" tabindex="-1"></a>  <span class="co"># Laboratory data</span></span>
+<span id="cb5-29"><a href="#cb5-29" tabindex="-1"></a>  laboratory <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb5-30"><a href="#cb5-30" tabindex="-1"></a>    <span class="at">lab_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-31"><a href="#cb5-31" tabindex="-1"></a>    <span class="at">subject_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-32"><a href="#cb5-32" tabindex="-1"></a>    <span class="at">visit_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-33"><a href="#cb5-33" tabindex="-1"></a>    <span class="at">test_name =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-34"><a href="#cb5-34" tabindex="-1"></a>    <span class="at">result_value =</span> <span class="fu">numeric</span>(),</span>
+<span id="cb5-35"><a href="#cb5-35" tabindex="-1"></a>    <span class="at">units =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-36"><a href="#cb5-36" tabindex="-1"></a>    <span class="at">reference_range =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-37"><a href="#cb5-37" tabindex="-1"></a>    <span class="at">abnormal_flag =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-38"><a href="#cb5-38" tabindex="-1"></a>    <span class="at">collection_date =</span> <span class="fu">as.Date</span>(<span class="fu">character</span>()),</span>
+<span id="cb5-39"><a href="#cb5-39" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb5-40"><a href="#cb5-40" tabindex="-1"></a>  )</span>
+<span id="cb5-41"><a href="#cb5-41" tabindex="-1"></a></span>
+<span id="cb5-42"><a href="#cb5-42" tabindex="-1"></a>  <span class="co"># Adverse events</span></span>
+<span id="cb5-43"><a href="#cb5-43" tabindex="-1"></a>  adverse_events <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb5-44"><a href="#cb5-44" tabindex="-1"></a>    <span class="at">ae_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-45"><a href="#cb5-45" tabindex="-1"></a>    <span class="at">subject_id =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-46"><a href="#cb5-46" tabindex="-1"></a>    <span class="at">event_term =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-47"><a href="#cb5-47" tabindex="-1"></a>    <span class="at">severity =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-48"><a href="#cb5-48" tabindex="-1"></a>    <span class="at">relationship =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-49"><a href="#cb5-49" tabindex="-1"></a>    <span class="at">start_date =</span> <span class="fu">as.Date</span>(<span class="fu">character</span>()),</span>
+<span id="cb5-50"><a href="#cb5-50" tabindex="-1"></a>    <span class="at">end_date =</span> <span class="fu">as.Date</span>(<span class="fu">character</span>()),</span>
+<span id="cb5-51"><a href="#cb5-51" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="fu">character</span>(),</span>
+<span id="cb5-52"><a href="#cb5-52" tabindex="-1"></a>    <span class="at">serious =</span> <span class="fu">logical</span>(),</span>
+<span id="cb5-53"><a href="#cb5-53" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb5-54"><a href="#cb5-54" tabindex="-1"></a>  )</span>
+<span id="cb5-55"><a href="#cb5-55" tabindex="-1"></a></span>
+<span id="cb5-56"><a href="#cb5-56" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb5-57"><a href="#cb5-57" tabindex="-1"></a>    <span class="at">demographics =</span> demographics,</span>
+<span id="cb5-58"><a href="#cb5-58" tabindex="-1"></a>    <span class="at">visits =</span> visit_schedule,</span>
+<span id="cb5-59"><a href="#cb5-59" tabindex="-1"></a>    <span class="at">laboratory =</span> laboratory,</span>
+<span id="cb5-60"><a href="#cb5-60" tabindex="-1"></a>    <span class="at">adverse_events =</span> adverse_events</span>
+<span id="cb5-61"><a href="#cb5-61" tabindex="-1"></a>  )</span>
+<span id="cb5-62"><a href="#cb5-62" tabindex="-1"></a>}</span>
+<span id="cb5-63"><a href="#cb5-63" tabindex="-1"></a></span>
+<span id="cb5-64"><a href="#cb5-64" tabindex="-1"></a>study_tables <span class="ot">&lt;-</span> <span class="fu">create_study_schema</span>()</span></code></pre></div>
+</div>
+<div id="multi-site-data-collection" class="section level3">
+<h3>Multi-Site Data Collection</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Site-specific data management</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>site_data_summary <span class="ot">&lt;-</span> <span class="cf">function</span>(site_id) {</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>    <span class="at">site_id =</span> site_id,</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>    <span class="at">enrolled_subjects =</span> <span class="dv">0</span>,  <span class="co"># Count from database</span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>    <span class="at">completed_visits =</span> <span class="dv">0</span>,   <span class="co"># Count from visits table</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>    <span class="at">pending_queries =</span> <span class="dv">0</span>,    <span class="co"># Data queries requiring resolution</span></span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>    <span class="at">last_data_entry =</span> <span class="fu">Sys.Date</span>(),</span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>    <span class="at">compliance_rate =</span> <span class="fl">0.95</span></span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>  )</span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>}</span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a><span class="co"># Generate site summaries</span></span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>sites <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;001&quot;</span>, <span class="st">&quot;002&quot;</span>, <span class="st">&quot;003&quot;</span>)</span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a>site_summaries <span class="ot">&lt;-</span> <span class="fu">lapply</span>(sites, site_data_summary)</span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a><span class="fu">names</span>(site_summaries) <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">&quot;site_&quot;</span>, sites)</span></code></pre></div>
+</div>
+</div>
+<div id="quality-control-and-monitoring" class="section level2">
+<h2>Quality Control and Monitoring</h2>
+<div id="automated-data-validation" class="section level3">
+<h3>1. Automated Data Validation</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># Comprehensive data validation rules</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>validate_subject_data <span class="ot">&lt;-</span> <span class="cf">function</span>(subject_data) {</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  validation_results <span class="ot">&lt;-</span> <span class="fu">list</span>()</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>  <span class="co"># Demographics validation</span></span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">is.na</span>(subject_data<span class="sc">$</span>date_of_birth) <span class="sc">||</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>      subject_data<span class="sc">$</span>date_of_birth <span class="sc">&gt;</span> <span class="fu">Sys.Date</span>()) {</span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a>    validation_results<span class="sc">$</span>demographics <span class="ot">&lt;-</span> <span class="st">&quot;Invalid date of birth&quot;</span></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a>  }</span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a>  <span class="co"># Age calculation and validation</span></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a>  age <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">Sys.Date</span>() <span class="sc">-</span> subject_data<span class="sc">$</span>date_of_birth) <span class="sc">/</span> <span class="fl">365.25</span></span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a>  <span class="cf">if</span> (age <span class="sc">&lt;</span> <span class="dv">18</span> <span class="sc">||</span> age <span class="sc">&gt;</span> <span class="dv">100</span>) {</span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>    validation_results<span class="sc">$</span>age <span class="ot">&lt;-</span> <span class="st">&quot;Age outside acceptable range (18-100)&quot;</span></span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a>  }</span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a>  <span class="co"># Visit window validation</span></span>
+<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.na</span>(subject_data<span class="sc">$</span>visit_date)) {</span>
+<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a>    days_from_enrollment <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(subject_data<span class="sc">$</span>visit_date <span class="sc">-</span> subject_data<span class="sc">$</span>enrollment_date)</span>
+<span id="cb7-21"><a href="#cb7-21" tabindex="-1"></a>    <span class="cf">if</span> (days_from_enrollment <span class="sc">&lt;</span> <span class="sc">-</span><span class="dv">7</span> <span class="sc">||</span> days_from_enrollment <span class="sc">&gt;</span> <span class="dv">30</span>) {</span>
+<span id="cb7-22"><a href="#cb7-22" tabindex="-1"></a>      validation_results<span class="sc">$</span>visit_window <span class="ot">&lt;-</span> <span class="st">&quot;Visit outside acceptable window&quot;</span></span>
+<span id="cb7-23"><a href="#cb7-23" tabindex="-1"></a>    }</span>
+<span id="cb7-24"><a href="#cb7-24" tabindex="-1"></a>  }</span>
+<span id="cb7-25"><a href="#cb7-25" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" tabindex="-1"></a>  <span class="co"># Laboratory validation</span></span>
+<span id="cb7-27"><a href="#cb7-27" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.na</span>(subject_data<span class="sc">$</span>hemoglobin)) {</span>
+<span id="cb7-28"><a href="#cb7-28" tabindex="-1"></a>    <span class="cf">if</span> (subject_data<span class="sc">$</span>hemoglobin <span class="sc">&lt;</span> <span class="dv">5</span> <span class="sc">||</span> subject_data<span class="sc">$</span>hemoglobin <span class="sc">&gt;</span> <span class="dv">20</span>) {</span>
+<span id="cb7-29"><a href="#cb7-29" tabindex="-1"></a>      validation_results<span class="sc">$</span>lab_hemoglobin <span class="ot">&lt;-</span> <span class="st">&quot;Hemoglobin value appears abnormal&quot;</span></span>
+<span id="cb7-30"><a href="#cb7-30" tabindex="-1"></a>    }</span>
+<span id="cb7-31"><a href="#cb7-31" tabindex="-1"></a>  }</span>
+<span id="cb7-32"><a href="#cb7-32" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" tabindex="-1"></a>  <span class="fu">return</span>(validation_results)</span>
+<span id="cb7-34"><a href="#cb7-34" tabindex="-1"></a>}</span>
+<span id="cb7-35"><a href="#cb7-35" tabindex="-1"></a></span>
+<span id="cb7-36"><a href="#cb7-36" tabindex="-1"></a><span class="co"># Example validation check</span></span>
+<span id="cb7-37"><a href="#cb7-37" tabindex="-1"></a>sample_subject <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb7-38"><a href="#cb7-38" tabindex="-1"></a>  <span class="at">subject_id =</span> <span class="st">&quot;CVD001&quot;</span>,</span>
+<span id="cb7-39"><a href="#cb7-39" tabindex="-1"></a>  <span class="at">date_of_birth =</span> <span class="fu">as.Date</span>(<span class="st">&quot;1970-05-15&quot;</span>),</span>
+<span id="cb7-40"><a href="#cb7-40" tabindex="-1"></a>  <span class="at">enrollment_date =</span> <span class="fu">as.Date</span>(<span class="st">&quot;2024-01-15&quot;</span>),</span>
+<span id="cb7-41"><a href="#cb7-41" tabindex="-1"></a>  <span class="at">visit_date =</span> <span class="fu">as.Date</span>(<span class="st">&quot;2024-01-22&quot;</span>),</span>
+<span id="cb7-42"><a href="#cb7-42" tabindex="-1"></a>  <span class="at">hemoglobin =</span> <span class="fl">12.5</span></span>
+<span id="cb7-43"><a href="#cb7-43" tabindex="-1"></a>)</span>
+<span id="cb7-44"><a href="#cb7-44" tabindex="-1"></a></span>
+<span id="cb7-45"><a href="#cb7-45" tabindex="-1"></a>validation_results <span class="ot">&lt;-</span> <span class="fu">validate_subject_data</span>(sample_subject)</span></code></pre></div>
+</div>
+<div id="data-query-management" class="section level3">
+<h3>2. Data Query Management</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Data query tracking system</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>create_data_query <span class="ot">&lt;-</span> <span class="cf">function</span>(subject_id, field_name, query_text, <span class="at">priority =</span> <span class="st">&quot;Medium&quot;</span>) {</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  <span class="fu">data.frame</span>(</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>    <span class="at">query_id =</span> <span class="fu">paste0</span>(<span class="st">&quot;Q&quot;</span>, <span class="fu">format</span>(<span class="fu">Sys.time</span>(), <span class="st">&quot;%Y%m%d%H%M%S&quot;</span>)),</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>    <span class="at">subject_id =</span> subject_id,</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>    <span class="at">field_name =</span> field_name,</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>    <span class="at">query_text =</span> query_text,</span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>    <span class="at">priority =</span> priority,</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>    <span class="at">status =</span> <span class="st">&quot;Open&quot;</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>    <span class="at">created_date =</span> <span class="fu">Sys.Date</span>(),</span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>    <span class="at">created_by =</span> <span class="st">&quot;System&quot;</span>,</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a>    <span class="at">assigned_to =</span> <span class="st">&quot;Site Coordinator&quot;</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>    <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>  )</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>}</span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a><span class="co"># Example data queries</span></span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>sample_queries <span class="ot">&lt;-</span> <span class="fu">rbind</span>(</span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a>  <span class="fu">create_data_query</span>(<span class="st">&quot;CVD001&quot;</span>, <span class="st">&quot;hemoglobin&quot;</span>, <span class="st">&quot;Value seems high - please verify&quot;</span>, <span class="st">&quot;High&quot;</span>),</span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>  <span class="fu">create_data_query</span>(<span class="st">&quot;CVD002&quot;</span>, <span class="st">&quot;visit_date&quot;</span>, <span class="st">&quot;Missing visit date&quot;</span>, <span class="st">&quot;Medium&quot;</span>),</span>
+<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a>  <span class="fu">create_data_query</span>(<span class="st">&quot;CVD003&quot;</span>, <span class="st">&quot;adverse_event&quot;</span>, <span class="st">&quot;AE relationship unclear&quot;</span>, <span class="st">&quot;Medium&quot;</span>)</span>
+<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a>)</span>
+<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a></span>
+<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a><span class="fu">print</span>(sample_queries)</span></code></pre></div>
+</div>
+</div>
+<div id="advanced-reporting" class="section level2">
+<h2>Advanced Reporting</h2>
+<div id="enrollment-dashboard" class="section level3">
+<h3>1. Enrollment Dashboard</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Create enrollment tracking visualization</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>create_enrollment_dashboard <span class="ot">&lt;-</span> <span class="cf">function</span>(enrollment_data) {</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="co"># Sample enrollment data</span></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  enrollment_by_site <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>    <span class="at">site =</span> <span class="fu">c</span>(<span class="st">&quot;Site 001&quot;</span>, <span class="st">&quot;Site 002&quot;</span>, <span class="st">&quot;Site 003&quot;</span>),</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>    <span class="at">target =</span> <span class="fu">c</span>(<span class="dv">100</span>, <span class="dv">100</span>, <span class="dv">100</span>),</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>    <span class="at">enrolled =</span> <span class="fu">c</span>(<span class="dv">85</span>, <span class="dv">72</span>, <span class="dv">91</span>),</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>    <span class="at">completed =</span> <span class="fu">c</span>(<span class="dv">45</span>, <span class="dv">38</span>, <span class="dv">52</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>  )</span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a>  <span class="co"># Calculate metrics</span></span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a>  enrollment_by_site<span class="sc">$</span>enrollment_rate <span class="ot">&lt;-</span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a>    <span class="fu">round</span>(enrollment_by_site<span class="sc">$</span>enrolled <span class="sc">/</span> enrollment_by_site<span class="sc">$</span>target <span class="sc">*</span> <span class="dv">100</span>, <span class="dv">1</span>)</span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>  enrollment_by_site<span class="sc">$</span>completion_rate <span class="ot">&lt;-</span></span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a>    <span class="fu">round</span>(enrollment_by_site<span class="sc">$</span>completed <span class="sc">/</span> enrollment_by_site<span class="sc">$</span>enrolled <span class="sc">*</span> <span class="dv">100</span>, <span class="dv">1</span>)</span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a>  <span class="fu">return</span>(enrollment_by_site)</span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>}</span>
+<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a></span>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a>enrollment_summary <span class="ot">&lt;-</span> <span class="fu">create_enrollment_dashboard</span>()</span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a><span class="fu">print</span>(enrollment_summary)</span></code></pre></div>
+</div>
+<div id="data-quality-metrics" class="section level3">
+<h3>2. Data Quality Metrics</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Comprehensive data quality assessment</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>calculate_quality_metrics <span class="ot">&lt;-</span> <span class="cf">function</span>(study_data) {</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  metrics <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>    <span class="at">overall_completeness =</span> <span class="dv">0</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>    <span class="at">site_specific_completeness =</span> <span class="fu">list</span>(),</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>    <span class="at">validation_pass_rate =</span> <span class="dv">0</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>    <span class="at">query_resolution_rate =</span> <span class="dv">0</span>,</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>    <span class="at">data_entry_timeliness =</span> <span class="dv">0</span></span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>  )</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a>  <span class="co"># Example calculations</span></span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a>  metrics<span class="sc">$</span>overall_completeness <span class="ot">&lt;-</span> <span class="fl">94.5</span>  <span class="co"># % of required fields completed</span></span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a>  metrics<span class="sc">$</span>validation_pass_rate <span class="ot">&lt;-</span> <span class="fl">97.2</span>  <span class="co"># % of records passing validation</span></span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a>  metrics<span class="sc">$</span>query_resolution_rate <span class="ot">&lt;-</span> <span class="fl">89.3</span>  <span class="co"># % of queries resolved</span></span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a>  metrics<span class="sc">$</span>data_entry_timeliness <span class="ot">&lt;-</span> <span class="fl">91.8</span>  <span class="co"># % of data entered within 48 hours</span></span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a>  <span class="co"># Site-specific metrics</span></span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a>  metrics<span class="sc">$</span>site_specific_completeness <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb10-20"><a href="#cb10-20" tabindex="-1"></a>    <span class="st">&quot;Site_001&quot;</span> <span class="ot">=</span> <span class="fl">96.2</span>,</span>
+<span id="cb10-21"><a href="#cb10-21" tabindex="-1"></a>    <span class="st">&quot;Site_002&quot;</span> <span class="ot">=</span> <span class="fl">93.1</span>,</span>
+<span id="cb10-22"><a href="#cb10-22" tabindex="-1"></a>    <span class="st">&quot;Site_003&quot;</span> <span class="ot">=</span> <span class="fl">94.8</span></span>
+<span id="cb10-23"><a href="#cb10-23" tabindex="-1"></a>  )</span>
+<span id="cb10-24"><a href="#cb10-24" tabindex="-1"></a></span>
+<span id="cb10-25"><a href="#cb10-25" tabindex="-1"></a>  <span class="fu">return</span>(metrics)</span>
+<span id="cb10-26"><a href="#cb10-26" tabindex="-1"></a>}</span>
+<span id="cb10-27"><a href="#cb10-27" tabindex="-1"></a></span>
+<span id="cb10-28"><a href="#cb10-28" tabindex="-1"></a>quality_metrics <span class="ot">&lt;-</span> <span class="fu">calculate_quality_metrics</span>()</span>
+<span id="cb10-29"><a href="#cb10-29" tabindex="-1"></a><span class="fu">print</span>(quality_metrics)</span></code></pre></div>
+</div>
+</div>
+<div id="user-management-and-security" class="section level2">
+<h2>User Management and Security</h2>
+<div id="role-based-access-control" class="section level3">
+<h3>Role-Based Access Control</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># Define user roles for medium studies</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>user_roles <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>  <span class="at">principal_investigator =</span> <span class="fu">list</span>(</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>    <span class="at">permissions =</span> <span class="fu">c</span>(<span class="st">&quot;view_all_data&quot;</span>, <span class="st">&quot;export_data&quot;</span>, <span class="st">&quot;manage_users&quot;</span>, <span class="st">&quot;approve_protocol_deviations&quot;</span>),</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>    <span class="at">description =</span> <span class="st">&quot;Full study access and oversight&quot;</span></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>  ),</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>  <span class="at">site_coordinator =</span> <span class="fu">list</span>(</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>    <span class="at">permissions =</span> <span class="fu">c</span>(<span class="st">&quot;enter_data&quot;</span>, <span class="st">&quot;view_site_data&quot;</span>, <span class="st">&quot;resolve_queries&quot;</span>, <span class="st">&quot;generate_site_reports&quot;</span>),</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>    <span class="at">description =</span> <span class="st">&quot;Site-specific data management&quot;</span></span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>  ),</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a>  <span class="at">data_manager =</span> <span class="fu">list</span>(</span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>    <span class="at">permissions =</span> <span class="fu">c</span>(<span class="st">&quot;view_all_data&quot;</span>, <span class="st">&quot;generate_reports&quot;</span>, <span class="st">&quot;data_validation&quot;</span>, <span class="st">&quot;query_management&quot;</span>),</span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a>    <span class="at">description =</span> <span class="st">&quot;Central data oversight and quality control&quot;</span></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>  ),</span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a>  <span class="at">monitor =</span> <span class="fu">list</span>(</span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a>    <span class="at">permissions =</span> <span class="fu">c</span>(<span class="st">&quot;view_all_data&quot;</span>, <span class="st">&quot;generate_monitoring_reports&quot;</span>, <span class="st">&quot;create_queries&quot;</span>),</span>
+<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a>    <span class="at">description =</span> <span class="st">&quot;Data monitoring and quality assurance&quot;</span></span>
+<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a>  ),</span>
+<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a></span>
+<span id="cb11-23"><a href="#cb11-23" tabindex="-1"></a>  <span class="at">biostatistician =</span> <span class="fu">list</span>(</span>
+<span id="cb11-24"><a href="#cb11-24" tabindex="-1"></a>    <span class="at">permissions =</span> <span class="fu">c</span>(<span class="st">&quot;view_all_data&quot;</span>, <span class="st">&quot;export_analysis_data&quot;</span>, <span class="st">&quot;generate_statistical_reports&quot;</span>),</span>
+<span id="cb11-25"><a href="#cb11-25" tabindex="-1"></a>    <span class="at">description =</span> <span class="st">&quot;Statistical analysis and reporting&quot;</span></span>
+<span id="cb11-26"><a href="#cb11-26" tabindex="-1"></a>  )</span>
+<span id="cb11-27"><a href="#cb11-27" tabindex="-1"></a>)</span>
+<span id="cb11-28"><a href="#cb11-28" tabindex="-1"></a></span>
+<span id="cb11-29"><a href="#cb11-29" tabindex="-1"></a><span class="co"># User management functions</span></span>
+<span id="cb11-30"><a href="#cb11-30" tabindex="-1"></a>create_user_account <span class="ot">&lt;-</span> <span class="cf">function</span>(username, role, <span class="at">site_id =</span> <span class="cn">NULL</span>) {</span>
+<span id="cb11-31"><a href="#cb11-31" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb11-32"><a href="#cb11-32" tabindex="-1"></a>    <span class="at">username =</span> username,</span>
+<span id="cb11-33"><a href="#cb11-33" tabindex="-1"></a>    <span class="at">role =</span> role,</span>
+<span id="cb11-34"><a href="#cb11-34" tabindex="-1"></a>    <span class="at">site_id =</span> site_id,</span>
+<span id="cb11-35"><a href="#cb11-35" tabindex="-1"></a>    <span class="at">permissions =</span> user_roles[[role]]<span class="sc">$</span>permissions,</span>
+<span id="cb11-36"><a href="#cb11-36" tabindex="-1"></a>    <span class="at">created_date =</span> <span class="fu">Sys.Date</span>(),</span>
+<span id="cb11-37"><a href="#cb11-37" tabindex="-1"></a>    <span class="at">last_login =</span> <span class="cn">NA</span>,</span>
+<span id="cb11-38"><a href="#cb11-38" tabindex="-1"></a>    <span class="at">active =</span> <span class="cn">TRUE</span></span>
+<span id="cb11-39"><a href="#cb11-39" tabindex="-1"></a>  )</span>
+<span id="cb11-40"><a href="#cb11-40" tabindex="-1"></a>}</span>
+<span id="cb11-41"><a href="#cb11-41" tabindex="-1"></a></span>
+<span id="cb11-42"><a href="#cb11-42" tabindex="-1"></a><span class="co"># Example user creation</span></span>
+<span id="cb11-43"><a href="#cb11-43" tabindex="-1"></a>study_users <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb11-44"><a href="#cb11-44" tabindex="-1"></a>  <span class="fu">create_user_account</span>(<span class="st">&quot;dr.johnson&quot;</span>, <span class="st">&quot;principal_investigator&quot;</span>),</span>
+<span id="cb11-45"><a href="#cb11-45" tabindex="-1"></a>  <span class="fu">create_user_account</span>(<span class="st">&quot;coord.site1&quot;</span>, <span class="st">&quot;site_coordinator&quot;</span>, <span class="st">&quot;001&quot;</span>),</span>
+<span id="cb11-46"><a href="#cb11-46" tabindex="-1"></a>  <span class="fu">create_user_account</span>(<span class="st">&quot;coord.site2&quot;</span>, <span class="st">&quot;site_coordinator&quot;</span>, <span class="st">&quot;002&quot;</span>),</span>
+<span id="cb11-47"><a href="#cb11-47" tabindex="-1"></a>  <span class="fu">create_user_account</span>(<span class="st">&quot;data.manager&quot;</span>, <span class="st">&quot;data_manager&quot;</span>),</span>
+<span id="cb11-48"><a href="#cb11-48" tabindex="-1"></a>  <span class="fu">create_user_account</span>(<span class="st">&quot;monitor.cro&quot;</span>, <span class="st">&quot;monitor&quot;</span>)</span>
+<span id="cb11-49"><a href="#cb11-49" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+</div>
+<div id="data-export-and-analysis-preparation" class="section level2">
+<h2>Data Export and Analysis Preparation</h2>
+<div id="analysis-datasets" class="section level3">
+<h3>1. Analysis Datasets</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co"># Create analysis-ready datasets</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>prepare_analysis_data <span class="ot">&lt;-</span> <span class="cf">function</span>(raw_data) {</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>  <span class="co"># Safety analysis set</span></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>  safety_set <span class="ot">&lt;-</span> raw_data <span class="sc">%&gt;%</span></span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>    <span class="fu">filter</span>(received_study_drug <span class="sc">==</span> <span class="cn">TRUE</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>    <span class="fu">select</span>(subject_id, site_id, treatment_group, safety_variables)</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>  <span class="co"># Efficacy analysis set</span></span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a>  efficacy_set <span class="ot">&lt;-</span> raw_data <span class="sc">%&gt;%</span></span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>    <span class="fu">filter</span>(</span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>      received_study_drug <span class="sc">==</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a>      baseline_assessment_complete <span class="sc">==</span> <span class="cn">TRUE</span>,</span>
+<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a>      <span class="sc">!</span>major_protocol_deviation</span>
+<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span></span>
+<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a>    <span class="fu">select</span>(subject_id, site_id, treatment_group, efficacy_endpoints)</span>
+<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a></span>
+<span id="cb12-18"><a href="#cb12-18" tabindex="-1"></a>  <span class="co"># Per-protocol set</span></span>
+<span id="cb12-19"><a href="#cb12-19" tabindex="-1"></a>  per_protocol_set <span class="ot">&lt;-</span> efficacy_set <span class="sc">%&gt;%</span></span>
+<span id="cb12-20"><a href="#cb12-20" tabindex="-1"></a>    <span class="fu">filter</span>(</span>
+<span id="cb12-21"><a href="#cb12-21" tabindex="-1"></a>      protocol_compliance <span class="sc">&gt;=</span> <span class="fl">0.8</span>,</span>
+<span id="cb12-22"><a href="#cb12-22" tabindex="-1"></a>      completed_study <span class="sc">==</span> <span class="cn">TRUE</span></span>
+<span id="cb12-23"><a href="#cb12-23" tabindex="-1"></a>    )</span>
+<span id="cb12-24"><a href="#cb12-24" tabindex="-1"></a></span>
+<span id="cb12-25"><a href="#cb12-25" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb12-26"><a href="#cb12-26" tabindex="-1"></a>    <span class="at">safety =</span> safety_set,</span>
+<span id="cb12-27"><a href="#cb12-27" tabindex="-1"></a>    <span class="at">efficacy =</span> efficacy_set,</span>
+<span id="cb12-28"><a href="#cb12-28" tabindex="-1"></a>    <span class="at">per_protocol =</span> per_protocol_set</span>
+<span id="cb12-29"><a href="#cb12-29" tabindex="-1"></a>  )</span>
+<span id="cb12-30"><a href="#cb12-30" tabindex="-1"></a>}</span></code></pre></div>
+</div>
+<div id="regulatory-submission-packages" class="section level3">
+<h3>2. Regulatory Submission Packages</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># Prepare data for regulatory submission</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>create_submission_package <span class="ot">&lt;-</span> <span class="cf">function</span>(study_data, <span class="at">format =</span> <span class="st">&quot;SAS&quot;</span>) {</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>  <span class="co"># Define standardized variable names and formats</span></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>  variable_mapping <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>    <span class="st">&quot;subject_id&quot;</span> <span class="ot">=</span> <span class="st">&quot;SUBJID&quot;</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>    <span class="st">&quot;site_id&quot;</span> <span class="ot">=</span> <span class="st">&quot;SITEID&quot;</span>,</span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>    <span class="st">&quot;treatment_group&quot;</span> <span class="ot">=</span> <span class="st">&quot;TRT01P&quot;</span>,</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>    <span class="st">&quot;enrollment_date&quot;</span> <span class="ot">=</span> <span class="st">&quot;RFSTDTC&quot;</span>,</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>    <span class="st">&quot;demographics&quot;</span> <span class="ot">=</span> <span class="fu">c</span>(<span class="st">&quot;AGE&quot;</span>, <span class="st">&quot;SEX&quot;</span>, <span class="st">&quot;RACE&quot;</span>, <span class="st">&quot;ETHNIC&quot;</span>)</span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>  )</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a></span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>  <span class="co"># Create submission datasets</span></span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>  datasets <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a>    <span class="at">dm =</span> <span class="fu">prepare_demographics_dataset</span>(study_data),</span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>    <span class="at">ae =</span> <span class="fu">prepare_adverse_events_dataset</span>(study_data),</span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a>    <span class="at">lb =</span> <span class="fu">prepare_laboratory_dataset</span>(study_data),</span>
+<span id="cb13-18"><a href="#cb13-18" tabindex="-1"></a>    <span class="at">vs =</span> <span class="fu">prepare_vital_signs_dataset</span>(study_data)</span>
+<span id="cb13-19"><a href="#cb13-19" tabindex="-1"></a>  )</span>
+<span id="cb13-20"><a href="#cb13-20" tabindex="-1"></a></span>
+<span id="cb13-21"><a href="#cb13-21" tabindex="-1"></a>  <span class="co"># Export in requested format</span></span>
+<span id="cb13-22"><a href="#cb13-22" tabindex="-1"></a>  export_path <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">&quot;submission_&quot;</span>, <span class="fu">format.Date</span>(<span class="fu">Sys.Date</span>(), <span class="st">&quot;%Y%m%d&quot;</span>))</span>
+<span id="cb13-23"><a href="#cb13-23" tabindex="-1"></a></span>
+<span id="cb13-24"><a href="#cb13-24" tabindex="-1"></a>  <span class="fu">return</span>(<span class="fu">list</span>(</span>
+<span id="cb13-25"><a href="#cb13-25" tabindex="-1"></a>    <span class="at">datasets =</span> datasets,</span>
+<span id="cb13-26"><a href="#cb13-26" tabindex="-1"></a>    <span class="at">export_path =</span> export_path,</span>
+<span id="cb13-27"><a href="#cb13-27" tabindex="-1"></a>    <span class="at">format =</span> format</span>
+<span id="cb13-28"><a href="#cb13-28" tabindex="-1"></a>  ))</span>
+<span id="cb13-29"><a href="#cb13-29" tabindex="-1"></a>}</span></code></pre></div>
+</div>
+</div>
+<div id="best-practices-for-medium-studies" class="section level2">
+<h2>Best Practices for Medium Studies</h2>
+<div id="data-management-plan" class="section level3">
+<h3>1. Data Management Plan</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co"># Key components of data management plan</span></span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>data_management_plan <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>  <span class="at">data_collection =</span> <span class="fu">list</span>(</span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>    <span class="at">electronic_source_documents =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>    <span class="at">real_time_validation =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a>    <span class="at">duplicate_data_entry =</span> <span class="cn">FALSE</span>,  <span class="co"># EDC eliminates need</span></span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a>    <span class="at">range_checks =</span> <span class="cn">TRUE</span></span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a>  ),</span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a></span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a>  <span class="at">quality_control =</span> <span class="fu">list</span>(</span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a>    <span class="at">automated_validation =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a>    <span class="at">manual_review_frequency =</span> <span class="st">&quot;Weekly&quot;</span>,</span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a>    <span class="at">query_resolution_target =</span> <span class="st">&quot;5 business days&quot;</span>,</span>
+<span id="cb14-14"><a href="#cb14-14" tabindex="-1"></a>    <span class="at">source_data_verification =</span> <span class="st">&quot;Risk-based approach&quot;</span></span>
+<span id="cb14-15"><a href="#cb14-15" tabindex="-1"></a>  ),</span>
+<span id="cb14-16"><a href="#cb14-16" tabindex="-1"></a></span>
+<span id="cb14-17"><a href="#cb14-17" tabindex="-1"></a>  <span class="at">data_security =</span> <span class="fu">list</span>(</span>
+<span id="cb14-18"><a href="#cb14-18" tabindex="-1"></a>    <span class="at">user_authentication =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-19"><a href="#cb14-19" tabindex="-1"></a>    <span class="at">role_based_access =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-20"><a href="#cb14-20" tabindex="-1"></a>    <span class="at">audit_trail =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-21"><a href="#cb14-21" tabindex="-1"></a>    <span class="at">data_backup_frequency =</span> <span class="st">&quot;Daily&quot;</span>,</span>
+<span id="cb14-22"><a href="#cb14-22" tabindex="-1"></a>    <span class="at">encryption =</span> <span class="st">&quot;At rest and in transit&quot;</span></span>
+<span id="cb14-23"><a href="#cb14-23" tabindex="-1"></a>  ),</span>
+<span id="cb14-24"><a href="#cb14-24" tabindex="-1"></a></span>
+<span id="cb14-25"><a href="#cb14-25" tabindex="-1"></a>  <span class="at">database_lock =</span> <span class="fu">list</span>(</span>
+<span id="cb14-26"><a href="#cb14-26" tabindex="-1"></a>    <span class="at">interim_analysis_locks =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb14-27"><a href="#cb14-27" tabindex="-1"></a>    <span class="at">final_database_lock =</span> <span class="st">&quot;After all queries resolved&quot;</span>,</span>
+<span id="cb14-28"><a href="#cb14-28" tabindex="-1"></a>    <span class="at">lock_documentation =</span> <span class="st">&quot;Required&quot;</span></span>
+<span id="cb14-29"><a href="#cb14-29" tabindex="-1"></a>  )</span>
+<span id="cb14-30"><a href="#cb14-30" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="standard-operating-procedures" class="section level3">
+<h3>2. Standard Operating Procedures</h3>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="co"># SOP checklist for medium studies</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a>sop_checklist <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a>  <span class="at">procedure =</span> <span class="fu">c</span>(</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>    <span class="st">&quot;User account creation and management&quot;</span>,</span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>    <span class="st">&quot;Data entry and correction procedures&quot;</span>,</span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>    <span class="st">&quot;Query generation and resolution&quot;</span>,</span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a>    <span class="st">&quot;Adverse event reporting workflow&quot;</span>,</span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a>    <span class="st">&quot;Database backup and recovery&quot;</span>,</span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a>    <span class="st">&quot;Data export and analysis file creation&quot;</span>,</span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a>    <span class="st">&quot;Database lock procedures&quot;</span></span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a>  ),</span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a>  <span class="at">owner =</span> <span class="fu">c</span>(</span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a>    <span class="st">&quot;Data Manager&quot;</span>,</span>
+<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a>    <span class="st">&quot;Site Coordinators&quot;</span>,</span>
+<span id="cb15-15"><a href="#cb15-15" tabindex="-1"></a>    <span class="st">&quot;Data Manager&quot;</span>,</span>
+<span id="cb15-16"><a href="#cb15-16" tabindex="-1"></a>    <span class="st">&quot;Principal Investigator&quot;</span>,</span>
+<span id="cb15-17"><a href="#cb15-17" tabindex="-1"></a>    <span class="st">&quot;IT Administrator&quot;</span>,</span>
+<span id="cb15-18"><a href="#cb15-18" tabindex="-1"></a>    <span class="st">&quot;Biostatistician&quot;</span>,</span>
+<span id="cb15-19"><a href="#cb15-19" tabindex="-1"></a>    <span class="st">&quot;Data Manager&quot;</span></span>
+<span id="cb15-20"><a href="#cb15-20" tabindex="-1"></a>  ),</span>
+<span id="cb15-21"><a href="#cb15-21" tabindex="-1"></a>  <span class="at">review_frequency =</span> <span class="fu">c</span>(</span>
+<span id="cb15-22"><a href="#cb15-22" tabindex="-1"></a>    <span class="st">&quot;Annually&quot;</span>,</span>
+<span id="cb15-23"><a href="#cb15-23" tabindex="-1"></a>    <span class="st">&quot;Annually&quot;</span>,</span>
+<span id="cb15-24"><a href="#cb15-24" tabindex="-1"></a>    <span class="st">&quot;Bi-annually&quot;</span>,</span>
+<span id="cb15-25"><a href="#cb15-25" tabindex="-1"></a>    <span class="st">&quot;Annually&quot;</span>,</span>
+<span id="cb15-26"><a href="#cb15-26" tabindex="-1"></a>    <span class="st">&quot;Annually&quot;</span>,</span>
+<span id="cb15-27"><a href="#cb15-27" tabindex="-1"></a>    <span class="st">&quot;As needed&quot;</span>,</span>
+<span id="cb15-28"><a href="#cb15-28" tabindex="-1"></a>    <span class="st">&quot;Per study&quot;</span></span>
+<span id="cb15-29"><a href="#cb15-29" tabindex="-1"></a>  ),</span>
+<span id="cb15-30"><a href="#cb15-30" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb15-31"><a href="#cb15-31" tabindex="-1"></a>)</span>
+<span id="cb15-32"><a href="#cb15-32" tabindex="-1"></a></span>
+<span id="cb15-33"><a href="#cb15-33" tabindex="-1"></a><span class="fu">print</span>(sop_checklist)</span></code></pre></div>
+</div>
+</div>
+<div id="troubleshooting-and-support" class="section level2">
+<h2>Troubleshooting and Support</h2>
+<div id="common-issues-in-medium-studies" class="section level3">
+<h3>Common Issues in Medium Studies</h3>
+<ol style="list-style-type: decimal">
+<li><strong>Performance Issues</strong>
+<ul>
+<li>Monitor database size and optimize queries</li>
+<li>Consider database indexing for large datasets</li>
+<li>Use data archiving for completed subjects</li>
+</ul></li>
+<li><strong>Multi-site Coordination</strong>
+<ul>
+<li>Establish clear communication protocols</li>
+<li>Provide comprehensive training materials</li>
+<li>Implement regular data review meetings</li>
+</ul></li>
+<li><strong>Data Quality Management</strong>
+<ul>
+<li>Set up automated validation rules</li>
+<li>Establish query resolution workflows</li>
+<li>Monitor data entry patterns across sites</li>
+</ul></li>
+</ol>
+</div>
+<div id="escalation-procedures" class="section level3">
+<h3>Escalation Procedures</h3>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="co"># Define escalation matrix</span></span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>escalation_matrix <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a>  <span class="at">issue_type =</span> <span class="fu">c</span>(<span class="st">&quot;Technical&quot;</span>, <span class="st">&quot;Data Quality&quot;</span>, <span class="st">&quot;Protocol Deviation&quot;</span>, <span class="st">&quot;Serious AE&quot;</span>),</span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a>  <span class="at">first_contact =</span> <span class="fu">c</span>(<span class="st">&quot;IT Support&quot;</span>, <span class="st">&quot;Data Manager&quot;</span>, <span class="st">&quot;Principal Investigator&quot;</span>, <span class="st">&quot;Principal Investigator&quot;</span>),</span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a>  <span class="at">escalation_timeframe =</span> <span class="fu">c</span>(<span class="st">&quot;4 hours&quot;</span>, <span class="st">&quot;24 hours&quot;</span>, <span class="st">&quot;Immediate&quot;</span>, <span class="st">&quot;Immediate&quot;</span>),</span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a>  <span class="at">final_authority =</span> <span class="fu">c</span>(<span class="st">&quot;IT Director&quot;</span>, <span class="st">&quot;Study Director&quot;</span>, <span class="st">&quot;IRB/Sponsor&quot;</span>, <span class="st">&quot;FDA/IRB&quot;</span>),</span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a>)</span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a><span class="fu">print</span>(escalation_matrix)</span></code></pre></div>
+</div>
+</div>
+<div id="integration-with-external-systems" class="section level2">
+<h2>Integration with External Systems</h2>
+<div id="laboratory-data-integration" class="section level3">
+<h3>Laboratory Data Integration</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="co"># Example laboratory data import</span></span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>process_lab_data <span class="ot">&lt;-</span> <span class="cf">function</span>(lab_file_path) {</span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a>  <span class="co"># Read laboratory data</span></span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a>  lab_data <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(lab_file_path)</span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a></span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a>  <span class="co"># Standardize variable names</span></span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a>  lab_data_clean <span class="ot">&lt;-</span> lab_data <span class="sc">%&gt;%</span></span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a>    <span class="fu">rename</span>(</span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a>      <span class="at">subject_id =</span> SubjectID,</span>
+<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a>      <span class="at">test_name =</span> TestName,</span>
+<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a>      <span class="at">result_value =</span> Result,</span>
+<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a>      <span class="at">units =</span> Units,</span>
+<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a>      <span class="at">collection_date =</span> CollectionDate</span>
+<span id="cb17-15"><a href="#cb17-15" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span></span>
+<span id="cb17-16"><a href="#cb17-16" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb17-17"><a href="#cb17-17" tabindex="-1"></a>      <span class="at">collection_date =</span> <span class="fu">as.Date</span>(collection_date),</span>
+<span id="cb17-18"><a href="#cb17-18" tabindex="-1"></a>      <span class="at">result_value =</span> <span class="fu">as.numeric</span>(result_value)</span>
+<span id="cb17-19"><a href="#cb17-19" tabindex="-1"></a>    )</span>
+<span id="cb17-20"><a href="#cb17-20" tabindex="-1"></a></span>
+<span id="cb17-21"><a href="#cb17-21" tabindex="-1"></a>  <span class="co"># Validate against expected ranges</span></span>
+<span id="cb17-22"><a href="#cb17-22" tabindex="-1"></a>  validated_data <span class="ot">&lt;-</span> lab_data_clean <span class="sc">%&gt;%</span></span>
+<span id="cb17-23"><a href="#cb17-23" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb17-24"><a href="#cb17-24" tabindex="-1"></a>      <span class="at">out_of_range =</span> <span class="fu">case_when</span>(</span>
+<span id="cb17-25"><a href="#cb17-25" tabindex="-1"></a>        test_name <span class="sc">==</span> <span class="st">&quot;Hemoglobin&quot;</span> <span class="sc">&amp;</span> (result_value <span class="sc">&lt;</span> <span class="dv">8</span> <span class="sc">|</span> result_value <span class="sc">&gt;</span> <span class="dv">18</span>) <span class="sc">~</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-26"><a href="#cb17-26" tabindex="-1"></a>        test_name <span class="sc">==</span> <span class="st">&quot;Glucose&quot;</span> <span class="sc">&amp;</span> (result_value <span class="sc">&lt;</span> <span class="dv">70</span> <span class="sc">|</span> result_value <span class="sc">&gt;</span> <span class="dv">400</span>) <span class="sc">~</span> <span class="cn">TRUE</span>,</span>
+<span id="cb17-27"><a href="#cb17-27" tabindex="-1"></a>        <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">FALSE</span></span>
+<span id="cb17-28"><a href="#cb17-28" tabindex="-1"></a>      )</span>
+<span id="cb17-29"><a href="#cb17-29" tabindex="-1"></a>    )</span>
+<span id="cb17-30"><a href="#cb17-30" tabindex="-1"></a></span>
+<span id="cb17-31"><a href="#cb17-31" tabindex="-1"></a>  <span class="fu">return</span>(validated_data)</span>
+<span id="cb17-32"><a href="#cb17-32" tabindex="-1"></a>}</span></code></pre></div>
+</div>
+</div>
+<div id="next-steps" class="section level2">
+<h2>Next Steps</h2>
+<p>For medium-scale studies using ZZedc:</p>
+<ol style="list-style-type: decimal">
+<li><strong>Implementation Planning</strong>
+<ul>
+<li>Develop comprehensive data management plan</li>
+<li>Create user training materials</li>
+<li>Establish quality control procedures</li>
+</ul></li>
+<li><strong>Go-Live Preparation</strong>
+<ul>
+<li>Conduct user acceptance testing</li>
+<li>Train all study personnel</li>
+<li>Perform parallel data entry validation</li>
+</ul></li>
+<li><strong>Ongoing Management</strong>
+<ul>
+<li>Monitor data quality metrics</li>
+<li>Conduct regular data reviews</li>
+<li>Maintain documentation and SOPs</li>
+</ul></li>
+</ol>
+<p>For larger, enterprise-level studies, consider additional features
+such as: - Custom report automation - Advanced statistical computing
+integration - Enterprise security features</p>
+</div>
+<div id="support-resources" class="section level2">
+<h2>Support Resources</h2>
+<ul>
+<li><strong>Technical Support</strong>: <a href="mailto:rgthomas47@gmail.com" class="email">rgthomas47@gmail.com</a></li>
+<li><strong>User Community</strong>: GitHub Discussions</li>
+<li><strong>Training Materials</strong>: Available in package
+documentation</li>
+<li><strong>Regulatory Guidance</strong>: See FDA 21 CFR Part 11
+compliance documentation</li>
+</ul>
+</div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

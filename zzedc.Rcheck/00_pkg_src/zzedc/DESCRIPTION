@@ -13,34 +13,19 @@ License: GPL-3 + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Depends: 
-    R (>= 4.0.0)
-Imports:
-    shiny (>= 1.7.0),
-    bslib (>= 0.4.0),
-    bsicons (>= 0.1.0),
-    shinyjs (>= 2.1.0),
-    DT (>= 0.20),
-    ggplot2 (>= 3.4.0),
-    plotly (>= 4.10.0),
-    dplyr (>= 1.0.0),
-    jsonlite (>= 1.7.0),
-    digest (>= 0.6.0),
-    RSQLite (>= 2.2.0),
-    pool (>= 0.1.6),
-    config (>= 0.3.1),
-    lubridate (>= 1.8.0),
-    stringr (>= 1.4.0),
-    httr (>= 1.4.0),
-    shinyalert (>= 3.0.0),
-    googlesheets4 (>= 1.0.0)
-Suggests:
-    testthat (>= 3.0.0),
-    knitr,
-    rmarkdown,
-    here,
-    yaml
+Depends: R (>= 4.0.0)
+Imports: shiny (>= 1.7.0), bslib (>= 0.4.0), bsicons (>= 0.1.0),
+        shinyjs (>= 2.1.0), DT (>= 0.20), ggplot2 (>= 3.4.0), plotly
+        (>= 4.10.0), dplyr (>= 1.0.0), jsonlite (>= 1.7.0), digest (>=
+        0.6.0), RSQLite (>= 2.2.0), pool (>= 0.1.6), config (>= 0.3.1),
+        lubridate (>= 1.8.0), stringr (>= 1.4.0), httr (>= 1.4.0),
+        shinyalert (>= 3.0.0), googlesheets4 (>= 1.0.0)
+Suggests: testthat (>= 3.0.0), knitr, rmarkdown, here, yaml
 URL: https://github.com/rgt47/zzedc
 BugReports: https://github.com/rgt47/zzedc/issues
 Config/testthat/edition: 3
 VignetteBuilder: knitr
+NeedsCompilation: no
+Packaged: 2025-09-15 23:28:37 UTC; zenn
+Author: Ronald G. Thomas [aut, cre]
+Maintainer: Ronald G. Thomas <rgthomas47@gmail.com>

@@ -1,0 +1,660 @@
+---
+title: "ZZedc for Medium-Scale Clinical Studies"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ZZedc for Medium-Scale Clinical Studies}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# ZZedc for Medium-Scale Clinical Studies
+
+This vignette demonstrates how to use ZZedc for medium-scale clinical studies (50-500 participants) with complex data collection requirements, multiple sites, and advanced quality control needs.
+
+## Overview
+
+Medium-scale studies require robust data management capabilities. This guide covers:
+
+- Multi-site setup and coordination
+- Complex data collection workflows
+- Advanced quality control and monitoring
+- Regulatory compliance features
+- Team collaboration tools
+
+## Prerequisites
+
+```{r setup}
+library(zzedc)
+library(shiny)
+library(DT)
+library(dplyr)
+library(ggplot2)
+library(config)
+```
+
+## Study Setup for Medium Projects
+
+### 1. Configuration Management
+
+Medium studies benefit from detailed configuration:
+
+```{r config}
+# Comprehensive study configuration
+study_config <- list(
+  study = list(
+    name = "Multi-Site Cardiovascular Prevention Trial",
+    protocol_number = "CVD-2024-001",
+    phase = "Phase III",
+    sponsor = "Academic Medical Center",
+    principal_investigator = "Dr. Johnson",
+    target_enrollment = 300,
+    study_duration_months = 24
+  ),
+  sites = list(
+    site_001 = list(name = "University Hospital", target = 100, pi = "Dr. Smith"),
+    site_002 = list(name = "Community Medical", target = 100, pi = "Dr. Brown"),
+    site_003 = list(name = "Regional Health", target = 100, pi = "Dr. Davis")
+  ),
+  database = list(
+    backup_frequency = "daily",
+    audit_trail = TRUE,
+    user_access_logging = TRUE
+  )
+)
+```
+
+### 2. Launch with Configuration
+
+```{r launch}
+# Launch ZZedc with study-specific settings
+launch_zzedc(
+  host = "0.0.0.0",  # Allow network access for multi-site
+  port = 3838,
+  launch.browser = TRUE
+)
+
+# Configuration file should be placed in study directory
+# config.yml example for medium studies:
+```
+
+```yaml
+default:
+  app:
+    name: "CVD Prevention Trial"
+    version: "2.0.0"
+    debug: false
+  database:
+    path: "data/cvd_study.db"
+    pool_size: 10
+    backup_enabled: true
+  auth:
+    session_timeout_minutes: 60
+    max_failed_attempts: 3
+    audit_trail: true
+  ui:
+    theme: "flatly"
+    primary_color: "#2c3e50"
+
+production:
+  inherits: default
+  app:
+    debug: false
+  database:
+    pool_size: 20
+  logging:
+    level: "INFO"
+    file: "logs/production.log"
+```
+
+## Advanced Data Management
+
+### Complex Data Structures
+
+Medium studies often require sophisticated data models:
+
+```{r data_model}
+# Example complex data structure
+create_study_schema <- function() {
+
+  # Demographics table
+  demographics <- data.frame(
+    subject_id = character(),
+    site_id = character(),
+    initials = character(),
+    date_of_birth = as.Date(character()),
+    gender = character(),
+    race = character(),
+    ethnicity = character(),
+    enrollment_date = as.Date(character()),
+    stringsAsFactors = FALSE
+  )
+
+  # Visit schedule
+  visit_schedule <- data.frame(
+    visit_id = character(),
+    subject_id = character(),
+    visit_name = character(),
+    planned_date = as.Date(character()),
+    actual_date = as.Date(character()),
+    visit_status = character(),
+    stringsAsFactors = FALSE
+  )
+
+  # Laboratory data
+  laboratory <- data.frame(
+    lab_id = character(),
+    subject_id = character(),
+    visit_id = character(),
+    test_name = character(),
+    result_value = numeric(),
+    units = character(),
+    reference_range = character(),
+    abnormal_flag = character(),
+    collection_date = as.Date(character()),
+    stringsAsFactors = FALSE
+  )
+
+  # Adverse events
+  adverse_events <- data.frame(
+    ae_id = character(),
+    subject_id = character(),
+    event_term = character(),
+    severity = character(),
+    relationship = character(),
+    start_date = as.Date(character()),
+    end_date = as.Date(character()),
+    outcome = character(),
+    serious = logical(),
+    stringsAsFactors = FALSE
+  )
+
+  list(
+    demographics = demographics,
+    visits = visit_schedule,
+    laboratory = laboratory,
+    adverse_events = adverse_events
+  )
+}
+
+study_tables <- create_study_schema()
+```
+
+### Multi-Site Data Collection
+
+```{r multisite}
+# Site-specific data management
+site_data_summary <- function(site_id) {
+  list(
+    site_id = site_id,
+    enrolled_subjects = 0,  # Count from database
+    completed_visits = 0,   # Count from visits table
+    pending_queries = 0,    # Data queries requiring resolution
+    last_data_entry = Sys.Date(),
+    compliance_rate = 0.95
+  )
+}
+
+# Generate site summaries
+sites <- c("001", "002", "003")
+site_summaries <- lapply(sites, site_data_summary)
+names(site_summaries) <- paste0("site_", sites)
+```
+
+## Quality Control and Monitoring
+
+### 1. Automated Data Validation
+
+```{r validation}
+# Comprehensive data validation rules
+validate_subject_data <- function(subject_data) {
+
+  validation_results <- list()
+
+  # Demographics validation
+  if (is.na(subject_data$date_of_birth) ||
+      subject_data$date_of_birth > Sys.Date()) {
+    validation_results$demographics <- "Invalid date of birth"
+  }
+
+  # Age calculation and validation
+  age <- as.numeric(Sys.Date() - subject_data$date_of_birth) / 365.25
+  if (age < 18 || age > 100) {
+    validation_results$age <- "Age outside acceptable range (18-100)"
+  }
+
+  # Visit window validation
+  if (!is.na(subject_data$visit_date)) {
+    days_from_enrollment <- as.numeric(subject_data$visit_date - subject_data$enrollment_date)
+    if (days_from_enrollment < -7 || days_from_enrollment > 30) {
+      validation_results$visit_window <- "Visit outside acceptable window"
+    }
+  }
+
+  # Laboratory validation
+  if (!is.na(subject_data$hemoglobin)) {
+    if (subject_data$hemoglobin < 5 || subject_data$hemoglobin > 20) {
+      validation_results$lab_hemoglobin <- "Hemoglobin value appears abnormal"
+    }
+  }
+
+  return(validation_results)
+}
+
+# Example validation check
+sample_subject <- list(
+  subject_id = "CVD001",
+  date_of_birth = as.Date("1970-05-15"),
+  enrollment_date = as.Date("2024-01-15"),
+  visit_date = as.Date("2024-01-22"),
+  hemoglobin = 12.5
+)
+
+validation_results <- validate_subject_data(sample_subject)
+```
+
+### 2. Data Query Management
+
+```{r queries}
+# Data query tracking system
+create_data_query <- function(subject_id, field_name, query_text, priority = "Medium") {
+  data.frame(
+    query_id = paste0("Q", format(Sys.time(), "%Y%m%d%H%M%S")),
+    subject_id = subject_id,
+    field_name = field_name,
+    query_text = query_text,
+    priority = priority,
+    status = "Open",
+    created_date = Sys.Date(),
+    created_by = "System",
+    assigned_to = "Site Coordinator",
+    stringsAsFactors = FALSE
+  )
+}
+
+# Example data queries
+sample_queries <- rbind(
+  create_data_query("CVD001", "hemoglobin", "Value seems high - please verify", "High"),
+  create_data_query("CVD002", "visit_date", "Missing visit date", "Medium"),
+  create_data_query("CVD003", "adverse_event", "AE relationship unclear", "Medium")
+)
+
+print(sample_queries)
+```
+
+## Advanced Reporting
+
+### 1. Enrollment Dashboard
+
+```{r enrollment_dashboard}
+# Create enrollment tracking visualization
+create_enrollment_dashboard <- function(enrollment_data) {
+
+  # Sample enrollment data
+  enrollment_by_site <- data.frame(
+    site = c("Site 001", "Site 002", "Site 003"),
+    target = c(100, 100, 100),
+    enrolled = c(85, 72, 91),
+    completed = c(45, 38, 52)
+  )
+
+  # Calculate metrics
+  enrollment_by_site$enrollment_rate <-
+    round(enrollment_by_site$enrolled / enrollment_by_site$target * 100, 1)
+
+  enrollment_by_site$completion_rate <-
+    round(enrollment_by_site$completed / enrollment_by_site$enrolled * 100, 1)
+
+  return(enrollment_by_site)
+}
+
+enrollment_summary <- create_enrollment_dashboard()
+print(enrollment_summary)
+```
+
+### 2. Data Quality Metrics
+
+```{r quality_metrics}
+# Comprehensive data quality assessment
+calculate_quality_metrics <- function(study_data) {
+
+  metrics <- list(
+    overall_completeness = 0,
+    site_specific_completeness = list(),
+    validation_pass_rate = 0,
+    query_resolution_rate = 0,
+    data_entry_timeliness = 0
+  )
+
+  # Example calculations
+  metrics$overall_completeness <- 94.5  # % of required fields completed
+  metrics$validation_pass_rate <- 97.2  # % of records passing validation
+  metrics$query_resolution_rate <- 89.3  # % of queries resolved
+  metrics$data_entry_timeliness <- 91.8  # % of data entered within 48 hours
+
+  # Site-specific metrics
+  metrics$site_specific_completeness <- list(
+    "Site_001" = 96.2,
+    "Site_002" = 93.1,
+    "Site_003" = 94.8
+  )
+
+  return(metrics)
+}
+
+quality_metrics <- calculate_quality_metrics()
+print(quality_metrics)
+```
+
+## User Management and Security
+
+### Role-Based Access Control
+
+```{r user_management}
+# Define user roles for medium studies
+user_roles <- list(
+  principal_investigator = list(
+    permissions = c("view_all_data", "export_data", "manage_users", "approve_protocol_deviations"),
+    description = "Full study access and oversight"
+  ),
+
+  site_coordinator = list(
+    permissions = c("enter_data", "view_site_data", "resolve_queries", "generate_site_reports"),
+    description = "Site-specific data management"
+  ),
+
+  data_manager = list(
+    permissions = c("view_all_data", "generate_reports", "data_validation", "query_management"),
+    description = "Central data oversight and quality control"
+  ),
+
+  monitor = list(
+    permissions = c("view_all_data", "generate_monitoring_reports", "create_queries"),
+    description = "Data monitoring and quality assurance"
+  ),
+
+  biostatistician = list(
+    permissions = c("view_all_data", "export_analysis_data", "generate_statistical_reports"),
+    description = "Statistical analysis and reporting"
+  )
+)
+
+# User management functions
+create_user_account <- function(username, role, site_id = NULL) {
+  list(
+    username = username,
+    role = role,
+    site_id = site_id,
+    permissions = user_roles[[role]]$permissions,
+    created_date = Sys.Date(),
+    last_login = NA,
+    active = TRUE
+  )
+}
+
+# Example user creation
+study_users <- list(
+  create_user_account("dr.johnson", "principal_investigator"),
+  create_user_account("coord.site1", "site_coordinator", "001"),
+  create_user_account("coord.site2", "site_coordinator", "002"),
+  create_user_account("data.manager", "data_manager"),
+  create_user_account("monitor.cro", "monitor")
+)
+```
+
+## Data Export and Analysis Preparation
+
+### 1. Analysis Datasets
+
+```{r analysis_datasets}
+# Create analysis-ready datasets
+prepare_analysis_data <- function(raw_data) {
+
+  # Safety analysis set
+  safety_set <- raw_data %>%
+    filter(received_study_drug == TRUE) %>%
+    select(subject_id, site_id, treatment_group, safety_variables)
+
+  # Efficacy analysis set
+  efficacy_set <- raw_data %>%
+    filter(
+      received_study_drug == TRUE,
+      baseline_assessment_complete == TRUE,
+      !major_protocol_deviation
+    ) %>%
+    select(subject_id, site_id, treatment_group, efficacy_endpoints)
+
+  # Per-protocol set
+  per_protocol_set <- efficacy_set %>%
+    filter(
+      protocol_compliance >= 0.8,
+      completed_study == TRUE
+    )
+
+  list(
+    safety = safety_set,
+    efficacy = efficacy_set,
+    per_protocol = per_protocol_set
+  )
+}
+```
+
+### 2. Regulatory Submission Packages
+
+```{r regulatory_export}
+# Prepare data for regulatory submission
+create_submission_package <- function(study_data, format = "SAS") {
+
+  # Define standardized variable names and formats
+  variable_mapping <- list(
+    "subject_id" = "SUBJID",
+    "site_id" = "SITEID",
+    "treatment_group" = "TRT01P",
+    "enrollment_date" = "RFSTDTC",
+    "demographics" = c("AGE", "SEX", "RACE", "ETHNIC")
+  )
+
+  # Create submission datasets
+  datasets <- list(
+    dm = prepare_demographics_dataset(study_data),
+    ae = prepare_adverse_events_dataset(study_data),
+    lb = prepare_laboratory_dataset(study_data),
+    vs = prepare_vital_signs_dataset(study_data)
+  )
+
+  # Export in requested format
+  export_path <- paste0("submission_", format.Date(Sys.Date(), "%Y%m%d"))
+
+  return(list(
+    datasets = datasets,
+    export_path = export_path,
+    format = format
+  ))
+}
+```
+
+## Best Practices for Medium Studies
+
+### 1. Data Management Plan
+
+```{r dmp}
+# Key components of data management plan
+data_management_plan <- list(
+  data_collection = list(
+    electronic_source_documents = TRUE,
+    real_time_validation = TRUE,
+    duplicate_data_entry = FALSE,  # EDC eliminates need
+    range_checks = TRUE
+  ),
+
+  quality_control = list(
+    automated_validation = TRUE,
+    manual_review_frequency = "Weekly",
+    query_resolution_target = "5 business days",
+    source_data_verification = "Risk-based approach"
+  ),
+
+  data_security = list(
+    user_authentication = TRUE,
+    role_based_access = TRUE,
+    audit_trail = TRUE,
+    data_backup_frequency = "Daily",
+    encryption = "At rest and in transit"
+  ),
+
+  database_lock = list(
+    interim_analysis_locks = TRUE,
+    final_database_lock = "After all queries resolved",
+    lock_documentation = "Required"
+  )
+)
+```
+
+### 2. Standard Operating Procedures
+
+```{r sops}
+# SOP checklist for medium studies
+sop_checklist <- data.frame(
+  procedure = c(
+    "User account creation and management",
+    "Data entry and correction procedures",
+    "Query generation and resolution",
+    "Adverse event reporting workflow",
+    "Database backup and recovery",
+    "Data export and analysis file creation",
+    "Database lock procedures"
+  ),
+  owner = c(
+    "Data Manager",
+    "Site Coordinators",
+    "Data Manager",
+    "Principal Investigator",
+    "IT Administrator",
+    "Biostatistician",
+    "Data Manager"
+  ),
+  review_frequency = c(
+    "Annually",
+    "Annually",
+    "Bi-annually",
+    "Annually",
+    "Annually",
+    "As needed",
+    "Per study"
+  ),
+  stringsAsFactors = FALSE
+)
+
+print(sop_checklist)
+```
+
+## Troubleshooting and Support
+
+### Common Issues in Medium Studies
+
+1. **Performance Issues**
+   - Monitor database size and optimize queries
+   - Consider database indexing for large datasets
+   - Use data archiving for completed subjects
+
+2. **Multi-site Coordination**
+   - Establish clear communication protocols
+   - Provide comprehensive training materials
+   - Implement regular data review meetings
+
+3. **Data Quality Management**
+   - Set up automated validation rules
+   - Establish query resolution workflows
+   - Monitor data entry patterns across sites
+
+### Escalation Procedures
+
+```{r escalation}
+# Define escalation matrix
+escalation_matrix <- data.frame(
+  issue_type = c("Technical", "Data Quality", "Protocol Deviation", "Serious AE"),
+  first_contact = c("IT Support", "Data Manager", "Principal Investigator", "Principal Investigator"),
+  escalation_timeframe = c("4 hours", "24 hours", "Immediate", "Immediate"),
+  final_authority = c("IT Director", "Study Director", "IRB/Sponsor", "FDA/IRB"),
+  stringsAsFactors = FALSE
+)
+
+print(escalation_matrix)
+```
+
+## Integration with External Systems
+
+### Laboratory Data Integration
+
+```{r lab_integration}
+# Example laboratory data import
+process_lab_data <- function(lab_file_path) {
+
+  # Read laboratory data
+  lab_data <- read.csv(lab_file_path)
+
+  # Standardize variable names
+  lab_data_clean <- lab_data %>%
+    rename(
+      subject_id = SubjectID,
+      test_name = TestName,
+      result_value = Result,
+      units = Units,
+      collection_date = CollectionDate
+    ) %>%
+    mutate(
+      collection_date = as.Date(collection_date),
+      result_value = as.numeric(result_value)
+    )
+
+  # Validate against expected ranges
+  validated_data <- lab_data_clean %>%
+    mutate(
+      out_of_range = case_when(
+        test_name == "Hemoglobin" & (result_value < 8 | result_value > 18) ~ TRUE,
+        test_name == "Glucose" & (result_value < 70 | result_value > 400) ~ TRUE,
+        TRUE ~ FALSE
+      )
+    )
+
+  return(validated_data)
+}
+```
+
+## Next Steps
+
+For medium-scale studies using ZZedc:
+
+1. **Implementation Planning**
+   - Develop comprehensive data management plan
+   - Create user training materials
+   - Establish quality control procedures
+
+2. **Go-Live Preparation**
+   - Conduct user acceptance testing
+   - Train all study personnel
+   - Perform parallel data entry validation
+
+3. **Ongoing Management**
+   - Monitor data quality metrics
+   - Conduct regular data reviews
+   - Maintain documentation and SOPs
+
+For larger, enterprise-level studies, consider additional features such as:
+- Custom report automation
+- Advanced statistical computing integration
+- Enterprise security features
+
+## Support Resources
+
+- **Technical Support**: rgthomas47@gmail.com
+- **User Community**: GitHub Discussions
+- **Training Materials**: Available in package documentation
+- **Regulatory Guidance**: See FDA 21 CFR Part 11 compliance documentation
