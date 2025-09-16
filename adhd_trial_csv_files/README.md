@@ -1,7 +1,7 @@
-# ADHD Clinical Trial CSV Files
+# Clinical Trial CSV Template Files
 ## Ready-to-Use Data Definitions for ZZedc Implementation
 
-This directory contains CSV files that define all data elements for the ADHD clinical trial workflow described in `ADHD_TRIAL_WORKFLOW.md`. These files can be used directly with R, Google Sheets, or any data management system.
+This directory contains CSV template files that demonstrate how to define clinical trial data elements for ZZedc implementation, using an ADHD clinical trial as a practical example. **These templates can be easily adapted for any therapeutic area or study design** - simply modify the form definitions for your specific research needs.
 
 ---
 
@@ -13,57 +13,57 @@ This directory contains CSV files that define all data elements for the ADHD cli
 - **`sites.csv`** - Study site information
 - **`forms_overview.csv`** - Overview of all clinical forms
 
-### Clinical Form Definitions
-- **`form_screening.csv`** - Screening and enrollment form fields
-- **`form_demographics.csv`** - Participant demographics
-- **`form_medical_history.csv`** - Medical history and baseline information
-- **`form_adhd_rating.csv`** - ADHD Rating Scale (18 items)
-- **`form_side_effects.csv`** - Side effects checklist
-- **`form_vital_signs.csv`** - Vital signs measurements
-- **`form_medication_compliance.csv`** - Medication adherence tracking
-- **`form_adverse_events.csv`** - Adverse event reporting
-- **`form_study_completion.csv`** - Study completion and termination
+### Clinical Form Templates (ADHD Example)
+- **`form_screening.csv`** - Screening and enrollment template (adaptable for any study)
+- **`form_demographics.csv`** - Standard participant demographics (universal)
+- **`form_medical_history.csv`** - Medical history template (customizable)
+- **`form_adhd_rating.csv`** - **Example**: ADHD Rating Scale - *replace with your study's primary endpoint*
+- **`form_side_effects.csv`** - Safety monitoring template (adaptable for any treatment)
+- **`form_vital_signs.csv`** - Standard vital signs (universal)
+- **`form_medication_compliance.csv`** - Treatment adherence template (any therapy)
+- **`form_adverse_events.csv`** - Standard AE reporting (regulatory requirement)
+- **`form_study_completion.csv`** - Study completion template (universal)
 
 ### Utility Files
-- **`load_adhd_trial_data.R`** - R script to load and work with all CSV files
+- **`load_adhd_trial_data.R`** - **Generic** R script to load and work with all CSV files (works for any study)
 - **`README.md`** - This documentation file
 
 ---
 
 ## 🚀 Quick Start
 
-### Option 1: Use with R
+### Option 1: Use with R (Any Study Type)
 ```r
 # Load the data loader script
 source("adhd_trial_csv_files/load_adhd_trial_data.R")
 
-# Load all CSV files
-adhd_data <- load_adhd_trial_csvs()
+# Load all CSV template files
+study_data <- load_adhd_trial_csvs()  # Works for any study - just example name
 
 # View summary
-summary_data <- summarize_adhd_data(adhd_data)
+summary_data <- summarize_adhd_data(study_data)
 print(summary_data)
 
 # Access specific data
-users <- adhd_data$users
-adhd_scale <- adhd_data$form_adhd_rating
+users <- study_data$users  # User accounts (adapt for your team)
+primary_endpoint <- study_data$form_adhd_rating  # Replace with your endpoint
 ```
 
-### Option 2: Use with Google Sheets
+### Option 2: Use with Google Sheets (Any Study)
 ```r
-# Export for Google Sheets
+# Export templates for Google Sheets
 source("adhd_trial_csv_files/load_adhd_trial_data.R")
-adhd_data <- load_adhd_trial_csvs()
-export_for_google_sheets(adhd_data, "google_sheets_export")
+study_data <- load_adhd_trial_csvs()
+export_for_google_sheets(study_data, "google_sheets_export")
 
-# Then upload the exported files to Google Sheets
+# Then upload the exported files to Google Sheets and customize for your study
 ```
 
-### Option 3: Use Individual CSV Files
+### Option 3: Use Individual CSV Templates
 ```r
-# Load specific files as needed
-users <- read.csv("adhd_trial_csv_files/users.csv")
-screening_form <- read.csv("adhd_trial_csv_files/form_screening.csv")
+# Load and customize specific files for your study
+users <- read.csv("adhd_trial_csv_files/users.csv")  # Adapt for your team
+screening_form <- read.csv("adhd_trial_csv_files/form_screening.csv")  # Universal template
 ```
 
 ---
@@ -293,4 +293,4 @@ For questions about using these CSV files:
 3. **Run the demo function** `demo_adhd_data_usage()` for guided usage
 4. **Consult ZZedc documentation** for system-specific questions
 
-This CSV package provides everything needed to implement a complete ADHD clinical trial data capture system using ZZedc or other EDC platforms.
+This CSV template package provides everything needed to implement **any clinical trial** data capture system using ZZedc or other EDC platforms. **The ADHD example serves as a comprehensive template that can be adapted for any therapeutic area, study design, or research question.**

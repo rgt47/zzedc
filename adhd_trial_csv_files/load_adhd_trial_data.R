@@ -1,9 +1,10 @@
-# ADHD Clinical Trial Data Loader
-# This script loads all CSV files for the ADHD trial workflow
+# ZZedc Clinical Trial Data Loader
+# This script loads CSV template files for any clinical trial workflow
+# (Example uses ADHD trial structure, but works for any study type)
 #
 # Usage:
 #   source("load_adhd_trial_data.R")
-#   adhd_data <- load_adhd_trial_csvs()
+#   study_data <- load_adhd_trial_csvs()  # Generic function name for any study
 #
 # Or use individual functions:
 #   users <- load_users_csv()
@@ -15,13 +16,14 @@ library(dplyr)
 # Set the path to CSV files directory
 csv_dir <- "adhd_trial_csv_files"
 
-#' Load all ADHD trial CSV files into a named list
+#' Load all clinical trial CSV template files into a named list
 #' @param csv_directory Path to directory containing CSV files
-#' @return Named list with all loaded data frames
+#' @return Named list with all loaded data frames (works for any study type)
 load_adhd_trial_csvs <- function(csv_directory = csv_dir) {
 
-  cat("Loading ADHD Clinical Trial CSV Files...\n")
-  cat("=====================================\n")
+  cat("Loading Clinical Trial CSV Template Files...\n")
+  cat("===========================================\n")
+  cat("Note: These templates can be used for any study type\n")
 
   # Initialize result list
   adhd_data <- list()
