@@ -4,13 +4,16 @@
 default:
   # Database configuration
   database:
-    path: "data/memory001_study.db"
-    pool_size: 5
+    path: "data/memory001_study.db"  # Path to SQLite database file
+    pool_size: 5  # Connection pool size (2-5x peak concurrent users recommended)
 
   # Security settings
   auth:
     salt_env_var: "ZZEDC_SALT"
-    default_salt: "zzedc_development_salt_2024"
+    # SECURITY: Salt must be provided via ZZEDC_SALT environment variable
+    # Never hardcode salts in production. Generate a strong random salt:
+    # Sys.setenv(ZZEDC_SALT = openssl::rand_hex(32))
+    default_salt: null  # Will fail if env var not set (forces explicit configuration)
     max_failed_attempts: 3
     session_timeout_minutes: 30
 
@@ -19,6 +22,14 @@ default:
     name: "ZZedc - Electronic Data Capture"
     version: "1.0.0"
     debug: true
+
+  # Security and HTTPS configuration
+  security:
+    https_only: false  # Set to true in production
+    ssl_cert_path: null  # Path to SSL certificate (e.g., /etc/ssl/certs/zzedc.crt)
+    ssl_key_path: null   # Path to SSL private key (e.g., /etc/ssl/private/zzedc.key)
+    hsts_enabled: false  # HTTP Strict Transport Security (enable in production)
+    hsts_max_age: 31536000  # HSTS max age in seconds (1 year)
 
   # UI settings
   ui:
@@ -37,7 +48,9 @@ production:
     pool_size: 10
 
   auth:
-    default_salt: "zzedc_production_salt_2024_secure"
+    # SECURITY: Production salt MUST come from environment variable
+    # Set before deployment: export ZZEDC_SALT="<strong-random-value>"
+    default_salt: null
 
   app:
     debug: false
@@ -53,7 +66,9 @@ testing:
     path: ":memory:"
 
   auth:
-    default_salt: "test_salt_123"
+    # Testing: use consistent salt for reproducible tests
+    # In tests, set: Sys.setenv(ZZEDC_SALT = "test_salt_for_testing")
+    default_salt: null
     max_failed_attempts: 1
 
 # GDPR Compliance Configuration
