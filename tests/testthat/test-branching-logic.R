@@ -1,4 +1,5 @@
 # Test: Branching Logic
+library(zzedc)
 
 test_that("parse_branching_rule parses equality rule", {
   rule <- zzedc:::parse_branching_rule("gender == 'Female'")

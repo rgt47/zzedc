@@ -106,7 +106,7 @@ parse_branching_rule <- function(rule) {
       field <- trimws(parts[1])
       values_str <- trimws(parts[2])
       # Remove all parentheses and brackets
-      values_str <- gsub("[\\(\\)\\[\\]]", "", values_str)
+      values_str <- gsub("[()\\[\\]]", "", values_str)
       # Split by comma
       values <- strsplit(values_str, ",")[[1]]
       # Trim whitespace and remove quotes from each value
