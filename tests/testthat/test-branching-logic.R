@@ -1,7 +1,7 @@
 # Test: Branching Logic
 
 test_that("parse_branching_rule parses equality rule", {
-  rule <- parse_branching_rule("gender == 'Female'")
+  rule <- zzedc:::parse_branching_rule("gender == 'Female'")
 
   expect_equal(rule$field, "gender")
   expect_equal(rule$operator, "==")
@@ -9,7 +9,7 @@ test_that("parse_branching_rule parses equality rule", {
 })
 
 test_that("parse_branching_rule parses inequality rule", {
-  rule <- parse_branching_rule("status != 'inactive'")
+  rule <- zzedc:::parse_branching_rule("status != 'inactive'")
 
   expect_equal(rule$field, "status")
   expect_equal(rule$operator, "!=")
@@ -17,7 +17,7 @@ test_that("parse_branching_rule parses inequality rule", {
 })
 
 test_that("parse_branching_rule parses greater than rule", {
-  rule <- parse_branching_rule("age > 18")
+  rule <- zzedc:::parse_branching_rule("age > 18")
 
   expect_equal(rule$field, "age")
   expect_equal(rule$operator, ">")
@@ -25,7 +25,7 @@ test_that("parse_branching_rule parses greater than rule", {
 })
 
 test_that("parse_branching_rule parses less than rule", {
-  rule <- parse_branching_rule("age < 65")
+  rule <- zzedc:::parse_branching_rule("age < 65")
 
   expect_equal(rule$field, "age")
   expect_equal(rule$operator, "<")
@@ -33,7 +33,7 @@ test_that("parse_branching_rule parses less than rule", {
 })
 
 test_that("parse_branching_rule parses greater than or equal rule", {
-  rule <- parse_branching_rule("score >= 50")
+  rule <- zzedc:::parse_branching_rule("score >= 50")
 
   expect_equal(rule$field, "score")
   expect_equal(rule$operator, ">=")
@@ -41,7 +41,7 @@ test_that("parse_branching_rule parses greater than or equal rule", {
 })
 
 test_that("parse_branching_rule parses less than or equal rule", {
-  rule <- parse_branching_rule("score <= 100")
+  rule <- zzedc:::parse_branching_rule("score <= 100")
 
   expect_equal(rule$field, "score")
   expect_equal(rule$operator, "<=")
@@ -49,7 +49,7 @@ test_that("parse_branching_rule parses less than or equal rule", {
 })
 
 test_that("parse_branching_rule parses in rule", {
-  rule <- parse_branching_rule("state in ('CA', 'NY', 'TX')")
+  rule <- zzedc:::parse_branching_rule("state in ('CA', 'NY', 'TX')")
 
   expect_equal(rule$field, "state")
   expect_equal(rule$operator, "in")
@@ -60,13 +60,13 @@ test_that("parse_branching_rule parses in rule", {
 })
 
 test_that("parse_branching_rule returns NULL for invalid rule", {
-  rule <- parse_branching_rule("invalid rule text")
+  rule <- zzedc:::parse_branching_rule("invalid rule text")
 
   expect_null(rule)
 })
 
 test_that("parse_branching_rule handles whitespace", {
-  rule <- parse_branching_rule("  gender  ==  'Female'  ")
+  rule <- zzedc:::parse_branching_rule("  gender  ==  'Female'  ")
 
   expect_equal(rule$field, "gender")
   expect_equal(rule$value, "Female")
@@ -76,7 +76,7 @@ test_that("evaluate_condition handles equality true", {
   rule <- list(field = "gender", operator = "==", value = "Female")
   form_values <- list(gender = "Female")
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_true(result)
 })
@@ -85,7 +85,7 @@ test_that("evaluate_condition handles equality false", {
   rule <- list(field = "gender", operator = "==", value = "Female")
   form_values <- list(gender = "Male")
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_false(result)
 })
@@ -94,7 +94,7 @@ test_that("evaluate_condition handles inequality true", {
   rule <- list(field = "status", operator = "!=", value = "inactive")
   form_values <- list(status = "active")
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_true(result)
 })
@@ -103,7 +103,7 @@ test_that("evaluate_condition handles greater than true", {
   rule <- list(field = "age", operator = ">", value = 18)
   form_values <- list(age = 25)
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_true(result)
 })
@@ -112,7 +112,7 @@ test_that("evaluate_condition handles greater than false", {
   rule <- list(field = "age", operator = ">", value = 18)
   form_values <- list(age = 16)
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_false(result)
 })
@@ -121,7 +121,7 @@ test_that("evaluate_condition handles less than true", {
   rule <- list(field = "age", operator = "<", value = 65)
   form_values <- list(age = 45)
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_true(result)
 })
@@ -130,7 +130,7 @@ test_that("evaluate_condition handles in operator true", {
   rule <- list(field = "state", operator = "in", value = c("CA", "NY", "TX"))
   form_values <- list(state = "CA")
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_true(result)
 })
@@ -139,7 +139,7 @@ test_that("evaluate_condition handles in operator false", {
   rule <- list(field = "state", operator = "in", value = c("CA", "NY", "TX"))
   form_values <- list(state = "FL")
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_false(result)
 })
@@ -148,7 +148,7 @@ test_that("evaluate_condition handles missing field", {
   rule <- list(field = "missing_field", operator = "==", value = "value")
   form_values <- list(other_field = "value")
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_false(result)
 })
@@ -205,7 +205,7 @@ test_that("validate_form_with_branching allows empty optional conditional field"
     pregnancy_date = list(type = "date", required = TRUE, show_if = "gender == 'Female'")
   )
 
-  result <- validate_form_with_branching(form_data, form_fields)
+  result <- zzedc:::validate_form_with_branching(form_data, form_fields)
 
   expect_true(result$valid)
   expect_equal(length(result$errors), 0)
@@ -218,7 +218,7 @@ test_that("validate_form_with_branching requires visible conditional field", {
     pregnancy_date = list(type = "date", required = TRUE, show_if = "gender == 'Female'")
   )
 
-  result <- validate_form_with_branching(form_data, form_fields)
+  result <- zzedc:::validate_form_with_branching(form_data, form_fields)
 
   expect_false(result$valid)
   expect_true(any(grepl("pregnancy_date", result$errors, ignore.case = TRUE)))
@@ -236,7 +236,7 @@ test_that("validate_form_with_branching allows hidden required field to be empty
     )
   )
 
-  result <- validate_form_with_branching(form_data, form_fields)
+  result <- zzedc:::validate_form_with_branching(form_data, form_fields)
 
   expect_true(result$valid)
   expect_equal(length(result$errors), 0)
@@ -258,7 +258,7 @@ test_that("validate_form_with_branching handles multiple conditions", {
     )
   )
 
-  result <- validate_form_with_branching(form_data, form_fields)
+  result <- zzedc:::validate_form_with_branching(form_data, form_fields)
 
   # pregnancy_date is visible and required, so validation fails
   # (Note: Current implementation doesn't support "and" - this is a simplified test)
@@ -270,14 +270,14 @@ test_that("validate_form_with_branching handles multiple conditions", {
 # Edge case tests
 
 test_that("parse_branching_rule handles quoted values with spaces", {
-  rule <- parse_branching_rule("city == 'New York'")
+  rule <- zzedc:::parse_branching_rule("city == 'New York'")
 
   expect_equal(rule$field, "city")
   expect_equal(rule$value, "New York")
 })
 
 test_that("parse_branching_rule handles numeric values", {
-  rule <- parse_branching_rule("age >= 18")
+  rule <- zzedc:::parse_branching_rule("age >= 18")
 
   expect_equal(rule$field, "age")
   expect_equal(rule$value, 18)
@@ -288,7 +288,7 @@ test_that("evaluate_condition handles string to numeric conversion", {
   rule <- list(field = "age", operator = ">", value = 18)
   form_values <- list(age = "25")  # String instead of numeric
 
-  result <- evaluate_condition(rule, form_values)
+  result <- zzedc:::evaluate_condition(rule, form_values)
 
   expect_true(result)
 })
@@ -310,13 +310,13 @@ test_that("validate_form_with_branching handles empty form data", {
     pregnancy_date = list(type = "date", required = FALSE, show_if = "gender == 'Female'")
   )
 
-  result <- validate_form_with_branching(form_data, form_fields)
+  result <- zzedc:::validate_form_with_branching(form_data, form_fields)
 
   expect_true(result$valid)
 })
 
 test_that("parse_branching_rule handles brackets in in() syntax", {
-  rule <- parse_branching_rule("state in [CA, NY, TX]")
+  rule <- zzedc:::parse_branching_rule("state in [CA, NY, TX]")
 
   expect_equal(rule$field, "state")
   expect_equal(rule$operator, "in")

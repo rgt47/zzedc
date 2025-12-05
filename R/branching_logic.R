@@ -98,19 +98,28 @@ parse_branching_rule <- function(rule) {
     ))
   }
 
-  if (grepl("in", rule, ignore.case = TRUE)) {
-    parts <- strsplit(rule, "in", ignore.case = TRUE)[[1]]
-    field <- trimws(parts[1])
-    values_str <- trimws(parts[2])
-    values_str <- gsub("[()\\[\\]]", "", values_str)
-    values <- strsplit(values_str, ",")[[1]]
-    values <- trimws(gsub("['\"]", "", values))
+  if (grepl(" in ", rule, ignore.case = TRUE)) {
+    # Split by 'in' operator surrounded by spaces
+    parts <- strsplit(rule, " in ")[[1]]
 
-    return(list(
-      field = field,
-      operator = "in",
-      value = values
-    ))
+    if (length(parts) >= 2) {
+      field <- trimws(parts[1])
+      values_str <- trimws(parts[2])
+      # Remove all parentheses and brackets
+      values_str <- gsub("[\\(\\)\\[\\]]", "", values_str)
+      # Split by comma
+      values <- strsplit(values_str, ",")[[1]]
+      # Trim whitespace and remove quotes from each value
+      values <- trimws(gsub("['\"]", "", values))
+      # Remove empty values
+      values <- values[nchar(values) > 0]
+
+      return(list(
+        field = field,
+        operator = "in",
+        value = values
+      ))
+    }
   }
 
   NULL
