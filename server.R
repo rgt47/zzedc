@@ -17,7 +17,7 @@ server <- function(input, output, session) {
   message("Using traditional server implementation")
 
   # Load module files with error handling
-  module_files <- c('R/modules/auth_module.R', 'R/modules/home_module.R', 'R/modules/instrument_import_module.R', 'R/modules/data_module.R')
+  module_files <- c('R/modules/auth_module.R', 'R/modules/home_module.R', 'R/modules/instrument_import_module.R', 'R/modules/quality_dashboard_module.R', 'R/modules/data_module.R')
 
   for (module_file in module_files) {
     if (file.exists(module_file)) {

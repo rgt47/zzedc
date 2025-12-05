@@ -78,6 +78,14 @@ home_ui <- function(id) {
       )
     ),
 
+    # Quality Dashboard Section
+    hr(class = "my-4"),
+    fluidRow(
+      column(12,
+        quality_dashboard_ui("quality_dashboard")
+      )
+    ),
+
     # Additional info cards
     fluidRow(
       column(6,
@@ -162,6 +170,7 @@ home_server <- function(id, db_conn = NULL) {
     # Initialize instrument import module if database connection provided
     if (!is.null(db_conn)) {
       instrument_import_server("instrument_import", db_conn)
+      quality_dashboard_server("quality_dashboard", db_conn, refresh_interval = 60000)
     }
 
     # Quick Start Guide event handler

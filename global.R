@@ -126,6 +126,7 @@ module_files <- c(
   "R/modules/auth_module.R",
   "R/modules/home_module.R",
   "R/modules/instrument_import_module.R",
+  "R/modules/quality_dashboard_module.R",
   "R/modules/data_module.R",
   "R/modules/privacy_module.R",
   "R/modules/cfr_compliance_module.R"
