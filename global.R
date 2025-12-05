@@ -12,8 +12,10 @@ required_packages <- c(
   # Data handling
   "DT",
   "dplyr",
+  "tibble",  # For audit logging and data structures
   "RSQLite",
   "pool",
+  "rlang",   # For modern ggplot2 syntax
 
   # Visualization
   "ggplot2",
@@ -74,6 +76,15 @@ if (requireNamespace("pool", quietly = TRUE) && requireNamespace("RSQLite", quie
     maxSize = cfg$database$pool_size
   )
 
+  # Verify database connection on startup
+  tryCatch({
+    test_conn <- pool::poolCheckout(db_pool)
+    pool::poolReturn(test_conn)
+    message("✓ Database pool initialized successfully (pool_size: ", cfg$database$pool_size, ")")
+  }, error = function(e) {
+    warning("Database pool initialization error: ", e$message)
+  })
+
   # Ensure pool is closed when app stops
   onStop(function() {
     pool::poolClose(db_pool)
@@ -86,16 +97,63 @@ if (requireNamespace("pool", quietly = TRUE) && requireNamespace("RSQLite", quie
 
 trial_name <- "trial0"
 
-user_input <- reactiveValues(
+# Consolidated session state management
+# Single source of truth for all authenticated user information
+user_session <- reactiveValues(
+  # Authentication state
   authenticated = FALSE,
-  authenticated_enroll = FALSE,  # Fixed naming consistency
-  valid_credentials = FALSE,
+  authentication_timestamp = NULL,
+
+  # User identity
   user_id = NULL,
   username = NULL,
   full_name = NULL,
   role = NULL,
-  site_id = NULL
+  site_id = NULL,
+
+  # Session tracking
+  last_activity = Sys.time(),
+  session_start = NULL
 )
+
+# Legacy name for backward compatibility (deprecated - use user_session instead)
+# TODO: Refactor references from user_input to user_session
+user_input <- user_session
+
+# Load application modules at startup (before server definition)
+# Modules must be loaded explicitly, not dynamically in server() for better error handling
+module_files <- c(
+  "R/modules/auth_module.R",
+  "R/modules/home_module.R",
+  "R/modules/data_module.R",
+  "R/modules/privacy_module.R",
+  "R/modules/cfr_compliance_module.R"
+)
+
+# Load each module with explicit error handling
+modules_loaded <- list()
+for (module_file in module_files) {
+  if (file.exists(module_file)) {
+    tryCatch({
+      source(module_file, local = FALSE)  # Load into global environment
+      module_name <- tools::file_path_sans_ext(basename(module_file))
+      modules_loaded[[module_name]] <- TRUE
+      message("✓ Loaded module: ", module_name)
+    }, error = function(e) {
+      warning("Failed to load module '", module_file, "': ", e$message)
+      modules_loaded[[basename(module_file)]] <<- FALSE
+    })
+  } else {
+    message("ℹ Module not found: ", module_file, " (optional)")
+  }
+}
+
+# Verify critical modules are loaded
+required_modules <- c("auth_module", "home_module")
+missing_modules <- required_modules[which(!required_modules %in% names(modules_loaded))]
+if (length(missing_modules) > 0) {
+  stop("Critical modules not loaded: ", paste(missing_modules, collapse = ", "))
+}
 
 requ <- function(label) {
   tagList(span("*", class = "req_star"), label)

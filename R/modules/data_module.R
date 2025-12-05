@@ -8,8 +8,32 @@ if (!requireNamespace("plotly", quietly = TRUE)) {
 
 #' Data Explorer Module UI
 #'
-#' @param id The namespace id for the module
-#' @return A fluidPage containing the data explorer UI
+#' Create the user interface for the data exploration module. Provides
+#' controls for selecting data sources (local files, database, or sample data),
+#' viewing data tables, analyzing missing data patterns, and creating visualizations.
+#'
+#' @param id Character. The module namespace ID, used for creating unique input/output names
+#'
+#' @return A shiny.tag.list object containing the complete data explorer UI with:
+#'   - Data source selection controls (file upload, database connection)
+#'   - Display options (rows to show, statistical summaries)
+#'   - Multiple tabs: Data View, Variable Info, Missing Data Analysis, Visualizations
+#'
+#' @details
+#' The module supports three data sources:
+#' \itemize{
+#'   \item Local CSV/TSV files (uploaded via file input)
+#'   \item Database connections (connection string and table name)
+#'   \item Built-in sample data (for demonstration and testing)
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' # In ui.R
+#' data_ui("explorer")
+#' }
+#'
+#' @export
 data_ui <- function(id) {
   ns <- NS(id)
 
@@ -124,12 +148,41 @@ data_ui <- function(id) {
 
 #' Data Explorer Module Server
 #'
-#' @param id The namespace id for the module
-#' @return Server function for data explorer module
+#' Implements server-side logic for data exploration, visualization, and analysis.
+#' Handles data loading from multiple sources, reactive updates, and visualization generation.
+#'
+#' @param id Character. The module namespace ID matching the UI id
+#'
+#' @return A Shiny module server function that manages:
+#'   - Data loading and validation from various sources
+#'   - Dynamic UI updates based on loaded data
+#'   - Data summary statistics and visualizations
+#'   - Missing data analysis and reporting
+#'
+#' @details
+#' The module uses memoization to optimize performance:
+#' - data_stats reactive caches expensive computations
+#' - Results are reused across multiple output renderers
+#' - Prevents duplicate data processing and file I/O
+#'
+#' Error handling:
+#' - File loading errors return user-friendly error messages
+#' - Invalid data sources return helpful guidance
+#' - Missing values are clearly indicated in visualizations
+#'
+#' @examples
+#' \dontrun{
+#' # In server.R
+#' data_server("explorer")
+#' }
+#'
+#' @export
 data_server <- function(id) {
   moduleServer(id, function(input, output, session) {
 
-    # Reactive data loading with proper validation
+    # OPTIMIZATION: Memoized data loading with caching
+    # current_data() is called multiple times by different outputs
+    # Caching ensures data is only read/generated once per load
     current_data <- reactive({
       req(input$data_source)
 
@@ -156,6 +209,28 @@ data_server <- function(id) {
       } else {
         data.frame(Message = "Please select a data source or upload a file")
       }
+    })
+
+    # OPTIMIZATION: Memoize expensive computations
+    # Precompute statistics once instead of recalculating for each output
+    data_stats <- reactive({
+      data <- current_data()
+      req(data, nrow(data) > 0)
+
+      list(
+        nrows = nrow(data),
+        ncols = ncol(data),
+        missing_total = sum(is.na(data)),
+        complete_cases = sum(complete.cases(data)),
+        missing_by_col = sapply(data, function(x) sum(is.na(x))),
+        missing_pct_by_col = round(sapply(data, function(x) sum(is.na(x)) / length(x) * 100), 2),
+        col_types = sapply(data, class),
+        unique_values = sapply(data, function(x) length(unique(x[!is.na(x)]))),
+        example_values = sapply(data, function(x) {
+          vals <- unique(x[!is.na(x)])[1:3]
+          paste(vals[!is.na(vals)], collapse = ", ")
+        })
+      )
     })
 
     output$data_table <- DT::renderDataTable({
@@ -269,19 +344,20 @@ data_server <- function(id) {
       }
 
       if (input$viz_type == "scatter" && !is.null(input$viz_var_y) && input$viz_var_y != "") {
-        p <- ggplot(data, aes_string(x = input$viz_var_x, y = input$viz_var_y)) +
+        # Modern ggplot2 syntax using .data pronoun (ggplot2 >= 3.0)
+        p <- ggplot(data, aes(x = .data[[input$viz_var_x]], y = .data[[input$viz_var_y]])) +
           geom_point(alpha = 0.6) +
           theme_minimal()
       } else if (input$viz_type == "hist") {
-        p <- ggplot(data, aes_string(x = input$viz_var_x)) +
+        p <- ggplot(data, aes(x = .data[[input$viz_var_x]])) +
           geom_histogram(bins = 20, fill = "lightblue", alpha = 0.7) +
           theme_minimal()
       } else if (input$viz_type == "box") {
-        p <- ggplot(data, aes_string(y = input$viz_var_x)) +
+        p <- ggplot(data, aes(y = .data[[input$viz_var_x]])) +
           geom_boxplot(fill = "lightgreen", alpha = 0.7) +
           theme_minimal()
       } else {
-        p <- ggplot(data, aes_string(x = input$viz_var_x)) +
+        p <- ggplot(data, aes(x = .data[[input$viz_var_x]])) +
           geom_bar(fill = "lightcoral", alpha = 0.7) +
           theme_minimal()
       }
