@@ -71,6 +71,13 @@ home_ui <- function(id) {
       )
     ),
 
+    # Instrument Import Card
+    fluidRow(
+      column(12,
+        instrument_import_ui("instrument_import")
+      )
+    ),
+
     # Additional info cards
     fluidRow(
       column(6,
@@ -147,9 +154,15 @@ home_ui <- function(id) {
 #' Home Module Server
 #'
 #' @param id The namespace id for the module
+#' @param db_conn Reactive database connection
 #' @return Server function for home module
-home_server <- function(id) {
+home_server <- function(id, db_conn = NULL) {
   moduleServer(id, function(input, output, session) {
+
+    # Initialize instrument import module if database connection provided
+    if (!is.null(db_conn)) {
+      instrument_import_server("instrument_import", db_conn)
+    }
 
     # Quick Start Guide event handler
     observeEvent(input$quick_start, {

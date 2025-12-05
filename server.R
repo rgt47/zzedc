@@ -17,7 +17,7 @@ server <- function(input, output, session) {
   message("Using traditional server implementation")
 
   # Load module files with error handling
-  module_files <- c('R/modules/auth_module.R', 'R/modules/home_module.R', 'R/modules/data_module.R')
+  module_files <- c('R/modules/auth_module.R', 'R/modules/home_module.R', 'R/modules/instrument_import_module.R', 'R/modules/data_module.R')
 
   for (module_file in module_files) {
     if (file.exists(module_file)) {
@@ -42,13 +42,22 @@ server <- function(input, output, session) {
     }
   }
 
+  # Create reactive database connection
+  db_conn <- reactive({
+    if (!is.null(db_pool)) {
+      db_pool
+    } else {
+      NULL
+    }
+  })
+
   # Initialize modules (if functions are available)
   tryCatch({
     if (exists("auth_server")) {
       auth_module <- auth_server("auth", user_input)
     }
     if (exists("home_server")) {
-      home_server("home")
+      home_server("home", db_conn)
     }
     if (exists("data_server")) {
       data_server("data")

@@ -125,10 +125,38 @@ user_input <- user_session
 module_files <- c(
   "R/modules/auth_module.R",
   "R/modules/home_module.R",
+  "R/modules/instrument_import_module.R",
   "R/modules/data_module.R",
   "R/modules/privacy_module.R",
   "R/modules/cfr_compliance_module.R"
 )
+
+# Load utility service modules
+utility_files <- c(
+  "R/validation_utils.R",
+  "R/audit_logger.R",
+  "R/session_timeout.R",
+  "R/error_handling.R",
+  "R/form_validators.R",
+  "R/export_service.R",
+  "R/data_pagination.R",
+  "R/instrument_library.R"
+)
+
+# Load utility files with explicit error handling
+for (utility_file in utility_files) {
+  if (file.exists(utility_file)) {
+    tryCatch({
+      source(utility_file, local = FALSE)  # Load into global environment
+      utility_name <- tools::file_path_sans_ext(basename(utility_file))
+      message("✓ Loaded utility: ", utility_name)
+    }, error = function(e) {
+      warning("Failed to load utility '", utility_file, "': ", e$message)
+    })
+  } else {
+    message("ℹ Utility not found: ", utility_file, " (optional)")
+  }
+}
 
 # Load each module with explicit error handling
 modules_loaded <- list()
