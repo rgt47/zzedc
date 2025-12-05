@@ -1,7 +1,9 @@
 #' Render form panel with typed input fields
 #'
 #' Generates appropriate input controls based on field metadata.
-#' Supports multiple field types: text, numeric, date, select, checkbox, email
+#' Supports 15+ field types for flexible data collection:
+#' text, numeric, date, datetime, time, email, select, radio, checkbox,
+#' checkbox_group, textarea, notes, slider, file, signature
 #'
 #' @param fields Character vector of field names OR list of field configurations
 #' @param field_metadata List containing field definitions with type, required, choices, etc.
@@ -15,7 +17,10 @@
 #'     age = list(type = "numeric", required = TRUE, min = 0, max = 150),
 #'     email = list(type = "email", required = TRUE),
 #'     treatment = list(type = "select", choices = c("A", "B", "C")),
-#'     visit_date = list(type = "date", required = TRUE)
+#'     visit_date = list(type = "date", required = TRUE),
+#'     visit_time = list(type = "time", required = TRUE),
+#'     pain_level = list(type = "slider", min = 0, max = 10, value = 5),
+#'     symptoms = list(type = "checkbox_group", choices = c("Pain", "Fever", "Cough"))
 #'   )
 #' }
 #'
@@ -23,7 +28,8 @@
 #' \dontrun{
 #' metadata <- list(
 #'   age = list(type = "numeric", required = TRUE, label = "Age (years)"),
-#'   gender = list(type = "select", choices = c("M", "F"), label = "Gender")
+#'   gender = list(type = "select", choices = c("M", "F"), label = "Gender"),
+#'   visit_time = list(type = "time", required = TRUE, label = "Visit Time")
 #' )
 #' renderPanel(names(metadata), metadata)
 #' }
@@ -108,6 +114,107 @@ renderPanel <- function(fields, field_metadata = NULL) {
         field_config$value %||% "",
         placeholder = field_config$placeholder %||% ""
       ),
+
+      # Notes field (alias for textarea with default of 6 rows)
+      "notes" = tags$textarea(
+        id = field_name,
+        class = "form-control",
+        rows = field_config$rows %||% 6,
+        cols = field_config$cols %||% 50,
+        field_config$value %||% "",
+        placeholder = field_config$placeholder %||% "Enter notes here..."
+      ),
+
+      # Time field (time of day)
+      "time" = if (requireNamespace("shinyTime", quietly = TRUE)) {
+        shinyTime::timeInput(
+          field_name,
+          label,
+          value = field_config$value %||% Sys.time(),
+          seconds = field_config$seconds %||% FALSE
+        )
+      } else {
+        # Fallback to text input if shinyTime not available
+        textInput(
+          field_name,
+          label,
+          placeholder = "HH:MM",
+          value = field_config$value %||% ""
+        )
+      },
+
+      # DateTime field (date and time combined)
+      "datetime" = if (requireNamespace("shinyWidgets", quietly = TRUE)) {
+        shinyWidgets::datetimeInput(
+          field_name,
+          label,
+          value = field_config$value %||% Sys.time(),
+          format = field_config$format %||% "YYYY-MM-DD HH:mm"
+        )
+      } else {
+        # Fallback to text input
+        textInput(
+          field_name,
+          label,
+          placeholder = "YYYY-MM-DD HH:MM",
+          value = field_config$value %||% ""
+        )
+      },
+
+      # Slider field (numeric range with slider control)
+      "slider" = sliderInput(
+        field_name,
+        label,
+        min = field_config$min %||% 0,
+        max = field_config$max %||% 100,
+        value = field_config$value %||% field_config$min %||% 50,
+        step = field_config$step %||% 1,
+        animate = field_config$animate %||% FALSE
+      ),
+
+      # Radio buttons (single selection)
+      "radio" = radioButtons(
+        field_name,
+        label,
+        choices = field_config$choices,
+        selected = field_config$value %||% NULL,
+        inline = field_config$inline %||% FALSE
+      ),
+
+      # Checkbox group (multiple selection)
+      "checkbox_group" = checkboxGroupInput(
+        field_name,
+        label,
+        choices = field_config$choices,
+        selected = field_config$value %||% NULL,
+        inline = field_config$inline %||% FALSE
+      ),
+
+      # File upload field
+      "file" = fileInput(
+        field_name,
+        label,
+        multiple = field_config$multiple %||% FALSE,
+        accept = field_config$accept %||% NULL,
+        width = field_config$width %||% NULL
+      ),
+
+      # Signature pad (if shinysignature available)
+      "signature" = if (requireNamespace("shinysignature", quietly = TRUE)) {
+        shinysignature::signaturePad(
+          field_name,
+          width = field_config$width %||% "100%",
+          height = field_config$height %||% "200px"
+        )
+      } else {
+        # Fallback to textarea for notes
+        tags$textarea(
+          id = field_name,
+          class = "form-control",
+          rows = 6,
+          placeholder = "Signature capture not available - enter notes instead"
+        )
+      },
 
       # Default: text input
       "text" = textInput(

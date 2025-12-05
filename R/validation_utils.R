@@ -148,9 +148,11 @@ validate_numeric_range <- function(value, min = NULL, max = NULL, name = "value"
 #' Validate form field input
 #'
 #' Multi-purpose validator for form fields based on type and rules.
+#' Supports 15+ field types: text, email, numeric, date, datetime, time,
+#' select, radio, checkbox, checkbox_group, textarea, notes, slider, file, signature
 #'
 #' @param value Value to validate
-#' @param type Field type: "text", "email", "numeric", "date", "select"
+#' @param type Field type (see supported types above)
 #' @param required Logical, is field required?
 #' @param metadata List containing additional validation rules (min, max, choices, etc.)
 #'
@@ -160,14 +162,14 @@ validate_form_field <- function(value, type = "text", required = FALSE, metadata
   result <- list(valid = TRUE, message = "")
 
   # Check required
-  if (required && (is.null(value) || value == "")) {
+  if (required && (is.null(value) || value == "" || (is.list(value) && length(value) == 0))) {
     result$valid <- FALSE
     result$message <- "This field is required"
     return(result)
   }
 
   # If not required and empty, it's valid
-  if (!required && (is.null(value) || value == "")) {
+  if (!required && (is.null(value) || value == "" || (is.list(value) && length(value) == 0))) {
     return(result)
   }
 
@@ -180,16 +182,33 @@ validate_form_field <- function(value, type = "text", required = FALSE, metadata
       }
     },
     "numeric" = {
-      if (!is.numeric(as.numeric(value))) {
+      num_test <- suppressWarnings(as.numeric(value))
+      if (is.na(num_test)) {
         result$valid <- FALSE
         result$message <- "Must be a number"
       } else {
-        num_val <- as.numeric(value)
-        if (!is.null(metadata$min) && num_val < metadata$min) {
+        if (!is.null(metadata$min) && num_test < metadata$min) {
           result$valid <- FALSE
           result$message <- paste("Must be >= ", metadata$min)
         }
-        if (!is.null(metadata$max) && num_val > metadata$max) {
+        if (!is.null(metadata$max) && num_test > metadata$max) {
+          result$valid <- FALSE
+          result$message <- paste("Must be <= ", metadata$max)
+        }
+      }
+    },
+    "slider" = {
+      # Slider values are numeric
+      num_test <- suppressWarnings(as.numeric(value))
+      if (is.na(num_test)) {
+        result$valid <- FALSE
+        result$message <- "Must be a number"
+      } else {
+        if (!is.null(metadata$min) && num_test < metadata$min) {
+          result$valid <- FALSE
+          result$message <- paste("Must be >= ", metadata$min)
+        }
+        if (!is.null(metadata$max) && num_test > metadata$max) {
           result$valid <- FALSE
           result$message <- paste("Must be <= ", metadata$max)
         }
@@ -200,13 +219,98 @@ validate_form_field <- function(value, type = "text", required = FALSE, metadata
         as.Date(value)
       }, error = function(e) {
         result$valid <<- FALSE
-        result$message <<- "Please enter a valid date"
+        result$message <<- "Please enter a valid date (YYYY-MM-DD)"
       })
+    },
+    "datetime" = {
+      # Accept ISO 8601 format or POSIXct
+      tryCatch({
+        if (inherits(value, "POSIXct")) {
+          TRUE
+        } else {
+          as.POSIXct(value, format = "%Y-%m-%d %H:%M", tz = "UTC")
+        }
+      }, error = function(e) {
+        result$valid <<- FALSE
+        result$message <<- "Please enter a valid date and time (YYYY-MM-DD HH:MM)"
+      })
+    },
+    "time" = {
+      # Time validation - accept HH:MM or HH:MM:SS formats
+      if (!grepl("^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$", value)) {
+        result$valid <- FALSE
+        result$message <- "Please enter a valid time (HH:MM or HH:MM:SS)"
+      }
     },
     "select" = {
       if (!is.null(metadata$choices) && !value %in% metadata$choices) {
         result$valid <- FALSE
         result$message <- "Please select a valid option"
+      }
+    },
+    "radio" = {
+      # Radio button validation same as select
+      if (!is.null(metadata$choices) && !value %in% metadata$choices) {
+        result$valid <- FALSE
+        result$message <- "Please select a valid option"
+      }
+    },
+    "checkbox_group" = {
+      # Checkbox group returns a vector/list of selected values
+      if (is.character(value) && !all(value %in% metadata$choices)) {
+        result$valid <- FALSE
+        result$message <- "Please select valid options"
+      }
+    },
+    "checkbox" = {
+      # Single checkbox should be logical
+      if (!is.logical(value) && !value %in% c("on", "off", TRUE, FALSE)) {
+        result$valid <- FALSE
+        result$message <- "Must be checked or unchecked"
+      }
+    },
+    "textarea" = {
+      # Textarea - just check it's a string
+      if (!is.character(value)) {
+        result$valid <- FALSE
+        result$message <- "Must be text"
+      }
+    },
+    "notes" = {
+      # Notes field - same as textarea
+      if (!is.character(value)) {
+        result$valid <- FALSE
+        result$message <- "Must be text"
+      }
+    },
+    "file" = {
+      # File upload - check that file was uploaded
+      # In Shiny, uploaded files have specific structure
+      if (is.null(value) || nrow(value) == 0) {
+        result$valid <- FALSE
+        result$message <- "Please upload a file"
+      } else if (!is.null(metadata$accept)) {
+        # Check file extension if accept specified
+        extensions <- gsub("\\.", "", metadata$accept)
+        file_ext <- tolower(sub(".*\\.", "", value$name[1]))
+        if (!file_ext %in% extensions) {
+          result$valid <- FALSE
+          result$message <- paste("File type not allowed. Accepted types:", paste(metadata$accept, collapse = ", "))
+        }
+      }
+    },
+    "signature" = {
+      # Signature - should have non-empty data
+      if (is.null(value) || value == "") {
+        result$valid <- FALSE
+        result$message <- "Signature is required"
+      }
+    },
+    "text" = {
+      # Text field - just check it's a string
+      if (!is.character(value)) {
+        result$valid <- FALSE
+        result$message <- "Must be text"
       }
     }
   )
