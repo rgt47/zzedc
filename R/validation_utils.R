@@ -2,6 +2,22 @@
 #'
 #' Provides secure input validation functions for user-supplied data
 #' to prevent security vulnerabilities like SQL injection and path traversal.
+#'
+#' SECURITY CONTEXT:
+#' These functions are critical for preventing OWASP Top 10 vulnerabilities:
+#' - A1: SQL Injection (through validate_table_name, validate_form_field)
+#' - A3: Broken Authentication (through password field validation)
+#' - A4: Sensitive Data Exposure (through secure handling of user inputs)
+#' - A5: Broken Access Control (through role and resource validation)
+#' - A7: Cross-Site Scripting - XSS (through form field escaping)
+#'
+#' COMPLIANCE REQUIREMENTS:
+#' - GDPR Article 32: Technical and organizational measures to ensure data security
+#' - 21 CFR Part 11: Electronic Signatures / Input validation requirements
+#' - HIPAA: Access controls and audit logging (paired with audit_logger.R)
+#'
+#' All validation must happen at SYSTEM BOUNDARIES (user input, external APIs)
+#' Internal code relies on these validated inputs and trusts internal data structures.
 
 #' Validate and sanitize filename
 #'
