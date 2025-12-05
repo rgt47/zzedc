@@ -28,7 +28,16 @@
 #' \dontrun{
 #' metadata <- list(
 #'   age = list(type = "numeric", required = TRUE, label = "Age (years)"),
-#'   gender = list(type = "select", choices = c("M", "F"), label = "Gender"),
+#'   gender = list(
+#'     type = "select",
+#'     choices = c("M", "F"),
+#'     label = "Gender"
+#'   ),
+#'   pregnancy_date = list(
+#'     type = "date",
+#'     label = "Pregnancy Due Date",
+#'     show_if = "gender == 'F'"  # Branching logic
+#'   ),
 #'   visit_time = list(type = "time", required = TRUE, label = "Visit Time")
 #' )
 #' renderPanel(names(metadata), metadata)
@@ -233,6 +242,25 @@ renderPanel <- function(fields, field_metadata = NULL) {
       )
     }
 
-    field_input
+    # Determine initial visibility based on branching rules
+    # (Server-side implementation uses setup_branching_logic to manage this)
+    initial_hidden <- FALSE
+    if (!is.null(field_config$show_if)) {
+      # Field starts hidden if it has a show_if condition
+      initial_hidden <- TRUE
+    }
+
+    # Wrap field with branching logic wrapper
+    # data-field attribute allows JavaScript to identify fields
+    # Initial display can be overridden by branching_logic.R setup_branching_logic
+    wrapper_style <- if (initial_hidden) "display: none;" else ""
+
+    tags$div(
+      id = field_name,
+      `data-field` = field_name,
+      style = wrapper_style,
+      class = "form-field-wrapper mb-3",
+      field_input
+    )
   })
 }

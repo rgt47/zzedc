@@ -141,7 +141,8 @@ utility_files <- c(
   "R/form_validators.R",
   "R/export_service.R",
   "R/data_pagination.R",
-  "R/instrument_library.R"
+  "R/instrument_library.R",
+  "R/branching_logic.R"
 )
 
 # Load utility files with explicit error handling
