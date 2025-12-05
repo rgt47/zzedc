@@ -2,6 +2,7 @@
 #'
 #' Pure business logic for data export operations.
 #' Separate from Shiny reactive code for testability and reusability.
+#' Supports 8+ export formats: CSV, XLSX, JSON, PDF, HTML, SAS, SPSS, STATA, RDS
 
 #' Prepare data for export
 #'
@@ -9,7 +10,16 @@
 #' Pure function with no Shiny dependencies.
 #'
 #' @param data_source Character indicating data source ("edc", "all_files", "reports", "sample")
-#' @param format Character specifying export format ("csv", "xlsx", "json", "pdf", "html")
+#' @param format Character specifying export format:
+#'   - "csv": Comma-separated values
+#'   - "xlsx": Excel workbook
+#'   - "json": JSON format
+#'   - "sas": SAS transport file (.xpt)
+#'   - "spss": SPSS/PSPP format (.sav)
+#'   - "stata": Stata format (.dta)
+#'   - "rds": R serialized object (.rds)
+#'   - "pdf": PDF document (requires template)
+#'   - "html": HTML document (requires template)
 #' @param options List of export options (metadata, timestamps, date_range, etc.)
 #' @param db_conn Database connection (if data_source == "edc")
 #'
@@ -33,7 +43,7 @@ prepare_export_data <- function(data_source, format, options = NULL, db_conn = N
 
   # Validate inputs
   valid_sources <- c("edc", "all_files", "reports", "sample")
-  valid_formats <- c("csv", "xlsx", "json", "pdf", "html")
+  valid_formats <- c("csv", "xlsx", "json", "pdf", "html", "sas", "spss", "stata", "rds")
 
   if (!data_source %in% valid_sources) {
     stop("Invalid data_source: ", data_source)
@@ -219,11 +229,12 @@ prepare_all_files_export <- function(options = NULL) {
 
 #' Export data to file
 #'
-#' Writes export data to specified file format
+#' Writes export data to specified file format.
+#' Supports 9 formats: CSV, XLSX, JSON, SAS, SPSS, STATA, RDS, PDF, HTML
 #'
 #' @param data Data to export (data.frame or list)
 #' @param filepath Path to write export file
-#' @param format Export format ("csv", "xlsx", "json", "pdf", "html")
+#' @param format Export format (csv, xlsx, json, sas, spss, stata, rds, pdf, html)
 #' @param options List of format-specific options
 #'
 #' @return List with success status and file info
@@ -274,6 +285,70 @@ export_to_file <- function(data, filepath, format, options = NULL) {
         result$message <- "Exported to JSON"
       },
 
+      "sas" = {
+        if (!requireNamespace("haven", quietly = TRUE)) {
+          result$message <- "haven package required for SAS export"
+          return(result)
+        }
+
+        if (!is.data.frame(data)) {
+          result$message <- "SAS format requires data.frame"
+          return(result)
+        }
+
+        # SAS transport format (.xpt)
+        haven::write_xpt(data, filepath)
+        result$success <- TRUE
+        result$message <- paste("Exported", nrow(data), "rows to SAS transport format (.xpt)")
+      },
+
+      "spss" = {
+        if (!requireNamespace("haven", quietly = TRUE)) {
+          result$message <- "haven package required for SPSS export"
+          return(result)
+        }
+
+        if (!is.data.frame(data)) {
+          result$message <- "SPSS format requires data.frame"
+          return(result)
+        }
+
+        # SPSS/PSPP format (.sav)
+        haven::write_sav(data, filepath)
+        result$success <- TRUE
+        result$message <- paste("Exported", nrow(data), "rows to SPSS format (.sav)")
+      },
+
+      "stata" = {
+        if (!requireNamespace("haven", quietly = TRUE)) {
+          result$message <- "haven package required for STATA export"
+          return(result)
+        }
+
+        if (!is.data.frame(data)) {
+          result$message <- "STATA format requires data.frame"
+          return(result)
+        }
+
+        # Stata format (.dta)
+        haven::write_dta(data, filepath)
+        result$success <- TRUE
+        result$message <- paste("Exported", nrow(data), "rows to STATA format (.dta)")
+      },
+
+      "rds" = {
+        if (!is.data.frame(data)) {
+          result$message <- "RDS format requires data.frame"
+          return(result)
+        }
+
+        # R serialized object (.rds)
+        # Compress by default for better file size
+        saveRDS(data, file = filepath, compress = TRUE)
+        result$success <- TRUE
+        result$message <- paste("Exported", nrow(data), "rows to R RDS format (.rds)")
+      },
+
       "pdf" = {
         if (!requireNamespace("rmarkdown", quietly = TRUE)) {
           result$message <- "rmarkdown package required for PDF export"
@@ -306,7 +381,7 @@ export_to_file <- function(data, filepath, format, options = NULL) {
 #'
 #' @param base_name Base filename (user-provided or default)
 #' @param data_source Data source identifier
-#' @param format Export format
+#' @param format Export format (csv, xlsx, json, sas, spss, stata, rds, pdf, html)
 #'
 #' @return Safe filename with extension
 #'
@@ -316,7 +391,7 @@ generate_export_filename <- function(base_name = NULL, data_source, format) {
     base_name <- paste0(data_source, "_export_", format(Sys.Date(), "%Y%m%d"))
   } else {
     # Sanitize user-provided filename
-    base_name <- zzedc::validate_filename(base_name)
+    base_name <- validate_filename(base_name)
   }
 
   # Add extension based on format
@@ -324,6 +399,10 @@ generate_export_filename <- function(base_name = NULL, data_source, format) {
     "csv" = ".csv",
     "xlsx" = ".xlsx",
     "json" = ".json",
+    "sas" = ".xpt",        # SAS transport format
+    "spss" = ".sav",       # SPSS format
+    "stata" = ".dta",      # Stata format
+    "rds" = ".rds",        # R serialized object
     "pdf" = ".pdf",
     "html" = ".html",
     ".txt"

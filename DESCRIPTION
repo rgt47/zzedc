@@ -42,7 +42,8 @@ Suggests:
     yaml,
     shinyTime,
     shinyWidgets,
-    shinysignature
+    shinysignature,
+    haven
 URL: https://github.com/rgt47/zzedc
 BugReports: https://github.com/rgt47/zzedc/issues
 Config/testthat/edition: 3
