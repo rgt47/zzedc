@@ -133,9 +133,20 @@ tokenize_dsl_rule <- function(rule) {
     if (grepl("^[0-9]", substr(rule, i, i))) {
       start <- i
       num_str <- ""
-      while (i <= nchar(rule) && grepl("[0-9.]", substr(rule, i, i))) {
+      has_dot <- FALSE
+      while (i <= nchar(rule) && grepl("[0-9]", substr(rule, i, i))) {
         num_str <- paste0(num_str, substr(rule, i, i))
         i <- i + 1
+      }
+      # Check for decimal point (but not ..)
+      if (i <= nchar(rule) && substr(rule, i, i) == "." &&
+          i + 1 <= nchar(rule) && grepl("[0-9]", substr(rule, i + 1, i + 1))) {
+        num_str <- paste0(num_str, ".")
+        i <- i + 1
+        while (i <= nchar(rule) && grepl("[0-9]", substr(rule, i, i))) {
+          num_str <- paste0(num_str, substr(rule, i, i))
+          i <- i + 1
+        }
       }
       tokens <- c(tokens, list(Token(TOKEN_TYPES$NUMBER, as.numeric(num_str), line, column)))
       column <- column + nchar(num_str)

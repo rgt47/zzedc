@@ -42,7 +42,8 @@ describe("DSL Tokenizer", {
 
   it("skips comments", {
     tokens <- tokenize_dsl_rule("x >= 18 # this is a comment")
-    expect_equal(tokens[[3]]$type, "EOF")  # No token after comment
+    expect_equal(tokens[[3]]$type, "NUMBER")  # Number before comment
+    expect_equal(tokens[[4]]$type, "EOF")  # Comment is skipped, EOF comes next
   })
 
   it("handles whitespace", {
@@ -396,7 +397,7 @@ describe("Cross-Field Validation", {
     visit_date <- as.Date("2023-12-01")
     enroll_date <- as.Date("2024-01-01")
     result <- validator(visit_date, list(enrollment_date = enroll_date))
-    expect_false(result)
+    expect_true(is.character(result))
   })
 
   it("compares numeric fields", {
@@ -405,7 +406,7 @@ describe("Cross-Field Validation", {
     expect_true(result)
 
     result <- validator(40, list(baseline_value = 50))
-    expect_false(result)
+    expect_true(is.character(result))
   })
 
   it("validates with cross-field in condition", {
@@ -426,7 +427,7 @@ describe("Cross-Field Validation", {
     expect_true(result)
 
     result <- validator("inactive", list(status_code = "active"))
-    expect_false(result)
+    expect_true(is.character(result))
   })
 })
 
@@ -461,14 +462,14 @@ describe("Conditional Logic (if/then/else)", {
     validator <- generate_validator("if x >= 65 then between 90 and 180 else between 110 and 200 endif")
     # Senior with too-high BP
     result <- validator(200, list(x = 70))
-    expect_false(result)
+    expect_true(is.character(result))
   })
 
   it("rejects invalid values in else branch", {
     validator <- generate_validator("if x >= 65 then between 90 and 180 else between 110 and 200 endif")
     # Young person with too-low BP
     result <- validator(50, list(x = 30))
-    expect_false(result)
+    expect_true(is.character(result))
   })
 
   it("handles nested if/then/else", {
@@ -535,7 +536,7 @@ describe("Special Values (n, m)", {
     expect_true(validator("skip", list()))
     expect_true(validator("decline", list()))
     expect_true(validator(NA, list()))
-    expect_false(validator("other", list()))
+    expect_true(is.character(validator("other", list())))
   })
 })
 
@@ -553,7 +554,7 @@ describe("Logical Operators (and, or, not)", {
   it("rejects and when one condition false", {
     validator <- generate_validator("x >= 18 and x <= 65")
     result <- validator(70, list())
-    expect_false(result)
+    expect_true(is.character(result))
   })
 
   it("evaluates or with first true", {
