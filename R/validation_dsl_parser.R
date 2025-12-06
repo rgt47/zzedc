@@ -98,19 +98,20 @@ tokenize_dsl_rule <- function(rule) {
     }
 
     # Comments (skip to end of line)
-    if (substr(rule, i, i + 1) == "#") {
+    if (substr(rule, i, i) == "#") {
       while (i <= nchar(rule) && substr(rule, i, i) != "\n") {
         i <- i + 1
       }
       next
     }
 
-    # String literals (single quotes)
-    if (substr(rule, i, i) == "'") {
+    # String literals (single or double quotes)
+    if (substr(rule, i, i) %in% c("'", '"')) {
+      quote_char <- substr(rule, i, i)
       start <- i
       i <- i + 1
       str_value <- ""
-      while (i <= nchar(rule) && substr(rule, i, i) != "'") {
+      while (i <= nchar(rule) && substr(rule, i, i) != quote_char) {
         if (substr(rule, i, i) == "\\") {
           i <- i + 1
           if (i <= nchar(rule)) {
@@ -365,6 +366,16 @@ Parser <- R6::R6Class(
         return(self$parse_between())
       }
 
+      # Look ahead for 'in' keyword (without preceding field)
+      if (self$peek()$type == TOKEN_TYPES$IN) {
+        return(self$parse_in_without_field())
+      }
+
+      # Look ahead for 'notin' keyword (without preceding field)
+      if (self$peek()$type == TOKEN_TYPES$NOTIN) {
+        return(self$parse_notin_without_field())
+      }
+
       field <- self$parse_term()
 
       # Check for between/in/notin after field
@@ -396,6 +407,42 @@ Parser <- R6::R6Class(
 
       # Just a field reference (truthy check)
       ast_node("field_value", field = field)
+    },
+
+    parse_in_without_field = function() {
+      # in(value1, value2, ...)  (without preceding field)
+      self$consume(TOKEN_TYPES$IN)
+      self$consume(TOKEN_TYPES$LPAREN)
+      values <- list()
+
+      if (self$peek()$type != TOKEN_TYPES$RPAREN) {
+        values <- c(values, list(self$parse_term()))
+        while (self$peek()$type == TOKEN_TYPES$COMMA) {
+          self$consume(TOKEN_TYPES$COMMA)
+          values <- c(values, list(self$parse_term()))
+        }
+      }
+
+      self$consume(TOKEN_TYPES$RPAREN)
+      ast_node("in", field = NULL, values = values)
+    },
+
+    parse_notin_without_field = function() {
+      # notin(value1, value2, ...)  (without preceding field)
+      self$consume(TOKEN_TYPES$NOTIN)
+      self$consume(TOKEN_TYPES$LPAREN)
+      values <- list()
+
+      if (self$peek()$type != TOKEN_TYPES$RPAREN) {
+        values <- c(values, list(self$parse_term()))
+        while (self$peek()$type == TOKEN_TYPES$COMMA) {
+          self$consume(TOKEN_TYPES$COMMA)
+          values <- c(values, list(self$parse_term()))
+        }
+      }
+
+      self$consume(TOKEN_TYPES$RPAREN)
+      ast_node("notin", field = NULL, values = values)
     },
 
     parse_between = function() {
