@@ -15,22 +15,13 @@ knitr::opts_chunk$set(
 )
 ```
 
-# ZZedc Quickstart: Get Running in 5 Minutes
+# ZZedc Quickstart Guide
 
-Welcome! This quickstart guide shows you what ZZedc can do and gets you started immediately. No prior experience needed.
+This guide provides an overview of ZZedc functionality and basic installation procedures.
 
-## What is ZZedc?
+## Overview
 
-**ZZedc** is a modern Electronic Data Capture (EDC) system that makes it easy to collect, manage, and analyze research data from clinical trials and studies. Think of it as "REDCap's open-source, modern alternative" — built with the latest web technology, designed for teams, and optimized for compliance.
-
-### Why Choose ZZedc?
-
-✅ **Free & Open Source** — No licensing fees, full source code control
-✅ **Modern Web Interface** — Built with Bootstrap 5, works on any device
-✅ **Secure by Default** — Database authentication, audit trails, GDPR/21 CFR Part 11 ready
-✅ **Easy to Deploy** — Local server, cloud, Docker — your choice
-✅ **Powerful & Flexible** — Supports any therapeutic area, any study design
-✅ **Real-time Validation** — Errors caught immediately during data entry
+ZZedc is an Electronic Data Capture (EDC) system implemented in R/Shiny for managing clinical trial and research study data. The system supports data collection, validation, quality control, and export functionality through a web-based interface.
 
 ## Start Here: 3 Simple Steps
 
