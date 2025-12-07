@@ -1200,6 +1200,6 @@ For implementing advanced features:
 - **Integration Services**: Custom integration development
 
 **Contact Information:**
-- Email: rgthomas47@gmail.com
+- Email: rgthomas@ucsd.edu
 - GitHub: https://github.com/rgt47/zzedc
 - Enterprise Inquiries: Available upon request

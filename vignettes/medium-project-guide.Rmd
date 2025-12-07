@@ -654,7 +654,7 @@ For larger, enterprise-level studies, consider additional features such as:
 
 ## Support Resources
 
-- **Technical Support**: rgthomas47@gmail.com
+- **Technical Support**: rgthomas@ucsd.edu
 - **User Community**: GitHub Discussions
 - **Training Materials**: Available in package documentation
 - **Regulatory Guidance**: See FDA 21 CFR Part 11 compliance documentation

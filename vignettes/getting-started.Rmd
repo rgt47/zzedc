@@ -35,7 +35,9 @@ ZZedc provides:
 ### Install from Package
 
 ```{r installation}
-# Install ZZedc package
+# Install ZZedc packages
+# Note: zzedc.validation is a required dependency
+install.packages("path/to/zzedc.validation_1.0.0.tar.gz", repos = NULL, type = "source")
 install.packages("path/to/zzedc_1.0.0.tar.gz", repos = NULL, type = "source")
 
 # Load the package
@@ -194,6 +196,23 @@ security_features <- list(
   data_encryption = "Secure data storage and transmission"
 )
 ```
+
+### Regulatory Compliance
+
+ZZedc is built with regulatory compliance in mind:
+
+```{r compliance}
+# Compliance features
+compliance_features <- list(
+  gdpr = "Data subject rights, consent management, and privacy controls",
+  cfr_part_11 = "Electronic signatures, audit trail, and data integrity",
+  audit_logging = "Immutable, hash-chained audit records",
+  data_governance = "Purpose limitation and data minimization controls",
+  breach_management = "Incident tracking and notification capabilities"
+)
+```
+
+See the [Advanced Features Guide](advanced-features.html) for detailed compliance workflows.
 
 ### Data Validation
 
@@ -381,8 +400,9 @@ launch_zzedc(port = 3839)
 2. **Error messages**: Read carefully and check for validation issues
 3. **Log files**: Check application logs for detailed error information
 4. **Support contacts**:
-   - Email: rgthomas47@gmail.com
+   - Email: rgthomas@ucsd.edu
    - GitHub: https://github.com/rgt47/zzedc
+   - Documentation: See other vignettes for advanced features
 
 ## Next Steps
 

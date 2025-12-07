@@ -223,6 +223,6 @@ For more complex studies or multi-site coordination, see the [Medium Project Gui
 ## Support
 
 For questions about ZZedc:
-- Email: rgthomas47@gmail.com
+- Email: rgthomas@ucsd.edu
 - GitHub: https://github.com/rgt47/zzedc
 - Documentation: See other vignettes for advanced features
