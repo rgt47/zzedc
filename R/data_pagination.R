@@ -1,7 +1,5 @@
-#' Server-Side Data Pagination Utilities
-#'
-#' Efficient handling of large datasets with server-side pagination.
-#' Reduces memory usage and improves performance.
+#' @keywords internal
+NULL
 
 #' Create paginated data view
 #'

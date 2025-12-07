@@ -2,7 +2,7 @@
 % Please edit documentation in R/audit_logger.R
 \name{init_audit_log}
 \alias{init_audit_log}
-\title{Audit Logging System with Hash-Chaining}
+\title{Initialize audit log}
 \usage{
 init_audit_log()
 }
@@ -10,11 +10,6 @@ init_audit_log()
 reactiveVal containing tibble of audit records
 }
 \description{
-Implements immutable, hash-chained audit logs for GDPR and 21 CFR Part 11 compliance.
-Each log entry is cryptographically linked to the previous entry, making tampering detectable.
-Initialize audit log
-}
-\details{
 Creates a reactive audit log storage with immutable properties.
 }
 \examples{

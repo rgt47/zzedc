@@ -1,7 +1,5 @@
-#' Audit Logging System with Hash-Chaining
-#'
-#' Implements immutable, hash-chained audit logs for GDPR and 21 CFR Part 11 compliance.
-#' Each log entry is cryptographically linked to the previous entry, making tampering detectable.
+#' @keywords internal
+NULL
 
 #' Initialize audit log
 #'
