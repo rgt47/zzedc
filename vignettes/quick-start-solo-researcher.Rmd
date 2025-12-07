@@ -1,0 +1,440 @@
+---
+title: "Quick Start: Solo Researcher (Local Setup)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Quick Start: Solo Researcher}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Getting ZZedc Running in 10 Minutes (Solo Researcher)
+
+You're a clinical researcher with a study. You need electronic data capture. You want it **local, simple, and fast**.
+
+This guide gets you from "nothing" to "collecting data" in about 10 minutes.
+
+---
+
+## What You'll Need
+
+- **R installed** (version 4.0 or later)
+- **RStudio** (optional but recommended)
+- **~5 MB disk space**
+- **Basic study information** (name, PI details, password)
+
+**Time estimate: 10 minutes total**
+
+---
+
+## Step 1: Install ZZedc (2 minutes)
+
+Open R or RStudio and run:
+
+```r
+install.packages("zzedc")
+```
+
+After installation completes, load the library:
+
+```r
+library(zzedc)
+```
+
+You should see:
+```
+> library(zzedc)
+ZZedc - Electronic Data Capture System loaded successfully
+```
+
+---
+
+## Step 2: Initialize Your Project (5 minutes)
+
+Run this command in your R console:
+
+```r
+zzedc::init()
+```
+
+You'll see a welcome message:
+```
+╔═══════════════════════════════════════════════════════════╗
+║          ZZedc Project Initialization                    ║
+║          Electronic Data Capture System Setup             ║
+╚═══════════════════════════════════════════════════════════╝
+
+Welcome to ZZedc Setup!
+This will guide you through setting up your research study.
+
+Step 1: Study Information
+────────────────────────────────────────────
+Study Name (e.g., 'Depression Treatment Trial'):
+```
+
+### What to Enter
+
+**Study Name:**
+```
+Depression Treatment Trial
+```
+(Any name that describes your study)
+
+**Protocol ID:**
+```
+DEPR-2024-001
+```
+(Your institutional protocol number)
+
+**Principal Investigator Name:**
+```
+Dr. Jane Smith
+```
+
+**PI Email:**
+```
+jane.smith@university.edu
+```
+
+**Target Enrollment:**
+```
+50
+```
+(How many participants you plan to enroll)
+
+**Study Phase:**
+```
+Phase 2
+```
+(Options: Pilot, Phase1, Phase2, Phase3, Phase4, Observational)
+
+### Step 2: Admin Account
+
+This is YOUR login account for managing the system.
+
+**Admin Username:**
+```
+jane_smith
+```
+(Your preferred login name - no spaces)
+
+**Your Full Name:**
+```
+Jane Smith
+```
+
+**Your Email:**
+```
+jane.smith@university.edu
+```
+
+**Admin Password:**
+```
+MySecurePassword2024!
+```
+(Must be 8+ characters, mix of letters/numbers/symbols)
+
+**Confirm Password:**
+```
+MySecurePassword2024!
+```
+(Type it again)
+
+### Step 3: Security Configuration
+
+The system will generate a **security salt** - a unique key that encrypts passwords.
+
+**Important:** You'll see something like:
+```
+A unique security salt has been generated for your system:
+  a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0
+
+⚠️  IMPORTANT: Save this salt in a secure location!
+   If you lose it, you cannot recover your passwords.
+
+Have you saved the security salt? (yes/no):
+```
+
+**Copy that salt somewhere safe:**
+- Email it to yourself
+- Save in password manager
+- Write it down
+- **Just don't lose it!**
+
+Then answer:
+```
+yes
+```
+
+**Session Timeout:**
+```
+30
+```
+(Minutes of inactivity before automatic logout)
+
+**Enforce HTTPS:**
+```
+no
+```
+(For local use, no = fine. For internet, yes = recommended)
+
+### Step 4: Confirmation
+
+You'll see a summary:
+```
+Summary of your configuration:
+
+  Study Name: Depression Treatment Trial
+  Protocol ID: DEPR-2024-001
+  PI: Dr. Jane Smith (jane.smith@university.edu)
+  Target Enrollment: 50
+  Study Phase: Phase 2
+  Admin Username: jane_smith
+  Session Timeout: 30 minutes
+  Enforce HTTPS: No
+
+Create project with these settings? (yes/no):
+```
+
+Type:
+```
+yes
+```
+
+---
+
+## Step 3: Launch Your System (1 minute)
+
+After setup completes, you'll see:
+```
+╔═══════════════════════════════════════════════════════════╗
+║          ✓ ZZedc Project Created Successfully!            ║
+╚═══════════════════════════════════════════════════════════╝
+
+Project Location: ./Depression_Treatment_Trial
+
+Next Steps:
+───────────────────────────────────────────────────────────
+
+1. Set environment variable:
+   export ZZEDC_SALT='a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0'
+
+2. Launch your ZZedc application:
+   Rscript Depression_Treatment_Trial/launch_app.R
+
+3. Open your browser to:
+   http://localhost:3838
+```
+
+In your R console, run:
+
+```r
+# Set the security salt (copy from setup output)
+Sys.setenv(ZZEDC_SALT = "a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0")
+
+# Launch the application
+launch_zzedc()
+```
+
+Your browser will open automatically to `http://localhost:3838`
+
+---
+
+## Step 4: Login (30 seconds)
+
+You'll see the ZZedc login screen.
+
+Enter the credentials from Step 2:
+- **Username:** jane_smith
+- **Password:** MySecurePassword2024!
+
+Click **Login**
+
+---
+
+## You're In! 🎉
+
+Congratulations! Your ZZedc system is running.
+
+### What You Can Do Now
+
+**Dashboard Tab:**
+- Overview of your study
+- Quick links to key features
+- Recent activity
+
+**EDC Tab** (Electronic Data Capture):
+- Enter participant data
+- Real-time validation
+- Save progress automatically
+
+**Reports Tab:**
+- View enrollment progress
+- Quality control summaries
+- Download results
+
+**Data Explorer Tab:**
+- Filter and search data
+- Create charts
+- Find missing information
+
+**Export Tab:**
+- Download data as CSV
+- Export to SPSS/SAS
+- Create analysis datasets
+
+---
+
+## Common Next Steps
+
+### Add Team Members
+1. Go to **Admin Dashboard**
+2. Click **👤 User Management**
+3. Click **Add User**
+4. Enter team member info
+5. System generates temporary password
+6. Share with team member
+
+### Create Your Forms
+1. Decide what data to collect
+2. Use the Form Builder (or ask for help)
+3. Define validation rules
+4. Test with sample data
+
+### Start Collecting Data
+1. Share login credentials with coordinators
+2. They log in and enter data
+3. Validation happens automatically
+4. You monitor via Dashboard
+
+### Backup Your Data
+1. Go to **Admin Dashboard**
+2. Click **💾 Backup & Restore**
+3. Click **Create Backup Now**
+4. Download backup file
+5. Store in safe location
+
+---
+
+## Quick Reference
+
+| Task | Location |
+|------|----------|
+| View dashboard | Home tab |
+| Enter data | EDC tab |
+| See reports | Reports tab |
+| Find missing data | Data Explorer tab |
+| Download data | Export tab |
+| Add users | Admin Dashboard → User Management |
+| Backup data | Admin Dashboard → Backup & Restore |
+| View activity log | Admin Dashboard → Audit Trail |
+| Change settings | Admin Dashboard → System Configuration |
+
+---
+
+## Troubleshooting
+
+### "Port 3838 already in use"
+Another app is using port 3838.
+- Wait a moment and try again, OR
+- Stop the other app, OR
+- Restart R and try again
+
+### "Database error"
+ZZedc can't access the database file.
+- Make sure you're in the correct directory
+- Check that the `data/zzedc.db` file exists
+- Ensure you have write permissions
+
+### "Login failed"
+Check:
+- Did you type the username correctly? (no spaces)
+- Did you type the password correctly? (case-sensitive)
+- Did you remember the password from setup?
+
+### "Lost the security salt"
+Unfortunately, it can't be recovered.
+Options:
+1. You can still use ZZedc (salt is only for new passwords)
+2. To reset passwords, contact support
+3. Restart setup with `zzedc::init()` in a new directory
+
+---
+
+## Keeping Your Data Safe
+
+### Regular Backups
+Do this weekly:
+1. Admin Dashboard → Backup & Restore
+2. Click "Create Backup Now"
+3. Download the backup file
+4. Store on external drive or cloud
+
+### Password Safety
+- Your password is encrypted using the security salt
+- Even with the database, your password is safe
+- Only change if you suspect compromise
+
+### Data Security
+- Database is SQLite (local file)
+- All data is stored locally on your machine
+- No data sent to cloud (unless you configure)
+- You control your data completely
+
+---
+
+## When You're Ready for More
+
+### Adding More Features
+See the other vignettes:
+- **Setup Wizard Guide** - Web-based configuration
+- **Multi-Site Setup** - For collaborative research
+- **Advanced Features** - Custom validation, reports, integrations
+
+### Team Collaboration
+When adding team members:
+1. They get login credentials
+2. See only what you configure
+3. Can enter data and view reports
+4. Can't change settings (only you can)
+
+### Publishing Your Research
+When done:
+1. Export final dataset (Export tab)
+2. Audit trail shows data integrity (Admin Dashboard)
+3. Ready for publication and archival
+
+---
+
+## Support
+
+Having trouble?
+
+- **Documentation**: See other vignettes in the help menu
+- **Email**: rgthomas@ucsd.edu
+- **GitHub**: https://github.com/rgt47/zzedc
+- **Examples**: Sample data included with ZZedc
+
+---
+
+## Summary
+
+✅ Installed ZZedc
+✅ Ran `zzedc::init()` and answered 5 questions
+✅ Set security salt environment variable
+✅ Launched with `launch_zzedc()`
+✅ Logged in with your credentials
+✅ Ready to start collecting data
+
+**Total time: ~10 minutes**
+**Your data is local and secure**
+**You have complete control**
+
+You're ready to begin your research! 🔬📊
