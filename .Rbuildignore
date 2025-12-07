@@ -41,7 +41,6 @@
 ^config\.yml$
 ^credentials$
 ^forms$
-^www$
 ^adhd_trial_csv_files$
 ^docs$
 ^outputs$

@@ -177,6 +177,9 @@ integrate_gsheets_forms <- function() {
 #' @param session Shiny session object
 generate_gsheets_form_server <- function(forms_data, input, output, session) {
 
+  # Load validation cache at startup
+  source("R/validation_cache.R", local = TRUE)
+
   # Generate submit handlers for each form
   for (i in 1:nrow(forms_data$forms_overview)) {
     form_name <- forms_data$forms_overview$workingname[i]
@@ -185,6 +188,7 @@ generate_gsheets_form_server <- function(forms_data, input, output, session) {
     # Create submit handler for this form
     local({
       local_form_name <- form_name
+      local_form_display <- forms_data$forms_overview$fullname[i]
 
       observeEvent(input[[submit_button_id]], {
 
@@ -212,6 +216,26 @@ generate_gsheets_form_server <- function(forms_data, input, output, session) {
         form_data$entry_user <- user_input$user_id %||% 1
         form_data$form_status <- "complete"
 
+        # Validate form data before saving
+        validation_result <- validate_form(form_data)
+
+        # If validation failed, show errors and stop
+        if (!validation_result$valid) {
+          error_messages <- paste(
+            names(validation_result$errors),
+            unlist(validation_result$errors),
+            sep = ": ",
+            collapse = "\n"
+          )
+
+          shinyalert::shinyalert(
+            "Validation Errors",
+            paste("Please fix the following errors:\n\n", error_messages),
+            type = "error"
+          )
+          return()
+        }
+
         # Save to database
         table_name <- paste0("data_", local_form_name)
 
@@ -230,7 +254,7 @@ generate_gsheets_form_server <- function(forms_data, input, output, session) {
           # Show success message
           shinyalert::shinyalert(
             "Success",
-            paste("Form", forms_data$forms_overview$fullname[i], "saved successfully!"),
+            paste("Form", local_form_display, "saved successfully!"),
             type = "success"
           )
 
