@@ -4,7 +4,6 @@
 #' Validation rules are compiled once at app startup and reused for field-level validation.
 #'
 #' @keywords internal
-#' @noRd
 
 # ============================================================================
 # Cache Storage
@@ -32,7 +31,7 @@ initialize_validation_cache <- function() {
 #' Sets up the global validation cache if it doesn't exist.
 #' Call this once in app initialization (global.R or server.R startup).
 #'
-#' @keywords internal
+#' @export
 setup_global_validation_cache <- function() {
   if (!exists(".validation_cache", envir = .GlobalEnv)) {
     assign(".validation_cache", initialize_validation_cache(), envir = .GlobalEnv)
@@ -254,7 +253,7 @@ validate_field <- function(field_name, value, form_values = list()) {
 #'   - errors: List of field-level validation errors (field_name = error_message)
 #'   - field_results: Full results for each field (field_name = TRUE or error message)
 #'
-#' @keywords internal
+#' @export
 validate_form <- function(form_data) {
   validation_results <- list(
     valid = TRUE,
