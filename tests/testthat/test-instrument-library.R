@@ -26,7 +26,7 @@ test_that("list_available_instruments returns empty when no instruments", {
   empty_dir <- tempdir()
   result <- list_available_instruments(empty_dir)
 
-  expect_is(result, "data.frame")
+  expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 0)
   expect_true(all(c("name", "full_name", "items", "description") %in% names(result)))
 })
@@ -37,7 +37,7 @@ test_that("list_available_instruments finds available instruments", {
 
   result <- list_available_instruments(temp_dir)
 
-  expect_is(result, "data.frame")
+  expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 1)
   expect_equal(result$name[1], "test_instrument")
   expect_equal(result$items[1], 3)
@@ -61,7 +61,7 @@ test_that("load_instrument_template loads valid CSV", {
 
   result <- load_instrument_template("test", temp_dir)
 
-  expect_is(result, "data.frame")
+  expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 5)
   expect_true(all(c("field_name", "field_label", "field_type") %in% names(result)))
 })
@@ -211,7 +211,7 @@ test_that("get_instrument_field returns field by name", {
 
   result <- get_instrument_field("test", "field_2", temp_dir)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_equal(result$field_name, "field_2")
   expect_equal(result$field_label, "Field 2")
 })
@@ -264,7 +264,7 @@ test_that("import_instrument validates instrument exists", {
 test_that("list_available_instruments handles missing directory gracefully", {
   result <- list_available_instruments("/nonexistent/directory/")
 
-  expect_is(result, "data.frame")
+  expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), 0)
 })
 
@@ -282,7 +282,7 @@ test_that("load_instrument_template handles special characters in descriptions",
 
   # Should load without error
   result <- load_instrument_template("special", temp_dir)
-  expect_is(result, "data.frame")
+  expect_s3_class(result, "data.frame")
 })
 
 test_that("validate_instrument_csv warns on non-CSV extension", {

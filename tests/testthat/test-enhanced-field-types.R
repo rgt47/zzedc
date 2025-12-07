@@ -3,7 +3,7 @@
 test_that("renderPanel generates text input by default", {
   result <- renderPanel(c("field1"))
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -20,7 +20,7 @@ test_that("renderPanel handles numeric field with range", {
 
   result <- renderPanel("age", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -35,7 +35,7 @@ test_that("renderPanel handles date field", {
 
   result <- renderPanel("visit_date", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -51,7 +51,7 @@ test_that("renderPanel handles select field with choices", {
 
   result <- renderPanel("gender", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -66,7 +66,7 @@ test_that("renderPanel handles checkbox field", {
 
   result <- renderPanel("consent", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -82,7 +82,7 @@ test_that("renderPanel handles textarea field", {
 
   result <- renderPanel("comments", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -97,7 +97,7 @@ test_that("renderPanel handles notes field (textarea variant)", {
 
   result <- renderPanel("clinical_notes", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -112,7 +112,7 @@ test_that("renderPanel handles email field", {
 
   result <- renderPanel("email", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -130,7 +130,7 @@ test_that("renderPanel handles slider field", {
 
   result <- renderPanel("pain_level", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -147,7 +147,7 @@ test_that("renderPanel handles radio button field", {
 
   result <- renderPanel("treatment", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -164,7 +164,7 @@ test_that("renderPanel handles checkbox_group field", {
 
   result <- renderPanel("symptoms", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -180,7 +180,7 @@ test_that("renderPanel handles file upload field", {
 
   result <- renderPanel("document", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -195,7 +195,7 @@ test_that("renderPanel handles time field (with fallback)", {
 
   result <- renderPanel("visit_time", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -210,7 +210,7 @@ test_that("renderPanel handles datetime field (with fallback)", {
 
   result <- renderPanel("event_datetime", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -226,7 +226,7 @@ test_that("renderPanel handles signature field (with fallback)", {
 
   result <- renderPanel("signature", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -241,7 +241,7 @@ test_that("renderPanel handles required fields with asterisk", {
 
   result <- renderPanel("name", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -258,7 +258,7 @@ test_that("renderPanel includes help text when provided", {
 
   result <- renderPanel("age", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -272,14 +272,14 @@ test_that("renderPanel handles multiple fields", {
 
   result <- renderPanel(c("name", "age", "gender", "date"), metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 4)
 })
 
 test_that("renderPanel handles missing metadata gracefully", {
   result <- renderPanel(c("field1", "field2"))
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 2)
 })
 
@@ -290,7 +290,7 @@ test_that("renderPanel uses default values when not specified", {
 
   result <- renderPanel("field1", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -306,7 +306,7 @@ test_that("renderPanel handles inline option for radio buttons", {
 
   result <- renderPanel("yes_no", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -322,7 +322,7 @@ test_that("renderPanel handles inline option for checkbox_group", {
 
   result <- renderPanel("options", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -331,7 +331,7 @@ test_that("renderPanel handles inline option for checkbox_group", {
 test_that("renderPanel handles empty field list", {
   result <- renderPanel(c())
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 0)
 })
 
@@ -342,7 +342,7 @@ test_that("renderPanel handles field with NULL metadata", {
 
   result <- renderPanel("field1", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
 })
 
 test_that("renderPanel handles special characters in labels", {
@@ -355,7 +355,7 @@ test_that("renderPanel handles special characters in labels", {
 
   result <- renderPanel("field1", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -373,7 +373,7 @@ test_that("renderPanel handles slider with animation", {
 
   result <- renderPanel("timeline", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -388,7 +388,7 @@ test_that("renderPanel handles file upload with multiple files", {
 
   result <- renderPanel("documents", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })
 
@@ -404,6 +404,6 @@ test_that("renderPanel handles select with multiple selection", {
 
   result <- renderPanel("languages", metadata)
 
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_length(result, 1)
 })

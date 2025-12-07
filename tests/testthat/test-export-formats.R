@@ -243,7 +243,7 @@ test_that("SAS export handles special characters in column names", {
   result <- export_to_file(test_data, test_file, "sas")
 
   # Should handle gracefully (haven will sanitize names)
-  expect_is(result, "list")
+  expect_type(result, "list")
   expect_true("success" %in% names(result))
 })
 
