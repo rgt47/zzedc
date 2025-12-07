@@ -572,14 +572,14 @@ describe("Logical Operators (and, or, not)", {
   it("rejects or when both false", {
     validator <- generate_validator("x == 'yes' or x == 'no'")
     result <- validator("maybe", list())
-    expect_false(result)
+    expect_true(is.character(result))
   })
 
   it("handles complex and/or combinations", {
     validator <- generate_validator("(x >= 18 and x <= 65) or x > 100")
     expect_true(validator(25, list()))  # In first group
     expect_true(validator(150, list()))  # Matches second condition
-    expect_false(validator(75, list()))  # Matches neither
+    expect_true(is.character(validator(75, list())))  # Matches neither
   })
 
   it("handles multiple ands", {
@@ -612,7 +612,7 @@ describe("Integration", {
     expect_true(result_senior$valid)
 
     result_young <- execute_validator(validator, 150, list(age = 30))
-    expect_false(result_young$valid)  # 150 not in 110-220 range
+    expect_true(result_young$valid)  # 150 is in 110-220 range for young person
   })
 
   it("handles real clinical trial validation", {

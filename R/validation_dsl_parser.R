@@ -416,6 +416,12 @@ Parser <- R6::R6Class(
         return(ast_node("range", field = field, start = field, end = end))
       }
 
+      # If parse_term returned a complex expression (if/or/and), return it as-is
+      # This happens when parsing parenthesized expressions like (if ... endif)
+      if (is.list(field) && field$type %in% c("if", "or", "and")) {
+        return(field)
+      }
+
       # Just a field reference (truthy check)
       ast_node("field_value", field = field)
     },

@@ -341,7 +341,12 @@ evaluate_range_node <- function(node, value, form_values, field_name) {
 #' Evaluate required check
 #' @keywords internal
 evaluate_required_node <- function(node, value, form_values, field_name) {
-  if (is.na(value) || is.null(value) || value == "") {
+  # Check if value is NA or NULL
+  if (is.na(value) || is.null(value)) {
+    return("This field is required")
+  }
+  # Check if value is empty string (only for character values)
+  if (is.character(value) && value == "") {
     return("This field is required")
   }
   return(TRUE)
@@ -383,15 +388,13 @@ evaluate_if_node <- function(node, value, form_values, field_name) {
   # Evaluate condition
   condition_result <- evaluate_ast_node(node$condition, value, form_values, field_name)
 
-  # If condition returned an error, propagate it
-  if (is.character(condition_result)) {
-    return(condition_result)
-  }
-
-  # Execute then or else branch based on condition
+  # In if/then/else context, treat error messages as FALSE (condition not met)
+  # Only TRUE means the condition is satisfied
   if (isTRUE(condition_result)) {
+    # Condition is true, execute then branch
     return(evaluate_ast_node(node$then_expr, value, form_values, field_name))
   } else if (!is.null(node$else_expr)) {
+    # Condition is false (or error), execute else branch
     return(evaluate_ast_node(node$else_expr, value, form_values, field_name))
   } else {
     return("If condition was false and no else branch")
