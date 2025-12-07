@@ -35,6 +35,21 @@ initialize_gsheets_server <- function(input, output, session) {
 
   gsheets_data <- get("gsheets_integration_data", envir = .GlobalEnv)
 
+  # Initialize validation cache and load rules from database
+  source("R/validation_cache.R", local = TRUE)
+  setup_global_validation_cache()
+
+  tryCatch({
+    con <- RSQLite::dbConnect(RSQLite::SQLite(), cfg$database$path)
+    on.exit(RSQLite::dbDisconnect(con))
+    result <- load_validation_rules_from_db(con)
+    if (result$count > 0) {
+      message("Loaded ", result$count, " validation rules for real-time validation")
+    }
+  }, error = function(e) {
+    warning("Could not load validation rules: ", e$message)
+  })
+
   # Generate form UIs
   for (i in 1:nrow(gsheets_data$forms_data$forms_overview)) {
     form_name <- gsheets_data$forms_data$forms_overview$workingname[i]

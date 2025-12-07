@@ -572,7 +572,7 @@ Parser <- R6::R6Class(
     },
 
     parse_term = function() {
-      # term = literal | identifier | parenthesized_expression
+      # term = literal | identifier | parenthesized_expression | function_call
       token <- self$peek()
 
       if (token$type == TOKEN_TYPES$LPAREN) {
@@ -592,9 +592,37 @@ Parser <- R6::R6Class(
         return(ast_node("literal", value = token$value, literal_type = "string"))
       }
 
+      # Handle special function keywords
+      if (token$type == TOKEN_TYPES$TODAY) {
+        self$consume(TOKEN_TYPES$TODAY)
+        # Expect parentheses for function call
+        if (self$peek()$type == TOKEN_TYPES$LPAREN) {
+          self$consume(TOKEN_TYPES$LPAREN)
+          self$consume(TOKEN_TYPES$RPAREN)
+        }
+        return(ast_node("today"))
+      }
+
       if (token$type == TOKEN_TYPES$IDENTIFIER) {
         self$consume(TOKEN_TYPES$IDENTIFIER)
-        return(ast_node("field", name = token$value))
+        # Check if this is a function call (followed by LPAREN)
+        if (self$peek()$type == TOKEN_TYPES$LPAREN) {
+          # Parse function arguments
+          self$consume(TOKEN_TYPES$LPAREN)
+          args <- list()
+          if (self$peek()$type != TOKEN_TYPES$RPAREN) {
+            args <- c(args, list(self$parse_expression()))
+            while (self$peek()$type == TOKEN_TYPES$COMMA) {
+              self$consume(TOKEN_TYPES$COMMA)
+              args <- c(args, list(self$parse_expression()))
+            }
+          }
+          self$consume(TOKEN_TYPES$RPAREN)
+          return(ast_node("function_call", name = token$value, args = args))
+        } else {
+          # Just a field reference
+          return(ast_node("field", name = token$value))
+        }
       }
 
       stop(sprintf("Expected term, got '%s' at line %d", token$value, token$line))

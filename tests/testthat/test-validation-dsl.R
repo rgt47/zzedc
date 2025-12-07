@@ -592,6 +592,108 @@ describe("Logical Operators (and, or, not)", {
 })
 
 # ============================================================================
+# Phase 3: Clinical Trial Date Features
+# ============================================================================
+
+describe("Date Functions", {
+  it("parses today() function", {
+    ast <- parse_dsl_rule("x <= today()")
+    expect_equal(ast$type, "comparison")
+    expect_equal(ast$operator, "<=")
+    expect_equal(ast$value$type, "today")
+  })
+
+  it("evaluates today() to current date", {
+    validator <- generate_validator("x <= today()")
+    yesterday <- Sys.Date() - 1
+    tomorrow <- Sys.Date() + 1
+
+    result_pass <- validator(yesterday, list())
+    expect_true(result_pass)
+
+    result_fail <- validator(tomorrow, list())
+    expect_true(is.character(result_fail))
+  })
+
+  it("handles function calls with arguments", {
+    ast <- parse_dsl_rule("length(subject_id) == 7")
+    expect_equal(ast$type, "comparison")
+    expect_equal(ast$field$type, "function_call")
+    expect_equal(ast$field$name, "length")
+  })
+
+  it("validates string length using length function", {
+    validator <- generate_validator("length(x) == 7")
+    result_pass <- validator("ABC1234", list())
+    expect_true(result_pass)
+
+    result_fail <- validator("ABC", list())
+    expect_true(is.character(result_fail))
+  })
+})
+
+describe("Date Comparisons", {
+  it("validates screening date not in future", {
+    validator <- generate_validator("x <= today()")
+    today <- Sys.Date()
+    past_date <- today - 30
+    future_date <- today + 30
+
+    result_past <- validator(past_date, list())
+    expect_true(result_past)
+
+    result_future <- validator(future_date, list())
+    expect_true(is.character(result_future))
+  })
+
+  it("validates enrollment date is before visit date", {
+    validator <- generate_validator("x > enrollment_date")
+    enrollment <- as.Date("2024-01-15")
+    visit_after <- as.Date("2024-02-01")
+    visit_before <- as.Date("2024-01-01")
+
+    result_after <- validator(visit_after, list(enrollment_date = enrollment))
+    expect_true(result_after)
+
+    result_before <- validator(visit_before, list(enrollment_date = enrollment))
+    expect_true(is.character(result_before))
+  })
+})
+
+describe("Clinical Trial Integration", {
+  it("validates ADHD screening with date requirements", {
+    # screening_date <= today()
+    validator <- generate_validator("x <= today()")
+    today <- Sys.Date()
+
+    result <- validator(today - 1, list())
+    expect_true(result)
+  })
+
+  it("validates age within range for study", {
+    # age >= 18 && age <= 65
+    validator <- generate_validator("x >= 18 and x <= 65")
+
+    result_valid <- validator(25, list())
+    expect_true(result_valid)
+
+    result_invalid <- validator(70, list())
+    expect_true(is.character(result_invalid))
+  })
+
+  it("validates conditional requirements based on enrollment", {
+    # if eligible == 'yes' then randomization_group required
+    validator <- generate_validator("if eligible == 'Eligible' then required else allow n endif")
+
+    result_required <- validator("Active", list(eligible = "Eligible"))
+    expect_true(result_required)
+
+    result_not_required <- validator(NA, list(eligible = "Not Eligible"))
+    expect_true(result_not_required)
+  })
+})
+
+# ============================================================================
 # Integration Tests
 # ============================================================================
 

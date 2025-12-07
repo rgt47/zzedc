@@ -91,6 +91,7 @@ evaluate_ast_node <- function(node, value, form_values = list(), field_name = NU
     "date_arithmetic" = evaluate_date_arithmetic_node(node, value, form_values, field_name),
     "within_days" = evaluate_within_days_node(node, value, form_values, field_name),
     "today" = evaluate_today_node(node, value, form_values, field_name),
+    "function_call" = evaluate_function_call_node(node, value, form_values, field_name),
 
     # Base types
     "field_value" = value,
@@ -513,9 +514,6 @@ is_ast_safe <- function(ast) {
 #' Evaluate date arithmetic operation
 #' @keywords internal
 evaluate_date_arithmetic_node <- function(node, value, form_values, field_name) {
-  # Load clinical validators for date utilities
-  source('R/clinical_validators.R', local = TRUE)
-
   # Get the base date
   if (is.character(node$date) || is.list(node$date)) {
     if (is.list(node$date)) {
@@ -540,12 +538,12 @@ evaluate_date_arithmetic_node <- function(node, value, form_values, field_name) 
   # Get the unit
   unit <- node$unit
 
-  # Perform the arithmetic
+  # Perform the arithmetic inline
   result <- switch(unit,
-    "days" = add_days(base_date, num_val),
-    "weeks" = add_weeks(base_date, num_val),
-    "months" = add_months(base_date, num_val),
-    "years" = add_months(base_date, num_val * 12),
+    "days" = base_date + num_val,
+    "weeks" = base_date + (num_val * 7),
+    "months" = base_date + (num_val * 30),  # Approximate
+    "years" = base_date + (num_val * 365),  # Approximate
     base_date
   )
 
@@ -555,9 +553,6 @@ evaluate_date_arithmetic_node <- function(node, value, form_values, field_name) 
 #' Evaluate within days operation
 #' @keywords internal
 evaluate_within_days_node <- function(node, value, form_values, field_name) {
-  # Load clinical validators
-  source('R/clinical_validators.R', local = TRUE)
-
   # Get the date to check
   if (is.list(node$check_date)) {
     check_date <- evaluate_ast_node(node$check_date, value, form_values, field_name)
@@ -595,8 +590,9 @@ evaluate_within_days_node <- function(node, value, form_values, field_name) {
     ref_date <- as.Date(ref_date)
   }
 
-  # Perform the check
-  if (within_days_of(check_date, ref_date, days)) {
+  # Perform the check inline
+  diff <- abs(as.numeric(difftime(check_date, ref_date, units = "days")))
+  if (diff <= days) {
     return(TRUE)
   } else {
     return(sprintf("Date %s is not within %d days of %s", check_date, days, ref_date))
@@ -606,6 +602,48 @@ evaluate_within_days_node <- function(node, value, form_values, field_name) {
 #' Evaluate today() function
 #' @keywords internal
 evaluate_today_node <- function(node, value, form_values, field_name) {
-  source('R/clinical_validators.R', local = TRUE)
-  get_today()
+  Sys.Date()
+}
+
+#' Evaluate function call node
+#' @keywords internal
+evaluate_function_call_node <- function(node, value, form_values, field_name) {
+  func_name <- node$name
+  args <- node$args
+
+  # Evaluate arguments first
+  eval_args <- list()
+  if (!is.null(args) && length(args) > 0) {
+    for (arg in args) {
+      eval_args <- c(eval_args, list(evaluate_ast_node(arg, value, form_values, field_name)))
+    }
+  }
+
+  # Map function names to implementations
+  switch(func_name,
+    "length" = {
+      if (length(eval_args) == 0) {
+        return("length() requires an argument")
+      }
+      nchar(as.character(eval_args[[1]]))
+    },
+    "today" = {
+      Sys.Date()
+    },
+    "days_between" = {
+      if (length(eval_args) < 2) {
+        return("days_between() requires two arguments")
+      }
+      as.numeric(difftime(eval_args[[2]], eval_args[[1]], units = "days"))
+    },
+    "within_days_of" = {
+      if (length(eval_args) < 3) {
+        return("within_days_of() requires three arguments")
+      }
+      diff <- abs(as.numeric(difftime(eval_args[[1]], eval_args[[2]], units = "days")))
+      diff <= eval_args[[3]]
+    },
+    # Default: unknown function
+    sprintf("Unknown function: %s", func_name)
+  )
 }
