@@ -87,6 +87,11 @@ evaluate_ast_node <- function(node, value, form_values = list(), field_name = NU
     # Control flow
     "if" = evaluate_if_node(node, value, form_values, field_name),
 
+    # Date/Time operations (Phase 3)
+    "date_arithmetic" = evaluate_date_arithmetic_node(node, value, form_values, field_name),
+    "within_days" = evaluate_within_days_node(node, value, form_values, field_name),
+    "today" = evaluate_today_node(node, value, form_values, field_name),
+
     # Base types
     "field_value" = value,
     "literal" = node$value,
@@ -499,4 +504,108 @@ is_ast_safe <- function(ast) {
   }
 
   TRUE
+}
+
+# ============================================================================
+# Date/Time Operations (Phase 3)
+# ============================================================================
+
+#' Evaluate date arithmetic operation
+#' @keywords internal
+evaluate_date_arithmetic_node <- function(node, value, form_values, field_name) {
+  # Load clinical validators for date utilities
+  source('R/clinical_validators.R', local = TRUE)
+
+  # Get the base date
+  if (is.character(node$date) || is.list(node$date)) {
+    if (is.list(node$date)) {
+      base_date <- evaluate_ast_node(node$date, value, form_values, field_name)
+    } else {
+      base_date <- node$date
+    }
+  } else {
+    base_date <- node$date
+  }
+
+  if (is.character(base_date)) {
+    base_date <- as.Date(base_date)
+  }
+
+  # Get the number
+  num_val <- node$number
+  if (is.list(num_val)) {
+    num_val <- evaluate_ast_node(num_val, value, form_values, field_name)
+  }
+
+  # Get the unit
+  unit <- node$unit
+
+  # Perform the arithmetic
+  result <- switch(unit,
+    "days" = add_days(base_date, num_val),
+    "weeks" = add_weeks(base_date, num_val),
+    "months" = add_months(base_date, num_val),
+    "years" = add_months(base_date, num_val * 12),
+    base_date
+  )
+
+  result
+}
+
+#' Evaluate within days operation
+#' @keywords internal
+evaluate_within_days_node <- function(node, value, form_values, field_name) {
+  # Load clinical validators
+  source('R/clinical_validators.R', local = TRUE)
+
+  # Get the date to check
+  if (is.list(node$check_date)) {
+    check_date <- evaluate_ast_node(node$check_date, value, form_values, field_name)
+  } else {
+    check_date <- node$check_date
+  }
+
+  # Get reference date from form values
+  ref_date_name <- node$reference_date
+  if (is.list(ref_date_name)) {
+    ref_date <- evaluate_ast_node(ref_date_name, value, form_values, field_name)
+  } else {
+    ref_date <- form_values[[ref_date_name]]
+    if (is.null(ref_date)) {
+      return("Reference date not found in form values")
+    }
+  }
+
+  # Get the number of days
+  days <- node$days
+  if (is.list(days)) {
+    days <- evaluate_ast_node(days, value, form_values, field_name)
+  }
+
+  # Check if dates are valid
+  if (is.na(check_date) || is.na(ref_date)) {
+    return("Missing date value for within comparison")
+  }
+
+  # Convert to Date if needed
+  if (is.character(check_date)) {
+    check_date <- as.Date(check_date)
+  }
+  if (is.character(ref_date)) {
+    ref_date <- as.Date(ref_date)
+  }
+
+  # Perform the check
+  if (within_days_of(check_date, ref_date, days)) {
+    return(TRUE)
+  } else {
+    return(sprintf("Date %s is not within %d days of %s", check_date, days, ref_date))
+  }
+}
+
+#' Evaluate today() function
+#' @keywords internal
+evaluate_today_node <- function(node, value, form_values, field_name) {
+  source('R/clinical_validators.R', local = TRUE)
+  get_today()
 }

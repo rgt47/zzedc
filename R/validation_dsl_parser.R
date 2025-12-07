@@ -37,7 +37,17 @@ TOKEN_TYPES <- list(
   IN = "IN",
   NOTIN = "NOTIN",
   REQUIRED = "REQUIRED",
-  ALLOW = "ALLOW"
+  ALLOW = "ALLOW",
+  # Date/Time operators
+  WITHIN = "WITHIN",
+  OF = "OF",
+  DAYS = "DAYS",
+  WEEKS = "WEEKS",
+  MONTHS = "MONTHS",
+  YEARS = "YEARS",
+  TODAY = "TODAY",
+  PLUS = "PLUS",
+  MINUS = "MINUS"
 )
 
 # ============================================================================
@@ -249,6 +259,14 @@ match_keyword <- function(word) {
     "notin" = TOKEN_TYPES$NOTIN,
     "required" = TOKEN_TYPES$REQUIRED,
     "allow" = TOKEN_TYPES$ALLOW,
+    # Date/time keywords
+    "within" = TOKEN_TYPES$WITHIN,
+    "of" = TOKEN_TYPES$OF,
+    "days" = TOKEN_TYPES$DAYS,
+    "weeks" = TOKEN_TYPES$WEEKS,
+    "months" = TOKEN_TYPES$MONTHS,
+    "years" = TOKEN_TYPES$YEARS,
+    "today" = TOKEN_TYPES$TODAY,
     NA
   )
 }
