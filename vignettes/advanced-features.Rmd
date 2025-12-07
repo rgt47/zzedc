@@ -1190,16 +1190,10 @@ advanced_validation <- function() {
 
 This completes the advanced features vignette, covering custom modules, APIs, security, performance optimization, enterprise deployment, and integration capabilities. These features enable ZZedc to scale from simple studies to complex, multi-site clinical trials with enterprise-grade requirements.
 
-## Support and Resources
+## Support Resources
 
-For implementing advanced features:
+For additional information on implementing advanced features:
 
-- **Custom Development**: Contact for consulting services
-- **Enterprise Support**: Available for large deployments
-- **Training**: Advanced user training programs available
-- **Integration Services**: Custom integration development
-
-**Contact Information:**
 - Email: rgthomas@ucsd.edu
 - GitHub: https://github.com/rgt47/zzedc
-- Enterprise Inquiries: Available upon request
+- Additional documentation available in package vignettes

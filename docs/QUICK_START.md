@@ -1,13 +1,13 @@
 # ZZedc Validation DSL - Quick Start Guide
 
-## What You Have
+## Overview
 
-A complete, production-ready R package for clinical trial data validation with:
-- **DSL Parser** - Write validation rules in plain English
-- **Real-time Validation** - <5ms field checking during data entry
-- **Batch QC System** - Nightly validation across full dataset
-- **Shiny Integration** - Works with ZZedc EDC application
-- **218+ Tests** - 100% passing, enterprise-grade quality
+The validation system provides the following functionality:
+- **Domain-specific language (DSL)** for expressing validation rules in human-readable syntax
+- **Real-time validation** with field-level checking during data entry
+- **Batch processing** for systematic quality control across complete datasets
+- **Shiny integration** for use within the ZZedc EDC application
+- **Comprehensive test coverage** with extensive automated test suite
 
 ## Installation
 
@@ -54,9 +54,9 @@ result <- validate_form(form_data)
 
 # Check if valid
 if (result$valid) {
-  cat("✅ All validations passed!\n")
+  cat("All validations passed.\n")
 } else {
-  cat("❌ Validation errors found:\n")
+  cat("Validation errors found:\n")
   print(result$errors)
 }
 ```

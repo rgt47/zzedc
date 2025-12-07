@@ -17,18 +17,19 @@ knitr::opts_chunk$set(
 
 # Getting Started with ZZedc
 
-ZZedc is a comprehensive Electronic Data Capture (EDC) system designed for clinical trials and research studies. This guide will help you get up and running quickly.
+ZZedc is an Electronic Data Capture (EDC) system implemented in R/Shiny for managing clinical trial and research study data.
 
-## What is ZZedc?
+## System Components
 
-ZZedc provides:
+The system includes the following functional components:
 
-- **Secure data collection** with user authentication
-- **Modern web interface** built with Bootstrap 5
-- **Real-time data validation** and quality controls
-- **Flexible reporting** and data export capabilities
-- **Multi-user support** with role-based access
-- **Compliance features** for regulatory requirements
+- Authentication system with user role management
+- Web-based interface for data entry and management
+- Data validation framework with customizable rules
+- Reporting system for data summarization and quality assessment
+- Multi-format data export capabilities
+- Role-based access control for user permissions
+- Regulatory compliance features supporting GCP and CFR Part 11 frameworks
 
 ## Installation
 

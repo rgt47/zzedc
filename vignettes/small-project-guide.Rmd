@@ -17,16 +17,16 @@ knitr::opts_chunk$set(
 
 # ZZedc for Small Clinical Studies
 
-This vignette demonstrates how to use ZZedc for small clinical studies (typically 10-50 participants) with simple data collection requirements.
+This vignette describes implementation of ZZedc for small-scale clinical studies (10-50 participants) with straightforward data collection requirements.
 
 ## Overview
 
-Small clinical studies benefit from ZZedc's straightforward setup and intuitive interface. This guide covers:
+This guide covers:
 
-- Quick setup for small teams
-- Basic data entry workflows
-- Simple reporting and exports
-- Essential quality control
+- Implementation procedures for small study teams
+- Data entry workflow design
+- Report generation and data export
+- Quality control procedures
 
 ## Prerequisites
 

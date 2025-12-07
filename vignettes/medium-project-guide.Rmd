@@ -17,17 +17,17 @@ knitr::opts_chunk$set(
 
 # ZZedc for Medium-Scale Clinical Studies
 
-This vignette demonstrates how to use ZZedc for medium-scale clinical studies (50-500 participants) with complex data collection requirements, multiple sites, and advanced quality control needs.
+This vignette describes implementation of ZZedc for medium-scale clinical studies (50-500 participants) with complex data collection requirements, multiple sites, and quality control procedures.
 
 ## Overview
 
-Medium-scale studies require robust data management capabilities. This guide covers:
+This guide covers:
 
-- Multi-site setup and coordination
-- Complex data collection workflows
-- Advanced quality control and monitoring
-- Regulatory compliance features
-- Team collaboration tools
+- Multi-site system configuration
+- Complex data collection workflow design
+- Data quality monitoring and management
+- Regulatory compliance implementation
+- User management and role assignments
 
 ## Prerequisites
 
