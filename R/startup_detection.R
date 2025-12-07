@@ -15,6 +15,7 @@
 #' @return Logical. TRUE if fully configured, FALSE if needs setup
 #'
 #' @keywords internal
+#' @export
 is_configured <- function(db_path = "./data/zzedc.db", config_path = "./config.yml") {
   file.exists(db_path) && file.exists(config_path)
 }
@@ -27,6 +28,7 @@ is_configured <- function(db_path = "./data/zzedc.db", config_path = "./config.y
 #' @return List with status information
 #'
 #' @keywords internal
+#' @export
 detect_setup_status <- function() {
   db_exists <- file.exists("./data/zzedc.db")
   config_exists <- file.exists("./config.yml")
@@ -54,6 +56,7 @@ detect_setup_status <- function() {
 #' @return Invisibly returns setup status
 #'
 #' @keywords internal
+#' @export
 launch_setup_if_needed <- function(db_path = "./data/zzedc.db",
                                    config_path = "./config.yml") {
 
@@ -76,6 +79,7 @@ launch_setup_if_needed <- function(db_path = "./data/zzedc.db",
 #' @return Character string with setup instructions
 #'
 #' @keywords internal
+#' @export
 get_setup_instructions <- function() {
   instructions <- "
 # ZZedc Setup Instructions
