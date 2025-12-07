@@ -5,9 +5,6 @@
 #' - Score calculations and ranges
 #' - Visit-based conditional logic
 #' - Missing data patterns
-#'
-#' @keywords internal
-#' @noRd
 
 # ============================================================================
 # Date Utilities

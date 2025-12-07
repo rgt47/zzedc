@@ -16,6 +16,7 @@ RoxygenNote: 7.3.3
 Depends: 
     R (>= 4.0.0)
 Imports:
+    methods,
     shiny (>= 1.7.0),
     bslib (>= 0.4.0),
     bsicons (>= 0.1.0),

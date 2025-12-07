@@ -2,8 +2,6 @@
 #'
 #' Pre-compiles and caches validation functions for performance.
 #' Validation rules are compiled once at app startup and reused for field-level validation.
-#'
-#' @keywords internal
 
 # ============================================================================
 # Cache Storage
