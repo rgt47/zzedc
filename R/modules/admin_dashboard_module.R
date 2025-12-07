@@ -1,18 +1,10 @@
-#' Admin Dashboard Module
-#'
-#' Complete administration interface combining all Phase 1 modules:
-#' - User Management
-#' - Backup & Restore
-#' - Audit Logging
-#' - System Configuration
-#' - Help & Documentation
-#'
-#' @export
-
 #' Admin Dashboard UI
+#'
+#' Creates the administration interface for managing users, backups, security, and configuration.
 #'
 #' @param id The namespace id for the module
 #' @return A tagList containing the complete admin dashboard UI
+#' @export
 admin_dashboard_ui <- function(id) {
   ns <- NS(id)
 

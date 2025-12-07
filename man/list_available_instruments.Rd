@@ -2,7 +2,7 @@
 % Please edit documentation in R/instrument_library.R
 \name{list_available_instruments}
 \alias{list_available_instruments}
-\title{Pre-Built Instrument Library Service}
+\title{List available instruments}
 \usage{
 list_available_instruments(instruments_dir = "instruments/")
 }
@@ -19,22 +19,6 @@ data.frame with columns:
 }
 }
 \description{
-Manages loading and importing standardized survey instruments.
-Pure business logic without Shiny dependencies for testability.
-}
-\details{
-Supported instruments include:
-\itemize{
-\item PHQ-9: Patient Health Questionnaire (depression screening, 9 items)
-\item GAD-7: Generalized Anxiety Disorder scale (anxiety, 7 items)
-\item SF-36: Short Form Health Survey (quality of life, 36 items)
-\item DASS-21: Depression Anxiety Stress Scale (psychological distress, 21 items)
-\item PROMIS: Patient-Reported Outcomes Measurement Information System
-\item AUDIT-C: Alcohol Use Disorders Identification Test (alcohol use, 3 items)
-\item STOP-BANG: Sleep Apnea Screening (8 items)
-List available instruments
-}
-
 Returns names and metadata of all available pre-built instruments.
 }
 \examples{

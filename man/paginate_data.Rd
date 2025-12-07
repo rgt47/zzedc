@@ -2,7 +2,7 @@
 % Please edit documentation in R/data_pagination.R
 \name{paginate_data}
 \alias{paginate_data}
-\title{Server-Side Data Pagination Utilities}
+\title{Create paginated data view}
 \usage{
 paginate_data(
   data,
@@ -35,11 +35,6 @@ List containing:
 }
 }
 \description{
-Efficient handling of large datasets with server-side pagination.
-Reduces memory usage and improves performance.
-Create paginated data view
-}
-\details{
 Prepares data for paginated display with server-side processing.
 Handles filtering, sorting, and pagination efficiently.
 }

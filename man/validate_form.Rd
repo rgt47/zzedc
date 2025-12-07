@@ -2,7 +2,7 @@
 % Please edit documentation in R/form_validators.R
 \name{validate_form}
 \alias{validate_form}
-\title{Form Validation and Processing Utilities}
+\title{Validate entire form submission}
 \usage{
 validate_form(form_data, field_metadata)
 }
@@ -21,11 +21,6 @@ List with:
 }
 }
 \description{
-Server-side validation functions for form submissions
-Ensures data quality and regulatory compliance
-Validate entire form submission
-}
-\details{
 Validates all form fields against metadata rules.
 Returns detailed validation results suitable for user feedback.
 }

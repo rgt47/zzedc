@@ -1,7 +1,5 @@
-#' Session Timeout Management
-#'
-#' Implements automatic session timeout due to inactivity.
-#' Required for HIPAA and 21 CFR Part 11 compliance.
+#' @keywords internal
+NULL
 
 #' Initialize session timeout tracking
 #'

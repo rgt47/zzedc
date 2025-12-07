@@ -1,7 +1,5 @@
-#' Consistent Error Handling Utilities
-#'
-#' Provides standardized error handling and user notification functions
-#' for consistent behavior across the application.
+#' @keywords internal
+NULL
 
 #' Handle errors with logging and user notification
 #'

@@ -1,8 +1,5 @@
-#' Data Export Service Layer
-#'
-#' Pure business logic for data export operations.
-#' Separate from Shiny reactive code for testability and reusability.
-#' Supports 8+ export formats: CSV, XLSX, JSON, PDF, HTML, SAS, SPSS, STATA, RDS
+#' @keywords internal
+NULL
 
 #' Prepare data for export
 #'

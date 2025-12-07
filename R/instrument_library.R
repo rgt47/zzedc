@@ -1,16 +1,5 @@
-#' Pre-Built Instrument Library Service
-#'
-#' Manages loading and importing standardized survey instruments.
-#' Pure business logic without Shiny dependencies for testability.
-#'
-#' Supported instruments include:
-#' - PHQ-9: Patient Health Questionnaire (depression screening, 9 items)
-#' - GAD-7: Generalized Anxiety Disorder scale (anxiety, 7 items)
-#' - SF-36: Short Form Health Survey (quality of life, 36 items)
-#' - DASS-21: Depression Anxiety Stress Scale (psychological distress, 21 items)
-#' - PROMIS: Patient-Reported Outcomes Measurement Information System
-#' - AUDIT-C: Alcohol Use Disorders Identification Test (alcohol use, 3 items)
-#' - STOP-BANG: Sleep Apnea Screening (8 items)
+#' @keywords internal
+NULL
 
 #' List available instruments
 #'

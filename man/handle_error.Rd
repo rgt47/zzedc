@@ -2,7 +2,7 @@
 % Please edit documentation in R/error_handling.R
 \name{handle_error}
 \alias{handle_error}
-\title{Consistent Error Handling Utilities}
+\title{Handle errors with logging and user notification}
 \usage{
 handle_error(
   expr,
@@ -27,11 +27,6 @@ handle_error(
 Result of expr if successful, return_value if error
 }
 \description{
-Provides standardized error handling and user notification functions
-for consistent behavior across the application.
-Handle errors with logging and user notification
-}
-\details{
 Wraps expression evaluation with error handling, logging, and user feedback.
 }
 \examples{

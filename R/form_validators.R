@@ -1,7 +1,5 @@
-#' Form Validation and Processing Utilities
-#'
-#' Server-side validation functions for form submissions
-#' Ensures data quality and regulatory compliance
+#' @keywords internal
+NULL
 
 #' Validate entire form submission
 #'

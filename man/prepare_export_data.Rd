@@ -2,7 +2,7 @@
 % Please edit documentation in R/export_service.R
 \name{prepare_export_data}
 \alias{prepare_export_data}
-\title{Data Export Service Layer}
+\title{Prepare data for export}
 \usage{
 prepare_export_data(data_source, format, options = NULL, db_conn = NULL)
 }
@@ -35,12 +35,6 @@ List containing:
 }
 }
 \description{
-Pure business logic for data export operations.
-Separate from Shiny reactive code for testability and reusability.
-Supports 8+ export formats: CSV, XLSX, JSON, PDF, HTML, SAS, SPSS, STATA, RDS
-Prepare data for export
-}
-\details{
 Retrieves and formats data based on export configuration.
 Pure function with no Shiny dependencies.
 }

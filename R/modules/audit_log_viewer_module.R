@@ -1,14 +1,11 @@
-#' Audit Log Viewer Module
+#' Audit Log Viewer UI
 #'
 #' Provides a user-friendly interface for viewing, filtering, and searching audit logs
-#' Allows data managers to track all system actions for compliance
-#'
-#' @export
-
-#' Audit Log Viewer UI
+#' for system compliance tracking.
 #'
 #' @param id The namespace id for the module
 #' @return A tagList containing the audit log viewer UI
+#' @export
 audit_log_viewer_ui <- function(id) {
   ns <- NS(id)
 

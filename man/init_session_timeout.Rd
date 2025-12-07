@@ -2,7 +2,7 @@
 % Please edit documentation in R/session_timeout.R
 \name{init_session_timeout}
 \alias{init_session_timeout}
-\title{Session Timeout Management}
+\title{Initialize session timeout tracking}
 \usage{
 init_session_timeout()
 }
@@ -10,11 +10,6 @@ init_session_timeout()
 List containing reactive objects for session management
 }
 \description{
-Implements automatic session timeout due to inactivity.
-Required for HIPAA and 21 CFR Part 11 compliance.
-Initialize session timeout tracking
-}
-\details{
 Creates reactive values to track user activity and session state.
 }
 \keyword{internal}
