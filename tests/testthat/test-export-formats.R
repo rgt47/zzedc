@@ -85,7 +85,7 @@ test_that("export_to_file handles RDS format", {
 })
 
 test_that("export_to_file returns error when haven not available for SAS", {
-  skip_if_installed("haven")
+  skip_if(requireNamespace("haven", quietly = TRUE), "haven is installed, skipping test for missing haven")
 
   test_data <- data.frame(x = 1:5)
   test_file <- tempfile(fileext = ".xpt")

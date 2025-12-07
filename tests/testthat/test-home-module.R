@@ -2,8 +2,10 @@
 # Tests for the home_module.R functionality
 
 # Load required modules
-source(here::here("R/modules/home_module.R"))
 source(here::here("tests/testthat/test-setup.R"))
+source(here::here("R/modules/instrument_import_module.R"))
+source(here::here("R/modules/quality_dashboard_module.R"))
+source(here::here("R/modules/home_module.R"))
 
 test_that("home_ui function generates correct structure", {
   ui_output <- home_ui("test_home")

@@ -386,9 +386,8 @@ generate_export_filename <- function(base_name = NULL, data_source, format) {
   if (is.null(base_name) || base_name == "") {
     base_name <- paste0(data_source, "_export_", format(Sys.Date(), "%Y%m%d"))
   } else {
-    # Sanitize user-provided filename: remove special characters, limit length
-    base_name <- gsub("[^a-zA-Z0-9._-]", "_", base_name)
-    base_name <- substr(base_name, 1, 255)
+    # Sanitize user-provided filename
+    base_name <- validate_filename(base_name)
   }
 
   # Add extension based on format
