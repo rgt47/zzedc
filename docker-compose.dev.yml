@@ -1,0 +1,211 @@
+################################################################################
+# ZZedc Docker Compose - Development Configuration
+#
+# Purpose: Simplified local development setup for solo researchers
+#
+# Features:
+#   - No HTTPS complexity (HTTP only on localhost)
+#   - Direct port binding (no reverse proxy)
+#   - Fast startup and testing
+#   - Volume mounts for live development
+#   - Debug logging enabled
+#   - Single command to start: docker-compose -f docker-compose.dev.yml up
+#
+# Usage:
+#   # First time setup
+#   cp .env.dev.example .env.dev
+#   nano .env.dev  # Edit with your study info
+#   docker-compose -f docker-compose.dev.yml build
+#   docker-compose -f docker-compose.dev.yml up
+#
+#   # Access application
+#   http://localhost:3838
+#
+# For production deployment, use docker-compose.yml instead
+################################################################################
+
+version: '3.9'
+
+services:
+  ################################################################################
+  # ZZedc R/Shiny Application (Development)
+  ################################################################################
+
+  zzedc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+
+    container_name: zzedc-dev
+
+    # Port binding - direct access to Shiny
+    ports:
+      - "3838:3838"  # Shiny application
+
+    # Environment variables from .env.dev
+    env_file:
+      - .env.dev
+
+    # Environment variables specific to development
+    environment:
+      LOG_LEVEL: debug            # Debug logging enabled
+      SHINY_LOG_LEVEL: debug      # Shiny debug logging
+      R_DEFAULT_PACKAGES: "base,methods,datasets,utils,grDevices,graphics,stats"
+
+    # Volume mounts for development
+    volumes:
+      # Data persistence (SQLite database)
+      - ./data:/app/data
+
+      # Logs for debugging
+      - ./logs:/app/logs
+
+      # Backups
+      - ./backups:/app/backups
+
+      # Configuration
+      - ./config:/app/config
+
+      # Form definitions
+      - ./forms:/app/forms
+
+      # (Optional) Live code mounting for development
+      # Uncomment to reload app on code changes:
+      # - ./R:/app/R:ro
+      # - ./ui.R:/app/ui.R:ro
+      # - ./server.R:/app/server.R:ro
+
+    # Health check for development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3838"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Resource limits for development (generous)
+    # Uncomment to limit if needed:
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 1G
+
+    networks:
+      - zzedc-dev-network
+
+    # Keep container running even on errors
+    stdin_open: true
+    tty: true
+
+################################################################################
+# Networks
+################################################################################
+
+networks:
+  zzedc-dev-network:
+    driver: bridge
+
+################################################################################
+# Volumes
+################################################################################
+
+# Named volumes for data persistence across container restarts
+# (Local bind mounts defined in service volumes above)
+
+################################################################################
+# Notes
+################################################################################
+
+# Development-Specific Features:
+#
+# 1. Direct Port Access
+#    - No reverse proxy (Caddy) for simplicity
+#    - Direct access to Shiny on port 3838
+#    - Perfect for localhost testing
+#
+# 2. Debug Logging
+#    - LOG_LEVEL=debug for detailed output
+#    - SHINY_LOG_LEVEL=debug for Shiny debugging
+#    - Logs visible in docker-compose logs output
+#
+# 3. Volume Mounts
+#    - Data directory mounted for persistence
+#    - Logs directory for debugging
+#    - Easy access to database files
+#    - Can inspect/edit configuration directly
+#
+# 4. Hot Reload (Optional)
+#    - Uncomment the R/, ui.R, server.R mounts
+#    - Changes detected and reloaded automatically
+#    - Fast development cycle
+#
+# 5. No TLS/SSL Complexity
+#    - Plain HTTP on localhost:3838
+#    - No certificate generation needed
+#    - Perfect for development
+#    - Use production docker-compose.yml for HTTPS
+#
+# 6. Rapid Iteration
+#    - Single container (no Caddy proxy)
+#    - Fast startup (~30 seconds)
+#    - Easy logs inspection: docker-compose logs -f
+#
+# Transitioning to Production:
+#
+#   1. When ready for production, use docker-compose.yml
+#   2. Update .env with production values
+#   3. Use real domain instead of localhost:3838
+#   4. HTTPS/certificates handled automatically by Caddy
+#   5. Follow IT_STAFF_DEPLOYMENT_CHECKLIST.md
+#
+# Development Workflow:
+#
+#   1. Start containers
+#      docker-compose -f docker-compose.dev.yml up
+#
+#   2. Access application
+#      Open browser: http://localhost:3838
+#
+#   3. Login
+#      Username: admin
+#      Password: (from .env.dev)
+#
+#   4. Create test data
+#      Build forms, add participants, test workflows
+#
+#   5. Inspect logs
+#      docker-compose -f docker-compose.dev.yml logs -f
+#
+#   6. Check data
+#      docker-compose -f docker-compose.dev.yml exec zzedc \
+#        sqlite3 /app/data/zzedc.db ".tables"
+#
+#   7. Stop containers
+#      docker-compose -f docker-compose.dev.yml down
+#
+#   8. Data persistence
+#      SQLite database in ./data/ directory survives container restart
+#
+# Troubleshooting:
+#
+#   Port already in use:
+#     Change port in docker-compose.dev.yml: "3839:3838"
+#
+#   Slow startup:
+#     Check Docker resources: Docker preferences → Resources
+#
+#   Database locked errors:
+#     Ensure only one container is running
+#     docker-compose -f docker-compose.dev.yml down
+#
+#   See LOCAL_DEVELOPMENT_TROUBLESHOOTING.md for more help
+#
+################################################################################

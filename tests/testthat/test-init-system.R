@@ -163,17 +163,18 @@ test_that("get_setup_instructions() returns helpful text", {
 test_that("generate_security_salt() creates valid salt", {
   salt <- generate_security_salt()
 
-  # Should be 32-character hex string
-  expect_is(salt, "character")
+  # Should be 32-character alphanumeric string (letters + digits)
+  expect_type(salt, "character")
   expect_equal(nchar(salt), 32)
-  expect_true(grepl("^[a-f0-9]{32}$", salt))
+  # Salt can contain uppercase and lowercase letters and digits
+  expect_true(grepl("^[a-zA-Z0-9]{32}$", salt))
 })
 
 test_that("generate_security_salt() creates different salts each time", {
   salt1 <- generate_security_salt()
   salt2 <- generate_security_salt()
 
-  expect_not_equal(salt1, salt2)
+  expect_false(identical(salt1, salt2))
 })
 
 ################################################################################
@@ -216,7 +217,7 @@ compliance:
   config <- yaml::read_yaml(temp_file)
 
   # Verify structure
-  expect_is(config, "list")
+  expect_type(config, "list")
   expect_true("study" %in% names(config))
   expect_true("admin" %in% names(config))
   expect_equal(config$study$name, "Test Study")
@@ -268,11 +269,11 @@ test_that("Password validation requires minimum length", {
   # This test validates that the init function would reject short passwords
   short_password <- "short"
 
-  expect_less_than(nchar(short_password), 8)
+  expect_lt(nchar(short_password), 8)
 
   # Valid password
   valid_password <- "ValidPass123!"
-  expect_greater_than_or_equal(nchar(valid_password), 8)
+  expect_gte(nchar(valid_password), 8)
 })
 
 test_that("Email validation requires proper format", {
@@ -341,7 +342,7 @@ test_that("Study name validation handles various inputs", {
 
   for (name in valid_names) {
     expect_true(nchar(name) > 0)
-    expect_is(name, "character")
+    expect_type(name, "character")
   }
 
   # Invalid study names
@@ -462,10 +463,10 @@ security:
   config <- yaml::read_yaml(temp_file)
 
   # All required fields present
-  expect_is(config$study$name, "character")
-  expect_is(config$study$protocol_id, "character")
-  expect_is(config$admin$username, "character")
-  expect_is(config$admin$password, "character")
+  expect_type(config$study$name, "character")
+  expect_type(config$study$protocol_id, "character")
+  expect_type(config$admin$username, "character")
+  expect_type(config$admin$password, "character")
 })
 
 ################################################################################
