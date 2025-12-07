@@ -16,6 +16,11 @@ Specialized validation functions for clinical trial data including:
 \item Score calculations and ranges
 \item Visit-based conditional logic
 \item Missing data patterns
+Get today's date
 }
+}
+\details{
+Returns the current date as a Date object.
+Used in validation rules like: screening_date <= today()
 }
 \keyword{internal}

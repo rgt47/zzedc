@@ -14,4 +14,4 @@ TOKEN_TYPES
 Parses validation rule strings into Abstract Syntax Trees (AST) for code generation.
 Supports a human-friendly validation language for clinical trial rules.
 }
-\keyword{internal}
+\keyword{datasets}

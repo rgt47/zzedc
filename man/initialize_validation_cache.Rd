@@ -12,20 +12,10 @@ Environment for storing validation cache
 \description{
 Pre-compiles and caches validation functions for performance.
 Validation rules are compiled once at app startup and reused for field-level validation.
+Initialize validation cache
 }
-\keyword{Called}
-\keyword{Creates}
-\keyword{Initialize}
-\keyword{an}
-\keyword{app}
-\keyword{at}
-\keyword{cache}
-\keyword{environment}
-\keyword{functions.}
+\details{
+Creates an environment to store pre-compiled validation functions.
+Called once at app startup.
+}
 \keyword{internal}
-\keyword{once}
-\keyword{pre-compiled}
-\keyword{startup.}
-\keyword{store}
-\keyword{to}
-\keyword{validation}
