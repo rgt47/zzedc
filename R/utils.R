@@ -23,10 +23,13 @@ validate_filename <- function(filename, max_length = 100) {
   }
 
   # Remove path traversal attempts - extract just the filename
-  # Remove leading ../ or ..\
-  filename <- gsub("^(\\.\\.[\\/\\\\])+", "", filename)
+  # Replace backslashes with forward slashes for consistent handling
+  filename <- gsub("\\\\", "/", filename)
+
+  # Remove leading ../ sequences
+  filename <- gsub("^(\\.\\.[\\/])+", "", filename)
   # Remove leading slashes
-  filename <- gsub("^[\\/\\\\]", "", filename)
+  filename <- gsub("^[\\/]", "", filename)
 
   # Keep only the filename part if full path was provided
   filename <- basename(filename)
