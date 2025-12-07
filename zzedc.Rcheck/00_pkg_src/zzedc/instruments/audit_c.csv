@@ -1,4 +1,0 @@
-field_name,field_label,field_type,validation_rules,description,required
-audit_c_q1,How often do you have a drink containing alcohol?,select,"{""choices"": [""0_never"", ""1_monthly_or_less"", ""2_2_4_times_month"", ""3_2_3_times_week"", ""4_4_or_more_times_week""]}",In the past year how often have you had a drink containing alcohol?,TRUE
-audit_c_q2,How many drinks do you have on a typical day when you are drinking?,select,"{""choices"": [""0_one_or_two"", ""1_three_or_four"", ""2_five_or_six"", ""3_seven_to_nine"", ""4_ten_or_more""]}",How many standard drinks do you have on a typical day when you are drinking?,TRUE
-audit_c_q3,How often do you have 6 or more drinks on one occasion?,select,"{""choices"": [""0_never"", ""1_less_than_monthly"", ""2_monthly"", ""3_weekly"", ""4_daily_or_almost_daily""]}",How often do you have 6 or more drinks on one occasion in the past year?,TRUE
