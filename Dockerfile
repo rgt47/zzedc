@@ -2,10 +2,13 @@ ARG BASE_IMAGE=rocker/r-ver
 ARG R_VERSION=latest
 FROM rocker/r-ver:latest
 
-# Build arguments for package selection
+# ZZedc EDC System - zzcollab Framework Integration
+# Build arguments for bundle and package selection
+ARG BUNDLE_LIBS=edc_standard
+ARG BUNDLE_PKGS=edc_core,edc_validation,edc_compliance
 ARG PACKAGE_MODE=standard
 ARG TEAM_NAME=rgt47
-ARG PROJECT_NAME=r-project
+ARG PROJECT_NAME=zzedc
 ARG ADDITIONAL_PACKAGES=""
 ARG USERNAME=analyst
 
@@ -58,12 +61,17 @@ RUN if echo "rocker/r-ver" | grep -E "^rocker/(r-ver|rstudio)" \
 
 # Add metadata labels
 LABEL maintainer="rgt47"
-LABEL project=""
-LABEL package.mode=""
-LABEL org.opencontainers.image.title="ZZCOLLAB Docker Image"
-LABEL org.opencontainers.image.description="R environment with \
-       package configuration"
+LABEL project="zzedc"
+LABEL package.mode="standard"
+LABEL bundle.libs="edc_standard"
+LABEL bundle.pkgs="edc_core,edc_validation,edc_compliance"
+LABEL org.opencontainers.image.title="ZZedc - Electronic Data Capture System"
+LABEL org.opencontainers.image.description="Production-ready R/Shiny EDC with \
+       clinical trial validation DSL, zzcollab framework integration"
 LABEL org.opencontainers.image.vendor="ZZCOLLAB"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/zzcollab/zzedc"
+LABEL org.opencontainers.image.documentation="https://zzcollab.github.io/zzedc"
 
 # Create non-root user with zsh as default shell
 # Always create the user since we reference it throughout the Dockerfile
@@ -157,3 +165,16 @@ RUN R -e "install.packages('.', repos = NULL, type = 'source', \
 # Set default shell and working directory
 WORKDIR /home/analyst/project
 CMD ["/bin/zsh"]
+
+# zzcollab Bundle System Integration
+# This Dockerfile supports profile-based builds via bundles.yaml
+#
+# Build with different profiles:
+#   docker build --build-arg BUNDLE_LIBS=edc_minimal -t zzedc:minimal .
+#   docker build --build-arg BUNDLE_LIBS=edc_standard -t zzedc:standard .
+#   docker build --build-arg BUNDLE_LIBS=edc_analysis -t zzedc:analysis .
+#   docker build --build-arg BUNDLE_LIBS=edc_development -t zzedc:dev .
+#
+# Profile definitions are in bundles.yaml
+# Configuration is in config.yaml
+# See PACKAGE_STRUCTURE.md for details

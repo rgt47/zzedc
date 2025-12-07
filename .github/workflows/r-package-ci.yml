@@ -17,19 +17,46 @@ env:
   GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  # Check if this is an R package
+  # Check if this is an R package and zzcollab framework compatible
   detect-package:
     runs-on: ubuntu-latest
     outputs:
       is-r-package: ${{ steps.check.outputs.is-r-package }}
+      zzcollab-compatible: ${{ steps.zzcollab.outputs.compatible }}
     steps:
       - uses: actions/checkout@v4
+
       - id: check
+        name: Check if R package
         run: |
           if [[ -f "DESCRIPTION" ]] && [[ -f "NAMESPACE" ]]; then
             echo "is-r-package=true" >> $GITHUB_OUTPUT
           else
             echo "is-r-package=false" >> $GITHUB_OUTPUT
+          fi
+
+      - id: zzcollab
+        name: Check zzcollab framework compatibility
+        run: |
+          echo "Checking zzcollab framework integration..."
+          missing_files=()
+
+          if [[ ! -f "bundles.yaml" ]]; then
+            missing_files+=("bundles.yaml")
+          fi
+          if [[ ! -f "config.yaml" ]]; then
+            missing_files+=("config.yaml")
+          fi
+          if [[ ! -f "Dockerfile" ]]; then
+            missing_files+=("Dockerfile")
+          fi
+
+          if [[ ${#missing_files[@]} -eq 0 ]]; then
+            echo "compatible=true" >> $GITHUB_OUTPUT
+            echo "✓ zzcollab framework files present"
+          else
+            echo "compatible=false" >> $GITHUB_OUTPUT
+            echo "✗ Missing zzcollab files: ${missing_files[*]}"
           fi
 
   # R package testing matrix
