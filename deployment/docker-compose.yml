@@ -1,0 +1,440 @@
+################################################################################
+# ZZedc Production Docker Compose Configuration
+#
+# Purpose: Orchestrate ZZedc application with Caddy reverse proxy for
+#          production AWS deployment or standalone server deployment
+#
+# Usage:
+#   # Build and start
+#   docker-compose build
+#   docker-compose up -d
+#
+#   # View logs
+#   docker-compose logs -f zzedc
+#   docker-compose logs -f caddy
+#
+#   # Stop everything
+#   docker-compose down
+#
+# Environment Variables:
+#   Create a .env file in this directory with:
+#   ZZEDC_SALT=<64-char hex string>
+#   STUDY_NAME="Your Study Name"
+#   STUDY_ID="STUDY-ID-2025"
+#   ADMIN_PASSWORD="SecurePassword123!"
+#   PI_EMAIL="pi@institution.edu"
+#   LOG_LEVEL="info"
+#
+# Or set via command line:
+#   ZZEDC_SALT=xxx STUDY_NAME="Study" docker-compose up -d
+#
+################################################################################
+
+version: '3.9'
+
+################################################################################
+# Services
+################################################################################
+
+services:
+
+  # ============================================================================
+  # Caddy - Reverse Proxy with Automatic HTTPS
+  # ============================================================================
+  caddy:
+    image: caddy:latest
+    container_name: zzedc-caddy
+
+    # Port mappings
+    ports:
+      - "80:80"      # HTTP (redirected to HTTPS by Caddy)
+      - "443:443"    # HTTPS (secure access)
+      - "443:443/udp" # HTTP/3 support
+
+    # Volume mounts
+    volumes:
+      # Caddyfile configuration (mounted from host)
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+      # Persistent storage for certificates and data
+      # These named volumes prevent certificate loss on container restart
+      - caddy-data:/data
+      - caddy-config:/config
+
+      # Application logs (read from shared volume)
+      - zzedc-logs:/app/logs:ro
+
+    # Networking
+    networks:
+      - zzedc-network
+
+    # Restart policy - always restart unless explicitly stopped
+    restart: unless-stopped
+
+    # Wait for Shiny app to be ready before starting
+    depends_on:
+      zzedc:
+        condition: service_healthy
+
+    # Resource limits (optional, uncomment if needed)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 256M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Health check - verify Caddy is accepting connections
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+
+  # ============================================================================
+  # ZZedc - R/Shiny Application
+  # ============================================================================
+  zzedc:
+    # Build image from local Dockerfile
+    build:
+      context: ..  # Parent directory (zzedc root)
+      dockerfile: deployment/Dockerfile
+
+    image: zzedc-app:latest
+    container_name: zzedc-app
+
+    # Port mappings
+    ports:
+      # 3838 is exposed but accessed internally via Caddy
+      # Only expose if you want direct access (for debugging)
+      - "3838:3838"
+
+    # Environment variables
+    environment:
+      # Security salt for password hashing (CRITICAL - must be unique per deployment)
+      ZZEDC_SALT: "${ZZEDC_SALT}"
+
+      # Study configuration
+      STUDY_NAME: "${STUDY_NAME:-ZZedc Study}"
+      STUDY_ID: "${STUDY_ID:-DEFAULT-2025}"
+      PI_EMAIL: "${PI_EMAIL:-admin@example.org}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-ChangeMe123!}"
+
+      # Application settings
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      R_DEFAULT_PACKAGES: "${R_DEFAULT_PACKAGES:-base,methods,datasets,utils,grDevices,graphics,stats}"
+
+      # Shiny settings for better performance
+      SHINY_PORT: "3838"
+      SHINY_HOST: "0.0.0.0"
+
+    # Volume mounts
+    volumes:
+      # Data persistence - database file
+      - zzedc-data:/app/data
+
+      # Application logs
+      - zzedc-logs:/app/logs
+
+      # Backup files
+      - zzedc-backups:/app/backups
+
+      # Configuration files
+      - zzedc-config:/app/config
+
+      # Form definitions (if using external form definitions)
+      - zzedc-forms:/app/forms
+
+    # Working directory
+    working_dir: /app
+
+    # Networking
+    networks:
+      - zzedc-network
+
+    # Restart policy - always restart unless explicitly stopped
+    restart: unless-stopped
+
+    # Resource limits (optional, uncomment if needed on small instances)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 1G
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    # Health check - verify Shiny application is responding
+    # If this fails, Docker will restart the container
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3838"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s  # Allow extra time for R startup
+
+
+################################################################################
+# Networks
+################################################################################
+
+networks:
+  zzedc-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+
+
+################################################################################
+# Volumes
+################################################################################
+
+volumes:
+  # Caddy certificate and data storage
+  caddy-data:
+    driver: local
+
+  caddy-config:
+    driver: local
+
+  # ZZedc application volumes
+  zzedc-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
+
+  zzedc-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs
+
+  zzedc-backups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./backups
+
+  zzedc-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./config
+
+  zzedc-forms:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./forms
+
+
+################################################################################
+# Configuration Notes
+#
+# SECURITY CONSIDERATIONS
+# =======================
+#
+# 1. ZZEDC_SALT (CRITICAL)
+#    - Generate with: openssl rand -hex 16
+#    - Different for each deployment
+#    - Store securely (AWS Secrets Manager, 1Password, etc.)
+#    - Never commit to Git
+#
+# 2. ADMIN_PASSWORD
+#    - Set strong password (8+ characters, mixed types)
+#    - Change immediately after first login
+#    - Never reuse across deployments
+#
+# 3. Data Volumes
+#    - Mount to persistent storage (not ephemeral)
+#    - Backup regularly (see deployment checklist)
+#    - Restrict filesystem permissions (700 or 755)
+#
+# 4. Network
+#    - Caddy handles HTTPS termination
+#    - Port 80 required for Let's Encrypt ACME challenges
+#    - Port 443 for secure access
+#    - Port 3838 should NOT be exposed to internet (Caddy proxies it)
+#
+# 5. Logging
+#    - Logs rotate automatically (10MB max, 3-5 files)
+#    - Monitor /app/logs for errors
+#    - Archive old logs to S3 or external storage
+#
+#
+# CADDYFILE CONFIGURATION
+# =======================
+#
+# The Caddyfile must be edited with your domain name before starting.
+# Template provided in Caddyfile (in this directory).
+#
+# Required changes:
+#   1. Replace "DOMAIN_NAME" with your actual domain
+#   2. Ensure email is set for Let's Encrypt certificate
+#
+# Example:
+#   trial.example.org {
+#     reverse_proxy zzedc:3838 {
+#       header_up X-Forwarded-Proto https
+#       header_up X-Forwarded-Host {host}
+#     }
+#   }
+#
+#
+# ENVIRONMENT VARIABLES
+# =====================
+#
+# Source options (in order of precedence):
+#
+# 1. .env file (recommended for production)
+#    Create: deployment/.env
+#    Content:
+#      ZZEDC_SALT=a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0
+#      STUDY_NAME="My Study"
+#      STUDY_ID="STUDY-2025-001"
+#      ADMIN_PASSWORD="SecurePass123!"
+#      PI_EMAIL="pi@institution.edu"
+#      LOG_LEVEL="info"
+#
+# 2. Command line
+#    $ docker-compose --env-file production.env up -d
+#
+# 3. Shell environment (less secure, not recommended)
+#    $ export ZZEDC_SALT=...
+#    $ docker-compose up -d
+#
+#
+# DEPLOYMENT WORKFLOW
+# ===================
+#
+# 1. Prepare environment
+#    mkdir -p data logs backups config forms
+#    chmod 755 data logs backups config forms
+#
+# 2. Configure Caddyfile
+#    Edit Caddyfile with domain name
+#    sed -i 's/DOMAIN_NAME/trial.example.org/g' Caddyfile
+#
+# 3. Create .env file
+#    ZZEDC_SALT=$(openssl rand -hex 16)
+#    echo "ZZEDC_SALT=$ZZEDC_SALT" > .env
+#    echo "STUDY_NAME=..." >> .env
+#    chmod 600 .env  # Restrict permissions
+#
+# 4. Build and start
+#    docker-compose build
+#    docker-compose up -d
+#
+# 5. Verify startup
+#    docker-compose ps         # Check container status
+#    docker-compose logs -f    # Monitor logs
+#    curl -I https://trial.example.org  # Test HTTPS
+#
+# 6. Monitor health
+#    docker-compose ps         # Should show both healthy
+#    docker stats              # Monitor resource usage
+#    docker-compose logs       # Check for errors
+#
+#
+# COMMON COMMANDS
+# ===============
+#
+# View status
+#   docker-compose ps
+#
+# View logs (all)
+#   docker-compose logs
+#
+# View logs (specific service)
+#   docker-compose logs zzedc
+#   docker-compose logs caddy
+#
+# Follow logs in real-time
+#   docker-compose logs -f zzedc
+#
+# Stop containers
+#   docker-compose stop
+#
+# Start containers
+#   docker-compose start
+#
+# Restart a service
+#   docker-compose restart zzedc
+#   docker-compose restart caddy
+#
+# Restart everything
+#   docker-compose restart
+#
+# Full teardown (keeps volumes)
+#   docker-compose down
+#
+# Full teardown (removes volumes - WARNING: data loss!)
+#   docker-compose down -v
+#
+# Access container shell
+#   docker-compose exec zzedc bash
+#   docker-compose exec caddy bash
+#
+# Run command in container
+#   docker-compose exec zzedc R --version
+#   docker-compose exec caddy caddy version
+#
+# View resource usage
+#   docker stats
+#
+#
+# TROUBLESHOOTING
+# ===============
+#
+# Containers won't start:
+#   docker-compose logs zzedc   # Check for R errors
+#   docker-compose logs caddy   # Check for Caddy errors
+#
+# HTTPS not working:
+#   docker-compose logs caddy | grep certificate
+#   # Verify domain resolves: nslookup trial.example.org
+#   # Verify DNS points to instance IP
+#
+# Database errors:
+#   docker-compose exec zzedc ls -la /app/data/
+#   docker-compose exec zzedc sqlite3 /app/data/zzedc.db ".tables"
+#
+# Port conflicts:
+#   sudo netstat -tlnp | grep 80
+#   sudo netstat -tlnp | grep 443
+#   # Kill process using the port or use different port mapping
+#
+# Out of disk space:
+#   df -h
+#   du -sh data/ logs/ backups/
+#   docker system prune  # Clean up unused images
+#
+# See IT_STAFF_TROUBLESHOOTING.md for comprehensive troubleshooting guide
+#
+################################################################################
