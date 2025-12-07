@@ -17,4 +17,3 @@ data.frame with EDC export data
 \description{
 Retrieves EDC data with optional metadata and filtering
 }
-\keyword{internal}

@@ -19,4 +19,3 @@ Filtered data.frame
 \description{
 Searches all columns for matching values
 }
-\keyword{internal}

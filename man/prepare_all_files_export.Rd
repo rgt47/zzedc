@@ -15,4 +15,3 @@ List of file data
 \description{
 Prepare all files data for export
 }
-\keyword{internal}

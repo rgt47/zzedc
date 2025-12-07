@@ -15,4 +15,3 @@ data.frame with sample data
 \description{
 Prepare sample data for export
 }
-\keyword{internal}

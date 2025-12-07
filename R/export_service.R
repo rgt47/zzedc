@@ -114,7 +114,6 @@ prepare_export_data <- function(data_source, format, options = NULL, db_conn = N
 #'
 #' @return data.frame with EDC export data
 #'
-#' @keywords internal
 prepare_edc_export <- function(db_conn, options = NULL) {
   # Default options
   options <- options %||% list()
@@ -160,7 +159,6 @@ prepare_edc_export <- function(db_conn, options = NULL) {
 #'
 #' @return data.frame with sample data
 #'
-#' @keywords internal
 prepare_sample_export <- function(options = NULL) {
   # Generate sample export data
   n_records <- 100
@@ -184,7 +182,6 @@ prepare_sample_export <- function(options = NULL) {
 #'
 #' @return List of report data
 #'
-#' @keywords internal
 prepare_reports_export <- function(options = NULL) {
   options <- options %||% list()
 
@@ -217,7 +214,6 @@ prepare_reports_export <- function(options = NULL) {
 #'
 #' @return List of file data
 #'
-#' @keywords internal
 prepare_all_files_export <- function(options = NULL) {
   # Collect data from all sources
   list(
@@ -422,7 +418,6 @@ generate_export_filename <- function(base_name = NULL, data_source, format) {
 #' @param rows Number of rows exported
 #' @param audit_log Audit log reactiveVal
 #'
-#' @keywords internal
 #' @export
 log_export_event <- function(user_id, data_source, format, rows, audit_log) {
   log_audit_event(

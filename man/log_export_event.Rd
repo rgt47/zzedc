@@ -20,4 +20,3 @@ log_export_event(user_id, data_source, format, rows, audit_log)
 \description{
 Records data export with details for compliance audit
 }
-\keyword{internal}

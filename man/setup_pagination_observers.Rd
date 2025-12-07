@@ -23,4 +23,3 @@ setup_pagination_observers(
 \description{
 Creates reactive observers to handle pagination navigation
 }
-\keyword{internal}

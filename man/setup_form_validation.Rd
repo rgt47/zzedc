@@ -23,4 +23,3 @@ setup_form_validation(
 \description{
 Sets up reactive validation that updates UI in real-time
 }
-\keyword{internal}

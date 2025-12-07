@@ -97,7 +97,6 @@ validate_form <- function(form_data, field_metadata) {
 #'
 #' @return List with valid, message, cleaned_value, warning
 #'
-#' @keywords internal
 validate_field_value <- function(field_name, value, type, rules) {
   result <- list(valid = TRUE, message = "", cleaned_value = value, warning = NULL)
 
@@ -200,7 +199,6 @@ validate_field_value <- function(field_name, value, type, rules) {
 #' @param field_metadata List with field validation rules
 #' @param error_container_id ID of element to display errors
 #'
-#' @keywords internal
 #' @export
 setup_form_validation <- function(session, form_fields, field_metadata, error_container_id = "form_errors") {
   observe({

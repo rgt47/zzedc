@@ -19,4 +19,3 @@ Sorted data.frame
 \description{
 Sorts data by specified column
 }
-\keyword{internal}

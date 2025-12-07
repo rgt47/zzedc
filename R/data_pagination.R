@@ -118,7 +118,6 @@ paginate_data <- function(
 #'
 #' @return Filtered data.frame
 #'
-#' @keywords internal
 filter_data_by_search <- function(data, search_term, columns = NULL) {
   if (is.null(search_term) || search_term == "") {
     return(data)
@@ -161,7 +160,6 @@ filter_data_by_search <- function(data, search_term, columns = NULL) {
 #'
 #' @return Sorted data.frame
 #'
-#' @keywords internal
 sort_data <- function(data, sort_column, direction = "asc") {
   if (!sort_column %in% names(data)) {
     return(data)
@@ -245,7 +243,6 @@ create_pagination_ui <- function(pagination, input_id = "data") {
 #' @param current_page Reactive value holding current page number
 #' @param input_id Namespace ID for pagination inputs
 #'
-#' @keywords internal
 #' @export
 setup_pagination_observers <- function(session, data_reactive, current_page, input_id = "data") {
   ns <- function(x) paste0(input_id, "_", x)

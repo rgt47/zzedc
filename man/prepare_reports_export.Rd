@@ -15,4 +15,3 @@ List of report data
 \description{
 Prepare reports data for export
 }
-\keyword{internal}
