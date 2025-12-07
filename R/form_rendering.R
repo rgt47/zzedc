@@ -1,9 +1,9 @@
 #' Render form panel with typed input fields
 #'
 #' Generates appropriate input controls based on field metadata.
-#' Supports 15+ field types for flexible data collection:
-#' text, numeric, date, datetime, time, email, select, radio, checkbox,
-#' checkbox_group, textarea, notes, slider, file, signature
+#' Supports 15+ field types including text input, numeric fields, dates, times,
+#' email, selection lists, radio buttons, checkboxes, text areas, sliders, file uploads,
+#' and digital signatures for flexible data collection.
 #'
 #' @param fields Character vector of field names OR list of field configurations
 #' @param field_metadata List containing field definitions with type, required, choices, etc.

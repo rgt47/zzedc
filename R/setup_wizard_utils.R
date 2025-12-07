@@ -1,14 +1,9 @@
-#' Setup Wizard Utility Functions
-#'
-#' Helper functions for creating database, config files, and system setup
-#' Called by the Setup Wizard module to create complete ZZedc instance
-#'
 #' @keywords internal
+NULL
 
 #' Create ZZedc Database from Wizard Configuration
-#' @export
 #'
-#' Creates a complete SQLite database with all necessary tables based on wizard inputs
+#' Creates a complete database with all required tables
 #'
 #' @param config_list List containing wizard configuration (from wizard_state$system_config)
 #' @param db_path Path where database file will be created
@@ -260,7 +255,7 @@ create_wizard_database <- function(config_list, db_path) {
 #' Create Config File from Wizard Configuration
 #' @export
 #'
-#' Creates config.yml with all necessary settings
+#' Creates configuration file with all required application settings
 #'
 #' @param config_list List containing wizard configuration
 #' @param config_path Path where config.yml will be written
@@ -358,7 +353,7 @@ logging:
 #' Create Directories for New ZZedc Instance
 #' @export
 #'
-#' Creates necessary directory structure (data, logs, forms, backups, etc.)
+#' Creates the directory structure needed for a new ZZedc installation
 #'
 #' @param base_path Base directory where subdirectories will be created
 #'
@@ -400,7 +395,7 @@ create_wizard_directories <- function(base_path) {
 
 #' Create Launch Script for New ZZedc Instance
 #'
-#' Creates a customized launch script (launch_app.R) that users can run
+#' Creates a customized launch script file that users can run to start the application
 #'
 #' @param config_list Configuration from wizard
 #' @param output_path Path where launch script will be written
@@ -469,7 +464,7 @@ launch_zzedc(
 
 #' Complete Setup Wizard Orchestration
 #'
-#' Orchestrates all setup steps: create directories, database, config, and launch script
+#' Orchestrates all setup steps for initializing a new ZZedc instance
 #'
 #' @param config_list Complete configuration from wizard
 #' @param base_path Base directory for new installation

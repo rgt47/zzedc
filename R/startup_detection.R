@@ -1,18 +1,12 @@
-#' First-Time Detection and Setup Mode
-#'
-#' Detect if ZZedc is being launched for the first time (not yet configured)
-#' and guide user through setup if needed.
-#'
-#' @keywords internal
-
 #' Check if ZZedc is Already Configured
 #'
-#' Returns TRUE if database and config files exist
+#' Detect if ZZedc is being launched for the first time by checking for required
+#' configuration files. Returns TRUE if the system is fully configured.
 #'
 #' @param db_path Path to database file
 #' @param config_path Path to config file
 #'
-#' @return Logical. TRUE if fully configured, FALSE if needs setup
+#' @return Logical. TRUE if fully configured, FALSE otherwise
 #'
 #' @keywords internal
 #' @export

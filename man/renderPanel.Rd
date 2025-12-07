@@ -16,9 +16,9 @@ List of Shiny input controls matching field types
 }
 \description{
 Generates appropriate input controls based on field metadata.
-Supports 15+ field types for flexible data collection:
-text, numeric, date, datetime, time, email, select, radio, checkbox,
-checkbox_group, textarea, notes, slider, file, signature
+Supports 15+ field types including text input, numeric fields, dates, times,
+email, selection lists, radio buttons, checkboxes, text areas, sliders, file uploads,
+and digital signatures for flexible data collection.
 }
 \details{
 Field metadata format:

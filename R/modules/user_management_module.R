@@ -1,7 +1,7 @@
 #' User Management Module
 #'
-#' Provides UI for administrators to manage users without database access
-#' Includes: add users, edit users, reset passwords, manage roles, deactivate users
+#' Provides user management interface for system administrators.
+#' Enables adding, editing, and role assignment without direct database access.
 #'
 #' @export
 
