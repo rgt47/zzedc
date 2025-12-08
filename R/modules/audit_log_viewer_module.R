@@ -5,7 +5,7 @@
 #'
 #' @param id The namespace id for the module
 #' @return A tagList containing the audit log viewer UI
-#' @export
+#' @keywords internal
 audit_log_viewer_ui <- function(id) {
   ns <- NS(id)
 

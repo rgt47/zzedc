@@ -4,7 +4,7 @@
 #'
 #' @param id The namespace id for the module
 #' @return A tagList containing the complete admin dashboard UI
-#' @export
+#' @keywords internal
 admin_dashboard_ui <- function(id) {
   ns <- NS(id)
 

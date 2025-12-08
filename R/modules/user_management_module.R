@@ -1,9 +1,7 @@
-#' User Management Module
-#'
-#' Provides user management interface for system administrators.
-#' Enables adding, editing, and role assignment without direct database access.
-#'
-#' @export
+# User Management Module
+#
+# Provides user management interface for system administrators.
+# Enables adding, editing, and role assignment without direct database access.
 
 #' User Management UI
 #'

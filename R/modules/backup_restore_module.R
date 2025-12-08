@@ -1,9 +1,7 @@
-#' Backup and Restore Module
-#'
-#' Provides one-click backup and restore functionality for the ZZedc database.
-#' Supports automatic and manual backups with recovery options.
-#'
-#' @export
+# Backup and Restore Module
+#
+# Provides one-click backup and restore functionality for the ZZedc database.
+# Supports automatic and manual backups with recovery options.
 
 #' Backup/Restore UI
 #'

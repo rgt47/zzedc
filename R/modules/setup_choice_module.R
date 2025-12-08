@@ -1,10 +1,7 @@
-#' Setup Choice Module
-#'
-#' When ZZedc is launched for the first time (not configured),
-#' show user two options: Setup Wizard (visual) or Shell Prompt (CLI)
-#'
-#' @keywords internal
-#' @export
+# Setup Choice Module
+#
+# When ZZedc is launched for the first time (not configured),
+# show user two options: Setup Wizard (visual) or Shell Prompt (CLI)
 
 #' Setup Choice UI
 #'

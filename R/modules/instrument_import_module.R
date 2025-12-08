@@ -1,7 +1,7 @@
-#' Instrument Library Import Module
-#'
-#' Allows users to browse, preview, and import pre-built survey instruments
-#' as new forms in the study database.
+# Instrument Library Import Module
+#
+# Allows users to browse, preview, and import pre-built survey instruments
+# as new forms in the study database.
 
 #' Instrument Import Module UI
 #'

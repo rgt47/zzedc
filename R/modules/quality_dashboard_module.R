@@ -1,7 +1,7 @@
-#' Data Quality Dashboard Module
-#'
-#' Provides real-time data quality metrics and visualizations
-#' for study data monitoring and QC.
+# Data Quality Dashboard Module
+#
+# Provides real-time data quality metrics and visualizations
+# for study data monitoring and QC.
 
 #' Quality Dashboard Module UI
 #'

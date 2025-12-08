@@ -1,12 +1,7 @@
-#' Setup Wizard Module
-#'
-#' A comprehensive 5-step wizard for initial ZZedc configuration
-#' Guides users through: Basic Info → Admin Account → Security → Team Members → Data Dictionary
-#'
-#' @param id The namespace id for the module
-#' @param db_path Path where database will be created
-#' @return A list with UI and server functions
-#' @export
+# Setup Wizard Module
+#
+# A comprehensive 5-step wizard for initial ZZedc configuration
+# Guides users through: Basic Info → Admin Account → Security → Team Members → Data Dictionary
 
 #' Setup Wizard UI
 #'
