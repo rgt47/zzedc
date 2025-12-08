@@ -1,0 +1,16 @@
+NULL
+* installing *source* package ‘zzedc’ ...
+** this is package ‘zzedc’ version ‘1.0.0’
+** using staged installation
+** R
+** inst
+** byte-compile and prepare package for lazy loading
+Note: possible error in 'log_audit_event(db_conn = db_conn, ': unused arguments (db_conn = db_conn, details = jsonlite::toJSON(list(instrument_name = instrument_name, form_name = form_name, fields_imported = fields_imported))) 
+** help
+*** installing help indices
+** building package indices
+** installing vignettes
+** testing if installed package can be loaded from temporary location
+** testing if installed package can be loaded from final location
+** testing if installed package keeps a record of temporary installation path
+* DONE (zzedc)

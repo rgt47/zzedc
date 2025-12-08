@@ -1,0 +1,54 @@
+complete_wizard_setup   Complete Setup Wizard Orchestration
+create_error_display    Display form validation errors to user
+create_launch_script    Create Launch Script for New ZZedc Instance
+create_paginated_reactive
+                        Create reactive paginated data
+create_pagination_ui    Create pagination UI controls
+create_wizard_config    Create Config File from Wizard Configuration
+create_wizard_database
+                        Create ZZedc Database from Wizard Configuration
+create_wizard_directories
+                        Create Directories for New ZZedc Instance
+error_response          Create standardized error response
+export_audit_log        Export audit log to file
+export_to_file          Export data to file
+filter_data_by_search   Filter data by search term
+generate_export_filename
+                        Generate safe export filename
+get_page_summary        Generate page summary statistics
+handle_error            Handle errors with logging and user
+                        notification
+import_instrument       Import instrument as new form
+init                    Initialize ZZedc Project
+init_audit_log          Initialize audit log
+launch_zzedc            Launch the ZZedc Shiny Application
+list_available_instruments
+                        List available instruments
+load_instrument_template
+                        Load instrument template from CSV
+log_audit_event         Log an audit event
+log_export_event        Log export event to audit trail
+notify_if_invalid       Validate and notify
+paginate_data           Create paginated data view
+prepare_all_files_export
+                        Prepare all files data for export
+prepare_edc_export      Prepare EDC data for export
+prepare_export_data     Prepare data for export
+prepare_reports_export
+                        Prepare reports data for export
+prepare_sample_export   Prepare sample data for export
+query_audit_log         Query audit log
+renderPanel             Render form panel with typed input fields
+safe_reactive           Safe reactive expression evaluation
+save_validated_form     Save validated form data to database
+setup_form_validation   Create server-side form validation observer
+setup_pagination_observers
+                        Setup pagination observers
+sort_data               Sort data frame
+success_response        Create standardized success response
+validate_field_value    Validate individual field value
+validate_form           Validate entire form submission
+validate_instrument_csv
+                        Validate instrument CSV structure
+verify_audit_log_integrity
+                        Verify audit log integrity

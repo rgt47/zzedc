@@ -21,7 +21,6 @@
 ^zzcollab-init-team$
 ^modules$
 ^templates$
-^[a-z]$
 ^.*\.Rproj$
 ^global\.R$
 ^ui\.R$

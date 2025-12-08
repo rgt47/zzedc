@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Quick Start: Solo Researcher (Local Setup)</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Quick Start: Solo Researcher (Local
+Setup)</h1>
+
+
+
+<div id="getting-zzedc-running-in-10-minutes-solo-researcher" class="section level1">
+<h1>Getting ZZedc Running in 10 Minutes (Solo Researcher)</h1>
+<p>You’re a clinical researcher with a study. You need electronic data
+capture. You want it <strong>local, simple, and fast</strong>.</p>
+<p>This guide gets you from “nothing” to “collecting data” in about 10
+minutes.</p>
+<hr />
+<div id="what-youll-need" class="section level2">
+<h2>What You’ll Need</h2>
+<ul>
+<li><strong>R installed</strong> (version 4.0 or later)</li>
+<li><strong>RStudio</strong> (optional but recommended)</li>
+<li><strong>~5 MB disk space</strong></li>
+<li><strong>Basic study information</strong> (name, PI details,
+password)</li>
+</ul>
+<p><strong>Time estimate: 10 minutes total</strong></p>
+<hr />
+</div>
+<div id="step-1-install-zzedc-2-minutes" class="section level2">
+<h2>Step 1: Install ZZedc (2 minutes)</h2>
+<p>Open R or RStudio and run:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&quot;zzedc&quot;</span>)</span></code></pre></div>
+<p>After installation completes, load the library:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span></code></pre></div>
+<p>You should see:</p>
+<pre><code>&gt; library(zzedc)
+ZZedc - Electronic Data Capture System loaded successfully</code></pre>
+<hr />
+</div>
+<div id="step-2-initialize-your-project-5-minutes" class="section level2">
+<h2>Step 2: Initialize Your Project (5 minutes)</h2>
+<p>Run this command in your R console:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>zzedc<span class="sc">::</span><span class="fu">init</span>()</span></code></pre></div>
+<p>You’ll see a welcome message:</p>
+<pre><code>╔═══════════════════════════════════════════════════════════╗
+║          ZZedc Project Initialization                    ║
+║          Electronic Data Capture System Setup             ║
+╚═══════════════════════════════════════════════════════════╝
+
+Welcome to ZZedc Setup!
+This will guide you through setting up your research study.
+
+Step 1: Study Information
+────────────────────────────────────────────
+Study Name (e.g., &#39;Depression Treatment Trial&#39;):</code></pre>
+<div id="what-to-enter" class="section level3">
+<h3>What to Enter</h3>
+<p><strong>Study Name:</strong></p>
+<pre><code>Depression Treatment Trial</code></pre>
+<p>(Any name that describes your study)</p>
+<p><strong>Protocol ID:</strong></p>
+<pre><code>DEPR-2024-001</code></pre>
+<p>(Your institutional protocol number)</p>
+<p><strong>Principal Investigator Name:</strong></p>
+<pre><code>Dr. Jane Smith</code></pre>
+<p><strong>PI Email:</strong></p>
+<pre><code>jane.smith@university.edu</code></pre>
+<p><strong>Target Enrollment:</strong></p>
+<pre><code>50</code></pre>
+<p>(How many participants you plan to enroll)</p>
+<p><strong>Study Phase:</strong></p>
+<pre><code>Phase 2</code></pre>
+<p>(Options: Pilot, Phase1, Phase2, Phase3, Phase4, Observational)</p>
+</div>
+<div id="step-2-admin-account" class="section level3">
+<h3>Step 2: Admin Account</h3>
+<p>This is YOUR login account for managing the system.</p>
+<p><strong>Admin Username:</strong></p>
+<pre><code>jane_smith</code></pre>
+<p>(Your preferred login name - no spaces)</p>
+<p><strong>Your Full Name:</strong></p>
+<pre><code>Jane Smith</code></pre>
+<p><strong>Your Email:</strong></p>
+<pre><code>jane.smith@university.edu</code></pre>
+<p><strong>Admin Password:</strong></p>
+<pre><code>MySecurePassword2024!</code></pre>
+<p>(Must be 8+ characters, mix of letters/numbers/symbols)</p>
+<p><strong>Confirm Password:</strong></p>
+<pre><code>MySecurePassword2024!</code></pre>
+<p>(Type it again)</p>
+</div>
+<div id="step-3-security-configuration" class="section level3">
+<h3>Step 3: Security Configuration</h3>
+<p>The system will generate a <strong>security salt</strong> - a unique
+key that encrypts passwords.</p>
+<p><strong>Important:</strong> You’ll see something like:</p>
+<pre><code>A unique security salt has been generated for your system:
+  a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0
+
+⚠️  IMPORTANT: Save this salt in a secure location!
+   If you lose it, you cannot recover your passwords.
+
+Have you saved the security salt? (yes/no):</code></pre>
+<p><strong>Copy that salt somewhere safe:</strong> - Email it to
+yourself - Save in password manager - Write it down - <strong>Just don’t
+lose it!</strong></p>
+<p>Then answer:</p>
+<pre><code>yes</code></pre>
+<p><strong>Session Timeout:</strong></p>
+<pre><code>30</code></pre>
+<p>(Minutes of inactivity before automatic logout)</p>
+<p><strong>Enforce HTTPS:</strong></p>
+<pre><code>no</code></pre>
+<p>(For local use, no = fine. For internet, yes = recommended)</p>
+</div>
+<div id="step-4-confirmation" class="section level3">
+<h3>Step 4: Confirmation</h3>
+<p>You’ll see a summary:</p>
+<pre><code>Summary of your configuration:
+
+  Study Name: Depression Treatment Trial
+  Protocol ID: DEPR-2024-001
+  PI: Dr. Jane Smith (jane.smith@university.edu)
+  Target Enrollment: 50
+  Study Phase: Phase 2
+  Admin Username: jane_smith
+  Session Timeout: 30 minutes
+  Enforce HTTPS: No
+
+Create project with these settings? (yes/no):</code></pre>
+<p>Type:</p>
+<pre><code>yes</code></pre>
+<hr />
+</div>
+</div>
+<div id="step-3-launch-your-system-1-minute" class="section level2">
+<h2>Step 3: Launch Your System (1 minute)</h2>
+<p>After setup completes, you’ll see:</p>
+<pre><code>╔═══════════════════════════════════════════════════════════╗
+║          ✓ ZZedc Project Created Successfully!            ║
+╚═══════════════════════════════════════════════════════════╝
+
+Project Location: ./Depression_Treatment_Trial
+
+Next Steps:
+───────────────────────────────────────────────────────────
+
+1. Set environment variable:
+   export ZZEDC_SALT=&#39;a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0&#39;
+
+2. Launch your ZZedc application:
+   Rscript Depression_Treatment_Trial/launch_app.R
+
+3. Open your browser to:
+   http://localhost:3838</code></pre>
+<p>In your R console, run:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" tabindex="-1"></a><span class="co"># Set the security salt (copy from setup output)</span></span>
+<span id="cb24-2"><a href="#cb24-2" tabindex="-1"></a><span class="fu">Sys.setenv</span>(<span class="at">ZZEDC_SALT =</span> <span class="st">&quot;a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0&quot;</span>)</span>
+<span id="cb24-3"><a href="#cb24-3" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" tabindex="-1"></a><span class="co"># Launch the application</span></span>
+<span id="cb24-5"><a href="#cb24-5" tabindex="-1"></a><span class="fu">launch_zzedc</span>()</span></code></pre></div>
+<p>Your browser will open automatically to
+<code>http://localhost:3838</code></p>
+<hr />
+</div>
+<div id="step-4-login-30-seconds" class="section level2">
+<h2>Step 4: Login (30 seconds)</h2>
+<p>You’ll see the ZZedc login screen.</p>
+<p>Enter the credentials from Step 2: - <strong>Username:</strong>
+jane_smith - <strong>Password:</strong> MySecurePassword2024!</p>
+<p>Click <strong>Login</strong></p>
+<hr />
+</div>
+<div id="youre-in" class="section level2">
+<h2>You’re In! 🎉</h2>
+<p>Congratulations! Your ZZedc system is running.</p>
+<div id="what-you-can-do-now" class="section level3">
+<h3>What You Can Do Now</h3>
+<p><strong>Dashboard Tab:</strong> - Overview of your study - Quick
+links to key features - Recent activity</p>
+<p><strong>EDC Tab</strong> (Electronic Data Capture): - Enter
+participant data - Real-time validation - Save progress
+automatically</p>
+<p><strong>Reports Tab:</strong> - View enrollment progress - Quality
+control summaries - Download results</p>
+<p><strong>Data Explorer Tab:</strong> - Filter and search data - Create
+charts - Find missing information</p>
+<p><strong>Export Tab:</strong> - Download data as CSV - Export to
+SPSS/SAS - Create analysis datasets</p>
+<hr />
+</div>
+</div>
+<div id="common-next-steps" class="section level2">
+<h2>Common Next Steps</h2>
+<div id="add-team-members" class="section level3">
+<h3>Add Team Members</h3>
+<ol style="list-style-type: decimal">
+<li>Go to <strong>Admin Dashboard</strong></li>
+<li>Click <strong>👤 User Management</strong></li>
+<li>Click <strong>Add User</strong></li>
+<li>Enter team member info</li>
+<li>System generates temporary password</li>
+<li>Share with team member</li>
+</ol>
+</div>
+<div id="create-your-forms" class="section level3">
+<h3>Create Your Forms</h3>
+<ol style="list-style-type: decimal">
+<li>Decide what data to collect</li>
+<li>Use the Form Builder (or ask for help)</li>
+<li>Define validation rules</li>
+<li>Test with sample data</li>
+</ol>
+</div>
+<div id="start-collecting-data" class="section level3">
+<h3>Start Collecting Data</h3>
+<ol style="list-style-type: decimal">
+<li>Share login credentials with coordinators</li>
+<li>They log in and enter data</li>
+<li>Validation happens automatically</li>
+<li>You monitor via Dashboard</li>
+</ol>
+</div>
+<div id="backup-your-data" class="section level3">
+<h3>Backup Your Data</h3>
+<ol style="list-style-type: decimal">
+<li>Go to <strong>Admin Dashboard</strong></li>
+<li>Click <strong>💾 Backup &amp; Restore</strong></li>
+<li>Click <strong>Create Backup Now</strong></li>
+<li>Download backup file</li>
+<li>Store in safe location</li>
+</ol>
+<hr />
+</div>
+</div>
+<div id="quick-reference" class="section level2">
+<h2>Quick Reference</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Task</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>View dashboard</td>
+<td>Home tab</td>
+</tr>
+<tr class="even">
+<td>Enter data</td>
+<td>EDC tab</td>
+</tr>
+<tr class="odd">
+<td>See reports</td>
+<td>Reports tab</td>
+</tr>
+<tr class="even">
+<td>Find missing data</td>
+<td>Data Explorer tab</td>
+</tr>
+<tr class="odd">
+<td>Download data</td>
+<td>Export tab</td>
+</tr>
+<tr class="even">
+<td>Add users</td>
+<td>Admin Dashboard → User Management</td>
+</tr>
+<tr class="odd">
+<td>Backup data</td>
+<td>Admin Dashboard → Backup &amp; Restore</td>
+</tr>
+<tr class="even">
+<td>View activity log</td>
+<td>Admin Dashboard → Audit Trail</td>
+</tr>
+<tr class="odd">
+<td>Change settings</td>
+<td>Admin Dashboard → System Configuration</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</div>
+<div id="troubleshooting" class="section level2">
+<h2>Troubleshooting</h2>
+<div id="port-3838-already-in-use" class="section level3">
+<h3>“Port 3838 already in use”</h3>
+<p>Another app is using port 3838. - Wait a moment and try again, OR -
+Stop the other app, OR - Restart R and try again</p>
+</div>
+<div id="database-error" class="section level3">
+<h3>“Database error”</h3>
+<p>ZZedc can’t access the database file. - Make sure you’re in the
+correct directory - Check that the <code>data/zzedc.db</code> file
+exists - Ensure you have write permissions</p>
+</div>
+<div id="login-failed" class="section level3">
+<h3>“Login failed”</h3>
+<p>Check: - Did you type the username correctly? (no spaces) - Did you
+type the password correctly? (case-sensitive) - Did you remember the
+password from setup?</p>
+</div>
+<div id="lost-the-security-salt" class="section level3">
+<h3>“Lost the security salt”</h3>
+<p>Unfortunately, it can’t be recovered. Options: 1. You can still use
+ZZedc (salt is only for new passwords) 2. To reset passwords, contact
+support 3. Restart setup with <code>zzedc::init()</code> in a new
+directory</p>
+<hr />
+</div>
+</div>
+<div id="keeping-your-data-safe" class="section level2">
+<h2>Keeping Your Data Safe</h2>
+<div id="regular-backups" class="section level3">
+<h3>Regular Backups</h3>
+<p>Do this weekly: 1. Admin Dashboard → Backup &amp; Restore 2. Click
+“Create Backup Now” 3. Download the backup file 4. Store on external
+drive or cloud</p>
+</div>
+<div id="password-safety" class="section level3">
+<h3>Password Safety</h3>
+<ul>
+<li>Your password is encrypted using the security salt</li>
+<li>Even with the database, your password is safe</li>
+<li>Only change if you suspect compromise</li>
+</ul>
+</div>
+<div id="data-security" class="section level3">
+<h3>Data Security</h3>
+<ul>
+<li>Database is SQLite (local file)</li>
+<li>All data is stored locally on your machine</li>
+<li>No data sent to cloud (unless you configure)</li>
+<li>You control your data completely</li>
+</ul>
+<hr />
+</div>
+</div>
+<div id="when-youre-ready-for-more" class="section level2">
+<h2>When You’re Ready for More</h2>
+<div id="adding-more-features" class="section level3">
+<h3>Adding More Features</h3>
+<p>See the other vignettes: - <strong>Setup Wizard Guide</strong> -
+Web-based configuration - <strong>Multi-Site Setup</strong> - For
+collaborative research - <strong>Advanced Features</strong> - Custom
+validation, reports, integrations</p>
+</div>
+<div id="team-collaboration" class="section level3">
+<h3>Team Collaboration</h3>
+<p>When adding team members: 1. They get login credentials 2. See only
+what you configure 3. Can enter data and view reports 4. Can’t change
+settings (only you can)</p>
+</div>
+<div id="publishing-your-research" class="section level3">
+<h3>Publishing Your Research</h3>
+<p>When done: 1. Export final dataset (Export tab) 2. Audit trail shows
+data integrity (Admin Dashboard) 3. Ready for publication and
+archival</p>
+<hr />
+</div>
+</div>
+<div id="support" class="section level2">
+<h2>Support</h2>
+<p>Having trouble?</p>
+<ul>
+<li><strong>Documentation</strong>: See other vignettes in the help
+menu</li>
+<li><strong>Email</strong>: <a href="mailto:rgthomas@ucsd.edu" class="email">rgthomas@ucsd.edu</a></li>
+<li><strong>GitHub</strong>: <a href="https://github.com/rgt47/zzedc" class="uri">https://github.com/rgt47/zzedc</a></li>
+<li><strong>Examples</strong>: Sample data included with ZZedc</li>
+</ul>
+<hr />
+</div>
+<div id="summary" class="section level2">
+<h2>Summary</h2>
+<p>✅ Installed ZZedc ✅ Ran <code>zzedc::init()</code> and answered 5
+questions ✅ Set security salt environment variable ✅ Launched with
+<code>launch_zzedc()</code> ✅ Logged in with your credentials ✅ Ready
+to start collecting data</p>
+<p><strong>Total time: ~10 minutes</strong> <strong>Your data is local
+and secure</strong> <strong>You have complete control</strong></p>
+<p>You’re ready to begin your research! 🔬📊</p>
+</div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

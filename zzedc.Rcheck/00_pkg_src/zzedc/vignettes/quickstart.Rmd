@@ -1,0 +1,383 @@
+---
+title: "ZZedc Quickstart: 5-Minute Setup"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ZZedc Quickstart}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# ZZedc Quickstart Guide
+
+This guide provides an overview of ZZedc functionality and basic installation procedures.
+
+## Overview
+
+ZZedc is an Electronic Data Capture (EDC) system implemented in R/Shiny for managing clinical trial and research study data. The system supports data collection, validation, quality control, and export functionality through a web-based interface.
+
+## Start Here: 3 Simple Steps
+
+### Step 1: Install (30 seconds)
+
+```{r installation}
+# Install both packages (zzedc.validation is the validation core)
+install.packages("path/to/zzedc.validation_1.0.0.tar.gz", repos = NULL, type = "source")
+install.packages("path/to/zzedc_1.0.0.tar.gz", repos = NULL, type = "source")
+
+# Load ZZedc
+library(zzedc)
+```
+
+### Step 2: Launch (10 seconds)
+
+```{r launch}
+# Start the application
+launch_zzedc()
+
+# Your browser opens automatically at http://localhost:3838
+```
+
+### Step 3: Login (20 seconds)
+
+**Default test account:**
+- Username: `test`
+- Password: `test`
+
+You're in! Welcome to your ZZedc system.
+
+---
+
+## Core System Capabilities
+
+### Data Collection and Validation
+
+The system implements automated validation rules during data entry:
+
+```{r data_validation}
+# Validation rules implemented in ZZedc:
+validation_rules <- list(
+  "Age range validation" = "Verifies age values within acceptable ranges",
+  "Date sequence validation" = "Ensures visit dates follow enrollment chronology",
+  "Field completeness checks" = "Identifies missing required data",
+  "Data type validation" = "Confirms numeric fields contain appropriate values",
+  "Custom rule application" = "Implements study-specific validation logic"
+)
+```
+
+When validation errors are encountered, the system provides immediate feedback to the data entry operator.
+
+### Data Management Interface
+
+The Data Explorer component provides functionality for:
+- Enrollment tracking with summary statistics
+- Structured data tables with filtering and search capabilities
+- Identification of incomplete data elements
+- Quality metrics and data completeness assessment
+- Subset selection and extraction capabilities
+
+### Reporting Functions
+
+The system generates three categories of reports:
+
+**Report 1: Enrollment Summary**
+```{r report1}
+# Report 1 displays:
+# - Total enrolled subjects
+# - Enrollment distribution by site (when applicable)
+# - Subject status categorization
+# - Enrollment progression over time
+```
+
+**Report 2: Quality Control Metrics**
+```{r report2}
+# Report 2 identifies:
+# - Missing data patterns by field
+# - Validation error distribution
+# - Duplicate record detection
+# - Protocol deviation documentation
+```
+
+**Report 3: Descriptive Statistics**
+```{r report3}
+# Report 3 generates:
+# - Demographic summary statistics
+# - Baseline characteristic distributions
+# - Outcome variable summaries
+# - Safety event tabulations
+```
+
+### Data Export
+
+The system supports data export in multiple formats:
+- CSV format for general-purpose statistical software
+- SPSS/SAS formats for advanced statistical analysis
+- RDS format for native R processing
+- Pre-calculated derived variables and analysis datasets
+
+```{r export_example}
+# In the Export tab, select format and download
+# Data exports include:
+# - Raw data with all variables
+# - Derived variables and scores
+# - Analysis datasets per protocol
+# - Regulatory submission formats
+```
+
+## Example Implementation: Depression Treatment Trial
+
+This section illustrates typical EDC implementation using a depression treatment trial with 50 participants across 2 sites.
+
+### Study Setup
+
+1. **Create your study**
+   ```{r setup_study}
+   study_config <- list(
+     name = "Depression Treatment Trial v1.0",
+     protocol = "DEPR-2024-001",
+     pi = "Dr. Jane Smith",
+     sites = c("University Medical Center", "Community Health Clinic"),
+     target_enrollment = 50
+   )
+   ```
+
+2. **Add your team**
+   - Dr. Jane Smith (Principal Investigator) — Full access
+   - Dr. Mark Johnson (Site PI) — Site 1 data only
+   - Sarah Lee (Data Coordinator) — Data entry only
+   - Mike Brown (Biostatistician) — Reports only
+
+3. **Define your forms**
+   - Demographics (age, gender, race, income)
+   - Depression severity (PHQ-9 questionnaire, automatically scored)
+   - Treatment assignment (randomization)
+   - Weekly visits (baseline, weeks 1, 2, 4, 8, 12)
+   - Adverse events
+   - Study completion
+
+### Data Collection
+
+Data coordinators enter participant information through the web interface. The system validates entries against defined rules and provides immediate feedback. For example:
+
+```
+Participant 001 data entry:
+- Age: 45 (within range)
+- PHQ-9 score: 18 (valid)
+- Week 1 visit date: within acceptable window
+- "Time to feel relief" field: not completed (flagged)
+- Status: Saved successfully
+```
+
+### Monitoring and Review
+
+System administrators and study personnel access reports showing:
+- Enrollment status: 18/50 participants (36% of target)
+- Data completeness: Subjects missing Week 2 visit data identified
+- Quality issues: 1 protocol deviation documented (visit 3 days outside window)
+- Safety events: 2 adverse events reported and classified
+
+### Analysis (End of Study)
+
+Statistician exports the data:
+
+```{r analysis}
+# One click exports analysis-ready dataset:
+# - 50 subjects across 2 sites
+# - All validated data + computed scores
+# - Ready for statistical software
+# - Includes audit trail for FDA compliance
+
+analysis_data <- read.csv("depression_trial_export.csv")
+head(analysis_data)
+# All variables present, properly formatted, complete
+```
+
+---
+
+## System Applicability by Study Scale
+
+### Small Studies (10-50 participants, single site)
+
+Suitable for studies with straightforward data requirements:
+- Simple forms with basic validation rules
+- Routine data review workflows
+- Data export in standard formats (CSV)
+- Participant enrollment tracking
+
+### Medium-Scale Studies (50-500 participants, 2-5 sites)
+
+Appropriate for multi-site studies with complex data collection:
+- Complex data structures supporting longitudinal visits
+- Multi-site coordination and site-specific reporting
+- Automated data quality metrics and monitoring
+- Statistical summarization and reporting functionality
+
+### Large-Scale Studies (500+ participants, 5+ sites)
+
+Features for enterprise-level clinical trials:
+- Regulatory compliance frameworks (GDPR, 21 CFR Part 11)
+- Electronic signature capabilities
+- Immutable audit trail documentation
+- Centralized randomization procedures
+- Real-time safety event monitoring
+- Interim analysis data access
+
+---
+
+## Security and Regulatory Features
+
+### Data Protection Mechanisms
+
+System features supporting research oversight and institutional requirements:
+- Secure authentication using password hashing with cryptographic salts
+- Comprehensive audit trail with timestamp and user documentation
+- Role-based access control restricting user actions to authorized functions
+- Data minimization principles limiting collection to specified requirements
+- Consent management tracking with version control
+
+### Regulatory Compliance Frameworks
+
+The system implements controls relevant to regulatory requirements:
+- Electronic signature system supporting 21 CFR Part 11 requirements
+- GDPR compliance features including data subject access rights
+- Data validation rule implementation and documentation
+- Change control documentation tracking modifications
+- Database lock mechanisms preventing post-analysis modifications
+
+### Operational Considerations
+
+Additional system characteristics:
+- Automated database backup and recovery procedures
+- Open-source architecture eliminating licensing restrictions
+- Local data storage maintaining institutional data control
+- Scalable deployment from standalone to enterprise configurations
+
+---
+
+## Advanced Capabilities You'll Discover
+
+### Data Quality Monitoring
+```{r quality_monitoring}
+# Automatic nightly QC checks:
+# - Flag missing data patterns
+# - Identify unusual values (outliers)
+# - Check cross-visit consistency
+# - Generate quality reports
+```
+
+### Multi-Visit Longitudinal Studies
+```{r longitudinal}
+# Support for:
+# - Baseline + follow-up visits
+# - Weekly, monthly, or yearly data
+# - Cross-visit validation (e.g., visit dates in order)
+# - Longitudinal outcome calculations
+```
+
+### Lab Data Integration
+```{r lab_integration}
+# Automated lab result upload:
+# - Direct from lab information systems (HL7)
+# - Or manual entry with validation
+# - Automatic range checking vs reference values
+# - Integration with case report forms
+```
+
+### Custom Validation Rules
+```{r custom_validation}
+# Create rules like:
+# "If treatment='Drug A' then dose required"
+# "If adverse event='serious' then hospitalization required"
+# "If visit_date > baseline + 365 days then flag"
+# "If blood_pressure > 180/110 then notify PI"
+```
+
+### Electronic Signatures
+```{r e_signatures}
+# For regulatory submissions:
+# - Multi-factor authentication
+# - Audit trail of all e-signatures
+# - 21 CFR Part 11 compliance
+# - Acceptable to FDA for data lock
+```
+
+---
+
+## Implementation Patterns
+
+### Pattern 1: Baseline and Follow-up Studies
+Application: Pilot studies, feasibility studies, single-site clinical trials
+Configuration requirements: Basic forms with limited follow-up visits
+Training needs: Standard user training (0.5 hours)
+
+### Pattern 2: Multi-site Clinical Trials
+Application: Phase 2/3 trials, multi-institution research
+Configuration requirements: Complex forms with site-level permissions and monitoring
+Training needs: Site coordinator training and documentation (2-3 hours)
+
+### Pattern 3: Longitudinal Cohort Studies
+Application: Long-term follow-up research, prospective studies
+Configuration requirements: Complex visit schedules with repeated measurements
+Training needs: Comprehensive staff training and protocols (4 hours)
+
+### Pattern 4: Real-time Safety Monitoring
+Application: Early-phase trials, safety-focused research
+Configuration requirements: Rapid adverse event reporting and escalation
+Training needs: Full team training with protocol establishment (5 hours)
+
+---
+
+## Next Steps
+
+### Ready to dive deeper?
+1. **Small studies?** → See [Small Project Guide](small-project-guide.html)
+2. **Medium-sized trials?** → See [Medium Project Guide](medium-project-guide.html)
+3. **Advanced features?** → See [Advanced Features Guide](advanced-features.html)
+4. **Real-world example?** → See [Multi-site Clinical Trial](multi_site_clinical_trial.html)
+
+### Need help?
+- **Email:** rgthomas@ucsd.edu
+- **GitHub:** https://github.com/rgt47/zzedc
+- **Documentation:** All vignettes cover specific use cases
+
+### Want to see a demo?
+The included sample data lets you explore immediately:
+1. Login with test/test
+2. Navigate to EDC tab
+3. Browse existing subjects
+4. Check Reports and Data Explorer
+5. Export sample data
+
+---
+
+## Getting Started with ZZedc
+
+To familiarize yourself with the system:
+
+1. Install and launch the application
+2. Login with test credentials (test/test)
+3. Navigate through the interface tabs (Home, EDC, Reports, Data Explorer, Export)
+4. Review the demonstration data included with the installation
+5. Consult additional vignettes for specific use cases and advanced features
+
+```{r final}
+# You're ready. One command gets you started:
+launch_zzedc()
+
+# Questions? Check the vignettes or email rgthomas@ucsd.edu
+```
+
+---
+
+**Questions about specific features?** Check the full documentation:
+- Setup & Configuration: See [Getting Started](getting-started.html)
+- Small teams: [Small Project Guide](small-project-guide.html)
+- Large teams: [Medium Project Guide](medium-project-guide.html)
+- Developers: [Advanced Features](advanced-features.html)

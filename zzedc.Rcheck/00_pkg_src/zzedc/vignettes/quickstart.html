@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>ZZedc Quickstart: 5-Minute Setup</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">ZZedc Quickstart: 5-Minute Setup</h1>
+
+
+
+<div id="zzedc-quickstart-guide" class="section level1">
+<h1>ZZedc Quickstart Guide</h1>
+<p>This guide provides an overview of ZZedc functionality and basic
+installation procedures.</p>
+<div id="overview" class="section level2">
+<h2>Overview</h2>
+<p>ZZedc is an Electronic Data Capture (EDC) system implemented in
+R/Shiny for managing clinical trial and research study data. The system
+supports data collection, validation, quality control, and export
+functionality through a web-based interface.</p>
+</div>
+<div id="start-here-3-simple-steps" class="section level2">
+<h2>Start Here: 3 Simple Steps</h2>
+<div id="step-1-install-30-seconds" class="section level3">
+<h3>Step 1: Install (30 seconds)</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># Install both packages (zzedc.validation is the validation core)</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&quot;path/to/zzedc.validation_1.0.0.tar.gz&quot;</span>, <span class="at">repos =</span> <span class="cn">NULL</span>, <span class="at">type =</span> <span class="st">&quot;source&quot;</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&quot;path/to/zzedc_1.0.0.tar.gz&quot;</span>, <span class="at">repos =</span> <span class="cn">NULL</span>, <span class="at">type =</span> <span class="st">&quot;source&quot;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="co"># Load ZZedc</span></span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span></code></pre></div>
+</div>
+<div id="step-2-launch-10-seconds" class="section level3">
+<h3>Step 2: Launch (10 seconds)</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Start the application</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">launch_zzedc</span>()</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co"># Your browser opens automatically at http://localhost:3838</span></span></code></pre></div>
+</div>
+<div id="step-3-login-20-seconds" class="section level3">
+<h3>Step 3: Login (20 seconds)</h3>
+<p><strong>Default test account:</strong> - Username: <code>test</code>
+- Password: <code>test</code></p>
+<p>You’re in! Welcome to your ZZedc system.</p>
+<hr />
+</div>
+</div>
+<div id="core-system-capabilities" class="section level2">
+<h2>Core System Capabilities</h2>
+<div id="data-collection-and-validation" class="section level3">
+<h3>Data Collection and Validation</h3>
+<p>The system implements automated validation rules during data
+entry:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Validation rules implemented in ZZedc:</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>validation_rules <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="st">&quot;Age range validation&quot;</span> <span class="ot">=</span> <span class="st">&quot;Verifies age values within acceptable ranges&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="st">&quot;Date sequence validation&quot;</span> <span class="ot">=</span> <span class="st">&quot;Ensures visit dates follow enrollment chronology&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="st">&quot;Field completeness checks&quot;</span> <span class="ot">=</span> <span class="st">&quot;Identifies missing required data&quot;</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="st">&quot;Data type validation&quot;</span> <span class="ot">=</span> <span class="st">&quot;Confirms numeric fields contain appropriate values&quot;</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="st">&quot;Custom rule application&quot;</span> <span class="ot">=</span> <span class="st">&quot;Implements study-specific validation logic&quot;</span></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>)</span></code></pre></div>
+<p>When validation errors are encountered, the system provides immediate
+feedback to the data entry operator.</p>
+</div>
+<div id="data-management-interface" class="section level3">
+<h3>Data Management Interface</h3>
+<p>The Data Explorer component provides functionality for: - Enrollment
+tracking with summary statistics - Structured data tables with filtering
+and search capabilities - Identification of incomplete data elements -
+Quality metrics and data completeness assessment - Subset selection and
+extraction capabilities</p>
+</div>
+<div id="reporting-functions" class="section level3">
+<h3>Reporting Functions</h3>
+<p>The system generates three categories of reports:</p>
+<p><strong>Report 1: Enrollment Summary</strong></p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># Report 1 displays:</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="co"># - Total enrolled subjects</span></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="co"># - Enrollment distribution by site (when applicable)</span></span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="co"># - Subject status categorization</span></span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a><span class="co"># - Enrollment progression over time</span></span></code></pre></div>
+<p><strong>Report 2: Quality Control Metrics</strong></p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Report 2 identifies:</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="co"># - Missing data patterns by field</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="co"># - Validation error distribution</span></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="co"># - Duplicate record detection</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="co"># - Protocol deviation documentation</span></span></code></pre></div>
+<p><strong>Report 3: Descriptive Statistics</strong></p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Report 3 generates:</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="co"># - Demographic summary statistics</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co"># - Baseline characteristic distributions</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="co"># - Outcome variable summaries</span></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="co"># - Safety event tabulations</span></span></code></pre></div>
+</div>
+<div id="data-export" class="section level3">
+<h3>Data Export</h3>
+<p>The system supports data export in multiple formats: - CSV format for
+general-purpose statistical software - SPSS/SAS formats for advanced
+statistical analysis - RDS format for native R processing -
+Pre-calculated derived variables and analysis datasets</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># In the Export tab, select format and download</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="co"># Data exports include:</span></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="co"># - Raw data with all variables</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co"># - Derived variables and scores</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="co"># - Analysis datasets per protocol</span></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="co"># - Regulatory submission formats</span></span></code></pre></div>
+</div>
+</div>
+<div id="example-implementation-depression-treatment-trial" class="section level2">
+<h2>Example Implementation: Depression Treatment Trial</h2>
+<p>This section illustrates typical EDC implementation using a
+depression treatment trial with 50 participants across 2 sites.</p>
+<div id="study-setup" class="section level3">
+<h3>Study Setup</h3>
+<ol style="list-style-type: decimal">
+<li><p><strong>Create your study</strong></p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>study_config <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="at">name =</span> <span class="st">&quot;Depression Treatment Trial v1.0&quot;</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  <span class="at">protocol =</span> <span class="st">&quot;DEPR-2024-001&quot;</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="at">pi =</span> <span class="st">&quot;Dr. Jane Smith&quot;</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="at">sites =</span> <span class="fu">c</span>(<span class="st">&quot;University Medical Center&quot;</span>, <span class="st">&quot;Community Health Clinic&quot;</span>),</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  <span class="at">target_enrollment =</span> <span class="dv">50</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>)</span></code></pre></div></li>
+<li><p><strong>Add your team</strong></p>
+<ul>
+<li>Dr. Jane Smith (Principal Investigator) — Full access</li>
+<li>Dr. Mark Johnson (Site PI) — Site 1 data only</li>
+<li>Sarah Lee (Data Coordinator) — Data entry only</li>
+<li>Mike Brown (Biostatistician) — Reports only</li>
+</ul></li>
+<li><p><strong>Define your forms</strong></p>
+<ul>
+<li>Demographics (age, gender, race, income)</li>
+<li>Depression severity (PHQ-9 questionnaire, automatically scored)</li>
+<li>Treatment assignment (randomization)</li>
+<li>Weekly visits (baseline, weeks 1, 2, 4, 8, 12)</li>
+<li>Adverse events</li>
+<li>Study completion</li>
+</ul></li>
+</ol>
+</div>
+<div id="data-collection" class="section level3">
+<h3>Data Collection</h3>
+<p>Data coordinators enter participant information through the web
+interface. The system validates entries against defined rules and
+provides immediate feedback. For example:</p>
+<pre><code>Participant 001 data entry:
+- Age: 45 (within range)
+- PHQ-9 score: 18 (valid)
+- Week 1 visit date: within acceptable window
+- &quot;Time to feel relief&quot; field: not completed (flagged)
+- Status: Saved successfully</code></pre>
+</div>
+<div id="monitoring-and-review" class="section level3">
+<h3>Monitoring and Review</h3>
+<p>System administrators and study personnel access reports showing: -
+Enrollment status: 18/50 participants (36% of target) - Data
+completeness: Subjects missing Week 2 visit data identified - Quality
+issues: 1 protocol deviation documented (visit 3 days outside window) -
+Safety events: 2 adverse events reported and classified</p>
+</div>
+<div id="analysis-end-of-study" class="section level3">
+<h3>Analysis (End of Study)</h3>
+<p>Statistician exports the data:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># One click exports analysis-ready dataset:</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="co"># - 50 subjects across 2 sites</span></span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="co"># - All validated data + computed scores</span></span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a><span class="co"># - Ready for statistical software</span></span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a><span class="co"># - Includes audit trail for FDA compliance</span></span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>analysis_data <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">&quot;depression_trial_export.csv&quot;</span>)</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a><span class="fu">head</span>(analysis_data)</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a><span class="co"># All variables present, properly formatted, complete</span></span></code></pre></div>
+<hr />
+</div>
+</div>
+<div id="system-applicability-by-study-scale" class="section level2">
+<h2>System Applicability by Study Scale</h2>
+<div id="small-studies-10-50-participants-single-site" class="section level3">
+<h3>Small Studies (10-50 participants, single site)</h3>
+<p>Suitable for studies with straightforward data requirements: - Simple
+forms with basic validation rules - Routine data review workflows - Data
+export in standard formats (CSV) - Participant enrollment tracking</p>
+</div>
+<div id="medium-scale-studies-50-500-participants-2-5-sites" class="section level3">
+<h3>Medium-Scale Studies (50-500 participants, 2-5 sites)</h3>
+<p>Appropriate for multi-site studies with complex data collection: -
+Complex data structures supporting longitudinal visits - Multi-site
+coordination and site-specific reporting - Automated data quality
+metrics and monitoring - Statistical summarization and reporting
+functionality</p>
+</div>
+<div id="large-scale-studies-500-participants-5-sites" class="section level3">
+<h3>Large-Scale Studies (500+ participants, 5+ sites)</h3>
+<p>Features for enterprise-level clinical trials: - Regulatory
+compliance frameworks (GDPR, 21 CFR Part 11) - Electronic signature
+capabilities - Immutable audit trail documentation - Centralized
+randomization procedures - Real-time safety event monitoring - Interim
+analysis data access</p>
+<hr />
+</div>
+</div>
+<div id="security-and-regulatory-features" class="section level2">
+<h2>Security and Regulatory Features</h2>
+<div id="data-protection-mechanisms" class="section level3">
+<h3>Data Protection Mechanisms</h3>
+<p>System features supporting research oversight and institutional
+requirements: - Secure authentication using password hashing with
+cryptographic salts - Comprehensive audit trail with timestamp and user
+documentation - Role-based access control restricting user actions to
+authorized functions - Data minimization principles limiting collection
+to specified requirements - Consent management tracking with version
+control</p>
+</div>
+<div id="regulatory-compliance-frameworks" class="section level3">
+<h3>Regulatory Compliance Frameworks</h3>
+<p>The system implements controls relevant to regulatory requirements: -
+Electronic signature system supporting 21 CFR Part 11 requirements -
+GDPR compliance features including data subject access rights - Data
+validation rule implementation and documentation - Change control
+documentation tracking modifications - Database lock mechanisms
+preventing post-analysis modifications</p>
+</div>
+<div id="operational-considerations" class="section level3">
+<h3>Operational Considerations</h3>
+<p>Additional system characteristics: - Automated database backup and
+recovery procedures - Open-source architecture eliminating licensing
+restrictions - Local data storage maintaining institutional data control
+- Scalable deployment from standalone to enterprise configurations</p>
+<hr />
+</div>
+</div>
+<div id="advanced-capabilities-youll-discover" class="section level2">
+<h2>Advanced Capabilities You’ll Discover</h2>
+<div id="data-quality-monitoring" class="section level3">
+<h3>Data Quality Monitoring</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># Automatic nightly QC checks:</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="co"># - Flag missing data patterns</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co"># - Identify unusual values (outliers)</span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co"># - Check cross-visit consistency</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="co"># - Generate quality reports</span></span></code></pre></div>
+</div>
+<div id="multi-visit-longitudinal-studies" class="section level3">
+<h3>Multi-Visit Longitudinal Studies</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co"># Support for:</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="co"># - Baseline + follow-up visits</span></span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="co"># - Weekly, monthly, or yearly data</span></span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a><span class="co"># - Cross-visit validation (e.g., visit dates in order)</span></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a><span class="co"># - Longitudinal outcome calculations</span></span></code></pre></div>
+</div>
+<div id="lab-data-integration" class="section level3">
+<h3>Lab Data Integration</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># Automated lab result upload:</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="co"># - Direct from lab information systems (HL7)</span></span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="co"># - Or manual entry with validation</span></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="co"># - Automatic range checking vs reference values</span></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a><span class="co"># - Integration with case report forms</span></span></code></pre></div>
+</div>
+<div id="custom-validation-rules" class="section level3">
+<h3>Custom Validation Rules</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co"># Create rules like:</span></span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="co"># &quot;If treatment=&#39;Drug A&#39; then dose required&quot;</span></span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a><span class="co"># &quot;If adverse event=&#39;serious&#39; then hospitalization required&quot;</span></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a><span class="co"># &quot;If visit_date &gt; baseline + 365 days then flag&quot;</span></span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a><span class="co"># &quot;If blood_pressure &gt; 180/110 then notify PI&quot;</span></span></code></pre></div>
+</div>
+<div id="electronic-signatures" class="section level3">
+<h3>Electronic Signatures</h3>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="co"># For regulatory submissions:</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a><span class="co"># - Multi-factor authentication</span></span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a><span class="co"># - Audit trail of all e-signatures</span></span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a><span class="co"># - 21 CFR Part 11 compliance</span></span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a><span class="co"># - Acceptable to FDA for data lock</span></span></code></pre></div>
+<hr />
+</div>
+</div>
+<div id="implementation-patterns" class="section level2">
+<h2>Implementation Patterns</h2>
+<div id="pattern-1-baseline-and-follow-up-studies" class="section level3">
+<h3>Pattern 1: Baseline and Follow-up Studies</h3>
+<p>Application: Pilot studies, feasibility studies, single-site clinical
+trials Configuration requirements: Basic forms with limited follow-up
+visits Training needs: Standard user training (0.5 hours)</p>
+</div>
+<div id="pattern-2-multi-site-clinical-trials" class="section level3">
+<h3>Pattern 2: Multi-site Clinical Trials</h3>
+<p>Application: Phase 2/3 trials, multi-institution research
+Configuration requirements: Complex forms with site-level permissions
+and monitoring Training needs: Site coordinator training and
+documentation (2-3 hours)</p>
+</div>
+<div id="pattern-3-longitudinal-cohort-studies" class="section level3">
+<h3>Pattern 3: Longitudinal Cohort Studies</h3>
+<p>Application: Long-term follow-up research, prospective studies
+Configuration requirements: Complex visit schedules with repeated
+measurements Training needs: Comprehensive staff training and protocols
+(4 hours)</p>
+</div>
+<div id="pattern-4-real-time-safety-monitoring" class="section level3">
+<h3>Pattern 4: Real-time Safety Monitoring</h3>
+<p>Application: Early-phase trials, safety-focused research
+Configuration requirements: Rapid adverse event reporting and escalation
+Training needs: Full team training with protocol establishment (5
+hours)</p>
+<hr />
+</div>
+</div>
+<div id="next-steps" class="section level2">
+<h2>Next Steps</h2>
+<div id="ready-to-dive-deeper" class="section level3">
+<h3>Ready to dive deeper?</h3>
+<ol style="list-style-type: decimal">
+<li><strong>Small studies?</strong> → See <a href="small-project-guide.html">Small Project Guide</a></li>
+<li><strong>Medium-sized trials?</strong> → See <a href="medium-project-guide.html">Medium Project Guide</a></li>
+<li><strong>Advanced features?</strong> → See <a href="advanced-features.html">Advanced Features Guide</a></li>
+<li><strong>Real-world example?</strong> → See <a href="multi_site_clinical_trial.html">Multi-site Clinical Trial</a></li>
+</ol>
+</div>
+<div id="need-help" class="section level3">
+<h3>Need help?</h3>
+<ul>
+<li><strong>Email:</strong> <a href="mailto:rgthomas@ucsd.edu" class="email">rgthomas@ucsd.edu</a></li>
+<li><strong>GitHub:</strong> <a href="https://github.com/rgt47/zzedc" class="uri">https://github.com/rgt47/zzedc</a></li>
+<li><strong>Documentation:</strong> All vignettes cover specific use
+cases</li>
+</ul>
+</div>
+<div id="want-to-see-a-demo" class="section level3">
+<h3>Want to see a demo?</h3>
+<p>The included sample data lets you explore immediately: 1. Login with
+test/test 2. Navigate to EDC tab 3. Browse existing subjects 4. Check
+Reports and Data Explorer 5. Export sample data</p>
+<hr />
+</div>
+</div>
+<div id="getting-started-with-zzedc" class="section level2">
+<h2>Getting Started with ZZedc</h2>
+<p>To familiarize yourself with the system:</p>
+<ol style="list-style-type: decimal">
+<li>Install and launch the application</li>
+<li>Login with test credentials (test/test)</li>
+<li>Navigate through the interface tabs (Home, EDC, Reports, Data
+Explorer, Export)</li>
+<li>Review the demonstration data included with the installation</li>
+<li>Consult additional vignettes for specific use cases and advanced
+features</li>
+</ol>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="co"># You&#39;re ready. One command gets you started:</span></span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a><span class="fu">launch_zzedc</span>()</span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a><span class="co"># Questions? Check the vignettes or email rgthomas@ucsd.edu</span></span></code></pre></div>
+<hr />
+<p><strong>Questions about specific features?</strong> Check the full
+documentation: - Setup &amp; Configuration: See <a href="getting-started.html">Getting Started</a> - Small teams: <a href="small-project-guide.html">Small Project Guide</a> - Large teams:
+<a href="medium-project-guide.html">Medium Project Guide</a> -
+Developers: <a href="advanced-features.html">Advanced Features</a></p>
+</div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

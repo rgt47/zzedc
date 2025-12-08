@@ -1,0 +1,685 @@
+---
+title: "Quick Start: AWS/DevOps (Config File Setup)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Quick Start: AWS/DevOps}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# ZZedc Setup for AWS/DevOps (Config File Method)
+
+Deploying ZZedc to AWS or using container orchestration? This guide covers automated, non-interactive setup using configuration files.
+
+**Time estimate: 5-10 minutes (after infrastructure provisioning)**
+
+---
+
+## Prerequisites
+
+- AWS EC2 instance or similar server provisioned
+- R 4.0+ installed on server
+- SSH access to server
+- ZZedc package installed: `install.packages("zzedc")`
+- (Optional) Docker / container orchestration running
+
+---
+
+## Quick Start: 3 Steps
+
+### Step 1: Create Configuration File
+
+Create `zzedc_config.yml` on your server:
+
+```yaml
+# Study configuration
+study:
+  name: "Multi-Site Stroke Trial"
+  protocol_id: "STROKE-2024-100"
+  pi_name: "Dr. James Wilson"
+  pi_email: "jwilson@ucsd.edu"
+  target_enrollment: 500
+  phase: "Phase3"
+
+# Administrator account
+admin:
+  username: "trial_admin"
+  fullname: "Trial Administrator"
+  email: "admin@trial-site.org"
+  password: "SecureAWSPassword123!@#"
+
+# Security settings
+security:
+  session_timeout_minutes: 30
+  enforce_https: true
+  max_failed_login_attempts: 3
+
+# Compliance
+compliance:
+  gdpr_enabled: true
+  cfr_part11_enabled: true
+  audit_logging_enabled: true
+```
+
+### Step 2: Run Initialization
+
+SSH into server and execute:
+
+```bash
+cd /srv/zzedc  # Your project directory
+
+Rscript -e "
+  library(zzedc)
+  zzedc::init(mode = 'config', config_file = 'zzedc_config.yml')
+"
+```
+
+### Step 3: Set Environment & Launch
+
+```bash
+# Set the security salt (from setup output)
+export ZZEDC_SALT='[generated_salt_from_setup]'
+
+# Start the application
+R CMD BATCH launch_app.R
+
+# Or with nohup for background execution
+nohup Rscript launch_app.R > zzedc.log 2>&1 &
+```
+
+**Done!** Access at `https://your-server:3838`
+
+---
+
+## Detailed Configuration Reference
+
+### Study Section
+
+```yaml
+study:
+  # Official study name (required)
+  name: "Study Name"
+
+  # Protocol/study code (required)
+  protocol_id: "PROTOCOL-001"
+
+  # PI information (required)
+  pi_name: "Dr. Name"
+  pi_email: "pi@institution.edu"
+
+  # Target enrollment (required)
+  target_enrollment: 500
+
+  # Study phase (optional, default: "Pilot")
+  # Options: Pilot, Phase1, Phase2, Phase3, Phase4, Observational
+  phase: "Phase3"
+```
+
+### Admin Section
+
+```yaml
+admin:
+  # System administrator username (required)
+  # No spaces, alphanumeric recommended
+  username: "admin_user"
+
+  # Full name (optional)
+  fullname: "Administrator Name"
+
+  # Email address (optional)
+  email: "admin@organization.org"
+
+  # Initial password (required)
+  # Minimum 8 characters
+  # This will be hashed immediately
+  password: "SecurePassword123!"
+```
+
+### Security Section
+
+```yaml
+security:
+  # Session timeout in minutes
+  # Default: 30
+  session_timeout_minutes: 30
+
+  # Enforce HTTPS
+  # true = production (requires SSL)
+  # false = development/testing
+  # Default: true
+  enforce_https: true
+
+  # Max failed login attempts before lockout
+  # Default: 3
+  max_failed_login_attempts: 3
+```
+
+### Compliance Section (Optional)
+
+```yaml
+compliance:
+  # GDPR compliance features
+  # Default: true
+  gdpr_enabled: true
+
+  # 21 CFR Part 11 (FDA)
+  # Default: true
+  cfr_part11_enabled: true
+
+  # Comprehensive audit logging
+  # Default: true
+  audit_logging_enabled: true
+```
+
+### Database Section (Optional)
+
+```yaml
+database:
+  # Database type
+  # Currently only "sqlite" supported
+  type: "sqlite"
+
+  # Connection pool size
+  # Default: 5
+  pool_size: 5
+```
+
+---
+
+## Docker Deployment
+
+### Dockerfile Example
+
+```dockerfile
+FROM rocker/r-ubuntu:4.3
+
+# Install R packages
+RUN apt-get update && \
+    apt-get install -y r-cran-shiny r-cran-yaml && \
+    Rscript -e "install.packages('zzedc')"
+
+# Copy configuration
+COPY zzedc_config.yml /app/zzedc_config.yml
+COPY entrypoint.sh /app/entrypoint.sh
+
+WORKDIR /app
+
+# Create data directory
+RUN mkdir -p data logs backups
+
+# Expose port
+EXPOSE 3838
+
+# Set environment
+ENV ZZEDC_SALT=""
+
+# Run entry point
+CMD ["/app/entrypoint.sh"]
+```
+
+### Docker Entrypoint Script
+
+```bash
+#!/bin/bash
+# entrypoint.sh
+
+set -e
+
+# Initialize ZZedc from config
+echo "Initializing ZZedc..."
+Rscript -e "
+  library(zzedc)
+  result <- zzedc::init(mode = 'config', config_file = '/app/zzedc_config.yml')
+  if (!result\$success) {
+    stop('Failed to initialize ZZedc')
+  }
+"
+
+# Set ZZEDC_SALT from setup result or environment
+if [ -z \"\$ZZEDC_SALT\" ]; then
+  ZZEDC_SALT=\$(grep '^ZZEDC_SALT=' .env | cut -d '=' -f 2)
+fi
+
+export ZZEDC_SALT
+
+# Launch application
+echo "Launching ZZedc on port 3838..."
+exec Rscript launch_app.R
+```
+
+### Docker Compose Example
+
+```yaml
+version: '3.8'
+
+services:
+  zzedc:
+    build: .
+    ports:
+      - "3838:3838"
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    environment:
+      ZZEDC_SALT: ${ZZEDC_SALT}
+    restart: always
+    networks:
+      - zzedc-network
+
+networks:
+  zzedc-network:
+    driver: bridge
+```
+
+### Deploy with Docker
+
+```bash
+# 1. Create .env with generated salt
+echo "ZZEDC_SALT=a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0" > .env
+
+# 2. Build and start
+docker-compose up -d
+
+# 3. View logs
+docker-compose logs -f zzedc
+
+# 4. Access
+# https://your-server:3838
+```
+
+---
+
+## AWS CloudFormation Template
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ZZedc Multi-Site Clinical Trial Platform'
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.small
+      - t3.medium
+      - t3.large
+
+  StudyName:
+    Type: String
+    Default: "My Clinical Trial"
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+
+Resources:
+  ZZedcSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ZZedc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3838
+          ToPort: 3838
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  ZZedcInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0  # Amazon Linux 2
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref ZZedcSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+
+          # Update system
+          yum update -y
+          yum install -y R
+
+          # Create directory
+          mkdir -p /srv/zzedc
+          cd /srv/zzedc
+
+          # Install ZZedc
+          Rscript -e "install.packages('zzedc')"
+
+          # Create configuration
+          cat > zzedc_config.yml << 'EOF'
+          study:
+            name: "${StudyName}"
+            protocol_id: "AWS-2024-001"
+            pi_name: "Trial Administrator"
+            pi_email: "admin@trial.org"
+            target_enrollment: 500
+            phase: "Phase3"
+          admin:
+            username: "admin"
+            fullname: "Administrator"
+            email: "admin@trial.org"
+            password: "ChangeMe123!@#"
+          security:
+            session_timeout_minutes: 30
+            enforce_https: true
+          compliance:
+            gdpr_enabled: true
+            cfr_part11_enabled: true
+          EOF
+
+          # Initialize
+          Rscript -e "
+            library(zzedc)
+            zzedc::init(mode = 'config', config_file = 'zzedc_config.yml')
+          "
+
+          # Start application
+          nohup Rscript launch_app.R > zzedc.log 2>&1 &
+
+      Tags:
+        - Key: Name
+          Value: ZZedc-Clinical-Trial
+
+Outputs:
+  PublicIP:
+    Value: !GetAtt ZZedcInstance.PublicIp
+    Description: Public IP address of ZZedc instance
+
+  AccessURL:
+    Value: !Sub 'https://${ZZedcInstance.PublicDnsName}:3838'
+    Description: URL to access ZZedc
+```
+
+Deploy:
+```bash
+aws cloudformation create-stack \
+  --stack-name zzedc-trial \
+  --template-body file://cloudformation.yaml \
+  --parameters ParameterKey=StudyName,ParameterValue="My Trial" \
+               ParameterKey=KeyName,ParameterValue=my-key-pair
+```
+
+---
+
+## Kubernetes Deployment
+
+### Deployment Manifest
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zzedc
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: zzedc
+  template:
+    metadata:
+      labels:
+        app: zzedc
+    spec:
+      containers:
+      - name: zzedc
+        image: my-registry/zzedc:latest
+        ports:
+        - containerPort: 3838
+        env:
+        - name: ZZEDC_SALT
+          valueFrom:
+            secretKeyRef:
+              name: zzedc-secrets
+              key: salt
+        volumeMounts:
+        - name: zzedc-data
+          mountPath: /app/data
+        - name: zzedc-config
+          mountPath: /app/config
+      volumes:
+      - name: zzedc-data
+        persistentVolumeClaim:
+          claimName: zzedc-data-pvc
+      - name: zzedc-config
+        configMap:
+          name: zzedc-config
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zzedc-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zzedc-config
+data:
+  zzedc_config.yml: |
+    study:
+      name: "Production Trial"
+      protocol_id: "PROD-2024-001"
+      ...
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zzedc-service
+spec:
+  selector:
+    app: zzedc
+  ports:
+  - protocol: TCP
+    port: 443
+    targetPort: 3838
+  type: LoadBalancer
+```
+
+---
+
+## SSL/TLS Configuration
+
+### Self-Signed Certificate (Testing)
+
+```bash
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+
+# Then configure in ZZedc config
+```
+
+### AWS Certificate Manager (Production)
+
+Use AWS Certificate Manager for free SSL certificates integrated with ELB.
+
+### nginx Reverse Proxy
+
+```nginx
+upstream zzedc {
+  server localhost:3838;
+}
+
+server {
+  listen 443 ssl;
+  server_name trial.example.org;
+
+  ssl_certificate /path/to/cert.pem;
+  ssl_certificate_key /path/to/key.pem;
+
+  location / {
+    proxy_pass http://zzedc;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+  }
+}
+
+server {
+  listen 80;
+  server_name trial.example.org;
+  return 301 https://$server_name$request_uri;
+}
+```
+
+---
+
+## Environment Variables
+
+### Configuration via Environment
+
+Instead of config file, use environment variables:
+
+```bash
+export STUDY_NAME="My Trial"
+export PROTOCOL_ID="TRIAL-001"
+export ADMIN_USERNAME="admin"
+export ADMIN_PASSWORD="SecurePass123!"
+export ZZEDC_SALT="[generated_salt]"
+
+Rscript -e "zzedc::init(mode = 'env')"
+```
+
+---
+
+## Automated Backups
+
+### Daily Backup Script
+
+```bash
+#!/bin/bash
+# backup_daily.sh
+
+BACKUP_DIR="/srv/zzedc/backups"
+RETENTION_DAYS=30
+
+# Create dated backup
+BACKUP_FILE="$BACKUP_DIR/zzedc_$(date +%Y%m%d_%H%M%S).db.gz"
+gzip -c /srv/zzedc/data/zzedc.db > "$BACKUP_FILE"
+
+# Upload to S3
+aws s3 cp "$BACKUP_FILE" "s3://my-backup-bucket/zzedc/"
+
+# Clean old backups
+find "$BACKUP_DIR" -name "*.db.gz" -mtime +$RETENTION_DAYS -delete
+
+echo "Backup completed: $BACKUP_FILE"
+```
+
+### Cron Job
+
+```bash
+# Daily backup at 2 AM
+0 2 * * * /srv/zzedc/backup_daily.sh >> /var/log/zzedc_backup.log 2>&1
+```
+
+---
+
+## Monitoring & Logging
+
+### CloudWatch Integration
+
+```yaml
+# In config.yml
+logging:
+  level: info
+  format: json  # For CloudWatch parsing
+  cloudwatch:
+    enabled: true
+    log_group: "/aws/zzedc/production"
+    log_stream: "zzedc-instance"
+```
+
+### Log Aggregation
+
+```bash
+# View logs
+tail -f /srv/zzedc/zzedc.log
+
+# Parse specific events
+grep "ERROR" /srv/zzedc/zzedc.log
+grep "user.*login" /srv/zzedc/zzedc.log
+```
+
+---
+
+## Security Best Practices
+
+✅ Use environment variables for secrets (not in config files)
+✅ Enable HTTPS in production
+✅ Use AWS Secrets Manager for sensitive values
+✅ Enable audit logging for compliance
+✅ Restrict security group to necessary IPs
+✅ Regular database backups with verification
+✅ Monitor CloudTrail for AWS API calls
+✅ Use IAM roles instead of access keys
+
+---
+
+## Troubleshooting
+
+### Setup fails: "Package not found"
+```bash
+# Ensure zzedc is installed
+Rscript -e "install.packages('zzedc', repos='http://cran.r-project.org')"
+```
+
+### Port 3838 already in use
+```bash
+# Find process using port
+lsof -i :3838
+
+# Kill if needed
+kill -9 <PID>
+```
+
+### Database permission denied
+```bash
+# Ensure write permissions
+chmod -R 755 /srv/zzedc/data
+chown -R ec2-user /srv/zzedc
+```
+
+### HTTPS certificate errors
+- Use AWS Certificate Manager
+- Or generate with Let's Encrypt
+- Ensure cert paths correct in config
+
+---
+
+## Summary
+
+✅ Create `zzedc_config.yml`
+✅ Run `zzedc::init(mode = 'config', ...)`
+✅ Set `ZZEDC_SALT` environment variable
+✅ Launch with `launch_zzedc()`
+✅ Access via HTTPS with certificate
+✅ Configure backups and monitoring
+✅ Scale horizontally with load balancer
+
+**Non-interactive, fully automated ZZedc deployment**

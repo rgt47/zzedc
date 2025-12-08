@@ -1,0 +1,9 @@
+field_name,field_label,field_type,validation_rules,description,required
+stop_bang_s,Do you snore loudly,select,"{""choices"": [""0_no"", ""1_yes""]}",Do you snore loudly?,TRUE
+stop_bang_t,Do you often feel tired fatigued or sleepy during the daytime,select,"{""choices"": [""0_no"", ""1_yes""]}",Do you often feel tired fatigued or sleepy during the daytime?,TRUE
+stop_bang_o,Have you been observed to stop breathing during your sleep,select,"{""choices"": [""0_no"", ""1_yes""]}",Have you been observed to stop breathing during your sleep?,TRUE
+stop_bang_p,Do you have or are you being treated for high blood pressure,select,"{""choices"": [""0_no"", ""1_yes""]}",Do you have or are you being treated for high blood pressure?,TRUE
+stop_bang_b,BMI greater than 35 kg/m2,select,"{""choices"": [""0_no"", ""1_yes""]}",Is your BMI greater than 35 kg/m2?,TRUE
+stop_bang_a,Are you older than 50 years,select,"{""choices"": [""0_no"", ""1_yes""]}",Are you older than 50 years?,TRUE
+stop_bang_n,Is your neck circumference greater than 40 cm,select,"{""choices"": [""0_no"", ""1_yes""]}",Is your neck circumference greater than 40 cm?,TRUE
+stop_bang_g,Are you male,select,"{""choices"": [""0_no"", ""1_yes""]}",Are you male?,TRUE

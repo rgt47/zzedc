@@ -1,0 +1,453 @@
+---
+title: "Getting Started with ZZedc"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with ZZedc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Getting Started with ZZedc
+
+ZZedc is an Electronic Data Capture (EDC) system implemented in R/Shiny for managing clinical trial and research study data.
+
+## System Components
+
+The system includes the following functional components:
+
+- Authentication system with user role management
+- Web-based interface for data entry and management
+- Data validation framework with customizable rules
+- Reporting system for data summarization and quality assessment
+- Multi-format data export capabilities
+- Role-based access control for user permissions
+- Regulatory compliance features supporting GCP and CFR Part 11 frameworks
+
+## Installation
+
+### Install from Package
+
+```{r installation}
+# Install ZZedc packages
+# Note: zzedc.validation is a required dependency
+install.packages("path/to/zzedc.validation_1.0.0.tar.gz", repos = NULL, type = "source")
+install.packages("path/to/zzedc_1.0.0.tar.gz", repos = NULL, type = "source")
+
+# Load the package
+library(zzedc)
+```
+
+### System Requirements
+
+- **R version**: 4.0.0 or higher
+- **Web browser**: Chrome, Firefox, Safari, or Edge
+- **Memory**: Minimum 4GB RAM recommended
+- **Storage**: 100MB for application, additional space for data
+
+## Quick Start
+
+### 1. Launch ZZedc
+
+```{r launch}
+# Launch the application
+launch_zzedc()
+
+# Or with custom settings
+launch_zzedc(
+  host = "127.0.0.1",
+  port = 3838,
+  launch.browser = TRUE
+)
+```
+
+This will open ZZedc in your default web browser at `http://localhost:3838`.
+
+### 2. First Login
+
+**Default Test Credentials:**
+- Username: `test`
+- Password: `test`
+
+**Other Available Users:**
+- `admin` / `admin123` (Administrator)
+- `sjohnson` / `password123` (Principal Investigator)
+- `asmith` / `coord123` (Research Coordinator)
+
+### 3. Navigate the Interface
+
+The ZZedc interface has five main tabs:
+
+#### **Home Tab**
+- Welcome dashboard with quick start guide
+- System status and notifications
+- Links to documentation and support
+
+#### **EDC Tab**
+- Electronic data capture forms
+- Subject enrollment and data entry
+- Data validation and quality checks
+
+#### **Reports Tab**
+- Three levels of reporting:
+  - **Report 1**: Basic summary statistics
+  - **Report 2**: Quality control reports
+  - **Report 3**: Advanced statistical analysis
+
+#### **Data Explorer Tab**
+- Interactive data visualization
+- Filter and subset data
+- Export subsets for analysis
+
+#### **Export Tab**
+- Download data in multiple formats
+- Generate analysis-ready datasets
+- Create regulatory submission packages
+
+## Basic Workflow
+
+### Step 1: Set Up Your Study
+
+```{r study_setup}
+# Study configuration (modify config.yml or use interface)
+study_info <- list(
+  name = "My Clinical Study",
+  protocol = "STUDY-2024-001",
+  pi = "Dr. Researcher",
+  target_enrollment = 50
+)
+```
+
+### Step 2: User Management
+
+```{r user_setup}
+# Add study team members (done through interface)
+# Navigate to: Settings > User Management
+
+team_roles <- c(
+  "Principal Investigator",
+  "Research Coordinator",
+  "Data Manager",
+  "Biostatistician"
+)
+```
+
+### Step 3: Data Entry
+
+1. **Navigate to EDC tab**
+2. **Click "Add New Subject"**
+3. **Enter subject information:**
+   - Subject ID (auto-generated or manual)
+   - Demographics
+   - Study-specific data points
+
+```{r data_entry_example}
+# Example subject data structure
+subject_data <- list(
+  subject_id = "STUDY001",
+  initials = "AB",
+  date_of_birth = "1980-05-15",
+  gender = "Female",
+  enrollment_date = Sys.Date()
+)
+```
+
+### Step 4: Quality Control
+
+Monitor data quality through:
+
+- **Real-time validation**: Errors highlighted immediately
+- **Data completeness**: Track missing values
+- **Range checks**: Automatic validation against expected ranges
+- **Duplicate detection**: Prevent duplicate entries
+
+### Step 5: Generate Reports
+
+```{r reporting}
+# Basic reporting workflow:
+# 1. Navigate to Reports tab
+# 2. Select report type
+# 3. Choose date range and filters
+# 4. Generate and download
+
+# Available report formats:
+report_formats <- c("HTML", "PDF", "Word", "Excel")
+```
+
+## Key Features Overview
+
+### Authentication and Security
+
+ZZedc includes robust security features:
+
+```{r security}
+# Security features
+security_features <- list(
+  user_authentication = "Database-based with secure password hashing",
+  session_management = "Configurable timeout and session tracking",
+  audit_trail = "Complete record of all user actions",
+  role_based_access = "Granular permissions by user role",
+  data_encryption = "Secure data storage and transmission"
+)
+```
+
+### Regulatory Compliance
+
+ZZedc is built with regulatory compliance in mind:
+
+```{r compliance}
+# Compliance features
+compliance_features <- list(
+  gdpr = "Data subject rights, consent management, and privacy controls",
+  cfr_part_11 = "Electronic signatures, audit trail, and data integrity",
+  audit_logging = "Immutable, hash-chained audit records",
+  data_governance = "Purpose limitation and data minimization controls",
+  breach_management = "Incident tracking and notification capabilities"
+)
+```
+
+See the [Advanced Features Guide](advanced-features.html) for detailed compliance workflows.
+
+### Data Validation
+
+Automatic validation includes:
+
+- **Type checking**: Ensure numeric fields contain numbers
+- **Range validation**: Values within expected ranges
+- **Date logic**: Chronological consistency
+- **Required fields**: Prevent incomplete records
+- **Custom rules**: Study-specific validation logic
+
+### Modern UI Components
+
+Built with modern web technologies:
+
+```{r ui_features}
+# UI Features
+ui_capabilities <- list(
+  responsive_design = "Works on desktop, tablet, and mobile",
+  accessibility = "WCAG 2.1 compliant interface",
+  modern_styling = "Bootstrap 5 with professional themes",
+  interactive_components = "Real-time updates and feedback",
+  data_visualization = "Integrated charts and graphs"
+)
+```
+
+## Configuration
+
+### Basic Configuration
+
+ZZedc uses a YAML configuration file:
+
+```yaml
+default:
+  app:
+    name: "Your Study Name"
+    version: "1.0.0"
+    debug: false
+
+  database:
+    path: "data/study.db"
+    pool_size: 5
+
+  auth:
+    session_timeout_minutes: 30
+    max_failed_attempts: 3
+
+  ui:
+    theme: "flatly"
+    primary_color: "#2c3e50"
+```
+
+### Environment Variables
+
+Set environment variables for sensitive information:
+
+```{r env_vars}
+# Example environment variables
+Sys.setenv(
+  ZZEDC_DB_PATH = "/secure/path/to/database.db",
+  ZZEDC_SALT = "your-secure-salt-string",
+  ZZEDC_ADMIN_EMAIL = "admin@yourinstitution.edu"
+)
+```
+
+## Sample Data and Testing
+
+### Working with Sample Data
+
+ZZedc includes sample data for testing:
+
+```{r sample_data}
+# Generate sample data for testing
+create_sample_subjects <- function(n = 10) {
+  data.frame(
+    subject_id = paste0("SAMP", sprintf("%03d", 1:n)),
+    age = sample(18:80, n, replace = TRUE),
+    gender = sample(c("Male", "Female"), n, replace = TRUE),
+    enrollment_date = seq(as.Date("2024-01-01"), by = "week", length.out = n),
+    status = sample(c("Active", "Completed", "Withdrawn"), n, replace = TRUE),
+    stringsAsFactors = FALSE
+  )
+}
+
+sample_data <- create_sample_subjects(20)
+head(sample_data)
+```
+
+### Database Setup
+
+```{r database_setup}
+# Database initialization (done automatically on first launch)
+# Manual setup if needed:
+
+# 1. Create database directory
+dir.create("data", showWarnings = FALSE)
+
+# 2. Run setup script (if available)
+# source("setup_database.R")
+
+# 3. Verify database connection
+# The application will create necessary tables automatically
+```
+
+## Common Tasks
+
+### Adding New Users
+
+```{r add_users}
+# User management workflow:
+# 1. Admin login to ZZedc
+# 2. Navigate to user management
+# 3. Click "Add User"
+# 4. Specify role and permissions
+
+user_roles <- list(
+  admin = "Full system access",
+  pi = "Study oversight and data review",
+  coordinator = "Data entry and basic reporting",
+  monitor = "Data review and quality control"
+)
+```
+
+### Data Entry Best Practices
+
+```{r data_entry_tips}
+# Best practices for data entry
+best_practices <- list(
+  "Use consistent naming conventions",
+  "Enter data promptly after collection",
+  "Review entries before saving",
+  "Document any issues or deviations",
+  "Regularly backup data",
+  "Train all users on proper procedures"
+)
+```
+
+### Export and Backup
+
+```{r backup}
+# Regular backup workflow:
+# 1. Navigate to Export tab
+# 2. Select "Full Database Export"
+# 3. Choose format (CSV, SPSS, SAS)
+# 4. Download and store securely
+
+backup_schedule <- list(
+  frequency = "Daily",
+  format = "Multiple formats",
+  location = "Secure server with access controls",
+  retention = "Per institutional policy"
+)
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Cannot connect to ZZedc:**
+```{r troubleshoot_connection}
+# Check if R session is running
+# Verify port 3838 is available
+# Try different port:
+launch_zzedc(port = 3839)
+```
+
+**Login problems:**
+```{r troubleshoot_login}
+# Verify credentials
+# Check if database is accessible
+# Reset password if needed (contact administrator)
+```
+
+**Data not saving:**
+```{r troubleshoot_data}
+# Check internet connection
+# Verify database permissions
+# Look for validation errors
+# Try refreshing the browser
+```
+
+### Getting Help
+
+1. **Check documentation**: Additional vignettes available
+2. **Error messages**: Read carefully and check for validation issues
+3. **Log files**: Check application logs for detailed error information
+4. **Support contacts**:
+   - Email: rgthomas@ucsd.edu
+   - GitHub: https://github.com/rgt47/zzedc
+   - Documentation: See other vignettes for advanced features
+
+## Next Steps
+
+Once you're comfortable with the basics:
+
+1. **Customize for your study**: Modify forms and validation rules
+2. **Train your team**: Ensure all users understand the workflow
+3. **Set up regular procedures**: Data review, backup, quality control
+4. **Explore advanced features**: See other vignettes for detailed guides
+
+### Additional Resources
+
+- **Small Projects**: See [Small Project Guide](small-project-guide.html)
+- **Medium Projects**: See [Medium Project Guide](medium-project-guide.html)
+- **Advanced Features**: See [Advanced Features Guide](advanced-features.html)
+
+## Quick Reference
+
+### Keyboard Shortcuts
+
+- `Ctrl+S`: Save current form
+- `Ctrl+N`: New subject entry
+- `F5`: Refresh data view
+- `Esc`: Cancel current operation
+
+### Important URLs
+
+When running locally:
+
+- **Main application**: http://localhost:3838
+- **Direct tab access**: Add `#tab-name` to URL
+- **API endpoints**: http://localhost:3838/api/ (if available)
+
+### File Locations
+
+```{r file_locations}
+# Important file locations
+file_structure <- list(
+  database = "data/memory001_study.db",
+  config = "config.yml",
+  logs = "logs/",
+  exports = "exports/",
+  backup = "backup/"
+)
+```
+
+This completes the getting started guide. You're now ready to begin using ZZedc for your clinical research!

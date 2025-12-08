@@ -1,0 +1,440 @@
+---
+title: "Setup Wizard: Non-Technical System Configuration"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Setup Wizard Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# ZZedc Setup Wizard: Getting Started in 5 Minutes
+
+The ZZedc Setup Wizard makes it easy to configure your system **without programming knowledge**. This guide walks you through each step.
+
+## What You'll Need
+
+- Your study information (name, protocol ID, principal investigator)
+- An administrator username and password
+- Email address for the admin account
+- Names and email addresses of your team members (optional)
+
+**Time required: 5 minutes**
+
+---
+
+## Starting the Setup Wizard
+
+```{r launch_wizard}
+library(zzedc)
+
+# Launch ZZedc with the setup wizard
+launch_zzedc_with_wizard()
+
+# Your browser opens with the Setup Wizard
+```
+
+You'll see a progress bar at the top showing "Step 1 of 5".
+
+---
+
+## Step 1: Basic Information (30 seconds)
+
+Enter your research study details:
+
+### Fields to Complete
+
+- **Study Name**: The official name of your research project
+  - Example: "Depression Treatment Trial v2.1"
+  - This appears in reports and user-facing screens
+
+- **Protocol ID**: Your institutional protocol number
+  - Example: "DEPR-2024-001"
+  - Used for regulatory documentation
+
+- **Principal Investigator Name**: Full name of the study lead
+  - Example: "Dr. Jane Smith"
+
+- **PI Email**: Contact email for the principal investigator
+  - Example: "jane.smith@university.edu"
+  - Used for system notifications
+
+- **Target Enrollment**: How many participants you plan to enroll
+  - Example: 50
+  - Used for progress tracking
+
+- **Study Phase**: Select from the dropdown
+  - Pilot, Phase 1, Phase 2, Phase 3, Phase 4, or Observational
+  - Used for categorization
+
+### Example Entry
+
+```
+Study Name: Depression Treatment Trial v2.1
+Protocol ID: DEPR-2024-001
+PI Name: Dr. Jane Smith
+PI Email: jane.smith@university.edu
+Target Enrollment: 50
+Study Phase: Phase 2
+```
+
+Click **Next →** to continue.
+
+---
+
+## Step 2: Administrator Account (1 minute)
+
+Create your administrator login credentials. **This is the account you'll use to manage ZZedc.**
+
+### Fields to Complete
+
+- **Username**: Your login name (no spaces, no special characters)
+  - Example: "jane_smith" or "jsmith"
+  - Keep it simple and memorable
+
+- **Full Name**: Your full name
+  - Example: "Dr. Jane Smith"
+  - Used in audit logs and system messages
+
+- **Email**: Your email address
+  - Example: "jane.smith@university.edu"
+  - Used for password recovery
+
+- **Password**: Create a strong password
+  - Minimum 8 characters
+  - Mix letters, numbers, and symbols
+  - Example: "UniquePass2024!"
+
+- **Confirm Password**: Re-type your password
+
+### Password Strength Tips
+
+| ❌ Weak | ✅ Strong |
+|----------|----------|
+| "password" | "Pass2024Study!" |
+| "12345678" | "Research&Safe99" |
+| "MyStudy" | "TrialData#2024" |
+| "admin123" | "ZZedc@Research2024" |
+
+Click **Next →** to continue.
+
+---
+
+## Step 3: Security Configuration (2 minutes)
+
+Configure security settings for your system. **You only do this once.**
+
+### Security Salt
+
+A unique security salt has been generated for your system. **Save this in a secure place** — it encrypts all passwords.
+
+```
+Generated Salt: a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0
+```
+
+**Ways to save it:**
+1. Copy to a password manager (recommended)
+2. Write in a notebook kept in a secure location
+3. Email to yourself in an encrypted message
+
+**Important:** If you lose this salt, you cannot recover it. Your passwords will not work without it.
+
+### Session Configuration
+
+- **Session Timeout (minutes)**: How long before inactive users are logged out
+  - Recommended: 30 minutes
+  - Shorter = more secure, longer = less hassle
+
+- **Enforce HTTPS**: Require secure connections (recommended for production)
+  - Yes = Only secure connections work
+  - No = Development use only
+
+- **Max Failed Login Attempts**: How many wrong passwords before account lockout
+  - Recommended: 3
+  - Users must contact admin if locked out
+
+### Example Settings
+
+```
+Session Timeout: 30 minutes
+Enforce HTTPS: Yes (recommended)
+Max Failed Login Attempts: 3
+```
+
+**Checkbox**: Confirm that you have saved the security salt ✓
+
+Click **Next →** to continue.
+
+---
+
+## Step 4: Team Members (Optional, 1 minute)
+
+Add your research team members. **You can skip this and add them later.**
+
+### Adding Team Members
+
+1. Enter username: "alex_r" or "maria_santos"
+2. Enter full name: "Alex Rodriguez" or "Maria Santos"
+3. Enter email: "arodriguez@university.edu"
+4. Select role:
+   - **Coordinator**: Data entry, basic reports
+   - **PI**: Full access (usually reserved for study leads)
+   - **Data Manager**: Data management and exports
+   - **Monitor**: Read-only access for auditing
+
+5. Click **Add Member**
+
+### Example Team
+
+| Username | Name | Email | Role |
+|----------|------|-------|------|
+| coord_sarah | Sarah Chen | schen@university.edu | Coordinator |
+| dm_alex | Alex Rodriguez | arodriguez@university.edu | Data Manager |
+| monitor_john | John Monitor | jmonitor@university.edu | Monitor |
+
+**Note:** You'll set their passwords on first login. For now, temporary passwords are generated automatically.
+
+Click **Next →** to continue.
+
+---
+
+## Step 5: Data Dictionary & Forms (1 minute)
+
+Choose how to set up your data collection forms.
+
+### Four Options
+
+#### 1. **Start with Blank Forms** (Easiest for new users)
+- Creates an empty system
+- You design forms in the Data Dictionary
+- Best for: Custom studies, complex workflows
+- Setup time: 5 minutes
+- Design time: 30 minutes to 2 hours
+
+#### 2. **Use Example ADHD Forms** (Recommended for testing)
+- Pre-built clinical trial forms
+- Full validation rules included
+- Best for: Learning ZZedc, testing features
+- Ready immediately, then customize
+
+#### 3. **Import from CSV File** (For spreadsheet templates)
+- Upload your existing data dictionary as CSV
+- Supports: Excel saved as CSV
+- Format:
+  ```
+  variable_name,variable_label,variable_type,valid_values
+  subject_id,Subject ID,text,required
+  age,Age (years),integer,between 18 and 120
+  ```
+
+#### 4. **Import from Google Sheets** (For team collaboration)
+- Share Google Sheets URL
+- Multiple people can edit
+- Auto-sync with ZZedc
+- Best for: Teams, complex templates
+
+### Our Recommendation
+
+**Start with ADHD Examples** ← Click this option
+- See a complete working system
+- Learn how ZZedc works
+- Import your own data later
+- Can always start over
+
+Click **Create System** to finish.
+
+---
+
+## Success Screen ✓
+
+When setup is complete, you'll see:
+
+```
+✓ Success! Your ZZedc system has been created
+```
+
+You'll receive:
+- **config.yml** - System configuration file (automatically created)
+- **launch_app.R** - Script to start your system (automatically created)
+- Database with all users and tables
+
+---
+
+## Next Steps
+
+### 1. Launch Your System
+
+Option A: Click **Launch ZZedc** button
+```r
+launch_zzedc()
+```
+
+Option B: Run from command line
+```bash
+Rscript launch_app.R
+```
+
+### 2. Login
+
+Use the administrator account you created:
+- Username: `jane_smith` (your username)
+- Password: `UniquePass2024!` (your password)
+
+### 3. Welcome!
+
+You'll see:
+- Dashboard with system status
+- Data entry form (EDC tab)
+- Reports (Reports tab)
+- Admin dashboard (for user management, backups, audit logs)
+
+### 4. Add Your Team
+
+In the **Admin Dashboard** → **👤 User Management**:
+1. Click "Add User"
+2. Enter team member information
+3. System generates temporary password
+4. Share credentials with team member
+
+### 5. Create Forms
+
+In the **Admin Dashboard** → **⚙️ System Configuration**:
+1. Access form builder
+2. Define your data collection fields
+3. Add validation rules
+4. Assign to forms
+
+### 6. Start Collecting Data
+
+Team members log in and begin entering data. Validation happens in real-time.
+
+---
+
+## Troubleshooting
+
+### "Database already exists"
+- Your system has been set up before
+- To start over: Delete database file in `data/` folder
+- Run setup wizard again
+
+### "Session timeout is too short"
+- Edit `config.yml` and change `session_timeout_minutes`
+- Or use Admin Dashboard → System Configuration
+
+### "Lost the security salt"
+- **Critical:** Cannot be recovered
+- Only option: Delete database and start over
+- Future: Store salt in password manager
+
+### "Need to change admin password"
+- Use Admin Dashboard → User Management
+- Find admin account
+- Click "Reset Password"
+- System generates temporary password
+
+### "Want to add/remove team members"
+- Use Admin Dashboard → User Management
+- Add: Click "Add User"
+- Remove: Click "Deactivate"
+
+---
+
+## Security Reminders
+
+| Item | Action |
+|------|--------|
+| Security Salt | Store in secure location (not email!) |
+| Admin Password | Share with no one, only you use |
+| Session Timeout | 30 minutes default (auto logout) |
+| HTTPS | Enable for production (production=cloud, development=local) |
+| Backups | Automatic daily backups (can disable if needed) |
+
+---
+
+## Keeping It Simple
+
+✅ **Recommended Setup**
+- Use ADHD example forms to start
+- Set session timeout to 30 minutes
+- Enable HTTPS if on the internet
+- Keep 30 days of automatic backups
+- Add team members as needed
+
+❌ **Don't Worry About**
+- Advanced compliance settings (GDPR/CFR) for now
+- Custom validation rules initially
+- Complex multi-site configurations
+- API integrations yet
+
+---
+
+## Next Steps After Setup
+
+1. **Read the Quick Start Guide** - 5-minute overview
+2. **Check the User Guide** - Complete feature documentation
+3. **Try the Data Entry** - Enter sample data, see validation
+4. **Review Reports** - See auto-generated analytics
+5. **Import Your Forms** - Replace ADHD forms with your study
+
+---
+
+## Getting Help
+
+- **Email:** rgthomas@ucsd.edu
+- **GitHub:** https://github.com/rgt47/zzedc
+- **Documentation:** All vignettes available in help menu
+- **Admin Dashboard:** Click "❓ Help & Documentation" tab
+
+---
+
+## Summary: What You Just Did
+
+✅ Created a complete clinical trial data management system
+✅ Set up administrator credentials
+✅ Configured security settings
+✅ Added team members
+✅ Prepared for data collection
+
+**Time invested: 5 minutes**
+**System ready for:** Immediate data collection
+
+---
+
+## Common Questions
+
+### Q: Can I change study information later?
+**A:** Yes. Use Admin Dashboard → System Configuration to update study details.
+
+### Q: What if my team grows?
+**A:** Add new users anytime in User Management. No restart needed.
+
+### Q: How do I backup my data?
+**A:** Automatic backups run daily. Manual backups in Admin Dashboard → Backup & Restore.
+
+### Q: Can I change passwords?
+**A:** Yes. Users can change their own password. Admins can reset any user's password.
+
+### Q: What if something goes wrong?
+**A:** Restore from backup in Admin Dashboard → Backup & Restore. No data is lost.
+
+---
+
+## Ready?
+
+You're all set! Your ZZedc system is ready for research data collection.
+
+[Launch ZZedc Now →](https://github.com/rgt47/zzedc)
+
+Questions? Email rgthomas@ucsd.edu or check the full documentation.
+
+---
+
+**ZZedc Setup Wizard v1.0**
+*Making clinical trial data management non-technical*
