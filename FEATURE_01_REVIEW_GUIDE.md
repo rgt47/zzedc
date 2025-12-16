@@ -22,6 +22,7 @@
 ### Review Questions
 
 **Q1.1: Is 3 weeks realistic for your environment?**
+
 - [OK] Yes, sounds right
 - [TIME] Too aggressive, need 4-5 weeks
 - [CONSIDER] Depends on developer experience level
@@ -32,6 +33,7 @@
 ---
 
 **Q1.2: Developer allocation preference?**
+
 - [PERSON] 1 developer full-time (focused, no context-switching)
 - [TEAM] 2 developers part-time (can parallelize modules)
 - [FLEXIBLE] Flexible, depends on availability
@@ -79,6 +81,7 @@ setup_encrypted_database.R (100+ lines)
 ### Review Questions
 
 **Q2.1: Module breakdown - any changes?**
+
 - [OK] Looks good as-is
 - [REORGANIZE] Consolidate some modules (fewer files)
 - [SPLIT] Split into more focused modules
@@ -89,6 +92,7 @@ setup_encrypted_database.R (100+ lines)
 ---
 
 **Q2.2: Priority on which modules to create first?**
+
 - [1] encryption_utils.R (foundation, blocking others)
 - [1] aws_kms_utils.R (optional, can defer)
 - [1] secure_export.R (nice-to-have, business value)
@@ -101,6 +105,7 @@ setup_encrypted_database.R (100+ lines)
 ---
 
 **Q2.3: Should we include all functions shown, or start minimal?**
+
 - [OK] Include all as shown (comprehensive)
 - [TESTING] Start with core functions only, add others later
 - [MINIMAL] Minimal set: _________________
@@ -128,6 +133,7 @@ setup_encrypted_database.R (100+ lines)
 ### Review Questions
 
 **Q3.1: Acceptable to make paws and openxlsx optional?**
+
 - [OK] Yes, graceful degradation is fine
 - [NO] No, they should be required
 - [CONSIDER] Need conditional logic: _________________
@@ -137,6 +143,7 @@ setup_encrypted_database.R (100+ lines)
 ---
 
 **Q3.2: Biggest implementation risk?**
+
 - [CRITICAL] SQLCipher installation across platforms
 - [MEDIUM] AWS KMS integration complexity
 - [MEDIUM] Export functionality edge cases
@@ -180,6 +187,7 @@ CREATE INDEX idx_audit_status ON audit_trail(status);
 ### Review Questions
 
 **Q4.1: Audit trail schema - any modifications?**
+
 - [OK] Looks good as-is
 - [CHANGE] Add fields: _________________
 - [REMOVE] Remove fields: _________________
@@ -190,6 +198,7 @@ CREATE INDEX idx_audit_status ON audit_trail(status);
 ---
 
 **Q4.2: Data retention policy for audit trail?**
+
 - [FOREVER] Keep forever (safest)
 - [ROTATE] Rotate quarterly (current year + 3 years)
 - [ROTATE] Rotate annually (rolling 7 years)
@@ -200,6 +209,7 @@ CREATE INDEX idx_audit_status ON audit_trail(status);
 ---
 
 **Q4.3: Should audit trail itself be encrypted?**
+
 - [OK] Yes (already encrypted with database)
 - [NO] No, separate unencrypted audit log
 - [CONSIDER] Depends on: _________________
@@ -240,6 +250,7 @@ Performance Tests:
 ### Review Questions
 
 **Q5.1: Test coverage - sufficient?**
+
 - [OK] Yes, good coverage
 - [TESTING] Add more tests for: _________________
 - [FOCUS] Focus on: _________________
@@ -250,6 +261,7 @@ Performance Tests:
 ---
 
 **Q5.2: Should we include stress testing?**
+
 - [OK] Yes, test with large datasets (10K+ records)
 - [DEFER] No, defer to Phase 2 performance testing
 - [CONSIDER] Include if time permits
@@ -259,6 +271,7 @@ Performance Tests:
 ---
 
 **Q5.3: CI/CD testing requirements?**
+
 - [OK] All tests must pass before merge
 - [WARNING] Some tests can be optional
 - [REVIEW] Manual security review required
@@ -290,6 +303,7 @@ Performance Tests:
 ### Review Questions
 
 **Q6.1: Documentation scope - sufficient?**
+
 - [OK] Yes, covers all scenarios
 - [ADD] Add guidance on: _________________
 - [REMOVE_DOC] Skip: _________________
@@ -299,6 +313,7 @@ Performance Tests:
 ---
 
 **Q6.2: Who needs training?**
+
 - [PERSON] DBAs (key management)
 - [PERSON] Data managers (export procedures)
 - [PERSON] System admins (AWS KMS setup)
@@ -310,6 +325,7 @@ Performance Tests:
 ---
 
 **Q6.3: Deployment checklist - include?**
+
 - [OK] Yes, pre-deployment checklist (database backup, key setup, etc.)
 - [NO] No, assume manual verification
 - [CONSIDER] Create automated pre-deployment validation script?
@@ -339,6 +355,7 @@ Performance Tests:
 ### Review Questions
 
 **Q7.1: Fresh database start - acceptable?**
+
 - [OK] Yes, we want clean encryption from day 1
 - [NO] No, must preserve existing data
 - [CONSIDER] Need migration path: _________________
@@ -348,6 +365,7 @@ Performance Tests:
 ---
 
 **Q7.2: Changes to global.R, server.R, data.R**
+
 - [OK] Minimal changes shown are good
 - [CHANGE] Prefer different approach: _________________
 - [WARNING] Concerned about: _________________
@@ -357,6 +375,7 @@ Performance Tests:
 ---
 
 **Q7.3: Breaking changes acceptable?**
+
 - [OK] Yes, this is a breaking change, users understand
 - [WARNING] Prefer gradual migration
 - [CONSIDER] Need backwards compatibility: _________________
@@ -413,6 +432,7 @@ Performance Tests:
 ### Review Questions
 
 **Q8.1: Success criteria - complete?**
+
 - [OK] Yes, covers all important aspects
 - [ADD] Add criteria for: _________________
 - [REMOVE] Remove: _________________
@@ -423,6 +443,7 @@ Performance Tests:
 ---
 
 **Q8.2: Performance targets acceptable?**
+
 - [OK] < 5% overhead is good target
 - [STRICT] Should be < 2%
 - [TIME] < 5% might be tight, use < 10%
@@ -433,6 +454,7 @@ Performance Tests:
 ---
 
 **Q8.3: Regulatory compliance verification?**
+
 - [PERSON] Manual review by compliance team
 - [OK] Automated compliance checklist
 - [OTHER] Both (automated + manual review)
