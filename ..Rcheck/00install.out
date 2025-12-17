@@ -1,0 +1,23 @@
+NULL
+* installing *source* package ‘zzedc’ ...
+** this is package ‘zzedc’ version ‘1.0.0’
+** using staged installation
+** R
+** data
+** inst
+** byte-compile and prepare package for lazy loading
+NULL
+Note: possible error in 'log_audit_event(db_conn = db_conn, ': unused arguments (db_conn = db_conn, details = jsonlite::toJSON(list(instrument_name = instrument_name, form_name = form_name, fields_imported = fields_imported))) 
+** help
+*** installing help indices
+** building package indices
+NULL
+** installing vignettes
+** testing if installed package can be loaded from temporary location
+NULL
+Error: package or namespace load failed for ‘zzedc’ in namespaceExport(ns, exports):
+ undefined exports: Creates, ZZedc, a, application, configuration, directory, installation, needed, required, settings, the
+Error: loading failed
+Execution halted
+ERROR: loading failed
+* removing ‘/Users/zenn/Dropbox/prj/d06/zzedc/..Rcheck/zzedc’
