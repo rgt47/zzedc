@@ -13,5 +13,5 @@ create_wizard_directories(base_path)
 List with success status
 }
 \description{
-Create Directories for New ZZedc Instance
+Creates the directory structure needed for a new ZZedc installation
 }

@@ -17,5 +17,5 @@ create_wizard_config(config_list, config_path, security_salt)
 List with success status and messages
 }
 \description{
-Create Config File from Wizard Configuration
+Creates configuration file with all required application settings
 }
