@@ -253,7 +253,6 @@ create_wizard_database <- function(config_list, db_path) {
 
 
 #' Create Config File from Wizard Configuration
-#' @export
 #'
 #' Creates configuration file with all required application settings
 #'
@@ -262,6 +261,7 @@ create_wizard_database <- function(config_list, db_path) {
 #' @param security_salt The security salt for hashing
 #'
 #' @return List with success status and messages
+#' @export
 create_wizard_config <- function(config_list, config_path, security_salt) {
 
   tryCatch({
@@ -351,13 +351,13 @@ logging:
 
 
 #' Create Directories for New ZZedc Instance
-#' @export
 #'
 #' Creates the directory structure needed for a new ZZedc installation
 #'
 #' @param base_path Base directory where subdirectories will be created
 #'
 #' @return List with success status
+#' @export
 create_wizard_directories <- function(base_path) {
 
   tryCatch({
@@ -401,6 +401,7 @@ create_wizard_directories <- function(base_path) {
 #' @param output_path Path where launch script will be written
 #'
 #' @return List with success status
+#'
 #' @export
 create_launch_script <- function(config_list, output_path) {
 
