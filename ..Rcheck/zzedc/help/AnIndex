@@ -4,6 +4,7 @@ check_aws_kms_status	check_aws_kms_status
 complete_wizard_setup	complete_wizard_setup
 connect_encrypted_db	connect_encrypted_db
 create_error_display	create_error_display
+create_export_manifest	create_export_manifest
 create_launch_script	create_launch_script
 create_paginated_reactive	create_paginated_reactive
 create_pagination_ui	create_pagination_ui
@@ -15,6 +16,7 @@ enable_session_timeout	enable_session_timeout
 error_response	error_response
 execute_init_setup	execute_init_setup
 export_audit_log	export_audit_log
+export_encrypted_data	export_encrypted_data
 export_to_file	export_to_file
 filter_data_by_search	filter_data_by_search
 generate_db_key	generate_db_key
@@ -23,6 +25,7 @@ generate_security_salt	generate_security_salt
 get_db_path	get_db_path
 get_encryption_key	get_encryption_key
 get_encryption_key_from_aws_kms	get_encryption_key_from_aws_kms
+get_export_history	get_export_history
 get_instrument_field	get_instrument_field
 get_page_summary	get_page_summary
 get_setup_instructions	get_setup_instructions
@@ -40,6 +43,7 @@ launch_zzedc	launch_zzedc
 list_available_instruments	list_available_instruments
 load_instrument_template	load_instrument_template
 log_audit_event	log_audit_event
+log_export_activity	log_export_activity
 log_export_event	log_export_event
 notify_if_invalid	notify_if_invalid
 paginate_data	paginate_data
@@ -53,6 +57,7 @@ renderPanel	renderPanel
 rotate_encryption_key	rotate_encryption_key
 safe_reactive	safe_reactive
 save_validated_form	save_validated_form
+selective_field_export	selective_field_export
 setup_aws_kms	setup_aws_kms
 setup_form_validation	setup_form_validation
 setup_pagination_observers	setup_pagination_observers
@@ -68,4 +73,5 @@ validate_instrument_csv	validate_instrument_csv
 verify_audit_log_integrity	verify_audit_log_integrity
 verify_database_encryption	verify_database_encryption
 verify_db_key	verify_db_key
+verify_exported_data	verify_exported_data
 zzedc	zzedc-package

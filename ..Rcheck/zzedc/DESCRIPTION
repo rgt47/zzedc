@@ -19,13 +19,14 @@ Depends: R (>= 4.0.0), zzedc.validation (>= 1.0.0)
 Imports: methods, shiny (>= 1.7.0), bslib (>= 0.4.0), bsicons (>=
         0.1.0), shinyjs (>= 2.1.0), DT (>= 0.20), ggplot2 (>= 3.4.0),
         plotly (>= 4.10.0), dplyr (>= 1.0.0), jsonlite (>= 1.7.0),
-        digest (>= 0.6.0), RSQLite (>= 2.2.0), pool (>= 0.1.6), config
-        (>= 0.3.1), lubridate (>= 1.8.0), stringr (>= 1.4.0), httr (>=
-        1.4.0), shinyalert (>= 3.0.0), googlesheets4 (>= 1.0.0)
+        digest (>= 0.6.0), writexl (>= 1.4.0), RSQLite (>= 2.2.0), pool
+        (>= 0.1.6), config (>= 0.3.1), lubridate (>= 1.8.0), stringr
+        (>= 1.4.0), httr (>= 1.4.0), shinyalert (>= 3.0.0),
+        googlesheets4 (>= 1.0.0)
 Suggests: testthat (>= 3.0.0), knitr, rmarkdown, here, yaml, shinyTime,
         shinyWidgets, shinysignature, haven
 URL: https://github.com/rgt47/zzedc
 BugReports: https://github.com/rgt47/zzedc/issues
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-Built: R 4.5.2; ; 2025-12-18 15:15:05 UTC; unix
+Built: R 4.5.2; ; 2025-12-18 19:23:02 UTC; unix

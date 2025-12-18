@@ -2,6 +2,8 @@ check_aws_kms_status    Check AWS KMS Status and Permissions
 complete_wizard_setup   Complete Setup Wizard Orchestration
 connect_encrypted_db    Connect to Encrypted Database
 create_error_display    Display form validation errors to user
+create_export_manifest
+                        Create Export Manifest
 create_launch_script    Create Launch Script for New ZZedc Instance
 create_paginated_reactive
                         Create reactive paginated data
@@ -13,6 +15,8 @@ create_wizard_directories
                         Create Directories for New ZZedc Instance
 error_response          Create standardized error response
 export_audit_log        Export audit log to file
+export_encrypted_data   Export Encrypted Data with Integrity
+                        Verification
 export_to_file          Export data to file
 filter_data_by_search   Filter data by search term
 generate_db_key         Generate a random database encryption key
@@ -21,6 +25,7 @@ generate_export_filename
 get_db_path             Get Database Path
 get_encryption_key      Get database encryption key from environment or
                         AWS KMS
+get_export_history      Get Export Activity History
 get_page_summary        Generate page summary statistics
 handle_error            Handle errors with logging and user
                         notification
@@ -50,6 +55,8 @@ renderPanel             Render form panel with typed input fields
 rotate_encryption_key   Rotate Database Encryption Key via AWS KMS
 safe_reactive           Safe reactive expression evaluation
 save_validated_form     Save validated form data to database
+selective_field_export
+                        Selective Field Encryption on Export
 set_encryption_for_existing_db
                         Enable Encryption on Existing Database
 setup_aws_kms           Setup AWS KMS Integration for ZZedc
@@ -68,3 +75,4 @@ verify_audit_log_integrity
 verify_database_encryption
                         Verify Database Encryption
 verify_db_key           Verify database encryption key format
+verify_exported_data    Verify Exported Data Integrity

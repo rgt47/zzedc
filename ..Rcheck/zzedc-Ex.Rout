@@ -87,6 +87,32 @@ The following object is masked from ‘package:zzedc.validation’:
 > 
 > 
 > cleanEx()
+> nameEx("create_export_manifest")
+> ### * create_export_manifest
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: create_export_manifest
+> ### Title: Create Export Manifest
+> ### Aliases: create_export_manifest
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   manifest_path <- create_export_manifest(
+> ##D     export_file_path = "./exports/export_subjects_20251218_123456.csv",
+> ##D     metadata = list(
+> ##D       study_id = "TOY-TRIAL-001",
+> ##D       export_reason = "DSMB Review",
+> ##D       exported_by = "john_doe"
+> ##D     )
+> ##D   )
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
 > nameEx("create_wizard_database")
 > ### * create_wizard_database
 > 
@@ -108,6 +134,36 @@ The following object is masked from ‘package:zzedc.validation’:
 > ##D )
 > ##D create_wizard_database(config, "~/my_study.db")
 > ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("export_encrypted_data")
+> ### * export_encrypted_data
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: export_encrypted_data
+> ### Title: Export Encrypted Data with Integrity Verification
+> ### Aliases: export_encrypted_data
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   # Export all subjects
+> ##D   file_path <- export_encrypted_data(
+> ##D     query = "SELECT * FROM subjects",
+> ##D     format = "csv"
+> ##D   )
+> ##D 
+> ##D   # Export with password protection
+> ##D   file_path <- export_encrypted_data(
+> ##D     query = "SELECT * FROM mmse_assessments WHERE visit_label = 'Baseline'",
+> ##D     format = "xlsx",
+> ##D     password = "secure_password"
+> ##D   )
+> ## End(Not run)
+> 
 > 
 > 
 > 
@@ -191,6 +247,33 @@ The following object is masked from ‘package:zzedc.validation’:
 > ## Not run: 
 > ##D   # Requires AWS credentials
 > ##D   key <- get_encryption_key_from_aws_kms("zzedc/db-encryption-key")
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
+> nameEx("get_export_history")
+> ### * get_export_history
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: get_export_history
+> ### Title: Get Export Activity History
+> ### Aliases: get_export_history
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   # Get all exports in last 7 days
+> ##D   history <- get_export_history(
+> ##D     filters = list(date_from = Sys.Date() - 7)
+> ##D   )
+> ##D 
+> ##D   # Get exports by user
+> ##D   history <- get_export_history(
+> ##D     filters = list(user = "jane_smith")
+> ##D   )
 > ## End(Not run)
 > 
 > 
@@ -498,6 +581,30 @@ The following object is masked from ‘package:zzedc.validation’:
 > 
 > 
 > cleanEx()
+> nameEx("selective_field_export")
+> ### * selective_field_export
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: selective_field_export
+> ### Title: Selective Field Encryption on Export
+> ### Aliases: selective_field_export
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   # Encrypt PII fields
+> ##D   file_path <- selective_field_export(
+> ##D     data_df = subjects_data,
+> ##D     fields_to_encrypt = c("subject_id", "age"),
+> ##D     format = "csv"
+> ##D   )
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
 > nameEx("set_encryption_for_existing_db")
 > ### * set_encryption_for_existing_db
 > 
@@ -644,12 +751,36 @@ The following object is masked from ‘package:zzedc.validation’:
 > 
 > 
 > 
+> cleanEx()
+> nameEx("verify_exported_data")
+> ### * verify_exported_data
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: verify_exported_data
+> ### Title: Verify Exported Data Integrity
+> ### Aliases: verify_exported_data
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   verification <- verify_exported_data(
+> ##D     file_path = "./exports/export_subjects_20251218_123456.csv"
+> ##D   )
+> ##D   if (verification$valid) {
+> ##D     cat("Data integrity verified!\n")
+> ##D   }
+> ## End(Not run)
+> 
+> 
+> 
+> 
 > ### * <FOOTER>
 > ###
 > cleanEx()
 > options(digits = 7L)
 > base::cat("Time elapsed: ", proc.time() - base::get("ptime", pos = 'CheckExEnv'),"\n")
-Time elapsed:  0.284 0.022 0.308 0 0 
+Time elapsed:  0.279 0.023 0.308 0 0 
 > grDevices::dev.off()
 null device 
           1 

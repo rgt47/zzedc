@@ -7,6 +7,7 @@
 #' @param password Character: Optional password for additional encryption
 #' @param include_hash Logical: Add SHA-256 hash file? (default: TRUE)
 #' @param export_dir Character: Directory for exports (default: "./exports")
+#' @param db_path Character: Path to database (optional, uses default if NULL)
 #'
 #' @return Character string with path to exported file
 #'
@@ -45,7 +46,8 @@
 #'
 #' @export
 export_encrypted_data <- function(query, format = "csv", password = NULL,
-                                   include_hash = TRUE, export_dir = "./exports") {
+                                   include_hash = TRUE, export_dir = "./exports",
+                                   db_path = NULL) {
   tryCatch({
     # Create export directory if needed
     if (!dir.exists(export_dir)) {
@@ -67,7 +69,7 @@ export_encrypted_data <- function(query, format = "csv", password = NULL,
     export_file <- file.path(export_dir, paste0(base_filename, ".", ext))
 
     # Connect and execute query
-    conn <- connect_encrypted_db()
+    conn <- connect_encrypted_db(db_path = db_path)
     data <- DBI::dbGetQuery(conn, query)
     DBI::dbDisconnect(conn)
 

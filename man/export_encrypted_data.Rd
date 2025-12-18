@@ -9,7 +9,8 @@ export_encrypted_data(
   format = "csv",
   password = NULL,
   include_hash = TRUE,
-  export_dir = "./exports"
+  export_dir = "./exports",
+  db_path = NULL
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ export_encrypted_data(
 \item{include_hash}{Logical: Add SHA-256 hash file? (default: TRUE)}
 
 \item{export_dir}{Character: Directory for exports (default: "./exports")}
+
+\item{db_path}{Character: Path to database (optional, uses default if NULL)}
 }
 \value{
 Character string with path to exported file
