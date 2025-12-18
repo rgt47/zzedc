@@ -1,5 +1,6 @@
 zzedc-package	zzedc-package
 %||%	grapes-or-or-grapes
+check_aws_kms_status	check_aws_kms_status
 complete_wizard_setup	complete_wizard_setup
 create_error_display	create_error_display
 create_launch_script	create_launch_script
@@ -46,8 +47,10 @@ prepare_reports_export	prepare_reports_export
 prepare_sample_export	prepare_sample_export
 query_audit_log	query_audit_log
 renderPanel	renderPanel
+rotate_encryption_key	rotate_encryption_key
 safe_reactive	safe_reactive
 save_validated_form	save_validated_form
+setup_aws_kms	setup_aws_kms
 setup_form_validation	setup_form_validation
 setup_pagination_observers	setup_pagination_observers
 sort_data	sort_data

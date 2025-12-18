@@ -1,3 +1,4 @@
+check_aws_kms_status    Check AWS KMS Status and Permissions
 complete_wizard_setup   Complete Setup Wizard Orchestration
 create_error_display    Display form validation errors to user
 create_launch_script    Create Launch Script for New ZZedc Instance
@@ -42,8 +43,10 @@ prepare_reports_export
 prepare_sample_export   Prepare sample data for export
 query_audit_log         Query audit log
 renderPanel             Render form panel with typed input fields
+rotate_encryption_key   Rotate Database Encryption Key via AWS KMS
 safe_reactive           Safe reactive expression evaluation
 save_validated_form     Save validated form data to database
+setup_aws_kms           Setup AWS KMS Integration for ZZedc
 setup_form_validation   Create server-side form validation observer
 setup_pagination_observers
                         Setup pagination observers

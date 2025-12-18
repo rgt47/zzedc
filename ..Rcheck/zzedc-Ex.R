@@ -6,6 +6,32 @@ library('zzedc')
 base::assign(".oldSearch", base::search(), pos = 'CheckExEnv')
 base::assign(".old_wd", base::getwd(), pos = 'CheckExEnv')
 cleanEx()
+nameEx("check_aws_kms_status")
+### * check_aws_kms_status
+
+flush(stderr()); flush(stdout())
+
+### Name: check_aws_kms_status
+### Title: Check AWS KMS Status and Permissions
+### Aliases: check_aws_kms_status
+
+### ** Examples
+
+## Not run: 
+##D   status <- check_aws_kms_status()
+##D 
+##D   if (status$configured) {
+##D     cat("AWS KMS fully configured\n")
+##D   } else {
+##D     cat("Issues found:\n")
+##D     cat("Errors:", status$errors, "\n")
+##D   }
+## End(Not run)
+
+
+
+
+cleanEx()
 nameEx("create_wizard_database")
 ### * create_wizard_database
 
@@ -343,6 +369,53 @@ flush(stderr()); flush(stdout())
 ##D   visit_time = list(type = "time", required = TRUE, label = "Visit Time")
 ##D )
 ##D renderPanel(names(metadata), metadata)
+## End(Not run)
+
+
+
+
+cleanEx()
+nameEx("rotate_encryption_key")
+### * rotate_encryption_key
+
+flush(stderr()); flush(stdout())
+
+### Name: rotate_encryption_key
+### Title: Rotate Database Encryption Key via AWS KMS
+### Aliases: rotate_encryption_key
+
+### ** Examples
+
+## Not run: 
+##D   new_key <- generate_db_key()
+##D   result <- rotate_encryption_key(new_key)
+##D   if (result$success) {
+##D     cat("Key rotation successful\n")
+##D   }
+## End(Not run)
+
+
+
+
+cleanEx()
+nameEx("setup_aws_kms")
+### * setup_aws_kms
+
+flush(stderr()); flush(stdout())
+
+### Name: setup_aws_kms
+### Title: Setup AWS KMS Integration for ZZedc
+### Aliases: setup_aws_kms
+
+### ** Examples
+
+## Not run: 
+##D   status <- setup_aws_kms()
+##D   if (status$aws_configured) {
+##D     cat("AWS KMS ready for key management\n")
+##D   } else {
+##D     cat("Setup errors:", status$errors, "\n")
+##D   }
 ## End(Not run)
 
 
