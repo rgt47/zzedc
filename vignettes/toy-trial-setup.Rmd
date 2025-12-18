@@ -1,0 +1,494 @@
+---
+title: "Toy Clinical Trial: Quick Start Guide"
+subtitle: "Active vs. Placebo Memory Enhancement Study with 20 Subjects"
+author: "ZZedc Team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Toy Clinical Trial Setup}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Overview
+
+This guide walks you through creating and running a complete, minimal clinical trial in ZZedc. The example includes:
+
+- **Study**: Active vs. Placebo Memory Enhancement Study
+- **Population**: 20 subjects in a single lab
+- **Duration**: 3 visits (Baseline → Week 4 → Week 8)
+- **Assessments**: MMSE (Mini-Cog Mental State Examination)
+- **Design**: Simple 1:1 randomization (10 active, 10 placebo)
+
+This toy trial is perfect for:
+- Learning ZZedc workflow
+- Testing new features (like Feature #1 encryption)
+- Understanding the complete clinical trial data flow
+- Using as a template for real studies
+
+---
+
+## Part 1: Trial Structure
+
+### Study Design Overview
+
+```
+Timeline:
+  Visit 1 (Baseline) → Randomization → Visit 2 (Week 4) → Visit 3 (Week 8)
+
+Forms Needed:
+  1. Enrollment Form (demographics at baseline)
+  2. Randomization Form (treatment assignment)
+  3. MMSE Assessment Form (cognitive testing at all 3 visits)
+
+Data to Collect:
+  - Demographics (age, gender, education)
+  - Treatment assignment (Active/Placebo)
+  - MMSE component scores (7 components)
+  - MMSE total score (0-30)
+  - Adverse events (yes/no with description)
+
+Randomization:
+  - Target: 20 subjects
+  - Split: 10 active arm, 10 placebo arm
+  - Method: Simple 1:1 randomization
+```
+
+---
+
+## Part 2: Project Setup
+
+### Create Directory Structure
+
+```{r}
+# Create main project directory
+project_dir <- "~/zzedc_toy_trial"
+dir.create(project_dir, showWarnings = FALSE)
+
+# Create subdirectories
+dir.create(file.path(project_dir, "data"), showWarnings = FALSE)
+dir.create(file.path(project_dir, "scripts"), showWarnings = FALSE)
+dir.create(file.path(project_dir, "logs"), showWarnings = FALSE)
+dir.create(file.path(project_dir, "exports"), showWarnings = FALSE)
+
+# Verify structure
+list.files(project_dir, recursive = TRUE)
+```
+
+---
+
+## Part 3: Data Dictionary & CSV Files
+
+The toy trial uses CSV files to define forms and data. All templates are included in this vignette package.
+
+### Form Definitions
+
+Three form definitions (as CSV files):
+
+1. **Enrollment Form** (`form_enrollment.csv`)
+   - Subject ID, enrollment date
+   - Age, gender, education years
+   - Medical history
+
+2. **Randomization Form** (`form_randomization.csv`)
+   - Randomization date
+   - Treatment assignment (Active/Placebo)
+   - Study coordinator name
+
+3. **MMSE Assessment Form** (`form_mmse.csv`)
+   - Visit label (Baseline/Week 4/Week 8)
+   - Assessment date
+   - 7 MMSE component scores
+   - MMSE total score
+   - Adverse events
+
+### Subject Data
+
+**CSV Files Included**:
+
+- `subjects.csv` - 20 enrolled subjects with demographics
+- `randomization.csv` - Randomization assignments (1:1 split)
+- `mmse_assessments.csv` - 60 MMSE assessments (3 visits × 20 subjects)
+
+**File Locations**: All files are in `vignettes/toy-trial/csv_templates/`
+
+---
+
+## Part 4: Create Database
+
+### Using the Setup Script
+
+The setup script creates the complete SQLite database with all tables, data, and indexes.
+
+```{r}
+# Path to toy trial vignette directory
+vignette_dir <- system.file("doc/toy-trial", package = "zzedc")
+
+# Run setup script
+source(file.path(vignette_dir, "scripts/01-setup_toy_trial.R"))
+```
+
+### What the Setup Script Does
+
+1. **Creates SQLite database** at `data/toy_trial.db`
+2. **Creates tables**:
+   - `study_info` - Study metadata
+   - `subjects` - 20 enrolled subjects
+   - `randomization` - Treatment assignments
+   - `mmse_assessments` - 60 assessments across 3 visits
+3. **Loads CSV data** from templates
+4. **Creates indexes** for performance
+5. **Verifies data** integrity
+
+### Expected Output
+
+```
+Creating Toy Clinical Trial Database...
+=========================================
+
+Step 1: Creating SQLite database...
+Step 2: Creating study information table...
+  Study: TOY-TRIAL-001 created
+Step 3: Creating subjects table...
+  Loading 20 subjects...
+Step 4: Creating randomization table...
+  Loading randomization data for 20 subjects...
+Step 5: Creating MMSE assessments table...
+  Loading 60 MMSE assessments...
+Step 6: Creating database indexes...
+
+Step 7: Verifying data...
+  Total subjects enrolled: 20
+  Total randomizations: 20
+  Total MMSE assessments: 60
+
+  Treatment breakdown:
+     Active : 10
+     Placebo : 10
+
+  Visit breakdown:
+     Baseline : 20
+     Week 4 : 20
+     Week 8 : 20
+
+=========================================
+SUCCESS: Toy trial database created!
+Database location: ./data/toy_trial.db
+Ready to launch ZZedc with toy trial data
+=========================================
+```
+
+---
+
+## Part 5: Create Test Users
+
+### Add Users to Database
+
+Test users are created with the `02-add_users.R` script:
+
+```{r}
+# Run add users script
+source(file.path(vignette_dir, "scripts/02-add_users.R"))
+```
+
+### Test Credentials
+
+After running the script, use these credentials to login:
+
+| Username | Password | Role |
+|----------|----------|------|
+| admin | admin123 | Administrator |
+| jane_smith | jane123 | Coordinator |
+| bob_johnson | bob123 | Coordinator |
+| researcher | research123 | Researcher |
+
+---
+
+## Part 6: Verify Data
+
+### Run Verification Script
+
+```{r}
+# Run verification script
+source(file.path(vignette_dir, "scripts/03-verify_toy_trial.R"))
+```
+
+### Verification Output
+
+The script displays:
+
+1. **Study Information**
+   - Study ID, name, protocol ID, target enrollment
+
+2. **Subject Summary**
+   - Total subjects: 20
+   - Gender distribution
+   - Mean age, age range
+
+3. **Treatment Assignment**
+   - Active arm: 10 subjects
+   - Placebo arm: 10 subjects
+
+4. **MMSE Results by Visit and Treatment**
+   - Mean scores by arm and visit
+   - Score ranges (min/max)
+   - Shows pattern of scores across visits
+
+5. **Adverse Events**
+   - S002: Mild headache (Week 8)
+   - S017: Dizziness (Week 4)
+
+---
+
+## Part 7: Quick Reference
+
+### File Locations
+
+```
+vignettes/toy-trial/
+├── csv_templates/                    # Form definitions and data
+│   ├── form_enrollment.csv
+│   ├── form_randomization.csv
+│   ├── form_mmse.csv
+│   ├── subjects.csv                  # 20 subjects
+│   ├── randomization.csv             # Treatment assignments
+│   └── mmse_assessments.csv          # 60 assessments
+│
+└── scripts/                          # R setup scripts
+    ├── 01-setup_toy_trial.R          # Create database
+    ├── 02-add_users.R                # Add users
+    └── 03-verify_toy_trial.R         # Verify data
+```
+
+### Quick Start Commands
+
+```{r}
+# 1. Setup database
+source("vignettes/toy-trial/scripts/01-setup_toy_trial.R")
+
+# 2. Add test users
+source("vignettes/toy-trial/scripts/02-add_users.R")
+
+# 3. Verify data
+source("vignettes/toy-trial/scripts/03-verify_toy_trial.R")
+
+# 4. Query the database directly
+library(DBI)
+library(RSQLite)
+conn <- dbConnect(SQLite(), "data/toy_trial.db")
+
+# View all subjects
+subjects <- dbGetQuery(conn, "SELECT * FROM subjects LIMIT 5")
+print(subjects)
+
+# View randomization
+randomization <- dbGetQuery(conn, "SELECT * FROM randomization LIMIT 5")
+print(randomization)
+
+# Close connection
+dbDisconnect(conn)
+```
+
+---
+
+## Part 8: Using with ZZedc
+
+### Launch ZZedc with Toy Trial
+
+```{r}
+# Set up environment variables
+Sys.setenv(
+  ZZEDC_DB_PATH = "data/toy_trial.db",
+  ZZEDC_STUDY = "TOY-TRIAL-001"
+)
+
+# Launch the application
+library(zzedc)
+launch_zzedc(port = 3838)
+```
+
+### Explore in ZZedc
+
+Once ZZedc launches:
+
+1. **Login** with one of the test credentials
+2. **Home Tab**: Overview of the study with 20 enrolled subjects
+3. **Data Explorer**: Browse all subjects, randomization, assessments
+4. **Reports**: Generate reports by treatment arm
+5. **Exports**: Export data in CSV, Excel, or other formats
+
+---
+
+## Part 9: Testing Feature #1 (Encryption)
+
+The toy trial is perfect for testing ZZedc's encryption features:
+
+### Before Encryption
+
+```{r}
+# Read database directly - data visible in plaintext
+library(RSQLite)
+conn <- dbConnect(SQLite(), "data/toy_trial.db")
+subjects <- dbGetQuery(conn, "SELECT * FROM subjects")
+print(subjects)  # Can read subject names, ages, etc.
+dbDisconnect(conn)
+```
+
+### After Encryption (with Feature #1 Step 4)
+
+```{r}
+# Database encrypted with SQLCipher
+# Data only accessible with correct key
+library(zzedc)
+key <- get_encryption_key()  # From Feature #1
+
+# Database connection now transparent
+conn <- dbConnect(RSQLite::SQLite(), "data/toy_trial_encrypted.db", key = key)
+subjects <- dbGetQuery(conn, "SELECT * FROM subjects")
+print(subjects)  # Still works - encryption is transparent
+dbDisconnect(conn)
+```
+
+### Verify Encryption
+
+```{r}
+# Verify file is encrypted (binary, not plaintext)
+file_content <- readBin("data/toy_trial_encrypted.db", "raw", n = 100)
+# Should be random binary data, not readable text
+```
+
+---
+
+## Data Summary
+
+### Subjects Included
+
+- **20 total subjects** with realistic demographics
+- **Age range**: 58-76 years old
+- **Gender**: Mix of M/F
+- **Education**: 12-18 years
+- **Medical history**: Some with, some without
+
+### MMSE Scores
+
+- **Score range**: 20-30 (realistic for older adults)
+- **Baseline**: All subjects assessed
+- **Week 4**: Follow-up assessment
+- **Week 8**: Final assessment
+- **Adverse events**: 2 subjects reported minor AEs
+
+### Treatment Groups
+
+- **Active arm**: 10 subjects
+- **Placebo arm**: 10 subjects
+- **Equal randomization**: 1:1 split
+
+---
+
+## Next Steps
+
+After setting up the toy trial:
+
+1. **Explore ZZedc Features**
+   - Navigate the interface
+   - View subject data
+   - Generate reports
+   - Export data
+
+2. **Test Feature #1 (Encryption)**
+   - Convert to encrypted database
+   - Verify data accessibility
+   - Test key rotation
+
+3. **Customize for Your Study**
+   - Modify form definitions
+   - Add study-specific fields
+   - Adjust validation rules
+
+4. **Add Real Data**
+   - Enroll actual subjects
+   - Collect assessments
+   - Generate QC reports
+
+---
+
+## Troubleshooting
+
+### Database Already Exists
+
+If the database already exists and you want to recreate it:
+
+```{r}
+# Remove old database
+file.remove("data/toy_trial.db")
+
+# Run setup script again
+source("vignettes/toy-trial/scripts/01-setup_toy_trial.R")
+```
+
+### Missing CSV Files
+
+Ensure CSV files are in the correct location:
+
+```{r}
+csv_dir <- system.file("doc/toy-trial/csv_templates", package = "zzedc")
+list.files(csv_dir)  # Should show all CSV files
+```
+
+### Script Path Issues
+
+If running scripts from different directory:
+
+```{r}
+# Use absolute paths
+script_path <- system.file("doc/toy-trial/scripts/01-setup_toy_trial.R",
+                           package = "zzedc")
+source(script_path)
+```
+
+---
+
+## Summary
+
+**Time to Complete**: ~10-15 minutes
+- 2 min: Create directories
+- 3 min: Run setup script
+- 2 min: Add users
+- 2 min: Verify data
+- 1 min: Launch ZZedc
+
+**Result**: Complete clinical trial with:
+- ✓ 20 enrolled subjects
+- ✓ Randomization (10/10 split)
+- ✓ 60 MMSE assessments (3 visits)
+- ✓ Test users ready to login
+- ✓ Database verified and validated
+
+**Perfect for**:
+- Learning ZZedc workflow
+- Testing new features
+- Demonstrating capabilities
+- Template for real studies
+
+---
+
+## Resources
+
+- **ZZedc Documentation**: See `?zzedc` and vignette("getting-started")
+- **Clinical Trial Best Practices**: See vignette("advanced-features")
+- **Data Security**: See vignette("encryption-at-rest") (Feature #1)
+- **Feature Complete List**: See CLAUDE.md in package root
+
+---
+
+**Created**: December 2025
+**Version**: ZZedc 1.0.0+
+**Purpose**: Minimal complete working example for clinical trial EDC
