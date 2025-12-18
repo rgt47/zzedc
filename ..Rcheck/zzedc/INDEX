@@ -1,5 +1,6 @@
 check_aws_kms_status    Check AWS KMS Status and Permissions
 complete_wizard_setup   Complete Setup Wizard Orchestration
+connect_encrypted_db    Connect to Encrypted Database
 create_error_display    Display form validation errors to user
 create_launch_script    Create Launch Script for New ZZedc Instance
 create_paginated_reactive
@@ -17,6 +18,7 @@ filter_data_by_search   Filter data by search term
 generate_db_key         Generate a random database encryption key
 generate_export_filename
                         Generate safe export filename
+get_db_path             Get Database Path
 get_encryption_key      Get database encryption key from environment or
                         AWS KMS
 get_page_summary        Generate page summary statistics
@@ -25,6 +27,8 @@ handle_error            Handle errors with logging and user
 import_instrument       Import instrument as new form
 init                    Initialize ZZedc Project
 init_audit_log          Initialize audit log
+initialize_encrypted_database
+                        Initialize Encrypted Database
 launch_zzedc            Launch the ZZedc Shiny Application
 list_available_instruments
                         List available instruments
@@ -46,6 +50,8 @@ renderPanel             Render form panel with typed input fields
 rotate_encryption_key   Rotate Database Encryption Key via AWS KMS
 safe_reactive           Safe reactive expression evaluation
 save_validated_form     Save validated form data to database
+set_encryption_for_existing_db
+                        Enable Encryption on Existing Database
 setup_aws_kms           Setup AWS KMS Integration for ZZedc
 setup_form_validation   Create server-side form validation observer
 setup_pagination_observers
@@ -59,4 +65,6 @@ validate_instrument_csv
                         Validate instrument CSV structure
 verify_audit_log_integrity
                         Verify audit log integrity
+verify_database_encryption
+                        Verify Database Encryption
 verify_db_key           Verify database encryption key format

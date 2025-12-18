@@ -32,6 +32,34 @@ flush(stderr()); flush(stdout())
 
 
 cleanEx()
+nameEx("connect_encrypted_db")
+### * connect_encrypted_db
+
+flush(stderr()); flush(stdout())
+
+### Name: connect_encrypted_db
+### Title: Connect to Encrypted Database
+### Aliases: connect_encrypted_db
+
+### ** Examples
+
+## Not run: 
+##D   # Development (environment variable):
+##D   Sys.setenv(DB_ENCRYPTION_KEY = "a1b2c3d4...")
+##D   conn <- connect_encrypted_db()
+##D 
+##D   # Production (AWS KMS):
+##D   conn <- connect_encrypted_db(aws_kms_key_id = "arn:aws:kms:...")
+##D 
+##D   # Use connection normally
+##D   result <- DBI::dbGetQuery(conn, "SELECT * FROM subjects")
+##D   DBI::dbDisconnect(conn)
+## End(Not run)
+
+
+
+
+cleanEx()
 nameEx("create_wizard_database")
 ### * create_wizard_database
 
@@ -71,6 +99,26 @@ flush(stderr()); flush(stdout())
 ## Not run: 
 ##D   key <- generate_db_key()
 ##D   Sys.setenv(DB_ENCRYPTION_KEY = key)
+## End(Not run)
+
+
+
+
+cleanEx()
+nameEx("get_db_path")
+### * get_db_path
+
+flush(stderr()); flush(stdout())
+
+### Name: get_db_path
+### Title: Get Database Path
+### Aliases: get_db_path
+
+### ** Examples
+
+## Not run: 
+##D   db_path <- get_db_path()
+##D   # Returns: "/path/to/data/zzedc.db"
 ## End(Not run)
 
 
@@ -203,6 +251,31 @@ flush(stderr()); flush(stdout())
 ##D audit_log <- init_audit_log()
 ##D log_audit_event(audit_log, "user1", "LOGIN", "authentication", status = "success")
 ## End(Not run)
+
+
+
+cleanEx()
+nameEx("initialize_encrypted_database")
+### * initialize_encrypted_database
+
+flush(stderr()); flush(stdout())
+
+### Name: initialize_encrypted_database
+### Title: Initialize Encrypted Database
+### Aliases: initialize_encrypted_database
+
+### ** Examples
+
+## Not run: 
+##D   result <- initialize_encrypted_database(
+##D     db_path = "./data/new_study.db",
+##D     overwrite = FALSE
+##D   )
+##D   if (result$success) {
+##D     cat("Database created at:", result$path, "\n")
+##D   }
+## End(Not run)
+
 
 
 
@@ -398,6 +471,31 @@ flush(stderr()); flush(stdout())
 
 
 cleanEx()
+nameEx("set_encryption_for_existing_db")
+### * set_encryption_for_existing_db
+
+flush(stderr()); flush(stdout())
+
+### Name: set_encryption_for_existing_db
+### Title: Enable Encryption on Existing Database
+### Aliases: set_encryption_for_existing_db
+
+### ** Examples
+
+## Not run: 
+##D   result <- set_encryption_for_existing_db(
+##D     db_path = "./data/existing.db",
+##D     new_key = generate_db_key()
+##D   )
+##D   if (result$success) {
+##D     cat("Encryption enabled!\n")
+##D   }
+## End(Not run)
+
+
+
+
+cleanEx()
 nameEx("setup_aws_kms")
 ### * setup_aws_kms
 
@@ -472,6 +570,30 @@ flush(stderr()); flush(stdout())
 ##D   show_validation_errors(result$errors)
 ##D }
 ## End(Not run)
+
+
+
+cleanEx()
+nameEx("verify_database_encryption")
+### * verify_database_encryption
+
+flush(stderr()); flush(stdout())
+
+### Name: verify_database_encryption
+### Title: Verify Database Encryption
+### Aliases: verify_database_encryption
+
+### ** Examples
+
+## Not run: 
+##D   verification <- verify_database_encryption()
+##D   if (verification$encrypted) {
+##D     cat("Database encryption verified!\n")
+##D   } else {
+##D     cat("Encryption issues:", verification$message, "\n")
+##D   }
+## End(Not run)
+
 
 
 
