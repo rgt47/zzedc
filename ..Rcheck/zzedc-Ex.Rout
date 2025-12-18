@@ -1,0 +1,466 @@
+
+R version 4.5.2 (2025-10-31) -- "[Not] Part in a Rumble"
+Copyright (C) 2025 The R Foundation for Statistical Computing
+Platform: aarch64-apple-darwin20
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> pkgname <- "zzedc"
+> source(file.path(R.home("share"), "R", "examples-header.R"))
+> options(warn = 1)
+> library('zzedc')
+Loading required package: zzedc.validation
+
+Attaching package: ‘zzedc’
+
+The following object is masked from ‘package:zzedc.validation’:
+
+    validate_form
+
+> 
+> base::assign(".oldSearch", base::search(), pos = 'CheckExEnv')
+> base::assign(".old_wd", base::getwd(), pos = 'CheckExEnv')
+> cleanEx()
+> nameEx("create_wizard_database")
+> ### * create_wizard_database
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: create_wizard_database
+> ### Title: Create ZZedc Database from Wizard Configuration
+> ### Aliases: create_wizard_database
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D config <- list(
+> ##D   study_name = "My Study",
+> ##D   protocol_id = "PROTO-001",
+> ##D   admin_username = "admin",
+> ##D   admin_password = "MyPass123!",
+> ##D   security_salt = "abc123..."
+> ##D )
+> ##D create_wizard_database(config, "~/my_study.db")
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("generate_db_key")
+> ### * generate_db_key
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: generate_db_key
+> ### Title: Generate a random database encryption key
+> ### Aliases: generate_db_key
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   key <- generate_db_key()
+> ##D   Sys.setenv(DB_ENCRYPTION_KEY = key)
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
+> nameEx("get_encryption_key")
+> ### * get_encryption_key
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: get_encryption_key
+> ### Title: Get database encryption key from environment or AWS KMS
+> ### Aliases: get_encryption_key
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   # Development (environment variable):
+> ##D   Sys.setenv(DB_ENCRYPTION_KEY = "a1b2c3d4...")
+> ##D   key <- get_encryption_key()
+> ##D 
+> ##D   # Production (AWS KMS):
+> ##D   key <- get_encryption_key(aws_kms_key_id = "arn:aws:kms:...")
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
+> nameEx("get_encryption_key_from_aws_kms")
+> ### * get_encryption_key_from_aws_kms
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: get_encryption_key_from_aws_kms
+> ### Title: Retrieve encryption key from AWS Secrets Manager
+> ### Aliases: get_encryption_key_from_aws_kms
+> ### Keywords: internal
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   # Requires AWS credentials
+> ##D   key <- get_encryption_key_from_aws_kms("zzedc/db-encryption-key")
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
+> nameEx("handle_error")
+> ### * handle_error
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: handle_error
+> ### Title: Handle errors with logging and user notification
+> ### Aliases: handle_error
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D result <- handle_error({
+> ##D   authenticate_user(username, password)
+> ##D }, error_title = "Authentication Failed")
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("import_instrument")
+> ### * import_instrument
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: import_instrument
+> ### Title: Import instrument as new form
+> ### Aliases: import_instrument
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D result <- import_instrument(
+> ##D   instrument_name = "phq9",
+> ##D   form_name = "baseline_depression",
+> ##D   form_description = "PHQ-9 administered at baseline visit",
+> ##D   db_conn = conn
+> ##D )
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("init")
+> ### * init
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: init
+> ### Title: Initialize ZZedc Project
+> ### Aliases: init
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D # Interactive mode (novice user)
+> ##D zzedc::init()
+> ##D 
+> ##D # Config file mode (DevOps)
+> ##D zzedc::init(mode = "config", config_file = "aws_config.yml")
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
+> nameEx("init_audit_log")
+> ### * init_audit_log
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: init_audit_log
+> ### Title: Initialize audit log
+> ### Aliases: init_audit_log
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D audit_log <- init_audit_log()
+> ##D log_audit_event(audit_log, "user1", "LOGIN", "authentication", status = "success")
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("launch_zzedc")
+> ### * launch_zzedc
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: launch_zzedc
+> ### Title: Launch the ZZedc Shiny Application
+> ### Aliases: launch_zzedc
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D # Launch the application
+> ##D launch_zzedc()
+> ##D 
+> ##D # Launch on specific port
+> ##D launch_zzedc(port = 3838)
+> ##D 
+> ##D # Launch without opening browser
+> ##D launch_zzedc(launch.browser = FALSE)
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
+> nameEx("list_available_instruments")
+> ### * list_available_instruments
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: list_available_instruments
+> ### Title: List available instruments
+> ### Aliases: list_available_instruments
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D available <- list_available_instruments()
+> ##D print(available)
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("load_instrument_template")
+> ### * load_instrument_template
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: load_instrument_template
+> ### Title: Load instrument template from CSV
+> ### Aliases: load_instrument_template
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D phq9_fields <- load_instrument_template("phq9")
+> ##D head(phq9_fields)
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("log_audit_event")
+> ### * log_audit_event
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: log_audit_event
+> ### Title: Log an audit event
+> ### Aliases: log_audit_event
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D audit_log <- init_audit_log()
+> ##D log_audit_event(
+> ##D   audit_log,
+> ##D   user_id = "john.doe",
+> ##D   action = "LOGIN_ATTEMPT",
+> ##D   resource = "authentication",
+> ##D   status = "success"
+> ##D )
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("paginate_data")
+> ### * paginate_data
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: paginate_data
+> ### Title: Create paginated data view
+> ### Aliases: paginate_data
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D paginated <- paginate_data(
+> ##D   large_dataset,
+> ##D   page_size = 25,
+> ##D   page_number = 1
+> ##D )
+> ##D display_data(paginated$data)
+> ##D show_page_numbers(paginated$pagination$total_pages)
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("prepare_export_data")
+> ### * prepare_export_data
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: prepare_export_data
+> ### Title: Prepare data for export
+> ### Aliases: prepare_export_data
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D export_result <- prepare_export_data(
+> ##D   data_source = "edc",
+> ##D   format = "csv",
+> ##D   options = list(include_metadata = TRUE, include_timestamps = TRUE)
+> ##D )
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("renderPanel")
+> ### * renderPanel
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: renderPanel
+> ### Title: Render form panel with typed input fields
+> ### Aliases: renderPanel
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D metadata <- list(
+> ##D   age = list(type = "numeric", required = TRUE, label = "Age (years)"),
+> ##D   gender = list(
+> ##D     type = "select",
+> ##D     choices = c("M", "F"),
+> ##D     label = "Gender"
+> ##D   ),
+> ##D   pregnancy_date = list(
+> ##D     type = "date",
+> ##D     label = "Pregnancy Due Date",
+> ##D     show_if = "gender == 'F'"  # Branching logic
+> ##D   ),
+> ##D   visit_time = list(type = "time", required = TRUE, label = "Visit Time")
+> ##D )
+> ##D renderPanel(names(metadata), metadata)
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
+> nameEx("test_encryption")
+> ### * test_encryption
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: test_encryption
+> ### Title: Test database encryption
+> ### Aliases: test_encryption
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   key <- generate_db_key()
+> ##D   test_encryption(tempfile(fileext = ".db"), key)
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> cleanEx()
+> nameEx("validate_form")
+> ### * validate_form
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: validate_form
+> ### Title: Validate entire form submission
+> ### Aliases: validate_form
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D metadata <- list(
+> ##D   age = list(type = "numeric", required = TRUE, min = 18, max = 120),
+> ##D   email = list(type = "email", required = TRUE)
+> ##D )
+> ##D 
+> ##D result <- validate_form(
+> ##D   list(age = 25, email = "user@example.com"),
+> ##D   metadata
+> ##D )
+> ##D 
+> ##D if (result$valid) {
+> ##D   # Process the cleaned data
+> ##D   save_record(result$cleaned_data)
+> ##D } else {
+> ##D   # Show errors to user
+> ##D   show_validation_errors(result$errors)
+> ##D }
+> ## End(Not run)
+> 
+> 
+> 
+> cleanEx()
+> nameEx("verify_db_key")
+> ### * verify_db_key
+> 
+> flush(stderr()); flush(stdout())
+> 
+> ### Name: verify_db_key
+> ### Title: Verify database encryption key format
+> ### Aliases: verify_db_key
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D   key <- generate_db_key()
+> ##D   verify_db_key(key)  # Returns TRUE
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> ### * <FOOTER>
+> ###
+> cleanEx()
+> options(digits = 7L)
+> base::cat("Time elapsed: ", proc.time() - base::get("ptime", pos = 'CheckExEnv'),"\n")
+Time elapsed:  0.273 0.022 0.297 0 0 
+> grDevices::dev.off()
+null device 
+          1 
+> ###
+> ### Local variables: ***
+> ### mode: outline-minor ***
+> ### outline-regexp: "\\(> \\)?### [*]+" ***
+> ### End: ***
+> quit('no')

@@ -1,0 +1,96 @@
+
+R version 4.5.2 (2025-10-31) -- "[Not] Part in a Rumble"
+Copyright (C) 2025 The R Foundation for Statistical Computing
+Platform: aarch64-apple-darwin20
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(testthat)
+> library(zzedc)
+Loading required package: zzedc.validation
+
+Attaching package: 'zzedc'
+
+The following object is masked from 'package:zzedc.validation':
+
+    validate_form
+
+> 
+> test_check("zzedc")
+
+Attaching package: 'bslib'
+
+The following object is masked from 'package:utils':
+
+    page
+
+Do not use `library(config)` to attach the config package.
+Use `config::get()` directly.
+Attaching the config package can lead to namespace conflicts.
+
+Attaching package: 'config'
+
+The following objects are masked from 'package:base':
+
+    get, merge
+
+Loading required package: ggplot2
+
+Attaching package: 'DT'
+
+The following objects are masked from 'package:shiny':
+
+    dataTableOutput, renderDataTable
+
+[ FAIL 0 | WARN 9 | SKIP 39 | PASS 541 ]
+
+══ Skipped tests (39) ══════════════════════════════════════════════════════════
+• Audit module tested via module servers (1): 'test-phase1-modules.R:197:5'
+• Backup module tested via module servers (2): 'test-phase1-modules.R:185:5',
+  'test-phase1-modules.R:189:5'
+• Integration test - requires full setup (1): 'test-phase1-modules.R:205:5'
+• Module UI tests require Shiny environment (5): 'test-phase1-modules.R:298:5',
+  'test-phase1-modules.R:302:5', 'test-phase1-modules.R:306:5',
+  'test-phase1-modules.R:310:5', 'test-phase1-modules.R:314:5'
+• Module functions tested via module servers (1): 'test-phase1-modules.R:177:5'
+• Quality dashboard UI tests require modules to be loaded (15):
+  'test-quality-dashboard.R:4:3', 'test-quality-dashboard.R:8:3',
+  'test-quality-dashboard.R:12:3', 'test-quality-dashboard.R:16:3',
+  'test-quality-dashboard.R:23:3', 'test-quality-dashboard.R:27:3',
+  'test-quality-dashboard.R:33:3', 'test-quality-dashboard.R:37:3',
+  'test-quality-dashboard.R:41:3', 'test-quality-dashboard.R:47:3',
+  'test-quality-dashboard.R:51:3', 'test-quality-dashboard.R:55:3',
+  'test-quality-dashboard.R:61:3', 'test-quality-dashboard.R:65:3',
+  'test-quality-dashboard.R:71:3'
+• Reactive objects require Shiny server context (2): 'test-edge-cases.R:40:3',
+  'test-edge-cases.R:96:3'
+• Requires Shiny test server context (1): 'test-edge-cases.R:73:3'
+• Requires implementing password hashing test utility (1):
+  'test-auth-legacy.R:11:3'
+• Requires test database (1): 'test-auth-legacy.R:15:3'
+• Requires test database and session tracking (1): 'test-auth-legacy.R:19:3'
+• Requires test database setup (1): 'test-auth-legacy.R:7:3'
+• Test must run from zzedc project root (4): 'test-launch_zzedc.R:40:3',
+  'test-launch_zzedc.R:56:3', 'test-launch_zzedc.R:74:3',
+  'test-launch_zzedc.R:86:3'
+• Tested via backup module server (1): 'test-phase1-modules.R:290:5'
+• haven is installed, skipping test for missing haven (1):
+  'test-export-formats.R:88:3'
+• validate_numeric_range not exported from zzedc package (1):
+  'test-edge-cases.R:29:3'
+
+[ FAIL 0 | WARN 9 | SKIP 39 | PASS 541 ]
+> 
+> proc.time()
+   user  system elapsed 
+  2.984   0.288   3.359 
