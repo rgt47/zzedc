@@ -93,4 +93,4 @@ The following objects are masked from 'package:shiny':
 > 
 > proc.time()
    user  system elapsed 
-  2.969   0.276   3.300 
+  2.939   0.275   3.282 

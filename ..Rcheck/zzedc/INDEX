@@ -1,6 +1,7 @@
 check_aws_kms_status    Check AWS KMS Status and Permissions
 complete_wizard_setup   Complete Setup Wizard Orchestration
 connect_encrypted_db    Connect to Encrypted Database
+create_audit_report     Create Audit Report
 create_error_display    Display form validation errors to user
 create_export_manifest
                         Create Export Manifest
@@ -15,6 +16,7 @@ create_wizard_directories
                         Create Directories for New ZZedc Instance
 error_response          Create standardized error response
 export_audit_log        Export audit log to file
+export_audit_report     Export Audit Report
 export_encrypted_data   Export Encrypted Data with Integrity
                         Verification
 export_to_file          Export data to file
@@ -22,6 +24,7 @@ filter_data_by_search   Filter data by search term
 generate_db_key         Generate a random database encryption key
 generate_export_filename
                         Generate safe export filename
+get_audit_trail         Get Audit Trail
 get_db_path             Get Database Path
 get_encryption_key      Get database encryption key from environment or
                         AWS KMS
@@ -32,6 +35,7 @@ handle_error            Handle errors with logging and user
 import_instrument       Import instrument as new form
 init                    Initialize ZZedc Project
 init_audit_log          Initialize audit log
+init_audit_logging      Initialize Audit Logging System
 initialize_encrypted_database
                         Initialize Encrypted Database
 launch_zzedc            Launch the ZZedc Shiny Application
@@ -70,6 +74,8 @@ validate_field_value    Validate individual field value
 validate_form           Validate entire form submission
 validate_instrument_csv
                         Validate instrument CSV structure
+verify_audit_integrity
+                        Verify Audit Trail Integrity
 verify_audit_log_integrity
                         Verify audit log integrity
 verify_database_encryption

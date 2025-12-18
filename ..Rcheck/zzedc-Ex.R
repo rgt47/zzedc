@@ -60,6 +60,29 @@ flush(stderr()); flush(stdout())
 
 
 cleanEx()
+nameEx("create_audit_report")
+### * create_audit_report
+
+flush(stderr()); flush(stdout())
+
+### Name: create_audit_report
+### Title: Create Audit Report
+### Aliases: create_audit_report
+
+### ** Examples
+
+## Not run: 
+##D   report <- create_audit_report(
+##D     start_date = Sys.Date() - 30,
+##D     end_date = Sys.Date(),
+##D     report_type = "summary"
+##D   )
+## End(Not run)
+
+
+
+
+cleanEx()
 nameEx("create_export_manifest")
 ### * create_export_manifest
 
@@ -111,6 +134,29 @@ flush(stderr()); flush(stdout())
 
 
 cleanEx()
+nameEx("export_audit_report")
+### * export_audit_report
+
+flush(stderr()); flush(stdout())
+
+### Name: export_audit_report
+### Title: Export Audit Report
+### Aliases: export_audit_report
+
+### ** Examples
+
+## Not run: 
+##D   file_path <- export_audit_report(
+##D     start_date = Sys.Date() - 90,
+##D     end_date = Sys.Date(),
+##D     output_file = "./audit_Q1_2025.csv"
+##D   )
+## End(Not run)
+
+
+
+
+cleanEx()
 nameEx("export_encrypted_data")
 ### * export_encrypted_data
 
@@ -155,6 +201,34 @@ flush(stderr()); flush(stdout())
 ## Not run: 
 ##D   key <- generate_db_key()
 ##D   Sys.setenv(DB_ENCRYPTION_KEY = key)
+## End(Not run)
+
+
+
+
+cleanEx()
+nameEx("get_audit_trail")
+### * get_audit_trail
+
+flush(stderr()); flush(stdout())
+
+### Name: get_audit_trail
+### Title: Get Audit Trail
+### Aliases: get_audit_trail
+
+### ** Examples
+
+## Not run: 
+##D   # Get all events for a user
+##D   trail <- get_audit_trail(filters = list(user = "jane_smith"))
+##D 
+##D   # Get updates to subjects table
+##D   trail <- get_audit_trail(
+##D     filters = list(
+##D       table_name = "subjects",
+##D       event_type = "UPDATE"
+##D     )
+##D   )
 ## End(Not run)
 
 
@@ -338,6 +412,28 @@ flush(stderr()); flush(stdout())
 
 
 cleanEx()
+nameEx("init_audit_logging")
+### * init_audit_logging
+
+flush(stderr()); flush(stdout())
+
+### Name: init_audit_logging
+### Title: Initialize Audit Logging System
+### Aliases: init_audit_logging
+
+### ** Examples
+
+## Not run: 
+##D   result <- init_audit_logging()
+##D   if (result$success) {
+##D     cat("Audit logging initialized\n")
+##D   }
+## End(Not run)
+
+
+
+
+cleanEx()
 nameEx("initialize_encrypted_database")
 ### * initialize_encrypted_database
 
@@ -448,6 +544,17 @@ flush(stderr()); flush(stdout())
 ##D   status = "success"
 ##D )
 ## End(Not run)
+## Not run: 
+##D   log_audit_event(
+##D     event_type = "INSERT",
+##D     table_name = "subjects",
+##D     record_id = "S001",
+##D     operation = "New subject enrolled",
+##D     details = '{"age": 65, "gender": "M"}',
+##D     user_id = "jane_smith"
+##D   )
+## End(Not run)
+
 
 
 
@@ -677,6 +784,28 @@ flush(stderr()); flush(stdout())
 ##D   show_validation_errors(result$errors)
 ##D }
 ## End(Not run)
+
+
+
+cleanEx()
+nameEx("verify_audit_integrity")
+### * verify_audit_integrity
+
+flush(stderr()); flush(stdout())
+
+### Name: verify_audit_integrity
+### Title: Verify Audit Trail Integrity
+### Aliases: verify_audit_integrity
+
+### ** Examples
+
+## Not run: 
+##D   verification <- verify_audit_integrity()
+##D   if (verification$valid) {
+##D     cat("Audit trail integrity verified\n")
+##D   }
+## End(Not run)
+
 
 
 
