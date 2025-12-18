@@ -45,17 +45,22 @@ load_instrument_template
                         Load instrument template from CSV
 log_audit_event         Log an audit event
 log_export_event        Log export event to audit trail
+migrate_multiple_databases
+                        Migrate Multiple Databases
+migrate_to_encrypted    Migrate Database to Encrypted Version
 notify_if_invalid       Validate and notify
 paginate_data           Create paginated data view
 prepare_all_files_export
                         Prepare all files data for export
 prepare_edc_export      Prepare EDC data for export
 prepare_export_data     Prepare data for export
+prepare_migration       Prepare Database for Migration
 prepare_reports_export
                         Prepare reports data for export
 prepare_sample_export   Prepare sample data for export
 query_audit_log         Query audit log
 renderPanel             Render form panel with typed input fields
+rollback_migration      Rollback Migration
 rotate_encryption_key   Rotate Database Encryption Key via AWS KMS
 safe_reactive           Safe reactive expression evaluation
 save_validated_form     Save validated form data to database
@@ -82,3 +87,4 @@ verify_database_encryption
                         Verify Database Encryption
 verify_db_key           Verify database encryption key format
 verify_exported_data    Verify Exported Data Integrity
+verify_migration        Verify Migration Integrity

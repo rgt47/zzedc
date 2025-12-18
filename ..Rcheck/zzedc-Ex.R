@@ -559,6 +559,53 @@ flush(stderr()); flush(stdout())
 
 
 cleanEx()
+nameEx("migrate_multiple_databases")
+### * migrate_multiple_databases
+
+flush(stderr()); flush(stdout())
+
+### Name: migrate_multiple_databases
+### Title: Migrate Multiple Databases
+### Aliases: migrate_multiple_databases
+
+### ** Examples
+
+## Not run: 
+##D   results <- migrate_multiple_databases(
+##D     db_paths = c("./data/study1.db", "./data/study2.db"),
+##D     output_dir = "./data_encrypted"
+##D   )
+##D   print(results)
+## End(Not run)
+
+
+
+
+cleanEx()
+nameEx("migrate_to_encrypted")
+### * migrate_to_encrypted
+
+flush(stderr()); flush(stdout())
+
+### Name: migrate_to_encrypted
+### Title: Migrate Database to Encrypted Version
+### Aliases: migrate_to_encrypted
+
+### ** Examples
+
+## Not run: 
+##D   result <- migrate_to_encrypted(
+##D     old_db_path = "./data/legacy.db"
+##D   )
+##D   if (result$success) {
+##D     cat("Migration complete\n")
+##D   }
+## End(Not run)
+
+
+
+
+cleanEx()
 nameEx("paginate_data")
 ### * paginate_data
 
@@ -605,6 +652,28 @@ flush(stderr()); flush(stdout())
 
 
 cleanEx()
+nameEx("prepare_migration")
+### * prepare_migration
+
+flush(stderr()); flush(stdout())
+
+### Name: prepare_migration
+### Title: Prepare Database for Migration
+### Aliases: prepare_migration
+
+### ** Examples
+
+## Not run: 
+##D   prep <- prepare_migration("./data/legacy.db")
+##D   if (prep$valid) {
+##D     cat("Database ready for migration\n")
+##D   }
+## End(Not run)
+
+
+
+
+cleanEx()
 nameEx("renderPanel")
 ### * renderPanel
 
@@ -632,6 +701,27 @@ flush(stderr()); flush(stdout())
 ##D   visit_time = list(type = "time", required = TRUE, label = "Visit Time")
 ##D )
 ##D renderPanel(names(metadata), metadata)
+## End(Not run)
+
+
+
+
+cleanEx()
+nameEx("rollback_migration")
+### * rollback_migration
+
+flush(stderr()); flush(stdout())
+
+### Name: rollback_migration
+### Title: Rollback Migration
+### Aliases: rollback_migration
+
+### ** Examples
+
+## Not run: 
+##D   if (!migration_ok) {
+##D     rollback_migration(backup_path = "./backups/legacy_20251218.db")
+##D   }
 ## End(Not run)
 
 
@@ -871,6 +961,31 @@ flush(stderr()); flush(stdout())
 ##D   )
 ##D   if (verification$valid) {
 ##D     cat("Data integrity verified!\n")
+##D   }
+## End(Not run)
+
+
+
+
+cleanEx()
+nameEx("verify_migration")
+### * verify_migration
+
+flush(stderr()); flush(stdout())
+
+### Name: verify_migration
+### Title: Verify Migration Integrity
+### Aliases: verify_migration
+
+### ** Examples
+
+## Not run: 
+##D   verification <- verify_migration(
+##D     old_db_path = "./data/legacy.db",
+##D     new_db_path = "./data/legacy_encrypted.db"
+##D   )
+##D   if (verification$valid) {
+##D     cat("Migration verified\n")
 ##D   }
 ## End(Not run)
 

@@ -151,7 +151,14 @@ migrate_to_encrypted <- function(old_db_path, new_db_path = NULL,
     # Connect to old (unencrypted) database
     old_conn <- DBI::dbConnect(RSQLite::SQLite(), old_db_path)
 
-    # Create new encrypted database
+    # Initialize new encrypted database first
+    init_result <- initialize_encrypted_database(db_path = new_db_path, overwrite = FALSE)
+    if (!init_result$success) {
+      DBI::dbDisconnect(old_conn)
+      return(list(success = FALSE, error = "Failed to initialize encrypted database"))
+    }
+
+    # Connect to new encrypted database
     new_conn <- connect_encrypted_db(db_path = new_db_path)
 
     # Copy schema and data for each table
