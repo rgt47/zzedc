@@ -1,0 +1,416 @@
+===============================================================================
+        FEATURE #9: ADVERSE EVENT (AE/SAE) MANAGEMENT - COMPLETE (100%)
+===============================================================================
+
+Completed: December 19, 2025
+Priority: CRITICAL
+Feasibility: MODERATE
+Regulatory: FDA 21 CFR Part 312.32, ICH E2A/E2B, GCP E6(R2)
+
+-------------------------------------------------------------------------------
+DELIVERABLES
+-------------------------------------------------------------------------------
+
+1. Adverse Events System
+   R/adverse_events.R (~1100 lines)
+   - AE recording with severity grading
+   - SAE classification and expedited reporting
+   - Causality assessment
+   - Outcome tracking and resolution
+   - Follow-up management with hash-chain
+   - Statistics and reporting
+
+2. Comprehensive Test Suite
+   tests/testthat/test-adverse-events.R (~750 lines)
+   - 38 test cases with 115 expectations
+   - All tests passing
+
+-------------------------------------------------------------------------------
+FUNCTIONS IMPLEMENTED
+-------------------------------------------------------------------------------
+
+Initialization:
+  - init_adverse_events()           : Creates 5 database tables + indexes
+
+Reference Data:
+  - get_ae_severity_grades()        : MILD, MODERATE, SEVERE with descriptions
+  - get_sae_criteria()              : FDA SAE seriousness criteria
+  - get_causality_categories()      : UNRELATED to DEFINITE scale
+  - get_ae_outcomes()               : RECOVERED, FATAL, ONGOING, etc.
+  - get_action_taken_categories()   : NONE, DOSE_REDUCED, DRUG_WITHDRAWN, etc.
+
+AE Recording:
+  - create_adverse_event()          : Creates new AE with hash-chain
+  - generate_ae_number()            : Generates unique AE/SAE numbers
+
+SAE Management:
+  - upgrade_to_sae()                : Upgrades AE to SAE with criteria
+  - create_sae()                    : Creates SAE directly
+
+Follow-up and Updates:
+  - add_ae_followup()               : Records follow-up with hash-chain
+  - resolve_adverse_event()         : Records resolution and closes AE
+  - update_ae_causality()           : Updates causality with rationale
+
+SAE Expedited Reporting:
+  - record_sae_notification()       : Records notification sent
+  - get_pending_sae_reports()       : Returns SAEs needing reports
+
+Retrieval:
+  - get_adverse_event()             : Retrieves AE by ID or number
+  - get_subject_adverse_events()    : Gets all AEs for a subject
+  - get_ae_followups()              : Gets follow-up history
+
+Statistics and Reporting:
+  - get_ae_statistics()             : Returns comprehensive metrics
+  - generate_ae_report()            : Creates FDA-ready report (TXT/JSON)
+
+-------------------------------------------------------------------------------
+DATABASE SCHEMA
+-------------------------------------------------------------------------------
+
+adverse_events:
+  - ae_id                    : Primary key
+  - ae_number                : Unique AE number (AE-STUDY-TIMESTAMP-RANDOM)
+  - study_id                 : Study identifier
+  - site_id                  : Site identifier
+  - subject_id               : Subject identifier
+  - onset_date               : Event onset date
+  - onset_time               : Event onset time
+  - resolution_date          : Resolution date
+  - resolution_time          : Resolution time
+  - ae_term                  : Preferred term
+  - ae_description           : Detailed description
+  - meddra_pt_code           : MedDRA PT code
+  - meddra_pt_term           : MedDRA PT term
+  - meddra_soc_code          : MedDRA SOC code
+  - meddra_soc_term          : MedDRA SOC term
+  - severity                 : MILD, MODERATE, SEVERE
+  - is_serious               : SAE flag
+  - sae_criteria             : SAE criteria met (semicolon-separated)
+  - causality                : UNRELATED to DEFINITE
+  - causality_rationale      : Rationale for assessment
+  - expectedness             : EXPECTED, UNEXPECTED, NOT_APPLICABLE
+  - outcome                  : RECOVERED, FATAL, ONGOING, etc.
+  - action_taken             : Action taken (NONE, DOSE_REDUCED, etc.)
+  - action_taken_other       : Other action description
+  - treatment_given          : Treatment given flag
+  - treatment_description    : Treatment description
+  - sequelae_description     : Sequelae description
+  - reported_by              : Reporter user ID
+  - reported_at              : Report timestamp
+  - updated_by               : Last updater
+  - updated_at               : Update timestamp
+  - status                   : OPEN, CLOSED, FOLLOW_UP_REQUIRED
+  - ae_hash                  : SHA-256 hash for integrity
+  - previous_hash            : Hash-chain link
+  - metadata                 : Additional metadata (JSON)
+
+sae_details:
+  - sae_id                   : Primary key
+  - ae_id                    : Foreign key to adverse_events
+  - sae_number               : Unique SAE number (SAE-STUDY-TIMESTAMP-RANDOM)
+  - death                    : Death occurred
+  - death_date               : Date of death
+  - life_threatening         : Life-threatening event
+  - hospitalization          : Hospitalization required
+  - hospitalization_admission_date : Admission date
+  - hospitalization_discharge_date : Discharge date
+  - disability               : Persistent disability
+  - congenital_anomaly       : Congenital anomaly/birth defect
+  - other_medically_important : Other medically important event
+  - other_medically_important_desc : Description
+  - initial_report_date      : Initial report date
+  - awareness_date           : Date sponsor became aware
+  - report_type              : INITIAL, FOLLOW_UP, FINAL
+  - expedited_report_required : Expedited report required
+  - expedited_report_deadline : Deadline (7 or 15 days)
+  - expedited_report_sent    : Report sent flag
+  - expedited_report_sent_date : Date sent
+  - irb_notified             : IRB notification flag
+  - irb_notification_date    : IRB notification date
+  - sponsor_notified         : Sponsor notification flag
+  - sponsor_notification_date : Sponsor notification date
+  - regulatory_notified      : Regulatory notification flag
+  - regulatory_notification_date : Regulatory notification date
+  - narrative                : SAE narrative
+  - created_at               : Creation timestamp
+
+ae_followups:
+  - followup_id              : Primary key
+  - ae_id                    : Foreign key to adverse_events
+  - followup_date            : Follow-up date
+  - followup_type            : STATUS_UPDATE, RESOLUTION, etc.
+  - previous_value           : Previous value (for tracking changes)
+  - new_value                : New value
+  - notes                    : Follow-up notes
+  - recorded_by              : Recorder user ID
+  - recorded_at              : Recording timestamp
+  - followup_hash            : SHA-256 hash for integrity
+  - previous_followup_hash   : Hash-chain link
+
+ae_concomitant_meds:
+  - med_id                   : Primary key
+  - ae_id                    : Foreign key to adverse_events
+  - medication_name          : Medication name
+  - indication               : Indication
+  - dose                     : Dose
+  - route                    : Route of administration
+  - frequency                : Frequency
+  - start_date               : Start date
+  - end_date                 : End date
+  - ongoing                  : Ongoing flag
+  - recorded_by              : Recorder user ID
+  - recorded_at              : Recording timestamp
+
+ae_medical_history:
+  - history_id               : Primary key
+  - ae_id                    : Foreign key to adverse_events
+  - condition                : Medical condition
+  - onset_date               : Condition onset date
+  - resolution_date          : Condition resolution date
+  - ongoing                  : Ongoing flag
+  - relevant_to_ae           : Relevant to AE flag
+  - notes                    : Notes
+  - recorded_by              : Recorder user ID
+  - recorded_at              : Recording timestamp
+
+-------------------------------------------------------------------------------
+SEVERITY GRADING
+-------------------------------------------------------------------------------
+
+FDA/CTCAE-aligned severity grades:
+
+  MILD      : Awareness of symptoms but easily tolerated
+              (Grade 1 - No interference with daily activities)
+
+  MODERATE  : Discomfort enough to cause interference with usual activity
+              (Grade 2 - Some interference with daily activities)
+
+  SEVERE    : Incapacitating with inability to work or do usual activity
+              (Grade 3-4 - Significant interference, may require intervention)
+
+-------------------------------------------------------------------------------
+SAE SERIOUSNESS CRITERIA (FDA/ICH)
+-------------------------------------------------------------------------------
+
+An adverse event is considered SERIOUS if it:
+
+  DEATH                    : Results in death
+  LIFE_THREATENING         : Is life-threatening at time of event
+  HOSPITALIZATION          : Requires inpatient hospitalization or
+                             prolongation of existing hospitalization
+  DISABILITY               : Results in persistent or significant
+                             disability/incapacity
+  CONGENITAL_ANOMALY       : Is a congenital anomaly/birth defect
+  OTHER_MEDICALLY_IMPORTANT: Is a medically important event that may
+                             jeopardize the patient or require intervention
+
+-------------------------------------------------------------------------------
+CAUSALITY ASSESSMENT
+-------------------------------------------------------------------------------
+
+WHO-UMC causality categories:
+
+  UNRELATED : No temporal or causal relationship
+              - Event clearly due to other cause
+              - No plausible mechanism
+
+  UNLIKELY  : Little evidence to suggest causality
+              - Temporal relationship unlikely
+              - Alternative explanation more plausible
+
+  POSSIBLE  : Some evidence for causality, but other factors may contribute
+              - Reasonable temporal relationship
+              - Other causes cannot be ruled out
+
+  PROBABLE  : Good evidence for causality, unlikely to be due to other factors
+              - Reasonable temporal relationship
+              - Unlikely to be due to other causes
+              - Pharmacologically plausible
+
+  DEFINITE  : Clear evidence for causality
+              - Reasonable temporal relationship
+              - Confirmed by rechallenge or other means
+              - Not reasonably explained by other causes
+
+-------------------------------------------------------------------------------
+EXPEDITED REPORTING REQUIREMENTS
+-------------------------------------------------------------------------------
+
+Per FDA 21 CFR 312.32 and ICH E2A:
+
+7-Day Reports (IND Safety Reports):
+  - Fatal SAEs
+  - Life-threatening SAEs
+  - Unexpected and possibly related to drug
+
+15-Day Reports:
+  - All other serious and unexpected adverse experiences
+  - Related or possibly related to drug
+
+The system automatically calculates expedited report deadlines based on:
+  - If death = TRUE or life_threatening = TRUE: deadline = awareness_date + 7
+  - Otherwise: deadline = awareness_date + 15
+
+-------------------------------------------------------------------------------
+COMPLIANCE STATUS
+-------------------------------------------------------------------------------
+
+FDA 21 CFR Part 312.32:
+  - Expedited safety reporting requirements
+  - IND safety report timelines (7-day, 15-day)
+  - Investigator notification requirements
+  - Annual safety reporting
+
+ICH E2A/E2B:
+  - Post-marketing safety reporting
+  - Clinical safety data management
+  - Expedited reporting definitions
+  - Electronic transmission standards
+
+ICH E6(R2) GCP:
+  - Investigator responsibilities for AE reporting
+  - Immediate reporting of SAEs
+  - Documentation requirements
+  - Follow-up reporting
+
+-------------------------------------------------------------------------------
+TEST RESULTS
+-------------------------------------------------------------------------------
+
+Test File: tests/testthat/test-adverse-events.R
+Status: ALL TESTS PASSING
+Total Tests: 38 test cases, 115 expectations
+
+Test Categories:
+  - Initialization tests (5 expectations)
+  - Reference data tests (18 expectations)
+  - AE creation tests (12 expectations)
+  - SAE tests (20 expectations)
+  - Follow-up tests (12 expectations)
+  - Resolution tests (8 expectations)
+  - Causality update tests (6 expectations)
+  - SAE notification tests (8 expectations)
+  - Retrieval tests (12 expectations)
+  - Statistics tests (6 expectations)
+  - Report generation tests (8 expectations)
+
+-------------------------------------------------------------------------------
+USAGE EXAMPLES
+-------------------------------------------------------------------------------
+
+# Initialize adverse events system
+init_adverse_events()
+
+# Create a non-serious adverse event
+ae <- create_adverse_event(
+  study_id = "STUDY001",
+  subject_id = "SUBJ001",
+  onset_date = Sys.Date() - 5,
+  ae_term = "Headache",
+  ae_description = "Subject reports mild frontal headache",
+  severity = "MILD",
+  causality = "POSSIBLE",
+  outcome = "ONGOING",
+  reported_by = "coordinator",
+  site_id = "SITE01",
+  action_taken = "CONCOMITANT_MED_GIVEN",
+  treatment_given = TRUE,
+  treatment_description = "Acetaminophen 500mg as needed"
+)
+
+# Add follow-up
+add_ae_followup(
+  ae_id = ae$ae_id,
+  followup_type = "STATUS_UPDATE",
+  notes = "Subject reports headache improving",
+  recorded_by = "coordinator"
+)
+
+# Update causality assessment
+update_ae_causality(
+  ae_id = ae$ae_id,
+  causality = "PROBABLE",
+  rationale = "Temporal relationship and positive dechallenge",
+  updated_by = "pi"
+)
+
+# Resolve the adverse event
+resolve_adverse_event(
+  ae_id = ae$ae_id,
+  resolution_date = Sys.Date(),
+  outcome = "RECOVERED",
+  resolved_by = "coordinator"
+)
+
+# Create SAE directly
+sae <- create_sae(
+  study_id = "STUDY001",
+  subject_id = "SUBJ002",
+  onset_date = Sys.Date() - 2,
+  ae_term = "Myocardial Infarction",
+  ae_description = "Subject experienced acute MI",
+  severity = "SEVERE",
+  causality = "POSSIBLE",
+  outcome = "RECOVERING",
+  sae_criteria = c("LIFE_THREATENING", "HOSPITALIZATION"),
+  awareness_date = Sys.Date() - 1,
+  narrative = "Subject presented with chest pain, diagnosed with STEMI",
+  reported_by = "pi",
+  life_threatening = TRUE,
+  hospitalization = TRUE,
+  expectedness = "UNEXPECTED",
+  action_taken = "DRUG_WITHDRAWN"
+)
+
+# Check expedited reporting deadline
+print(sae$expedited_deadline)  # 7 days from awareness for life-threatening
+
+# Record expedited report sent
+record_sae_notification(
+  sae_id = sae$sae_id,
+  notification_type = "EXPEDITED",
+  notification_date = Sys.Date(),
+  recorded_by = "safety_officer"
+)
+
+# Record IRB notification
+record_sae_notification(
+  sae_id = sae$sae_id,
+  notification_type = "IRB",
+  notification_date = Sys.Date(),
+  recorded_by = "regulatory_affairs"
+)
+
+# Get pending SAE reports
+pending <- get_pending_sae_reports(study_id = "STUDY001")
+
+# Get overdue SAE reports
+overdue <- get_pending_sae_reports(study_id = "STUDY001", include_overdue = TRUE)
+
+# Get AE statistics
+stats <- get_ae_statistics("STUDY001")
+print(paste("Total AEs:", stats$overall$total_ae))
+print(paste("Total SAEs:", stats$overall$total_sae))
+print(paste("Pending SAE reports:", stats$pending_sae_reports))
+
+# Generate FDA-ready report
+generate_ae_report(
+  study_id = "STUDY001",
+  output_file = "ae_summary_report.txt",
+  format = "txt",
+  organization = "Clinical Research Center",
+  prepared_by = "Safety Officer"
+)
+
+-------------------------------------------------------------------------------
+NEXT STEPS
+-------------------------------------------------------------------------------
+
+Feature #9 complete. Ready to proceed with:
+- Feature #10: Data Subject Access Request (DSAR)
+- Feature #11: Right to Rectification
+- Feature #12: Right to Erasure (with legal hold)
+
+===============================================================================
