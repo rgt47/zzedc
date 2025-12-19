@@ -31,14 +31,24 @@ init_audit_logging <- function(db_path = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
 
-    # Create main audit log table
+    # Create main audit log table with enhanced event types
     DBI::dbExecute(conn, "
       CREATE TABLE IF NOT EXISTS audit_log (
         audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         user_id TEXT,
         event_type TEXT NOT NULL CHECK(event_type IN
-          ('INSERT', 'UPDATE', 'DELETE', 'SELECT', 'EXPORT', 'LOGIN', 'LOGOUT', 'ACCESS')),
+          ('INSERT', 'UPDATE', 'DELETE', 'SELECT', 'EXPORT',
+           'LOGIN', 'LOGOUT', 'ACCESS', 'SESSION_START', 'SESSION_END',
+           'LOGIN_FAILED', 'PASSWORD_CHANGE', 'ROLE_CHANGE',
+           'PERMISSION_CHANGE', 'LOCKOUT', 'UNLOCK',
+           'BACKUP', 'RESTORE', 'MAINTENANCE', 'STARTUP', 'SHUTDOWN',
+           'ERROR', 'WARNING',
+           'CONFIG_CHANGE', 'SETTING_UPDATE', 'FEATURE_TOGGLE',
+           'SIGNATURE_REQUEST', 'SIGNATURE_APPLIED', 'SIGNATURE_REJECTED',
+           'SIGNATURE_REVOKED',
+           'AUDIT_REVIEW', 'COMPLIANCE_CHECK', 'REPORT_GENERATED',
+           'INTEGRITY_VERIFIED')),
         table_name TEXT,
         record_id TEXT,
         operation TEXT,
@@ -141,8 +151,20 @@ log_audit_event <- function(event_type, table_name, record_id = NULL,
                              operation, details = NULL, user_id = NULL,
                              db_path = NULL) {
   tryCatch({
-    # Validate event_type
-    valid_events <- c("INSERT", "UPDATE", "DELETE", "SELECT", "EXPORT", "LOGIN", "LOGOUT", "ACCESS")
+    # Validate event_type - includes all enhanced event types
+    valid_events <- c(
+      "INSERT", "UPDATE", "DELETE", "SELECT", "EXPORT",
+      "LOGIN", "LOGOUT", "ACCESS", "SESSION_START", "SESSION_END",
+      "LOGIN_FAILED", "PASSWORD_CHANGE", "ROLE_CHANGE",
+      "PERMISSION_CHANGE", "LOCKOUT", "UNLOCK",
+      "BACKUP", "RESTORE", "MAINTENANCE", "STARTUP", "SHUTDOWN",
+      "ERROR", "WARNING",
+      "CONFIG_CHANGE", "SETTING_UPDATE", "FEATURE_TOGGLE",
+      "SIGNATURE_REQUEST", "SIGNATURE_APPLIED", "SIGNATURE_REJECTED",
+      "SIGNATURE_REVOKED",
+      "AUDIT_REVIEW", "COMPLIANCE_CHECK", "REPORT_GENERATED",
+      "INTEGRITY_VERIFIED"
+    )
     if (!event_type %in% valid_events) {
       stop("Invalid event_type. Must be one of: ", paste(valid_events, collapse = ", "))
     }
