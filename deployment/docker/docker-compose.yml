@@ -1,0 +1,111 @@
+# ZZedc Docker Compose Configuration with Traefik and Let's Encrypt
+#
+# Usage:
+#   1. Replace YOUR_DOMAIN and YOUR_EMAIL
+#   2. Create external network: docker network create web
+#   3. Create .env file with DB_ENCRYPTION_KEY
+#   4. docker-compose up -d
+#
+# Prerequisites:
+#   - Docker and Docker Compose installed
+#   - Domain pointing to server IP
+#   - Ports 80 and 443 available
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # Traefik Reverse Proxy with Automatic SSL
+  # ===========================================================================
+  traefik:
+    image: traefik:v2.10
+    container_name: zzedc-traefik
+    restart: unless-stopped
+    command:
+      # API Dashboard (disable in production or secure properly)
+      - "--api.insecure=false"
+      - "--api.dashboard=false"
+
+      # Docker provider
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=web"
+
+      # Entrypoints
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+
+      # Let's Encrypt ACME
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=YOUR_EMAIL"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+    networks:
+      - web
+    labels:
+      # Global HTTP to HTTPS redirect
+      - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+  # ===========================================================================
+  # ZZedc Shiny Application
+  # ===========================================================================
+  zzedc:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile
+    container_name: zzedc-app
+    restart: unless-stopped
+    environment:
+      - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY}
+      - ZZEDC_DB_PATH=/data/zzedc.db
+      - SHINY_LOG_LEVEL=INFO
+    volumes:
+      # Persistent data storage
+      - zzedc-data:/data
+      # Optional: mount local data directory
+      # - ./data:/data
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+
+      # HTTPS Router
+      - "traefik.http.routers.zzedc.rule=Host(`YOUR_DOMAIN`)"
+      - "traefik.http.routers.zzedc.entrypoints=websecure"
+      - "traefik.http.routers.zzedc.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.zzedc.middlewares=security-headers"
+
+      # Service
+      - "traefik.http.services.zzedc.loadbalancer.server.port=3838"
+
+      # Security Headers Middleware
+      - "traefik.http.middlewares.security-headers.headers.stsSeconds=63072000"
+      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.security-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.security-headers.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
+      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.security-headers.headers.contentSecurityPolicy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss:; frame-ancestors 'self';"
+
+networks:
+  web:
+    external: true
+
+volumes:
+  zzedc-data:
+    driver: local
