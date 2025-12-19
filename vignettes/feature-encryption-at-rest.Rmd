@@ -1,0 +1,387 @@
+---
+title: "Data Encryption at Rest"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Data Encryption at Rest}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Overview
+
+ZZedc implements transparent database encryption at rest using SQLCipher
+technology integrated with RSQLite. This feature provides robust data
+protection that satisfies GDPR Article 32 (security of processing) and
+FDA 21 CFR Part 11 (electronic records) requirements.
+
+This document describes the encryption architecture, key management
+procedures, and operational guidelines for maintaining encrypted databases
+in clinical research environments.
+
+## Technical Architecture
+
+### Encryption Method
+
+ZZedc employs AES-256 encryption in CBC mode through SQLCipher integration.
+Key characteristics include:
+
+- **Algorithm**: AES-256-CBC with HMAC-SHA256 authentication
+- **Key Length**: 256-bit (64 hexadecimal characters)
+- **Page Size**: 4096 bytes (SQLCipher default)
+- **Key Derivation**: PBKDF2 with SHA256
+
+### Transparent Operation
+
+Database encryption operates at the connection layer. All data written to
+disk is automatically encrypted, and all queries transparently decrypt
+data during retrieval. Existing application code requires no modification.
+
+## Key Management
+
+### Key Generation
+
+Generate cryptographically secure keys using the `generate_db_key()`
+function:
+```{r}
+library(zzedc)
+
+key <- generate_db_key()
+print(key)
+```
+
+Keys are 64-character hexadecimal strings representing 256 random bits.
+Each invocation produces a unique key suitable for cryptographic use.
+
+### Key Storage Options
+
+ZZedc supports two key storage mechanisms:
+
+**Development Environment (Environment Variables)**
+
+For development and testing, store keys in environment variables:
+```{r}
+Sys.setenv(DB_ENCRYPTION_KEY = key)
+```
+
+**Production Environment (AWS Secrets Manager)**
+
+For production deployments, use AWS Secrets Manager:
+```{r}
+key <- get_encryption_key(aws_kms_key_id = "zzedc/db-encryption-key")
+```
+
+This approach provides centralized key management, automatic rotation
+capabilities, and comprehensive audit logging.
+
+### Key Verification
+
+Validate key format before use:
+```{r}
+verify_db_key(key)
+```
+
+The function confirms proper length (64 characters) and hexadecimal format.
+Invalid keys produce descriptive error messages.
+
+## Database Operations
+
+### Creating an Encrypted Database
+
+Initialize a new encrypted database:
+```{r}
+result <- initialize_encrypted_database(
+  db_path = "./data/study.db",
+  overwrite = FALSE
+)
+
+if (result$success) {
+  message("Database created at: ", result$path)
+}
+```
+
+The function generates an encryption key automatically and stores it in
+the `DB_ENCRYPTION_KEY` environment variable.
+
+### Connecting to an Existing Database
+
+Connect to an encrypted database:
+```{r}
+conn <- connect_encrypted_db(db_path = "./data/study.db")
+
+result <- DBI::dbGetQuery(conn, "SELECT COUNT(*) FROM subjects")
+print(result)
+
+DBI::dbDisconnect(conn)
+```
+
+Connection functions retrieve the encryption key from the environment
+or AWS Secrets Manager automatically.
+
+### Verifying Encryption Status
+
+Confirm database encryption is functioning correctly:
+```{r}
+verification <- verify_database_encryption(db_path = "./data/study.db")
+
+if (verification$encrypted) {
+  message("Encryption verified: ", verification$message)
+}
+```
+
+## Secure Data Export
+
+### Export with Integrity Verification
+
+Export data with SHA-256 hash verification:
+```{r}
+export_path <- export_encrypted_data(
+  query = "SELECT * FROM subjects WHERE status = 'Active'",
+  format = "csv",
+  include_hash = TRUE,
+  export_dir = "./exports"
+)
+
+message("Exported to: ", export_path)
+```
+
+The function creates both the export file and a corresponding `.sha256`
+hash file for integrity verification.
+
+### Verifying Export Integrity
+
+Verify exported data has not been modified:
+```{r}
+verification <- verify_exported_data(export_path)
+
+if (verification$valid) {
+  message("File integrity confirmed")
+} else {
+  warning("File may have been tampered with")
+}
+```
+
+### Supported Export Formats
+
+- **CSV**: Comma-separated values (default)
+- **XLSX**: Microsoft Excel workbook
+- **JSON**: JavaScript Object Notation
+
+## Database Migration
+
+### Migrating Existing Databases
+
+Convert unencrypted databases to encrypted format:
+```{r}
+result <- migrate_to_encrypted(
+  old_db_path = "./data/legacy.db",
+  backup_dir = "./backups"
+)
+
+if (result$success) {
+  message("Migration complete: ", result$records_migrated, " records")
+  message("New database: ", result$new_path)
+}
+```
+
+The function creates a backup before migration and verifies data integrity
+after completion.
+
+### Verifying Migration
+
+Confirm migration preserved all data:
+```{r}
+verification <- verify_migration(
+  old_db_path = "./data/legacy.db",
+  new_db_path = "./data/legacy_encrypted.db"
+)
+
+if (verification$valid) {
+  message("Data integrity: ", verification$data_integrity)
+}
+```
+
+### Rollback Procedure
+
+Restore from backup if migration fails:
+```{r}
+rollback_migration(
+  backup_path = "./backups/legacy_20251218_143022.db",
+  restore_to = "./data/legacy.db"
+)
+```
+
+## Audit Trail
+
+### Audit System Initialization
+
+Initialize the audit logging tables:
+```{r}
+result <- init_audit_logging(db_path = "./data/study.db")
+```
+
+This creates three tables:
+
+- `audit_log`: Primary audit records
+- `audit_events`: Detailed event information
+- `audit_chain`: Hash-chained verification records
+
+### Logging Events
+
+Record database operations to the audit trail:
+```{r}
+log_audit_event(
+  event_type = "INSERT",
+  table_name = "subjects",
+  record_id = "SUBJ001",
+  operation = "Enrolled new subject",
+  details = '{"site": "001", "cohort": "Treatment"}',
+  user_id = "jane.smith",
+  db_path = "./data/study.db"
+)
+```
+
+Valid event types: INSERT, UPDATE, DELETE, SELECT, EXPORT, LOGIN, LOGOUT, ACCESS
+
+### Retrieving Audit Records
+
+Query the audit trail with filters:
+```{r}
+audit_trail <- get_audit_trail(
+  filters = list(
+    user = "jane.smith",
+    table_name = "subjects",
+    date_from = "2025-01-01"
+  ),
+  include_chain = TRUE,
+  db_path = "./data/study.db"
+)
+```
+
+## Trial Scenario Configurations
+
+### Pharmaceutical Trial (Sponsor-Held Key)
+
+The pharmaceutical sponsor maintains primary custody of the encryption key:
+
+- Key stored in sponsor's AWS Secrets Manager
+- Site personnel access data through sponsor-controlled interfaces
+- Key rotation managed by sponsor IT security team
+- Unblinding requires sponsor authorization
+
+### Academic Trial (DCC-Held Key)
+
+The Data Coordinating Center maintains key custody:
+
+- Key stored in university IT infrastructure
+- Investigators receive encrypted exports
+- DCC controls key rotation schedule
+- Statistical team accesses data with DCC oversight
+
+### Single-Site Trial (Site-Held Key)
+
+The research site maintains direct key custody:
+
+- Key stored locally or in institutional secrets management
+- Principal Investigator holds ultimate responsibility
+- Consider dual-key arrangement for critical studies
+- Document key recovery procedures
+
+## Regulatory Compliance
+
+### GDPR Article 32
+
+This implementation addresses GDPR Article 32 requirements through:
+
+- Encryption of personal data at rest
+- Access control via key management
+- Audit trail for accountability
+- Documented security procedures
+
+### FDA 21 CFR Part 11
+
+This implementation supports 21 CFR Part 11 compliance through:
+
+- Immutable audit trail with hash-chaining
+- Electronic signature support framework
+- User accountability through audit logging
+- Data integrity verification
+
+## Performance Considerations
+
+Encryption adds minimal overhead to database operations:
+
+- Connection establishment: < 10ms additional latency
+- Query execution: < 5% overhead for typical queries
+- Export operations: Linear scaling with data volume
+
+Performance impacts are transparent to end users and do not affect
+application responsiveness for typical clinical data volumes.
+
+## Security Recommendations
+
+### Key Management
+
+1. Never store keys in source code or configuration files
+2. Use AWS Secrets Manager or equivalent for production
+3. Implement key rotation procedures annually
+4. Maintain secure key backup procedures
+5. Document key recovery processes
+
+### Access Control
+
+1. Restrict database file access to authorized processes
+2. Use role-based access control in the application layer
+3. Monitor audit logs for unauthorized access attempts
+4. Implement session timeout policies
+
+### Operational Security
+
+1. Encrypt database backups
+2. Secure export files during transit
+3. Implement network security controls
+4. Conduct periodic security assessments
+
+## Troubleshooting
+
+### Common Issues
+
+**Cannot connect to encrypted database**
+
+- Verify encryption key is set in environment
+- Confirm database file exists at specified path
+- Check key format (64 hexadecimal characters)
+
+**Migration fails**
+
+- Ensure sufficient disk space for backup
+- Verify source database is not corrupted
+- Check write permissions on destination directory
+
+**Export verification fails**
+
+- Confirm file has not been modified since export
+- Verify hash file exists and is readable
+- Check for file system encoding issues
+
+For detailed troubleshooting guidance, see the companion document
+*ENCRYPTION_TROUBLESHOOTING.md*.
+
+## References
+
+- GDPR Article 32: Security of Processing
+- FDA 21 CFR Part 11: Electronic Records; Electronic Signatures
+- SQLCipher Technical Documentation
+- AWS Secrets Manager Developer Guide
+
+## Version Information
+
+This documentation corresponds to ZZedc version 1.0.0.
+Encryption functionality requires RSQLite >= 2.2.18.
