@@ -150,6 +150,23 @@ init_audit_logging <- function(db_path = NULL) {
 log_audit_event <- function(event_type, table_name, record_id = NULL,
                              operation, details = NULL, user_id = NULL,
                              db_path = NULL) {
+  safe_scalar <- function(x, default = NA_character_) {
+    if (is.null(x) || length(x) == 0) {
+      default
+    } else if (length(x) > 1) {
+      paste(x, collapse = "; ")
+    } else {
+      as.character(x)
+    }
+  }
+
+  event_type <- safe_scalar(event_type)
+  table_name <- safe_scalar(table_name)
+  record_id <- safe_scalar(record_id)
+  operation <- safe_scalar(operation)
+  details <- safe_scalar(details)
+  user_id <- safe_scalar(user_id)
+
   tryCatch({
     # Validate event_type - includes all enhanced event types
     valid_events <- c(

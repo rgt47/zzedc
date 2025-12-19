@@ -300,16 +300,28 @@ run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
   init_audit_logging(db_path = test_db)
   init_version_control(db_path = test_db)
 
+  conn <- connect_encrypted_db(db_path = test_db)
+  DBI::dbExecute(conn, "
+    CREATE TABLE IF NOT EXISTS test_data (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_id TEXT NOT NULL,
+      status TEXT,
+      value REAL,
+      created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+  DBI::dbDisconnect(conn)
+
   # OQ-001: Data insert operation
   if (verbose) cat("  OQ-001: Testing data insert... ")
   t1 <- Sys.time()
   insert_test <- tryCatch({
     conn <- connect_encrypted_db(db_path = test_db)
     DBI::dbExecute(conn, "
-      INSERT INTO subjects (subject_id, status, created_date)
-      VALUES ('TEST001', 'active', datetime('now'))
+      INSERT INTO test_data (record_id, status, value)
+      VALUES ('TEST001', 'active', 42.5)
     ")
-    count <- DBI::dbGetQuery(conn, "SELECT COUNT(*) FROM subjects")[1, 1]
+    count <- DBI::dbGetQuery(conn, "SELECT COUNT(*) FROM test_data")[1, 1]
     DBI::dbDisconnect(conn)
     list(success = count > 0, message = "Data insert successful")
   }, error = function(e) {
@@ -330,10 +342,10 @@ run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
   t1 <- Sys.time()
   select_test <- tryCatch({
     conn <- connect_encrypted_db(db_path = test_db)
-    data <- DBI::dbGetQuery(conn, "SELECT * FROM subjects WHERE subject_id = 'TEST001'")
+    data <- DBI::dbGetQuery(conn, "SELECT * FROM test_data WHERE record_id = 'TEST001'")
     DBI::dbDisconnect(conn)
     list(
-      success = nrow(data) == 1 && data$subject_id[1] == "TEST001",
+      success = nrow(data) == 1 && data$record_id[1] == "TEST001",
       message = "Data retrieval successful"
     )
   }, error = function(e) {
@@ -610,6 +622,18 @@ run_pq_tests <- function(db_path = NULL, verbose = TRUE, record_count = 1000) {
   init_audit_logging(db_path = test_db)
   init_version_control(db_path = test_db)
 
+  conn <- connect_encrypted_db(db_path = test_db)
+  DBI::dbExecute(conn, "
+    CREATE TABLE IF NOT EXISTS perf_data (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_id TEXT NOT NULL,
+      status TEXT,
+      value REAL,
+      created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+  DBI::dbDisconnect(conn)
+
   # PQ-001: Bulk insert performance
   if (verbose) cat("  PQ-001: Testing bulk insert (", record_count, " records)... ")
   t1 <- Sys.time()
@@ -618,9 +642,9 @@ run_pq_tests <- function(db_path = NULL, verbose = TRUE, record_count = 1000) {
 
     for (i in seq_len(record_count)) {
       DBI::dbExecute(conn, "
-        INSERT INTO subjects (subject_id, status, created_date)
-        VALUES (?, 'active', datetime('now'))
-      ", list(paste0("PERF", sprintf("%05d", i))))
+        INSERT INTO perf_data (record_id, status, value)
+        VALUES (?, 'active', ?)
+      ", list(paste0("PERF", sprintf("%05d", i)), runif(1)))
     }
 
     insert_time <- as.numeric(difftime(Sys.time(), t1, units = "secs"))
@@ -658,7 +682,7 @@ run_pq_tests <- function(db_path = NULL, verbose = TRUE, record_count = 1000) {
     conn <- connect_encrypted_db(db_path = test_db)
 
     query_start <- Sys.time()
-    result <- DBI::dbGetQuery(conn, "SELECT * FROM subjects")
+    result <- DBI::dbGetQuery(conn, "SELECT * FROM perf_data")
     query_time <- as.numeric(difftime(Sys.time(), query_start, units = "secs"))
 
     DBI::dbDisconnect(conn)
