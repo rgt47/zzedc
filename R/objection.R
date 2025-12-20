@@ -142,7 +142,7 @@ init_objection <- function() {
     DBI::dbExecute(con, "
       CREATE TABLE IF NOT EXISTS marketing_preferences (
         preference_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        subject_id TEXT NOT NULL,
+        subject_id TEXT,
         subject_email TEXT NOT NULL,
         channel TEXT NOT NULL,
         opted_out INTEGER DEFAULT 0,

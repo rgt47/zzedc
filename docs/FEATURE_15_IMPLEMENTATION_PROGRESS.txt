@@ -1,0 +1,320 @@
+===============================================================================
+      FEATURE #15: RIGHT TO OBJECT - COMPLETE (100%)
+===============================================================================
+
+Completed: December 19, 2025
+Priority: CRITICAL
+Feasibility: MODERATE
+Regulatory: GDPR Article 21
+
+-------------------------------------------------------------------------------
+DELIVERABLES
+-------------------------------------------------------------------------------
+
+1. Objection System
+   R/objection.R (~1200 lines)
+   - Request creation and tracking (LEGITIMATE_INTEREST, DIRECT_MARKETING, RESEARCH)
+   - Processing activity management
+   - Marketing preference management
+   - Decision handling (uphold, override, reject)
+   - Statistics and reporting
+
+2. Comprehensive Test Suite
+   tests/testthat/test-objection.R (~500 lines)
+   - 27 test cases with 68 expectations
+   - All tests passing
+
+-------------------------------------------------------------------------------
+FUNCTIONS IMPLEMENTED
+-------------------------------------------------------------------------------
+
+Initialization:
+  - init_objection()                : Creates 4 database tables + indexes
+
+Reference Data:
+  - get_objection_types()           : LEGITIMATE_INTEREST, DIRECT_MARKETING, RESEARCH
+  - get_objectionable_legal_bases() : Legal bases that can be objected to
+  - get_marketing_channels()        : EMAIL, SMS, PHONE, POST, ALL
+  - get_objection_statuses()        : Request status values
+  - get_objection_decisions()       : Decision types (UPHELD, OVERRIDDEN, REJECTED)
+
+Request Management:
+  - create_objection_request()      : Creates request with hash-chain
+  - log_objection_action()          : Logs action to audit history
+
+Processing Activity Management:
+  - add_objection_activity()        : Adds activity being objected to
+  - stop_processing_activity()      : Stops processing for activity
+  - resume_processing_activity()    : Resumes (not for direct marketing)
+
+Marketing Preferences:
+  - opt_out_marketing()             : Opts out of marketing channel(s)
+  - check_marketing_preference()    : Checks opt-out status
+
+Request Decisions:
+  - uphold_objection()              : Upholds objection (stops all processing)
+  - override_objection()            : Overrides (not for direct marketing)
+  - reject_objection()              : Rejects (not for direct marketing)
+  - complete_objection_request()    : Marks request as complete
+
+Retrieval:
+  - get_objection_request()         : Retrieves by ID or number
+  - get_objection_activities()      : Gets activities for request
+  - get_objection_history()         : Gets audit history
+  - get_pending_objection_requests(): Gets pending requests
+
+Statistics and Reporting:
+  - get_objection_statistics()      : Returns comprehensive metrics
+  - generate_objection_report()     : Creates compliance report (TXT/JSON)
+
+-------------------------------------------------------------------------------
+DATABASE SCHEMA
+-------------------------------------------------------------------------------
+
+objection_requests:
+  - request_id               : Primary key
+  - request_number           : Unique number (OBJ-TIMESTAMP-RANDOM)
+  - dsar_request_id          : Link to DSAR request (optional)
+  - subject_id               : Subject identifier
+  - subject_email            : Subject email (required)
+  - subject_name             : Subject name (required)
+  - objection_type           : LEGITIMATE_INTEREST, DIRECT_MARKETING, RESEARCH
+  - processing_purpose       : Purpose being objected to
+  - objection_grounds        : Grounds for objection (min 20 chars)
+  - situation_details        : Details about subject's situation
+  - status                   : Request status
+  - is_direct_marketing      : Boolean flag for direct marketing
+  - received_date            : Date request received
+  - due_date                 : Response deadline
+  - completed_date           : Completion date
+  - requested_by             : User who created request
+  - reviewed_by              : Reviewer user ID
+  - reviewed_at              : Review timestamp
+  - review_notes             : Review notes
+  - decision                 : UPHELD, OVERRIDDEN, REJECTED
+  - decision_reason          : Reason for decision
+  - compelling_grounds       : Compelling grounds if overridden
+  - request_hash             : SHA-256 hash for integrity
+  - previous_hash            : Hash-chain link
+  - created_at               : Creation timestamp
+
+objection_processing_activities:
+  - activity_id              : Primary key
+  - request_id               : Foreign key to objection_requests
+  - activity_name            : Name of processing activity
+  - activity_description     : Description
+  - legal_basis              : Legal basis for activity
+  - data_categories          : Categories of data
+  - status                   : ACTIVE, STOPPED, RESUMED
+  - objection_applies        : Whether objection applies
+  - processing_stopped       : Whether processing stopped
+  - stopped_at               : When processing stopped
+  - stopped_by               : Who stopped processing
+  - resumed_at               : When resumed (if applicable)
+  - resumed_by               : Who resumed
+  - resume_reason            : Reason for resuming
+  - activity_hash            : SHA-256 hash for integrity
+  - created_at               : Creation timestamp
+
+objection_history:
+  - history_id               : Primary key
+  - request_id               : Foreign key to objection_requests
+  - activity_id              : Foreign key to activities
+  - action                   : Action performed
+  - action_details           : Details
+  - performed_by             : User who performed action
+  - performed_at             : Timestamp
+  - history_hash             : SHA-256 hash for integrity
+  - previous_history_hash    : Hash-chain link
+
+marketing_preferences:
+  - preference_id            : Primary key
+  - subject_id               : Subject identifier (nullable)
+  - subject_email            : Subject email (required)
+  - channel                  : Marketing channel
+  - opted_out                : Whether opted out
+  - opted_out_at             : Opt-out timestamp
+  - opted_out_by             : Who recorded opt-out
+  - objection_request_id     : Link to objection request
+  - updated_at               : Last update timestamp
+
+-------------------------------------------------------------------------------
+OBJECTION TYPES (Article 21)
+-------------------------------------------------------------------------------
+
+  LEGITIMATE_INTEREST : Objection to processing based on Article 6(1)(f)
+  DIRECT_MARKETING    : Objection to direct marketing (ABSOLUTE RIGHT)
+  RESEARCH            : Objection to research processing
+
+-------------------------------------------------------------------------------
+DIRECT MARKETING - ABSOLUTE RIGHT
+-------------------------------------------------------------------------------
+
+Per GDPR Article 21(2) and 21(3):
+- Data subject has ABSOLUTE right to object to direct marketing
+- No balancing test required
+- Cannot be overridden
+- Cannot be rejected
+- Processing must cease immediately upon objection
+
+Implementation enforces:
+- override_objection() blocks for direct marketing
+- reject_objection() blocks for direct marketing
+- resume_processing_activity() blocks for direct marketing
+- uphold_objection() automatically opts out of ALL channels
+
+-------------------------------------------------------------------------------
+LEGITIMATE INTEREST OBJECTION
+-------------------------------------------------------------------------------
+
+Per GDPR Article 21(1):
+- Subject can object based on "grounds relating to his or her particular situation"
+- Controller must cease processing UNLESS:
+  - Demonstrates compelling legitimate grounds that override interests of subject
+  - Processing is for establishment, exercise or defence of legal claims
+
+Implementation supports:
+- override_objection() with compelling_grounds parameter
+- reject_objection() with documented reason
+
+-------------------------------------------------------------------------------
+TEST RESULTS
+-------------------------------------------------------------------------------
+
+Test File: tests/testthat/test-objection.R
+Status: ALL TESTS PASSING
+Total Tests: 27 test cases, 68 expectations
+
+Test Categories:
+  - Initialization tests (4 expectations)
+  - Reference data tests (6 expectations)
+  - Request creation tests (8 expectations)
+  - Processing activity tests (8 expectations)
+  - Marketing preference tests (10 expectations)
+  - Decision tests (12 expectations)
+  - Retrieval tests (8 expectations)
+  - Statistics tests (4 expectations)
+  - Integration tests (8 expectations)
+
+-------------------------------------------------------------------------------
+USAGE EXAMPLES
+-------------------------------------------------------------------------------
+
+# Initialize objection system
+init_objection()
+
+# Create legitimate interest objection
+request <- create_objection_request(
+  subject_email = "john@example.com",
+  subject_name = "John Patient",
+  objection_type = "LEGITIMATE_INTEREST",
+  processing_purpose = "Profiling for service improvement",
+  objection_grounds = "I object to profiling as it affects my privacy and I do not want my behavior tracked.",
+  requested_by = "dpo"
+)
+
+# Create direct marketing objection (absolute right)
+dm_request <- create_objection_request(
+  subject_email = "john@example.com",
+  subject_name = "John Patient",
+  objection_type = "DIRECT_MARKETING",
+  processing_purpose = "Marketing communications",
+  objection_grounds = "I do not wish to receive marketing communications.",
+  requested_by = "dpo"
+)
+
+# Add processing activity to objection
+add_objection_activity(
+  request_id = request$request_id,
+  activity_name = "User behavior profiling",
+  legal_basis = "LEGITIMATE_INTEREST",
+  added_by = "dpo"
+)
+
+# Stop processing activity
+stop_processing_activity(
+  activity_id = activity$activity_id,
+  stopped_by = "dpo"
+)
+
+# Uphold objection (stops all processing)
+uphold_objection(
+  request_id = request$request_id,
+  upheld_by = "legal",
+  review_notes = "Subject's situation warrants upholding objection"
+)
+
+# Override objection (NOT for direct marketing)
+override_objection(
+  request_id = request$request_id,
+  overridden_by = "legal",
+  compelling_grounds = "Processing necessary for legal claims defense",
+  review_notes = "Compelling grounds demonstrated"
+)
+
+# Opt out of marketing
+opt_out_marketing(
+  subject_email = "john@example.com",
+  channel = "EMAIL",
+  opted_out_by = "subject"
+)
+
+# Opt out of ALL marketing channels
+opt_out_marketing(
+  subject_email = "john@example.com",
+  channel = "ALL",
+  opted_out_by = "subject"
+)
+
+# Check marketing preference
+check_marketing_preference(
+  subject_email = "john@example.com"
+)
+
+# Get statistics
+stats <- get_objection_statistics()
+
+# Generate compliance report
+generate_objection_report(
+  output_file = "objection_report.txt",
+  format = "txt",
+  organization = "Healthcare Organization"
+)
+
+-------------------------------------------------------------------------------
+COMPLIANCE STATUS
+-------------------------------------------------------------------------------
+
+GDPR Article 21(1) - Legitimate Interest Objection:
+  - Right to object to processing based on Article 6(1)(e) or (f)
+  - Must relate to particular situation
+  - Controller must cease unless compelling grounds demonstrated
+
+GDPR Article 21(2) - Direct Marketing Objection:
+  - Right to object to processing for direct marketing
+  - Includes profiling related to direct marketing
+  - ABSOLUTE RIGHT - no exceptions
+
+GDPR Article 21(3) - Effect of Direct Marketing Objection:
+  - Personal data no longer processed for marketing purposes
+  - Must cease processing immediately
+
+GDPR Article 21(4) - Information Requirement:
+  - Right must be explicitly brought to attention
+  - Presented clearly and separately from other information
+
+GDPR Article 21(5) - Automated Means:
+  - Subject may exercise right by automated means using technical specifications
+
+GDPR Article 21(6) - Research Objection:
+  - Right to object to research processing
+  - Unless processing necessary for public interest task
+
+-------------------------------------------------------------------------------
+NEXT STEPS
+-------------------------------------------------------------------------------
+
+Feature #15 complete. Features #16 and #17 (Consent Management) have been
+combined into a single implementation and are also complete.
+
+===============================================================================
