@@ -1,0 +1,397 @@
+===============================================================================
+     FEATURE #12: RIGHT TO ERASURE WITH LEGAL HOLD - COMPLETE (100%)
+===============================================================================
+
+Completed: December 19, 2025
+Priority: CRITICAL
+Feasibility: MODERATE
+Regulatory: GDPR Article 17, Article 19, FDA 21 CFR Part 11
+
+-------------------------------------------------------------------------------
+DELIVERABLES
+-------------------------------------------------------------------------------
+
+1. Erasure System with Legal Hold
+   R/erasure.R (~1500 lines)
+   - Erasure request management
+   - Legal hold creation and management
+   - Item-level erasure workflow (approve, execute)
+   - Third-party notification and confirmation
+   - GDPR Article 17(3) exception handling
+   - Statistics and reporting
+
+2. Comprehensive Test Suite
+   tests/testthat/test-erasure.R (~1200 lines)
+   - 48 test cases with 157 expectations
+   - All tests passing
+
+-------------------------------------------------------------------------------
+FUNCTIONS IMPLEMENTED
+-------------------------------------------------------------------------------
+
+Initialization:
+  - init_erasure()                    : Creates 5 database tables + indexes
+
+Reference Data:
+  - get_erasure_grounds()             : GDPR Article 17(1) erasure grounds
+  - get_erasure_statuses()            : Request status values
+  - get_legal_hold_types()            : REGULATORY, LITIGATION, AUDIT, etc.
+  - get_erasure_methods()             : DELETE, ANONYMIZE, PSEUDONYMIZE
+  - get_erasure_exceptions()          : GDPR Article 17(3) exceptions
+
+Legal Hold Management:
+  - create_legal_hold()               : Creates legal hold with hash-chain
+  - release_legal_hold()              : Releases hold when no longer needed
+  - check_legal_hold()                : Checks if subject/category is held
+  - get_active_legal_holds()          : Retrieves all active holds
+
+Erasure Request Management:
+  - create_erasure_request()          : Creates request with auto hold detection
+  - log_erasure_action()              : Logs action to audit history
+
+Erasure Items:
+  - add_erasure_item()                : Adds item with auto hold detection
+  - review_erasure_item()             : Approve or reject item
+  - execute_erasure_item()            : Execute approved erasure
+
+Third-Party Notifications (GDPR Article 19):
+  - add_erasure_third_party()         : Register data recipient
+  - notify_erasure_third_party()      : Record notification sent
+  - confirm_erasure_third_party()     : Record erasure confirmation
+
+Request Completion:
+  - complete_erasure_request()        : Complete with validation checks
+  - reject_erasure_request()          : Reject with Article 17(3) exception
+
+Retrieval:
+  - get_erasure_request()             : Retrieves by ID or number
+  - get_erasure_items()               : Gets items, optionally by status
+  - get_erasure_third_parties()       : Gets recipients for request
+  - get_erasure_history()             : Gets audit history
+  - get_pending_erasure_requests()    : Gets pending (optionally with held)
+
+Statistics and Reporting:
+  - get_erasure_statistics()          : Returns comprehensive metrics
+  - generate_erasure_report()         : Creates compliance report (TXT/JSON)
+
+-------------------------------------------------------------------------------
+DATABASE SCHEMA
+-------------------------------------------------------------------------------
+
+erasure_requests:
+  - request_id               : Primary key
+  - request_number           : Unique number (ERASE-TIMESTAMP-RANDOM)
+  - dsar_request_id          : Link to DSAR request (optional)
+  - subject_id               : Subject identifier if known
+  - subject_email            : Subject email (required)
+  - subject_name             : Subject name (required)
+  - erasure_grounds          : GDPR Article 17(1) grounds
+  - status                   : RECEIVED, LEGAL_HOLD, COMPLETED, etc.
+  - received_date            : Date request received
+  - due_date                 : Response deadline (30 days)
+  - completed_date           : Completion date
+  - requested_by             : User who created request
+  - reviewed_by              : Reviewer user ID
+  - reviewed_at              : Review timestamp
+  - review_notes             : Review notes
+  - rejection_reason         : Reason if rejected
+  - legal_hold_id            : Active hold if blocked
+  - request_hash             : SHA-256 hash for integrity
+  - previous_hash            : Hash-chain link
+  - created_at               : Creation timestamp
+
+erasure_items:
+  - item_id                  : Primary key
+  - request_id               : Foreign key to erasure_requests
+  - table_name               : Table containing data
+  - record_id                : Record identifier
+  - data_category            : Category of data
+  - erasure_method           : DELETE, ANONYMIZE, PSEUDONYMIZE
+  - status                   : PENDING, APPROVED, REJECTED, ON_HOLD, EXECUTED
+  - rejection_reason         : Reason if rejected
+  - hold_reason              : Reason if on hold
+  - executed_at              : Execution timestamp
+  - executed_by              : User who executed
+  - verification_hash        : SHA-256 hash of execution
+  - item_hash                : SHA-256 hash for integrity
+
+legal_holds:
+  - hold_id                  : Primary key
+  - hold_number              : Unique number (HOLD-TIMESTAMP-RANDOM)
+  - hold_type                : REGULATORY, LITIGATION, AUDIT, etc.
+  - hold_reason              : Reason for hold (min 20 chars)
+  - legal_basis              : Legal basis for hold
+  - affected_subjects        : Semicolon-separated subject IDs or "ALL"
+  - affected_data_categories : Semicolon-separated categories or "ALL"
+  - start_date               : Hold start date
+  - end_date                 : Hold end date (optional)
+  - is_active                : Active flag (1=active, 0=released)
+  - created_by               : User who created hold
+  - created_at               : Creation timestamp
+  - released_by              : User who released hold
+  - released_at              : Release timestamp
+  - release_reason           : Reason for release
+  - hold_hash                : SHA-256 hash for integrity
+  - previous_hash            : Hash-chain link
+
+erasure_history:
+  - history_id               : Primary key
+  - request_id               : Foreign key to erasure_requests
+  - item_id                  : Foreign key to erasure_items (optional)
+  - hold_id                  : Foreign key to legal_holds (optional)
+  - action                   : Action performed
+  - action_details           : Details
+  - performed_by             : User who performed action
+  - performed_at             : Timestamp
+  - history_hash             : SHA-256 hash for integrity
+  - previous_history_hash    : Hash-chain link
+
+erasure_third_parties:
+  - recipient_id             : Primary key
+  - request_id               : Foreign key to erasure_requests
+  - recipient_name           : Recipient organization name
+  - recipient_type           : PROCESSOR, CONTROLLER, THIRD_PARTY, REGULATOR
+  - contact_email            : Contact email
+  - contact_name             : Contact name
+  - data_shared              : Description of shared data
+  - notification_required    : Notification required flag
+  - notification_sent        : Notification sent flag
+  - notification_sent_date   : Date notification sent
+  - notification_sent_by     : User who sent notification
+  - erasure_confirmed        : Erasure confirmed flag
+  - erasure_confirmed_date   : Confirmation date
+  - notes                    : Notes
+
+-------------------------------------------------------------------------------
+GDPR ARTICLE 17(1) ERASURE GROUNDS
+-------------------------------------------------------------------------------
+
+  NO_LONGER_NECESSARY  : Data no longer necessary for original purpose
+  CONSENT_WITHDRAWN    : Consent withdrawn and no other legal basis
+  OBJECTION            : Data subject objects with no overriding grounds
+  UNLAWFUL_PROCESSING  : Data processed unlawfully
+  LEGAL_OBLIGATION     : Erasure required for legal compliance
+  CHILD_DATA           : Data collected from child for information services
+
+-------------------------------------------------------------------------------
+GDPR ARTICLE 17(3) ERASURE EXCEPTIONS
+-------------------------------------------------------------------------------
+
+  FREE_EXPRESSION      : Freedom of expression and information
+  LEGAL_OBLIGATION     : Compliance with legal obligation
+  PUBLIC_HEALTH        : Public health purposes
+  ARCHIVING            : Archiving in public interest, research, statistics
+  LEGAL_CLAIMS         : Establishment, exercise or defense of legal claims
+
+-------------------------------------------------------------------------------
+LEGAL HOLD TYPES
+-------------------------------------------------------------------------------
+
+  REGULATORY     : Regulatory retention requirement (FDA, SEC, etc.)
+  LITIGATION     : Litigation hold for legal proceedings
+  AUDIT          : Audit retention requirement
+  INVESTIGATION  : Investigation hold
+  OTHER          : Other legal requirement
+
+-------------------------------------------------------------------------------
+ERASURE METHODS
+-------------------------------------------------------------------------------
+
+  DELETE        : Complete deletion of data
+  ANONYMIZE     : Irreversible anonymization
+  PSEUDONYMIZE  : Pseudonymization with key deletion
+
+-------------------------------------------------------------------------------
+LEGAL HOLD BEHAVIOR
+-------------------------------------------------------------------------------
+
+1. When a legal hold is created:
+   - Specify affected subjects (list or "ALL") and/or data categories
+   - Hold becomes active immediately
+   - Hash-chained for tamper evidence
+
+2. When creating an erasure request:
+   - System checks for matching active holds
+   - If held, request status = "LEGAL_HOLD"
+   - Request is logged but blocked from processing
+
+3. When adding an erasure item:
+   - System checks if data category is under hold
+   - If held, item status = "ON_HOLD" with reason
+   - Item cannot be reviewed while held
+
+4. When releasing a legal hold:
+   - Requires release reason (min 20 chars)
+   - Hold marked inactive with timestamp
+   - Previously held items can now be processed
+
+-------------------------------------------------------------------------------
+COMPLIANCE STATUS
+-------------------------------------------------------------------------------
+
+GDPR Article 17 (Right to Erasure):
+  - Data subjects can request erasure of personal data
+  - Controller must erase without undue delay
+  - Must inform recipients of erasure (Article 19)
+  - Exceptions apply per Article 17(3)
+
+FDA 21 CFR Part 11:
+  - Clinical trial data must be retained for specified periods
+  - Legal holds prevent erasure of required records
+  - Audit trail maintained for all erasure actions
+
+Integration:
+  - Legal holds balance GDPR erasure with regulatory retention
+  - System documents conflicts for compliance review
+  - All actions hash-chained for tamper evidence
+
+-------------------------------------------------------------------------------
+TEST RESULTS
+-------------------------------------------------------------------------------
+
+Test File: tests/testthat/test-erasure.R
+Status: ALL TESTS PASSING
+Total Tests: 48 test cases, 157 expectations
+
+Test Categories:
+  - Initialization tests (6 expectations)
+  - Reference data tests (27 expectations)
+  - Legal hold creation tests (10 expectations)
+  - Legal hold release tests (6 expectations)
+  - Legal hold checking tests (8 expectations)
+  - Erasure request creation tests (16 expectations)
+  - Erasure item tests (12 expectations)
+  - Item review tests (10 expectations)
+  - Execute erasure tests (10 expectations)
+  - Third party tests (12 expectations)
+  - Request completion tests (8 expectations)
+  - Request rejection tests (6 expectations)
+  - Retrieval tests (12 expectations)
+  - Statistics tests (6 expectations)
+  - Report generation tests (8 expectations)
+  - Integration tests (full workflow + legal hold blocking)
+
+-------------------------------------------------------------------------------
+USAGE EXAMPLES
+-------------------------------------------------------------------------------
+
+# Initialize erasure system
+init_erasure()
+
+# Create a legal hold (e.g., for FDA compliance)
+hold <- create_legal_hold(
+  hold_type = "REGULATORY",
+  hold_reason = "FDA 21 CFR Part 11 retention requirement for clinical trial data",
+  legal_basis = "21 CFR Part 11.10(c) - 2 year retention after study close",
+  created_by = "compliance_officer",
+  affected_data_categories = c("HEALTH", "CLINICAL")
+)
+
+# Check if a subject is under hold
+check <- check_legal_hold(
+  subject_id = "SUBJ-001",
+  data_category = "HEALTH"
+)
+print(check$is_held)  # TRUE if held
+
+# Create erasure request
+request <- create_erasure_request(
+  subject_email = "john.patient@example.com",
+  subject_name = "John Patient",
+  erasure_grounds = "CONSENT_WITHDRAWN",
+  requested_by = "dpo",
+  subject_id = "SUBJ-001"
+)
+
+# Request blocked if subject is under hold
+print(request$status)    # "LEGAL_HOLD" if held, else "RECEIVED"
+print(request$is_held)   # TRUE if blocked by hold
+
+# Add erasure item
+item <- add_erasure_item(
+  request_id = request$request_id,
+  table_name = "subjects",
+  record_id = "SUBJ-001",
+  data_category = "CONTACT",
+  erasure_method = "DELETE",
+  added_by = "dpo"
+)
+
+# Review item (blocked if on hold)
+review_erasure_item(
+  item_id = item$item_id,
+  decision = "APPROVED",
+  reviewed_by = "admin"
+)
+
+# Execute approved erasure
+execute_erasure_item(
+  item_id = item$item_id,
+  executed_by = "data_manager"
+)
+
+# Register and notify third party
+recipient <- add_erasure_third_party(
+  request_id = request$request_id,
+  recipient_name = "Analytics Partner",
+  recipient_type = "PROCESSOR",
+  data_shared = "User contact data",
+  added_by = "dpo"
+)
+
+notify_erasure_third_party(
+  recipient_id = recipient$recipient_id,
+  sent_by = "dpo"
+)
+
+confirm_erasure_third_party(
+  recipient_id = recipient$recipient_id,
+  confirmed_by = "dpo"
+)
+
+# Complete request
+complete_erasure_request(
+  request_id = request$request_id,
+  completed_by = "dpo"
+)
+
+# Or reject with Article 17(3) exception
+reject_erasure_request(
+  request_id = other_request_id,
+  rejection_reason = "Data required for ongoing legal proceedings",
+  rejected_by = "legal_counsel",
+  exception_ground = "LEGAL_CLAIMS"
+)
+
+# Release legal hold when retention period ends
+release_legal_hold(
+  hold_id = hold$hold_id,
+  release_reason = "Study closed and 2-year retention period completed",
+  released_by = "compliance_officer"
+)
+
+# Get statistics
+stats <- get_erasure_statistics()
+print(paste("Total requests:", stats$requests$total))
+print(paste("Completed:", stats$requests$completed))
+print(paste("On hold:", stats$requests$on_hold))
+print(paste("Active legal holds:", stats$legal_holds$active))
+
+# Generate compliance report
+generate_erasure_report(
+  output_file = "erasure_report.txt",
+  format = "txt",
+  organization = "Healthcare Organization",
+  prepared_by = "Data Protection Officer"
+)
+
+-------------------------------------------------------------------------------
+NEXT STEPS
+-------------------------------------------------------------------------------
+
+Feature #12 complete. Ready to proceed with:
+- Feature #13: Right to Restrict Processing
+- Feature #14: Right to Data Portability
+- Feature #15: Right to Object
+
+===============================================================================

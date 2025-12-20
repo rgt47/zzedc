@@ -1,0 +1,416 @@
+===============================================================================
+      FEATURE #13: RIGHT TO RESTRICT PROCESSING - COMPLETE (100%)
+===============================================================================
+
+Completed: December 19, 2025
+Priority: CRITICAL
+Feasibility: MODERATE
+Regulatory: GDPR Article 18, Article 19 (Third-Party Notification)
+
+-------------------------------------------------------------------------------
+DELIVERABLES
+-------------------------------------------------------------------------------
+
+1. Restriction System
+   R/restriction.R (~1400 lines)
+   - Request creation and tracking
+   - Item-level restriction workflow (add, review, apply, lift)
+   - Processing control (check restriction, log attempts)
+   - Third-party notification and confirmation
+   - Lift notification tracking
+   - Statistics and reporting
+
+2. Comprehensive Test Suite
+   tests/testthat/test-restriction.R (~1100 lines)
+   - 52 test cases with 156 expectations
+   - All tests passing
+
+-------------------------------------------------------------------------------
+FUNCTIONS IMPLEMENTED
+-------------------------------------------------------------------------------
+
+Initialization:
+  - init_restriction()                : Creates 5 database tables + indexes
+
+Reference Data:
+  - get_restriction_grounds()         : GDPR Article 18(1) grounds
+  - get_restriction_statuses()        : Request status values
+  - get_restriction_scopes()          : Restriction scope values
+  - get_allowed_processing_during_restriction() : Article 18(2) allowed types
+
+Request Management:
+  - create_restriction_request()      : Creates request with auto hold detection
+  - log_restriction_action()          : Logs action to audit history
+
+Item Management:
+  - add_restriction_item()            : Adds item with auto hold detection
+  - review_restriction_item()         : Approve or reject item
+  - apply_restriction_item()          : Apply approved restriction
+  - lift_restriction_item()           : Lift individual item restriction
+
+Processing Control:
+  - check_restriction_status()        : Checks if record is restricted
+  - log_processing_attempt()          : Logs blocked/allowed processing attempts
+
+Third-Party Notifications (GDPR Article 19):
+  - add_restriction_third_party()     : Register data recipient
+  - notify_restriction_third_party()  : Record notification sent
+  - confirm_restriction_third_party() : Record restriction confirmation
+  - notify_lift_third_party()         : Record lift notification sent
+
+Request Lifecycle:
+  - approve_restriction_request()     : Approve request
+  - activate_restriction_request()    : Activate with active items
+  - lift_restriction_request()        : Lift all restrictions
+  - reject_restriction_request()      : Reject with documented reason
+
+Retrieval:
+  - get_restriction_request()         : Retrieves by ID or number
+  - get_restriction_items()           : Gets items, optionally by status
+  - get_restriction_third_parties()   : Gets recipients for request
+  - get_restriction_history()         : Gets audit history
+  - get_processing_attempts()         : Gets processing attempt logs
+  - get_pending_restriction_requests(): Gets pending requests
+  - get_active_restrictions()         : Gets all active restrictions
+
+Statistics and Reporting:
+  - get_restriction_statistics()      : Returns comprehensive metrics
+  - generate_restriction_report()     : Creates compliance report (TXT/JSON)
+
+-------------------------------------------------------------------------------
+DATABASE SCHEMA
+-------------------------------------------------------------------------------
+
+restriction_requests:
+  - request_id               : Primary key
+  - request_number           : Unique number (RESTR-TIMESTAMP-RANDOM)
+  - dsar_request_id          : Link to DSAR request (optional)
+  - subject_id               : Subject identifier if known
+  - subject_email            : Subject email (required)
+  - subject_name             : Subject name (required)
+  - restriction_grounds      : GDPR Article 18(1) grounds
+  - status                   : RECEIVED, LEGAL_HOLD, ACTIVE, LIFTED, etc.
+  - received_date            : Date request received
+  - due_date                 : Response deadline (30 days)
+  - completed_date           : Completion date
+  - requested_by             : User who created request
+  - reviewed_by              : Reviewer user ID
+  - reviewed_at              : Review timestamp
+  - review_notes             : Review notes
+  - rejection_reason         : Reason if rejected
+  - lifted_date              : Date restriction lifted
+  - lifted_by                : User who lifted restriction
+  - lift_reason              : Reason for lifting
+  - legal_hold_id            : Active hold if blocked
+  - request_hash             : SHA-256 hash for integrity
+  - previous_hash            : Hash-chain link
+  - created_at               : Creation timestamp
+
+restriction_items:
+  - item_id                  : Primary key
+  - request_id               : Foreign key to restriction_requests
+  - table_name               : Table containing data
+  - record_id                : Record identifier
+  - data_category            : Category of data
+  - field_name               : Specific field (optional)
+  - restriction_scope        : FULL, STORAGE_ONLY, CONSENT_ONLY, etc.
+  - status                   : PENDING, APPROVED, ACTIVE, LIFTED, etc.
+  - rejection_reason         : Reason if rejected
+  - applied_at               : Application timestamp
+  - applied_by               : User who applied
+  - lifted_at                : Lift timestamp
+  - lifted_by                : User who lifted
+  - lift_reason              : Reason for lifting
+  - item_hash                : SHA-256 hash for integrity
+  - created_at               : Creation timestamp
+
+restriction_history:
+  - history_id               : Primary key
+  - request_id               : Foreign key to restriction_requests
+  - item_id                  : Foreign key to restriction_items (optional)
+  - action                   : Action performed
+  - action_details           : Details
+  - performed_by             : User who performed action
+  - performed_at             : Timestamp
+  - history_hash             : SHA-256 hash for integrity
+  - previous_history_hash    : Hash-chain link
+
+restriction_third_parties:
+  - recipient_id             : Primary key
+  - request_id               : Foreign key to restriction_requests
+  - recipient_name           : Recipient organization name
+  - recipient_type           : PROCESSOR, CONTROLLER, THIRD_PARTY, REGULATOR
+  - contact_email            : Contact email
+  - contact_name             : Contact name
+  - data_shared              : Description of shared data
+  - notification_required    : Notification required flag
+  - notification_sent        : Notification sent flag
+  - notification_sent_date   : Date notification sent
+  - notification_sent_by     : User who sent notification
+  - restriction_confirmed    : Restriction confirmed flag
+  - restriction_confirmed_date : Confirmation date
+  - lift_notification_sent   : Lift notification sent flag
+  - lift_notification_sent_date : Lift notification date
+  - notes                    : Notes
+  - created_at               : Creation timestamp
+
+processing_attempts:
+  - attempt_id               : Primary key
+  - request_id               : Foreign key to restriction_requests (nullable)
+  - item_id                  : Foreign key to restriction_items (nullable)
+  - subject_id               : Subject identifier
+  - table_name               : Table attempted to access
+  - record_id                : Record attempted to access
+  - operation_type           : UPDATE, DELETE, EXPORT, etc.
+  - operation_details        : Details of operation
+  - attempted_by             : User who attempted
+  - attempted_at             : Timestamp
+  - was_blocked              : 1 if blocked, 0 if allowed
+  - override_reason          : Reason if allowed
+  - override_authorized_by   : User who authorized override
+  - attempt_hash             : SHA-256 hash for integrity
+
+-------------------------------------------------------------------------------
+GDPR ARTICLE 18(1) RESTRICTION GROUNDS
+-------------------------------------------------------------------------------
+
+  ACCURACY_CONTESTED   : Accuracy of data contested by subject
+  UNLAWFUL_PROCESSING  : Processing is unlawful but subject opposes erasure
+  LEGAL_CLAIMS         : Controller no longer needs data but subject needs
+                         for legal claims
+  OBJECTION_PENDING    : Subject objected under Article 21, pending verification
+
+-------------------------------------------------------------------------------
+RESTRICTION SCOPES
+-------------------------------------------------------------------------------
+
+  FULL               : Full restriction on all processing
+  STORAGE_ONLY       : Storage only - no other processing
+  CONSENT_ONLY       : Processing only with explicit consent
+  LEGAL_CLAIMS       : Processing only for legal claims
+  RIGHTS_PROTECTION  : Processing only to protect rights of others
+  PUBLIC_INTEREST    : Processing only for important public interest
+
+-------------------------------------------------------------------------------
+ALLOWED PROCESSING DURING RESTRICTION (Article 18(2))
+-------------------------------------------------------------------------------
+
+  STORAGE            : Storage of data (always allowed)
+  CONSENT_PROCESSING : Processing with data subject consent
+  LEGAL_CLAIMS       : Processing for legal claims
+  RIGHTS_PROTECTION  : Processing to protect rights of others
+  PUBLIC_INTEREST    : Processing for important public interest
+  BACKUP             : Backup and disaster recovery
+
+-------------------------------------------------------------------------------
+COMPLIANCE STATUS
+-------------------------------------------------------------------------------
+
+GDPR Article 18 (Right to Restriction of Processing):
+  - Data subject can request restriction when accuracy contested
+  - Restriction when processing unlawful but erasure opposed
+  - Restriction when controller no longer needs data for legal claims
+  - Restriction pending verification of objection grounds
+
+GDPR Article 18(2) (Allowed Processing During Restriction):
+  - Storage is always allowed
+  - Processing with data subject consent
+  - Processing for legal claims
+  - Processing to protect rights of others
+  - Processing for important public interest
+
+GDPR Article 18(3) (Lifting Notification):
+  - Controller must inform data subject before lifting restriction
+  - Data subject should have opportunity to respond
+
+GDPR Article 19 (Notification Obligation):
+  - Controller must notify each recipient of restriction
+  - Exception: impossible or disproportionate effort
+  - Must inform data subject of recipients on request
+
+Integration:
+  - Legal holds prevent restriction from being fully applied
+  - System documents conflicts for compliance review
+  - All actions hash-chained for tamper evidence
+  - Processing attempts logged for audit purposes
+
+-------------------------------------------------------------------------------
+TEST RESULTS
+-------------------------------------------------------------------------------
+
+Test File: tests/testthat/test-restriction.R
+Status: ALL TESTS PASSING
+Total Tests: 52 test cases, 156 expectations
+
+Test Categories:
+  - Initialization tests (6 expectations)
+  - Reference data tests (16 expectations)
+  - Request creation tests (14 expectations)
+  - Item management tests (12 expectations)
+  - Item review tests (12 expectations)
+  - Apply restriction tests (6 expectations)
+  - Lift item tests (6 expectations)
+  - Processing control tests (14 expectations)
+  - Third-party notification tests (16 expectations)
+  - Request approval tests (6 expectations)
+  - Activation tests (6 expectations)
+  - Lift request tests (8 expectations)
+  - Reject request tests (6 expectations)
+  - Retrieval tests (16 expectations)
+  - Statistics tests (6 expectations)
+  - Report generation tests (6 expectations)
+  - Integration tests (full workflow + legal hold blocking)
+
+-------------------------------------------------------------------------------
+USAGE EXAMPLES
+-------------------------------------------------------------------------------
+
+# Initialize restriction system
+init_restriction()
+
+# Create restriction request (accuracy contested)
+request <- create_restriction_request(
+  subject_email = "john.patient@example.com",
+  subject_name = "John Patient",
+  restriction_grounds = "ACCURACY_CONTESTED",
+  requested_by = "dpo",
+  subject_id = "SUBJ-001"
+)
+
+# Due date is automatically set to 30 days from now
+print(request$due_date)
+
+# Add item to restrict
+item <- add_restriction_item(
+  request_id = request$request_id,
+  table_name = "subjects",
+  record_id = "SUBJ-001",
+  data_category = "CONTACT",
+  added_by = "dpo",
+  restriction_scope = "STORAGE_ONLY"
+)
+
+# Review and approve item
+review_restriction_item(
+  item_id = item$item_id,
+  decision = "APPROVED",
+  reviewed_by = "admin"
+)
+
+# Apply the restriction
+apply_restriction_item(
+  item_id = item$item_id,
+  applied_by = "data_manager"
+)
+
+# Check if record is restricted before processing
+status <- check_restriction_status(
+  table_name = "subjects",
+  record_id = "SUBJ-001"
+)
+
+if (status$is_restricted) {
+  # Log blocked processing attempt
+  log_processing_attempt(
+    table_name = "subjects",
+    record_id = "SUBJ-001",
+    operation_type = "UPDATE",
+    attempted_by = "user123",
+    was_blocked = TRUE
+  )
+
+  # Or allow with override for permitted processing
+  log_processing_attempt(
+    table_name = "subjects",
+    record_id = "SUBJ-001",
+    operation_type = "BACKUP",
+    attempted_by = "system",
+    was_blocked = FALSE,
+    override_reason = "Backup is allowed processing per Article 18(2)",
+    override_authorized_by = "dpo"
+  )
+}
+
+# Register third party who has the data
+recipient <- add_restriction_third_party(
+  request_id = request$request_id,
+  recipient_name = "Analytics Partner",
+  recipient_type = "PROCESSOR",
+  data_shared = "User contact data",
+  added_by = "dpo"
+)
+
+# Notify third party (GDPR Article 19)
+notify_restriction_third_party(
+  recipient_id = recipient$recipient_id,
+  sent_by = "dpo"
+)
+
+# Record confirmation of restriction
+confirm_restriction_third_party(
+  recipient_id = recipient$recipient_id,
+  confirmed_by = "dpo"
+)
+
+# Approve and activate request
+approve_restriction_request(
+  request_id = request$request_id,
+  approved_by = "admin"
+)
+
+activate_restriction_request(
+  request_id = request$request_id,
+  activated_by = "dpo"
+)
+
+# Later, when lifting restriction (must inform subject first per Article 18(3))
+lift_restriction_request(
+  request_id = request$request_id,
+  lifted_by = "dpo",
+  lift_reason = "Accuracy verification complete - original data confirmed correct"
+)
+
+# Notify third parties of lift
+notify_lift_third_party(
+  recipient_id = recipient$recipient_id,
+  sent_by = "dpo"
+)
+
+# Or reject if grounds not met
+reject_restriction_request(
+  request_id = other_request_id,
+  rejection_reason = "Request does not meet GDPR Article 18(1) criteria - no valid grounds",
+  rejected_by = "legal"
+)
+
+# Get active restrictions
+active <- get_active_restrictions()
+
+# Get processing attempts audit
+attempts <- get_processing_attempts(subject_id = "SUBJ-001")
+
+# Get statistics
+stats <- get_restriction_statistics()
+print(paste("Total requests:", stats$requests$total))
+print(paste("Active:", stats$requests$active))
+print(paste("Lifted:", stats$requests$lifted))
+print(paste("Processing attempts blocked:", stats$processing_attempts$blocked))
+
+# Generate compliance report
+generate_restriction_report(
+  output_file = "restriction_report.txt",
+  format = "txt",
+  organization = "Healthcare Organization",
+  prepared_by = "Data Protection Officer"
+)
+
+-------------------------------------------------------------------------------
+NEXT STEPS
+-------------------------------------------------------------------------------
+
+Feature #13 complete. Ready to proceed with:
+- Feature #14: Right to Data Portability
+- Feature #15: Right to Object
+- Feature #16: Consent Withdrawal
+
+===============================================================================
