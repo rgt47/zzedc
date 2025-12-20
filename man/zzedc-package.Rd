@@ -2,7 +2,6 @@
 % Please edit documentation in R/zzedc-package.R
 \docType{package}
 \name{zzedc-package}
-\alias{zzedc}
 \alias{zzedc-package}
 \title{ZZedc: Electronic Data Capture System for Clinical Trials}
 \description{

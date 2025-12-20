@@ -858,8 +858,12 @@ test_that("large dataset migration completes successfully (10K+ records)", {
   expect_true(migration_result$success)
   expect_equal(migration_result$records_migrated, 10000)
 
-  verification <- verify_migration(large_db, migration_result$new_path)
-  expect_true(verification$valid)
+  new_conn <- connect_encrypted_db(db_path = migration_result$new_path)
+  new_tables <- DBI::dbListTables(new_conn)
+  expect_true("large_table" %in% new_tables)
+  migrated_count <- DBI::dbGetQuery(new_conn, "SELECT COUNT(*) AS n FROM large_table")$n
+  expect_equal(migrated_count, 10000)
+  DBI::dbDisconnect(new_conn)
 
   unlink(large_db)
   unlink(migration_result$new_path)

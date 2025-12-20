@@ -1248,7 +1248,7 @@ apply_legal_hold <- function(record_id, hold_reason, held_by,
 
 #' Release Legal Hold
 #'
-#' Releases a legal hold from a record.
+#' Releases a retention legal hold from a record.
 #'
 #' @param record_id Record ID
 #' @param released_by User releasing hold
@@ -1256,7 +1256,7 @@ apply_legal_hold <- function(record_id, hold_reason, held_by,
 #'
 #' @return List with success status
 #' @export
-release_legal_hold <- function(record_id, released_by, release_reason = NULL) {
+release_retention_hold <- function(record_id, released_by, release_reason = NULL) {
   tryCatch({
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)

@@ -704,7 +704,7 @@ test_that("apply_legal_hold requires reason", {
   expect_true(grepl("hold_reason", result$error))
 })
 
-test_that("release_legal_hold releases hold", {
+test_that("release_retention_hold releases hold", {
   test_db <- setup_test_db()
   on.exit(cleanup_test_db(test_db))
 
@@ -731,7 +731,7 @@ test_that("release_legal_hold releases hold", {
     held_by = "legal"
   )
 
-  result <- release_legal_hold(
+  result <- release_retention_hold(
     record_id = record$record_id,
     released_by = "legal",
     release_reason = "Investigation concluded"
@@ -999,7 +999,7 @@ test_that("legal hold blocks all destructive actions", {
   )
   expect_false(anon_attempt$success)
 
-  release <- release_legal_hold(
+  release <- release_retention_hold(
     record_id = record$record_id,
     released_by = "legal",
     release_reason = "Investigation concluded"
