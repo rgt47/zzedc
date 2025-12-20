@@ -1,0 +1,380 @@
+===============================================================================
+        FEATURE #10: DATA SUBJECT ACCESS REQUEST (DSAR) - COMPLETE (100%)
+===============================================================================
+
+Completed: December 19, 2025
+Priority: CRITICAL
+Feasibility: MODERATE
+Regulatory: GDPR Articles 15-22, Data Protection Act 2018
+
+-------------------------------------------------------------------------------
+DELIVERABLES
+-------------------------------------------------------------------------------
+
+1. DSAR Management System
+   R/dsar.R (~1000 lines)
+   - Request creation and tracking
+   - Identity verification workflow
+   - Data collection and documentation
+   - Response management
+   - Deadline extension support
+   - Statistics and reporting
+
+2. Comprehensive Test Suite
+   tests/testthat/test-dsar.R (~900 lines)
+   - 40 test cases with 111 expectations
+   - All tests passing
+
+-------------------------------------------------------------------------------
+FUNCTIONS IMPLEMENTED
+-------------------------------------------------------------------------------
+
+Initialization:
+  - init_dsar()                     : Creates 6 database tables + indexes
+
+Reference Data:
+  - get_dsar_request_types()        : Returns GDPR rights (Art. 15-22)
+  - get_dsar_statuses()             : Returns status values
+  - get_data_categories()           : Returns personal data categories
+
+Request Management:
+  - create_dsar_request()           : Creates new request with hash-chain
+  - generate_request_number()       : Generates unique request number
+  - log_dsar_action()               : Logs action to audit trail
+
+Identity Verification:
+  - verify_subject_identity()       : Records identity verification
+
+Data Collection:
+  - add_dsar_data_source()          : Registers data source
+  - record_data_collection()        : Records data collected
+  - complete_data_collection()      : Marks collection complete
+
+Response Management:
+  - create_dsar_response()          : Creates response record
+  - complete_dsar_request()         : Marks request completed
+  - extend_dsar_deadline()          : Extends deadline (max 60 days)
+  - reject_dsar_request()           : Rejects with documented reason
+
+Retrieval:
+  - get_dsar_request()              : Retrieves request by ID or number
+  - get_pending_dsar_requests()     : Gets pending/overdue requests
+  - get_dsar_audit_log()            : Gets audit trail
+  - get_dsar_collected_data()       : Gets collected data records
+
+Statistics and Reporting:
+  - get_dsar_statistics()           : Returns comprehensive metrics
+  - generate_dsar_report()          : Creates compliance report (TXT/JSON)
+
+-------------------------------------------------------------------------------
+DATABASE SCHEMA
+-------------------------------------------------------------------------------
+
+dsar_requests:
+  - request_id               : Primary key
+  - request_number           : Unique number (DSAR-TYPE-TIMESTAMP-RANDOM)
+  - request_type             : ACCESS, RECTIFICATION, ERASURE, etc.
+  - subject_id               : Subject identifier if known
+  - subject_email            : Subject email (required)
+  - subject_name             : Subject full name (required)
+  - subject_phone            : Subject phone
+  - subject_address          : Subject address
+  - identity_verified        : Identity verification flag
+  - identity_verification_method : Method used
+  - identity_verified_by     : Verifier user ID
+  - identity_verified_at     : Verification timestamp
+  - request_details          : Additional details
+  - data_categories          : Requested categories (semicolon-separated)
+  - status                   : RECEIVED, IN_PROGRESS, COMPLETED, etc.
+  - received_date            : Date request received
+  - due_date                 : Response deadline (30 days)
+  - extended_due_date        : Extended deadline if applicable
+  - extension_reason         : Reason for extension
+  - completed_date           : Completion date
+  - response_method          : EMAIL, POSTAL, SECURE_PORTAL, IN_PERSON
+  - response_sent_date       : Date response sent
+  - rejection_reason         : Reason if rejected
+  - assigned_to              : Assigned user
+  - priority                 : LOW, NORMAL, HIGH, URGENT
+  - notes                    : Notes
+  - created_by               : Creator user ID
+  - created_at               : Creation timestamp
+  - updated_by               : Last updater
+  - updated_at               : Update timestamp
+  - request_hash             : SHA-256 hash for integrity
+  - previous_hash            : Hash-chain link
+  - metadata                 : Additional metadata (JSON)
+
+dsar_identity_documents:
+  - document_id              : Primary key
+  - request_id               : Foreign key to dsar_requests
+  - document_type            : PASSPORT, DRIVERS_LICENSE, NATIONAL_ID, OTHER
+  - document_reference       : Document reference number
+  - verified                 : Verification flag
+  - verification_notes       : Notes
+  - uploaded_at              : Upload timestamp
+  - verified_by              : Verifier user ID
+  - verified_at              : Verification timestamp
+
+dsar_data_sources:
+  - source_id                : Primary key
+  - request_id               : Foreign key to dsar_requests
+  - source_name              : Source name
+  - source_type              : DATABASE, FILE_SYSTEM, THIRD_PARTY, etc.
+  - table_name               : Database table if applicable
+  - records_found            : Number of records found
+  - data_collected           : Collection flag
+  - collection_date          : Collection timestamp
+  - collected_by             : Collector user ID
+  - notes                    : Notes
+
+dsar_collected_data:
+  - collection_id            : Primary key
+  - request_id               : Foreign key to dsar_requests
+  - source_id                : Foreign key to dsar_data_sources
+  - data_category            : Category of data
+  - data_description         : Description
+  - record_count             : Number of records
+  - data_format              : Format (CSV, JSON, etc.)
+  - file_path                : Path to exported file
+  - file_hash                : SHA-256 hash of file
+  - collected_at             : Collection timestamp
+  - collected_by             : Collector user ID
+  - reviewed                 : Review flag
+  - reviewed_by              : Reviewer user ID
+  - reviewed_at              : Review timestamp
+  - redacted                 : Redaction flag
+  - redaction_reason         : Reason for redaction
+
+dsar_responses:
+  - response_id              : Primary key
+  - request_id               : Foreign key to dsar_requests
+  - response_type            : FULL_DISCLOSURE, PARTIAL_DISCLOSURE, etc.
+  - response_date            : Response date
+  - response_content         : Response content
+  - attachments              : Attachment descriptions
+  - delivery_method          : EMAIL, POSTAL, SECURE_PORTAL, IN_PERSON
+  - delivery_confirmed       : Delivery confirmation flag
+  - delivery_confirmed_date  : Confirmation date
+  - prepared_by              : Preparer user ID
+  - approved_by              : Approver user ID
+  - approved_at              : Approval timestamp
+  - response_hash            : SHA-256 hash for integrity
+
+dsar_audit_log:
+  - log_id                   : Primary key
+  - request_id               : Foreign key to dsar_requests
+  - action                   : Action performed
+  - action_details           : Details
+  - performed_by             : User who performed action
+  - performed_at             : Timestamp
+  - ip_address               : IP address
+  - log_hash                 : SHA-256 hash for integrity
+  - previous_log_hash        : Hash-chain link
+
+-------------------------------------------------------------------------------
+GDPR REQUEST TYPES (Articles 15-22)
+-------------------------------------------------------------------------------
+
+  ACCESS        : Article 15 - Right of access to personal data
+  RECTIFICATION : Article 16 - Right to correct inaccurate data
+  ERASURE       : Article 17 - Right to erasure ("right to be forgotten")
+  RESTRICTION   : Article 18 - Right to restrict processing
+  PORTABILITY   : Article 20 - Right to data portability
+  OBJECTION     : Article 21 - Right to object to processing
+
+-------------------------------------------------------------------------------
+IDENTITY VERIFICATION METHODS
+-------------------------------------------------------------------------------
+
+  DOCUMENT_CHECK     : Document verification (passport, ID, etc.)
+  KNOWLEDGE_BASED    : Security questions or account verification
+  EMAIL_CONFIRMATION : Email verification link/code
+  PHONE_CONFIRMATION : Phone verification call/SMS
+  IN_PERSON          : In-person identity verification
+  TWO_FACTOR         : Two-factor authentication
+
+-------------------------------------------------------------------------------
+DEADLINE REQUIREMENTS
+-------------------------------------------------------------------------------
+
+Per GDPR Article 12(3):
+
+Initial Response Deadline:
+  - 30 days from receipt of request
+
+Extension (if complex):
+  - Maximum 60 additional days
+  - Must notify data subject within initial 30 days
+  - Must provide reason for extension
+
+The system:
+  - Automatically calculates 30-day due date on creation
+  - Allows extension up to 60 days with documented reason
+  - Prevents double extensions
+  - Tracks overdue requests
+
+-------------------------------------------------------------------------------
+COMPLIANCE STATUS
+-------------------------------------------------------------------------------
+
+GDPR Article 15 (Right of Access):
+  - Subject can request copy of personal data
+  - Must provide information about processing purposes
+  - Must identify recipients of data
+  - Must provide retention periods
+
+GDPR Article 12 (Transparent Communication):
+  - 30-day response deadline
+  - Free of charge (reasonable fee for excessive requests)
+  - Information in clear, plain language
+  - Electronic format if requested electronically
+
+GDPR Article 5 (Data Protection Principles):
+  - Lawfulness, fairness, transparency
+  - Purpose limitation
+  - Data minimization
+  - Accuracy
+  - Storage limitation
+  - Integrity and confidentiality
+
+-------------------------------------------------------------------------------
+TEST RESULTS
+-------------------------------------------------------------------------------
+
+Test File: tests/testthat/test-dsar.R
+Status: ALL TESTS PASSING
+Total Tests: 40 test cases, 111 expectations
+
+Test Categories:
+  - Initialization tests (6 expectations)
+  - Reference data tests (14 expectations)
+  - Request creation tests (14 expectations)
+  - Identity verification tests (6 expectations)
+  - Data collection tests (10 expectations)
+  - Response tests (12 expectations)
+  - Extension tests (12 expectations)
+  - Rejection tests (6 expectations)
+  - Retrieval tests (15 expectations)
+  - Statistics tests (6 expectations)
+  - Report generation tests (6 expectations)
+  - Integration tests (4 expectations)
+
+-------------------------------------------------------------------------------
+USAGE EXAMPLES
+-------------------------------------------------------------------------------
+
+# Initialize DSAR system
+init_dsar()
+
+# Create access request
+request <- create_dsar_request(
+  request_type = "ACCESS",
+  subject_email = "john.patient@example.com",
+  subject_name = "John Patient",
+  created_by = "dpo",
+  subject_phone = "+1-555-1234",
+  request_details = "I request a copy of all personal data you hold about me",
+  data_categories = c("HEALTH", "CONTACT", "CONSENT"),
+  priority = "NORMAL"
+)
+
+# Due date is automatically set to 30 days from now
+print(request$due_date)
+
+# Verify subject identity
+verify_subject_identity(
+  request_id = request$request_id,
+  verification_method = "DOCUMENT_CHECK",
+  verified_by = "dpo",
+  document_type = "PASSPORT",
+  document_reference = "AB123456"
+)
+
+# Register data sources
+source <- add_dsar_data_source(
+  request_id = request$request_id,
+  source_name = "Clinical Database",
+  source_type = "DATABASE",
+  table_name = "subjects"
+)
+
+# Record data collection
+record_data_collection(
+  request_id = request$request_id,
+  data_category = "HEALTH",
+  record_count = 50,
+  collected_by = "data_manager",
+  source_id = source$source_id,
+  data_description = "Clinical visit records",
+  data_format = "CSV"
+)
+
+# Mark collection complete
+complete_data_collection(
+  request_id = request$request_id,
+  completed_by = "data_manager"
+)
+
+# Extend deadline if needed (max 60 days)
+extend_dsar_deadline(
+  request_id = request$request_id,
+  extension_days = 30,
+  extension_reason = "Complex request requiring data from multiple systems",
+  extended_by = "dpo"
+)
+
+# Create response
+create_dsar_response(
+  request_id = request$request_id,
+  response_type = "FULL_DISCLOSURE",
+  response_content = "Please find attached all personal data we hold about you.",
+  prepared_by = "dpo",
+  delivery_method = "SECURE_PORTAL",
+  attachments = "data_export.zip"
+)
+
+# Complete the request
+complete_dsar_request(
+  request_id = request$request_id,
+  completed_by = "dpo",
+  response_method = "SECURE_PORTAL"
+)
+
+# Or reject if necessary
+reject_dsar_request(
+  request_id = other_request_id,
+  rejection_reason = "Request rejected due to legal hold for ongoing litigation",
+  rejected_by = "dpo"
+)
+
+# Get pending requests
+pending <- get_pending_dsar_requests()
+
+# Get overdue requests
+overdue <- get_pending_dsar_requests(include_overdue = TRUE)
+
+# Get statistics
+stats <- get_dsar_statistics()
+print(paste("Total requests:", stats$overall$total_requests))
+print(paste("Completed:", stats$overall$completed))
+print(paste("Overdue:", stats$overdue_count))
+
+# Generate compliance report
+generate_dsar_report(
+  output_file = "dsar_report.txt",
+  format = "txt",
+  organization = "Healthcare Organization",
+  prepared_by = "Data Protection Officer"
+)
+
+-------------------------------------------------------------------------------
+NEXT STEPS
+-------------------------------------------------------------------------------
+
+Feature #10 complete. Ready to proceed with:
+- Feature #11: Right to Rectification
+- Feature #12: Right to Erasure (with legal hold)
+- Feature #13: Right to Restrict Processing
+
+===============================================================================
