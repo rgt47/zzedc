@@ -1,0 +1,2278 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="ZZedc Development Team" />
+
+<meta name="date" content="2025-12-20" />
+
+<title>Regulatory Compliance Framework in ZZedc</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Regulatory Compliance Framework in
+ZZedc</h1>
+<h3 class="subtitle">A Comprehensive Analysis of GDPR, GCP, and FDA 21
+CFR Part 11 Implementation</h3>
+<h4 class="author">ZZedc Development Team</h4>
+<h4 class="date">2025-12-20</h4>
+
+
+<div id="TOC">
+<ul>
+<li><a href="#executive-summary" id="toc-executive-summary">Executive
+Summary</a></li>
+<li><a href="#part-i-gdpr-compliance-features" id="toc-part-i-gdpr-compliance-features">Part I: GDPR Compliance
+Features</a>
+<ul>
+<li><a href="#data-encryption-at-rest-article-32" id="toc-data-encryption-at-rest-article-32">1. Data Encryption at Rest
+(Article 32)</a>
+<ul>
+<li><a href="#regulatory-requirement" id="toc-regulatory-requirement">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation" id="toc-technical-implementation">Technical Implementation</a></li>
+<li><a href="#compliance-verification" id="toc-compliance-verification">Compliance Verification</a></li>
+</ul></li>
+<li><a href="#data-subject-access-request-article-15" id="toc-data-subject-access-request-article-15">2. Data Subject Access
+Request (Article 15)</a>
+<ul>
+<li><a href="#regulatory-requirement-1" id="toc-regulatory-requirement-1">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-1" id="toc-technical-implementation-1">Technical Implementation</a></li>
+<li><a href="#compliance-verification-1" id="toc-compliance-verification-1">Compliance Verification</a></li>
+</ul></li>
+<li><a href="#right-to-rectification-article-16" id="toc-right-to-rectification-article-16">3. Right to Rectification
+(Article 16)</a>
+<ul>
+<li><a href="#regulatory-requirement-2" id="toc-regulatory-requirement-2">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-2" id="toc-technical-implementation-2">Technical Implementation</a></li>
+<li><a href="#clinical-trial-considerations" id="toc-clinical-trial-considerations">Clinical Trial
+Considerations</a></li>
+</ul></li>
+<li><a href="#right-to-erasure-article-17" id="toc-right-to-erasure-article-17">4. Right to Erasure (Article
+17)</a>
+<ul>
+<li><a href="#regulatory-requirement-3" id="toc-regulatory-requirement-3">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-3" id="toc-technical-implementation-3">Technical Implementation</a></li>
+<li><a href="#regulatory-conflict-resolution" id="toc-regulatory-conflict-resolution">Regulatory Conflict
+Resolution</a></li>
+</ul></li>
+<li><a href="#right-to-restriction-of-processing-article-18" id="toc-right-to-restriction-of-processing-article-18">5. Right to
+Restriction of Processing (Article 18)</a>
+<ul>
+<li><a href="#regulatory-requirement-4" id="toc-regulatory-requirement-4">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-4" id="toc-technical-implementation-4">Technical Implementation</a></li>
+<li><a href="#processing-attempt-logging" id="toc-processing-attempt-logging">Processing Attempt Logging</a></li>
+</ul></li>
+<li><a href="#right-to-data-portability-article-20" id="toc-right-to-data-portability-article-20">6. Right to Data
+Portability (Article 20)</a>
+<ul>
+<li><a href="#regulatory-requirement-5" id="toc-regulatory-requirement-5">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-5" id="toc-technical-implementation-5">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#right-to-object-article-21" id="toc-right-to-object-article-21">7. Right to Object (Article 21)</a>
+<ul>
+<li><a href="#regulatory-requirement-6" id="toc-regulatory-requirement-6">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-6" id="toc-technical-implementation-6">Technical Implementation</a></li>
+<li><a href="#research-exception-handling" id="toc-research-exception-handling">Research Exception
+Handling</a></li>
+</ul></li>
+<li><a href="#consent-management-articles-6-7" id="toc-consent-management-articles-6-7">8. Consent Management (Articles
+6-7)</a>
+<ul>
+<li><a href="#regulatory-requirement-7" id="toc-regulatory-requirement-7">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-7" id="toc-technical-implementation-7">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#data-retention-enforcement-article-5" id="toc-data-retention-enforcement-article-5">9. Data Retention
+Enforcement (Article 5)</a>
+<ul>
+<li><a href="#regulatory-requirement-8" id="toc-regulatory-requirement-8">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-8" id="toc-technical-implementation-8">Technical Implementation</a></li>
+<li><a href="#retention-conflict-resolution" id="toc-retention-conflict-resolution">Retention Conflict
+Resolution</a></li>
+</ul></li>
+<li><a href="#privacy-impact-assessment-article-35" id="toc-privacy-impact-assessment-article-35">10. Privacy Impact
+Assessment (Article 35)</a>
+<ul>
+<li><a href="#regulatory-requirement-9" id="toc-regulatory-requirement-9">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-9" id="toc-technical-implementation-9">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#breach-notification-articles-33-34" id="toc-breach-notification-articles-33-34">11. Breach Notification
+(Articles 33-34)</a>
+<ul>
+<li><a href="#regulatory-requirement-10" id="toc-regulatory-requirement-10">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-10" id="toc-technical-implementation-10">Technical Implementation</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#part-ii-good-clinical-practice-gcp-features" id="toc-part-ii-good-clinical-practice-gcp-features">Part II: Good
+Clinical Practice (GCP) Features</a>
+<ul>
+<li><a href="#protocol-compliance-monitoring" id="toc-protocol-compliance-monitoring">12. Protocol Compliance
+Monitoring</a>
+<ul>
+<li><a href="#regulatory-requirement-11" id="toc-regulatory-requirement-11">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-11" id="toc-technical-implementation-11">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#adverse-event-management" id="toc-adverse-event-management">13. Adverse Event Management</a>
+<ul>
+<li><a href="#regulatory-requirement-12" id="toc-regulatory-requirement-12">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-12" id="toc-technical-implementation-12">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#crf-completion-guidelines" id="toc-crf-completion-guidelines">14. CRF Completion Guidelines</a>
+<ul>
+<li><a href="#regulatory-requirement-13" id="toc-regulatory-requirement-13">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-13" id="toc-technical-implementation-13">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#crf-version-control" id="toc-crf-version-control">15. CRF
+Version Control</a>
+<ul>
+<li><a href="#regulatory-requirement-14" id="toc-regulatory-requirement-14">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-14" id="toc-technical-implementation-14">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#crf-design-review" id="toc-crf-design-review">16. CRF
+Design Review</a>
+<ul>
+<li><a href="#regulatory-requirement-15" id="toc-regulatory-requirement-15">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-15" id="toc-technical-implementation-15">Technical Implementation</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#part-iii-fda-21-cfr-part-11-features" id="toc-part-iii-fda-21-cfr-part-11-features">Part III: FDA 21 CFR Part
+11 Features</a>
+<ul>
+<li><a href="#electronic-signatures" id="toc-electronic-signatures">17.
+Electronic Signatures</a>
+<ul>
+<li><a href="#regulatory-requirement-16" id="toc-regulatory-requirement-16">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-16" id="toc-technical-implementation-16">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#audit-trail-system" id="toc-audit-trail-system">18. Audit
+Trail System</a>
+<ul>
+<li><a href="#regulatory-requirement-17" id="toc-regulatory-requirement-17">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-17" id="toc-technical-implementation-17">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#data-correction-workflow" id="toc-data-correction-workflow">19. Data Correction Workflow</a>
+<ul>
+<li><a href="#regulatory-requirement-18" id="toc-regulatory-requirement-18">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-18" id="toc-technical-implementation-18">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#system-validation-framework" id="toc-system-validation-framework">20. System Validation Framework</a>
+<ul>
+<li><a href="#regulatory-requirement-19" id="toc-regulatory-requirement-19">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-19" id="toc-technical-implementation-19">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#change-control-system" id="toc-change-control-system">21.
+Change Control System</a>
+<ul>
+<li><a href="#regulatory-requirement-20" id="toc-regulatory-requirement-20">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-20" id="toc-technical-implementation-20">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#access-controls" id="toc-access-controls">22. Access
+Controls</a>
+<ul>
+<li><a href="#regulatory-requirement-21" id="toc-regulatory-requirement-21">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-21" id="toc-technical-implementation-21">Technical Implementation</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#part-iv-integrated-compliance-features" id="toc-part-iv-integrated-compliance-features">Part IV: Integrated
+Compliance Features</a>
+<ul>
+<li><a href="#protocol-crf-linkage" id="toc-protocol-crf-linkage">23.
+Protocol-CRF Linkage</a>
+<ul>
+<li><a href="#regulatory-requirement-22" id="toc-regulatory-requirement-22">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-22" id="toc-technical-implementation-22">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#study-closeout-management" id="toc-study-closeout-management">24. Study Closeout Management</a>
+<ul>
+<li><a href="#regulatory-requirement-23" id="toc-regulatory-requirement-23">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-23" id="toc-technical-implementation-23">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#master-field-library" id="toc-master-field-library">25.
+Master Field Library</a>
+<ul>
+<li><a href="#regulatory-requirement-24" id="toc-regulatory-requirement-24">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-24" id="toc-technical-implementation-24">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#conditional-logic-system" id="toc-conditional-logic-system">26. Conditional Logic System</a>
+<ul>
+<li><a href="#regulatory-requirement-25" id="toc-regulatory-requirement-25">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-25" id="toc-technical-implementation-25">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#calculated-fields" id="toc-calculated-fields">27.
+Calculated Fields</a>
+<ul>
+<li><a href="#regulatory-requirement-26" id="toc-regulatory-requirement-26">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-26" id="toc-technical-implementation-26">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#crf-designer" id="toc-crf-designer">28. CRF Designer</a>
+<ul>
+<li><a href="#regulatory-requirement-27" id="toc-regulatory-requirement-27">Regulatory Requirement</a></li>
+<li><a href="#technical-implementation-27" id="toc-technical-implementation-27">Technical Implementation</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#conclusion" id="toc-conclusion">Conclusion</a></li>
+<li><a href="#references" id="toc-references">References</a></li>
+</ul>
+</div>
+
+<div id="executive-summary" class="section level1">
+<h1>Executive Summary</h1>
+<p>ZZedc is a modern Electronic Data Capture (EDC) system designed for
+clinical research with comprehensive regulatory compliance capabilities.
+This white paper provides a detailed analysis of the system’s
+implementation of three critical regulatory frameworks: the European
+Union’s General Data Protection Regulation (GDPR), Good Clinical
+Practice (GCP) guidelines, and the United States Food and Drug
+Administration’s 21 CFR Part 11 regulations.</p>
+<p>The system implements 32 distinct compliance features across these
+frameworks, with over 3,000 automated tests validating regulatory
+requirements. This document describes each feature’s regulatory basis,
+technical implementation, and practical application in clinical research
+settings.</p>
+</div>
+<div id="part-i-gdpr-compliance-features" class="section level1">
+<h1>Part I: GDPR Compliance Features</h1>
+<p>The General Data Protection Regulation (EU) 2016/679 establishes
+comprehensive data protection requirements for organizations processing
+personal data of EU residents. ZZedc implements the following
+GDPR-mandated features.</p>
+<div id="data-encryption-at-rest-article-32" class="section level2">
+<h2>1. Data Encryption at Rest (Article 32)</h2>
+<div id="regulatory-requirement" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 32 of the GDPR mandates that data controllers implement
+“appropriate technical and organisational measures to ensure a level of
+security appropriate to the risk” including “the pseudonymisation and
+encryption of personal data.” This requirement reflects the regulation’s
+risk-based approach to data protection, recognizing that encryption
+represents one of the most effective technical safeguards against
+unauthorized data access.</p>
+</div>
+<div id="technical-implementation" class="section level3">
+<h3>Technical Implementation</h3>
+<p>ZZedc implements transparent database encryption using SQLCipher, an
+open-source extension to SQLite that provides AES-256 encryption. The
+implementation addresses three critical aspects of encryption
+management:</p>
+<p><strong>Key Management</strong></p>
+<p>The system integrates with AWS Key Management Service (KMS) for
+enterprise deployments, providing hardware-backed key storage with
+comprehensive access logging. AWS KMS ensures that encryption keys never
+exist in plaintext outside of secure hardware modules, eliminating a
+common vulnerability in encryption implementations. For development and
+testing environments, the system supports environment variable-based key
+storage, enabling developers to work with encrypted databases without
+requiring cloud infrastructure. The key management subsystem
+automatically rotates keys according to configurable policies and
+maintains secure key escrow procedures for disaster recovery
+scenarios.</p>
+<p><strong>Encryption Algorithm</strong></p>
+<p>The implementation employs AES-256 encryption in CBC (Cipher Block
+Chaining) mode, representing the current industry standard for symmetric
+encryption. Each database page is encrypted independently, enabling
+efficient random access while maintaining security. HMAC-SHA512
+authentication accompanies each encrypted block, providing tamper
+detection that alerts administrators to any unauthorized modification
+attempts. This authenticated encryption approach addresses both
+confidentiality and integrity requirements mandated by Article 32.</p>
+<p><strong>Key Derivation</strong></p>
+<p>For passphrase-based key generation, the system implements PBKDF2
+(Password- Based Key Derivation Function 2) with 256,000 iterations.
+This computational cost deliberately slows key derivation, rendering
+brute-force attacks against weak passphrases impractical. The iteration
+count substantially exceeds NIST recommendations, reflecting the
+sensitive nature of clinical trial data and the extended timeframe over
+which such data must remain protected.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># Example: Initialize encrypted database</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">initialize_encrypted_database</span>(</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a> <span class="at">db_path =</span> <span class="st">&quot;study_data.db&quot;</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a> <span class="at">key_source =</span> <span class="st">&quot;aws_kms&quot;</span></span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="compliance-verification" class="section level3">
+<h3>Compliance Verification</h3>
+<p>The system includes automated verification of encryption status
+through header inspection and key validation routines. When a database
+file is opened, the system verifies that the file header contains
+encrypted content rather than the standard SQLite signature, confirming
+that encryption is active. Audit logs record all key access events,
+including the identity of the requesting process, timestamp, and success
+or failure status. These logs support compliance documentation during
+regulatory inspections and provide forensic evidence in the event of
+security incidents.</p>
+</div>
+</div>
+<div id="data-subject-access-request-article-15" class="section level2">
+<h2>2. Data Subject Access Request (Article 15)</h2>
+<div id="regulatory-requirement-1" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 15 establishes the right of data subjects to obtain
+confirmation of whether personal data concerning them is being
+processed, and access to that data along with supplementary information
+about processing purposes, categories, and recipients. Controllers must
+respond to access requests without undue delay and within one month of
+receipt, with provisions for extension in complex cases.</p>
+</div>
+<div id="technical-implementation-1" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The DSAR module provides a complete workflow for handling access
+requests, addressing each phase of the request lifecycle:</p>
+<p><strong>Request Intake</strong></p>
+<p>The system provides structured capture of request details through a
+dedicated intake interface that records the data subject’s identity,
+contact information, and specific data categories requested. Upon
+submission, the system automatically calculates the response deadline
+based on the request receipt date, defaulting to 30 calendar days with
+provisions for extension to 90 days for complex requests involving large
+data volumes or multiple processing systems. The intake process
+generates a unique request identifier and initiates the tracking
+workflow, ensuring that no request is lost or overlooked.</p>
+<p><strong>Identity Verification</strong></p>
+<p>Before disclosing personal data, controllers must verify the identity
+of the requesting party to prevent unauthorized disclosure. The system
+implements a multi-factor verification workflow supporting various
+verification methods including government-issued identification
+documents, knowledge-based authentication using information only the
+data subject would know, and electronic identity verification services.
+The verification workflow documents all verification steps taken, the
+evidence reviewed, and the identity of the staff member who confirmed
+the subject’s identity. This documentation protects the organization
+against claims of improper disclosure.</p>
+<p><strong>Data Collection</strong></p>
+<p>The system provides systematic identification and extraction of
+personal data across all database tables where subject information may
+reside. Administrators configure data source mappings that identify
+which tables contain personal data, which fields serve as subject
+identifiers, and which data categories each table represents. When
+processing a DSAR, the system queries each configured source, compiles
+the results, and associates them with the appropriate data category for
+the response. The collection process logs each data source accessed and
+the volume of data retrieved.</p>
+<p><strong>Response Generation</strong></p>
+<p>The system automates compilation of data packages in machine-readable
+formats as required by Article 15(3). Supported formats include JSON for
+maximum interoperability, CSV for spreadsheet compatibility, and
+structured PDF reports for human review. Each response package includes
+metadata describing the processing purposes, data categories, recipient
+categories, retention periods, and the data subject’s rights. The system
+maintains a complete copy of each response for audit purposes, enabling
+the organization to demonstrate what information was provided and
+when.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Example: Create and process DSAR</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>request <span class="ot">&lt;-</span> <span class="fu">create_dsar_request</span>(</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a> <span class="at">subject_email =</span> <span class="st">&quot;participant@example.com&quot;</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a> <span class="at">subject_name =</span> <span class="st">&quot;John Doe&quot;</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a> <span class="at">request_type =</span> <span class="st">&quot;ACCESS&quot;</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a> <span class="at">requested_by =</span> <span class="st">&quot;dpo&quot;</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>)</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="co"># Verify identity before processing</span></span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a><span class="fu">verify_subject_identity</span>(</span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a> <span class="at">request_id =</span> request<span class="sc">$</span>request_id,</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a> <span class="at">verification_method =</span> <span class="st">&quot;DOCUMENT&quot;</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a> <span class="at">verified_by =</span> <span class="st">&quot;admin&quot;</span></span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="compliance-verification-1" class="section level3">
+<h3>Compliance Verification</h3>
+<p>All DSAR activities are logged with timestamps, creating an immutable
+audit trail demonstrating compliance with response deadlines. The system
+generates compliance reports showing request volumes, average response
+times, and any instances where extensions were required. These metrics
+support both internal quality management and regulatory reporting
+obligations.</p>
+</div>
+</div>
+<div id="right-to-rectification-article-16" class="section level2">
+<h2>3. Right to Rectification (Article 16)</h2>
+<div id="regulatory-requirement-2" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 16 provides data subjects the right to obtain rectification
+of inaccurate personal data and completion of incomplete data. This
+right recognizes that data accuracy is fundamental to fair processing
+and that individuals should have recourse when organizations hold
+incorrect information about them.</p>
+</div>
+<div id="technical-implementation-2" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The rectification system implements a controlled correction workflow
+that maintains data integrity while enabling corrections:</p>
+<p><strong>Request Processing</strong></p>
+<p>The system provides structured intake with specification of the data
+identified as incorrect and the proposed corrections. Each rectification
+request captures the specific field or fields requiring correction, the
+current value held by the system, the value the data subject believes to
+be correct, and any supporting documentation. The request workflow
+routes submissions to appropriate reviewers based on the data category
+affected, ensuring that clinical data corrections receive medical review
+while administrative corrections follow streamlined procedures.</p>
+<p><strong>Verification</strong></p>
+<p>The review process validates correction requests through comparison
+with source documents, consultation with the data subject for
+clarification, and verification against external authoritative sources
+where available. Reviewers document their verification activities,
+including what sources were consulted and what conclusions were reached.
+The system supports partial approvals where some requested corrections
+are validated while others require additional investigation or are
+determined to be unfounded.</p>
+<p><strong>Audit Trail</strong></p>
+<p>The system maintains complete history of original values,
+corrections, and authorizations. When a correction is applied, the
+system preserves the original value with timestamp and the identity of
+the person who entered it, the corrected value with timestamp and the
+identity of the person who authorized the correction, the reason for the
+correction, and any supporting documentation references. This audit
+history satisfies both GDPR accountability requirements and FDA 21 CFR
+Part 11 requirements for maintaining original data visibility.</p>
+<p><strong>Third-Party Notification</strong></p>
+<p>The system tracks data recipients requiring notification of
+corrections as mandated by Article 19. When personal data has been
+disclosed to third parties, the system generates notification
+requirements listing each recipient and the specific corrections to
+communicate. Staff record notification activities, including the date,
+method, and confirmation of receipt. The system can generate reports
+demonstrating that all required notifications were completed.</p>
+<p>The system distinguishes between clinical data corrections (which
+follow FDA-mandated workflows with dual approval) and administrative
+data corrections (which follow streamlined GDPR-only workflows). This
+distinction reflects the different regulatory contexts while maintaining
+consistent audit capabilities.</p>
+</div>
+<div id="clinical-trial-considerations" class="section level3">
+<h3>Clinical Trial Considerations</h3>
+<p>In clinical research contexts, rectification must be balanced against
+data integrity requirements. The system implements a dual-approval
+workflow for clinical data corrections, requiring both the investigator
+and sponsor representative to authorize changes to efficacy or safety
+data. This approach ensures regulatory compliance while respecting data
+subject rights.</p>
+</div>
+</div>
+<div id="right-to-erasure-article-17" class="section level2">
+<h2>4. Right to Erasure (Article 17)</h2>
+<div id="regulatory-requirement-3" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 17, commonly known as the “right to be forgotten,” provides
+data subjects the right to erasure of personal data under specified
+circumstances, subject to exceptions for legal obligations, public
+health research, and archiving purposes in the public interest. The
+regulation recognizes that this right must be balanced against other
+legitimate interests.</p>
+</div>
+<div id="technical-implementation-3" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The erasure module implements a sophisticated workflow accommodating
+both GDPR rights and regulatory retention requirements:</p>
+<p><strong>Legal Hold Management</strong></p>
+<p>The system provides capability to place data under legal hold when
+regulatory requirements supersede erasure rights. Clinical trial
+regulations typically require retention of subject data for periods
+ranging from 2 years (FDA post-approval) to 25 years (pediatric studies,
+some EU member states). When a legal hold applies, the system blocks
+erasure while documenting the legal basis for retention, the expected
+hold duration, and the authority responsible for the hold decision. Data
+subjects receive notification that their erasure request cannot be
+fulfilled immediately, along with explanation of the legal basis for
+continued retention. The system automatically reviews legal holds at
+expiration, enabling erasure to proceed once retention obligations
+conclude.</p>
+<p><strong>Selective Erasure</strong></p>
+<p>The system provides granular control over erasure scope, enabling
+compliance with Article 17(3) exceptions while maximizing respect for
+data subject rights. Administrators configure erasure rules that specify
+which data categories may be erased under which circumstances, which
+data must be retained regardless of erasure requests, and which data may
+be anonymized as an alternative to deletion. This configuration enables
+organizations to erase contact information and identifiers while
+retaining anonymized clinical observations necessary for study
+integrity.</p>
+<p><strong>Anonymization Alternative</strong></p>
+<p>When complete erasure conflicts with research integrity requirements,
+the system supports irreversible anonymization as an alternative that
+satisfies both data subject rights and scientific obligations. The
+anonymization process removes all direct identifiers, generalizes
+quasi-identifiers such as dates and geographic information to prevent
+re-identification, and applies statistical disclosure control techniques
+appropriate to the data type. The system verifies anonymization
+effectiveness by assessing re-identification risk and documents the
+techniques applied for regulatory review.</p>
+<p><strong>Third-Party Coordination</strong></p>
+<p>The system tracks and coordinates notification to downstream
+recipients who received the data subject’s personal data. Following the
+Article 19 notification requirement, the system identifies all third
+parties to whom data was disclosed, generates notification requirements
+specifying the data to be erased, tracks notification delivery and
+acknowledgment, and documents any cases where recipients cannot be
+notified or refuse to comply. This coordination ensures that erasure
+requests propagate throughout the data processing ecosystem.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Example: Create legal hold before erasure</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>hold <span class="ot">&lt;-</span> <span class="fu">create_legal_hold</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a> <span class="at">subject_id =</span> <span class="st">&quot;SUBJ-001&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a> <span class="at">hold_type =</span> <span class="st">&quot;REGULATORY&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a> <span class="at">hold_reason =</span> <span class="st">&quot;FDA retention requirement - 2 years post-study&quot;</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a> <span class="at">held_by =</span> <span class="st">&quot;compliance_officer&quot;</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>)</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a><span class="co"># Erasure request blocked by legal hold</span></span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>request <span class="ot">&lt;-</span> <span class="fu">create_erasure_request</span>(</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a> <span class="at">subject_email =</span> <span class="st">&quot;participant@example.com&quot;</span>,</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a> <span class="at">erasure_grounds =</span> <span class="st">&quot;WITHDRAWAL&quot;</span>,</span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a> <span class="at">requested_by =</span> <span class="st">&quot;dpo&quot;</span></span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>)</span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a><span class="co"># Returns: status = &quot;LEGAL_HOLD&quot;</span></span></code></pre></div>
+</div>
+<div id="regulatory-conflict-resolution" class="section level3">
+<h3>Regulatory Conflict Resolution</h3>
+<p>The system implements automatic detection of conflicts between GDPR
+erasure rights and FDA/ICH retention requirements, placing data under
+regulatory hold and documenting the legal basis for retention. When an
+erasure request arrives for a subject enrolled in an active or recently
+completed clinical trial, the system checks applicable retention
+requirements and, if a conflict exists, automatically applies a legal
+hold with appropriate documentation.</p>
+</div>
+</div>
+<div id="right-to-restriction-of-processing-article-18" class="section level2">
+<h2>5. Right to Restriction of Processing (Article 18)</h2>
+<div id="regulatory-requirement-4" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 18 provides data subjects the right to obtain restriction of
+processing in circumstances including accuracy disputes, unlawful
+processing, controller no longer needing the data, and pending objection
+reviews. During restriction, data may only be stored, and other
+processing requires subject consent.</p>
+</div>
+<div id="technical-implementation-4" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The restriction module implements processing controls at the field
+level:</p>
+<p><strong>Scope Definition</strong></p>
+<p>The system allows restrictions to apply at varying levels of
+granularity, from specific data categories to processing purposes to
+entire subject records. When creating a restriction, administrators
+specify whether the restriction applies to all processing of the
+subject’s data, to specific categories such as health data or financial
+data, or to specific processing purposes such as marketing or research.
+This flexibility enables precise compliance with restriction requests
+while minimizing disruption to legitimate processing activities not
+covered by the restriction.</p>
+<p><strong>Processing Blocks</strong></p>
+<p>The system implements technical controls preventing restricted data
+from being included in analyses, exports, or reports. When data is under
+restriction, the system flags those records in query results to alert
+users, excludes restricted records from aggregate analyses unless
+specifically authorized, blocks export of restricted data to external
+systems, and removes restricted subjects from mailing lists and
+communication campaigns. These technical controls operate automatically,
+reducing reliance on staff awareness and manual procedures.</p>
+<p><strong>Allowed Processing</strong></p>
+<p>The system supports configuration of permitted processing activities
+during restriction as specified in Article 18(2). Storage is always
+permitted, as is processing for establishment, exercise, or defense of
+legal claims. The system also allows processing with the data subject’s
+explicit consent and processing for protection of another person’s
+rights. Administrators configure which processing activities qualify
+under each exception, and the system logs all processing of restricted
+data with documentation of the applicable exception.</p>
+<p><strong>Lift Procedures</strong></p>
+<p>The system implements controlled workflow for removing restrictions
+with mandatory subject notification as required by Article 18(3). Before
+lifting a restriction, the system verifies that the grounds for
+restriction no longer apply, documents the basis for lifting, and
+generates notification to the data subject informing them that
+restriction will be lifted and processing will resume. The subject
+receives reasonable notice before processing resumes, enabling them to
+exercise other rights if desired.</p>
+</div>
+<div id="processing-attempt-logging" class="section level3">
+<h3>Processing Attempt Logging</h3>
+<p>All attempts to process restricted data are logged, enabling
+demonstration of compliance and identification of system components
+requiring modification. These logs capture the user or process
+attempting access, the specific data requested, the timestamp, and the
+outcome (blocked or permitted with exception). Regular review of these
+logs helps identify gaps in technical controls and training needs.</p>
+</div>
+</div>
+<div id="right-to-data-portability-article-20" class="section level2">
+<h2>6. Right to Data Portability (Article 20)</h2>
+<div id="regulatory-requirement-5" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 20 provides data subjects the right to receive their personal
+data in a structured, commonly used, machine-readable format and to
+transmit that data to another controller. This right applies to data
+provided by the subject and processed by automated means on the basis of
+consent or contract performance.</p>
+</div>
+<div id="technical-implementation-5" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The portability module supports multiple export formats and transfer
+mechanisms:</p>
+<p><strong>Export Formats</strong></p>
+<p>The system generates portable data packages in multiple standardized
+formats to maximize interoperability. JSON (JavaScript Object Notation)
+provides a widely-supported structured format readable by virtually any
+modern software system. XML offers an alternative structured format with
+schema validation capabilities. CSV enables import into spreadsheet
+applications for subjects who prefer tabular data representation. For
+clinical research data, CDISC ODM (Operational Data Model) format
+ensures compatibility with other clinical data management systems. Each
+format includes appropriate metadata describing the data structure,
+enabling receiving systems to interpret the data correctly.</p>
+<p><strong>Data Scope</strong></p>
+<p>The system provides configurable inclusion of provided data versus
+derived data. Article 20 specifically applies to data provided by the
+subject, but organizations may choose to include derived data as a
+matter of good practice. The configuration distinguishes between
+directly provided data such as questionnaire responses and uploaded
+documents, observed data such as vital signs recorded during visits, and
+derived data such as calculated scores and analysis results.
+Administrators configure which categories to include by default while
+preserving flexibility for specific requests.</p>
+<p><strong>Direct Transfer</strong></p>
+<p>The system supports controller-to-controller transfer as required by
+Article 20(2) where technically feasible. The transfer workflow verifies
+the receiving controller’s identity and authorization, establishes a
+secure transfer channel using TLS encryption, transmits the data package
+with integrity verification, confirms successful receipt, and documents
+the transfer for audit purposes. The system supports both API-based
+transfers for automated interoperability and secure file transfer for
+organizations without API capabilities.</p>
+<p><strong>Security</strong></p>
+<p>All portability exports employ encryption and integrity verification
+to protect data during transmission and storage. Export packages are
+encrypted using the subject’s chosen password or a secure key exchange
+mechanism. Each package includes cryptographic hash values enabling
+verification that the data was not modified during transfer. Audit logs
+record all export activities, including the data included, format
+selected, and delivery method used.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># Example: Generate portable data package</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>export <span class="ot">&lt;-</span> <span class="fu">generate_portability_export</span>(</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a> <span class="at">request_id =</span> request<span class="sc">$</span>request_id,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a> <span class="at">format =</span> <span class="st">&quot;JSON&quot;</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a> <span class="at">include_metadata =</span> <span class="cn">TRUE</span></span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>)</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a><span class="co"># Initiate controller transfer</span></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>transfer <span class="ot">&lt;-</span> <span class="fu">initiate_controller_transfer</span>(</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a> <span class="at">request_id =</span> request<span class="sc">$</span>request_id,</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a> <span class="at">recipient_controller =</span> <span class="st">&quot;New Research Institution&quot;</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a> <span class="at">transfer_method =</span> <span class="st">&quot;SECURE_API&quot;</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+</div>
+<div id="right-to-object-article-21" class="section level2">
+<h2>7. Right to Object (Article 21)</h2>
+<div id="regulatory-requirement-6" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 21 provides data subjects the right to object to processing
+based on legitimate interests or public interest, and an absolute right
+to object to direct marketing. Controllers must cease processing upon
+objection unless they demonstrate compelling legitimate grounds that
+override subject interests.</p>
+</div>
+<div id="technical-implementation-6" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The objection module manages processing objections with configurable
+scope:</p>
+<p><strong>Objection Types</strong></p>
+<p>The system supports distinct objection categories reflecting the
+different legal standards that apply. General processing objections
+under Article 21(1) require the controller to demonstrate compelling
+legitimate grounds to continue processing. Profiling objections address
+automated decision-making that produces legal or similarly significant
+effects. Direct marketing objections are absolute and require immediate
+cessation without qualification. Research objections engage the Article
+21(6) exception, requiring assessment of whether processing is necessary
+for task performance in the public interest. Each objection type follows
+appropriate workflow with documentation requirements matching the
+applicable legal standard.</p>
+<p><strong>Processing Cessation</strong></p>
+<p>The system implements immediate cessation of objected processing
+activities upon receipt of a valid objection. For direct marketing
+objections, cessation is automatic and unconditional. For other
+objection types, the system places processing on hold pending assessment
+of whether compelling grounds exist to continue. During this assessment
+period, no further processing occurs except as necessary to evaluate the
+objection itself. The cessation mechanism integrates with downstream
+systems through API notifications, ensuring that objections propagate to
+all processing components.</p>
+<p><strong>Override Capability</strong></p>
+<p>The system supports documented override for compelling legitimate
+grounds with appropriate escalation and notification. When a controller
+determines that compelling grounds exist to continue processing despite
+an objection, the system captures detailed documentation of the grounds
+relied upon, requires senior management authorization, generates
+notification to the data subject explaining the decision and their right
+to complain to supervisory authorities, and creates records for
+potential regulatory review. This override mechanism exists only for
+objections where the law permits override; it is unavailable for
+absolute rights such as direct marketing objections.</p>
+<p><strong>Marketing Preferences</strong></p>
+<p>The system maintains granular channel-level marketing preferences
+enabling subjects to opt out of specific communication channels while
+remaining subscribed to others. Subjects may object to email marketing
+while continuing to receive postal communications, or may object to
+telephone contact while permitting text messages. The preference system
+integrates with marketing automation platforms through standard APIs,
+ensuring that preferences are respected across all communication
+systems.</p>
+</div>
+<div id="research-exception-handling" class="section level3">
+<h3>Research Exception Handling</h3>
+<p>For scientific research processing, the system implements the Article
+21(6) exception, which provides that the right to object does not apply
+where processing is necessary for the performance of a task carried out
+for reasons of public interest. The system requires documentation of the
+public interest basis, assessment of whether the specific processing is
+necessary for that purpose, and maintenance of records supporting the
+exception determination.</p>
+</div>
+</div>
+<div id="consent-management-articles-6-7" class="section level2">
+<h2>8. Consent Management (Articles 6-7)</h2>
+<div id="regulatory-requirement-7" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Articles 6 and 7 establish consent as a lawful basis for processing
+and specify requirements for valid consent including freely given,
+specific, informed, and unambiguous indication. Consent must be as easy
+to withdraw as to give, and controllers must be able to demonstrate that
+consent was obtained.</p>
+</div>
+<div id="technical-implementation-7" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The consent management system provides comprehensive consent
+lifecycle management:</p>
+<p><strong>Purpose-Specific Consent</strong></p>
+<p>The system supports granular consent collection for distinct
+processing purposes, reflecting the GDPR requirement that consent be
+specific. Each processing purpose is defined separately with its own
+consent text, enabling subjects to consent to some purposes while
+declining others. For clinical research, typical purposes include
+primary research (use of data for the specified study objectives),
+secondary research (future use for related research questions), biobank
+storage (retention of biological samples), and commercial development
+(use in developing commercial products). Subjects receive clear
+information about each purpose and make independent decisions about
+each.</p>
+<p><strong>Consent Records</strong></p>
+<p>The system creates immutable records of consent including all
+elements necessary to demonstrate valid consent. Each consent record
+captures the identity of the consenting subject, the specific purpose
+consented to, the version of consent text presented, the timestamp of
+consent, the method by which consent was obtained (electronic signature,
+paper form, oral with witness), and any additional context relevant to
+demonstrating that consent was freely given. These records are stored
+with cryptographic integrity protection, ensuring they cannot be
+modified after creation.</p>
+<p><strong>Withdrawal Processing</strong></p>
+<p>The system implements immediate effect of withdrawal with downstream
+processing cessation as required by Article 7(3). When a subject
+withdraws consent, the system immediately flags the affected processing
+purposes, notifies dependent systems to cease processing, generates
+confirmation to the subject, and initiates any data deletion or
+anonymization required by the withdrawal. The withdrawal workflow
+respects the principle that withdrawal must be as easy as giving
+consent, providing a simple interface without requiring justification or
+imposing barriers.</p>
+<p><strong>Consent Refresh</strong></p>
+<p>The system provides automated identification of aging consents
+requiring refresh. Consent validity may be limited by the passage of
+time, changes in processing circumstances, or regulatory requirements
+for periodic reconfirmation. The system tracks consent age and generates
+alerts when refresh is needed, facilitating proactive outreach to
+subjects before consent expiration affects processing activities.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Example: Record granular consent</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="fu">record_consent</span>(</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a> <span class="at">subject_id =</span> <span class="st">&quot;SUBJ-001&quot;</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a> <span class="at">purpose_id =</span> purpose<span class="sc">$</span>purpose_id,</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a> <span class="at">consent_given =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a> <span class="at">consent_method =</span> <span class="st">&quot;ELECTRONIC&quot;</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a> <span class="at">consent_text_version =</span> <span class="st">&quot;1.2&quot;</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a> <span class="at">recorded_by =</span> <span class="st">&quot;coordinator&quot;</span></span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>)</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co"># Check consent before processing</span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>check <span class="ot">&lt;-</span> <span class="fu">check_consent</span>(</span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a> <span class="at">subject_id =</span> <span class="st">&quot;SUBJ-001&quot;</span>,</span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a> <span class="at">purpose_code =</span> <span class="st">&quot;RESEARCH_PRIMARY&quot;</span></span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+</div>
+<div id="data-retention-enforcement-article-5" class="section level2">
+<h2>9. Data Retention Enforcement (Article 5)</h2>
+<div id="regulatory-requirement-8" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 5(1)(e) establishes the storage limitation principle,
+requiring that personal data be kept no longer than necessary for
+processing purposes. Organizations must define retention periods,
+justify those periods, and implement processes to dispose of data when
+retention periods expire.</p>
+</div>
+<div id="technical-implementation-8" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The retention module implements policy-based retention
+management:</p>
+<p><strong>Retention Policies</strong></p>
+<p>The system supports configurable policies by data category with
+comprehensive legal basis documentation. Each retention policy specifies
+the data category covered, the retention period, the legal basis for
+that period (regulatory requirement, contractual obligation, legitimate
+interest, or consent), the disposal action to take at expiration
+(deletion, anonymization, or archival), and review requirements.
+Policies can specify different retention periods for different purposes,
+ensuring that data is retained exactly as long as needed for each
+processing activity.</p>
+<p><strong>Automated Review</strong></p>
+<p>The system provides scheduled identification of data reaching
+retention limits. A configurable review process runs at specified
+intervals, identifying records approaching retention expiration and
+generating work queues for retention review. Reviewers assess each
+record to confirm that retention obligations have concluded, verify that
+no exceptions apply, and authorize disposal. The system supports bulk
+review for routine cases while ensuring individual attention for complex
+situations.</p>
+<p><strong>Disposal Actions</strong></p>
+<p>The system implements configurable disposal methods appropriate to
+the data category and regulatory context. Deletion permanently removes
+data from the database with cryptographic erasure of backup copies.
+Anonymization removes identifying elements while preserving data utility
+for aggregate analysis. Archival transfers data to long-term storage
+with restricted access for cases where data may be needed for future
+legal or regulatory purposes. Each disposal action is logged with
+timestamp, authorization, and method.</p>
+<p><strong>Legal Hold Integration</strong></p>
+<p>The system automatically suspends disposal for data under legal hold.
+When retention review identifies data subject to an active legal hold,
+the system bypasses normal disposal processing and flags the record for
+review after hold expiration. This integration ensures that retention
+automation does not inadvertently destroy data required for legal or
+regulatory purposes.</p>
+</div>
+<div id="retention-conflict-resolution" class="section level3">
+<h3>Retention Conflict Resolution</h3>
+<p>When GDPR retention limits conflict with regulatory requirements
+(e.g., FDA 15-year retention for clinical data), the system documents
+the legal basis and applies the longer retention period. The system
+maintains clear records of which requirement drives retention, enabling
+accurate response to data subject inquiries and demonstrating compliance
+with both frameworks.</p>
+</div>
+</div>
+<div id="privacy-impact-assessment-article-35" class="section level2">
+<h2>10. Privacy Impact Assessment (Article 35)</h2>
+<div id="regulatory-requirement-9" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 35 mandates Data Protection Impact Assessments for processing
+operations likely to result in high risk to data subjects’ rights and
+freedoms, including systematic and extensive profiling, large-scale
+processing of special category data, and systematic monitoring of public
+areas.</p>
+</div>
+<div id="technical-implementation-9" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The PIA module provides a structured assessment framework:</p>
+<p><strong>Risk Categories</strong></p>
+<p>The system enables systematic identification of processing risks
+across confidentiality, integrity, and availability dimensions.
+Confidentiality risks address unauthorized access, disclosure, or data
+breach. Integrity risks address unauthorized modification, data
+corruption, or loss of accuracy. Availability risks address system
+failures, data loss, or denial of service. Within each dimension, the
+system prompts assessors to consider specific risk scenarios relevant to
+the processing activity, ensuring comprehensive coverage.</p>
+<p><strong>Risk Scoring</strong></p>
+<p>The system implements quantitative risk assessment with likelihood
+and impact ratings. Each identified risk is scored on standardized
+scales for likelihood (rare, unlikely, possible, likely, almost certain)
+and impact (negligible, minor, moderate, major, severe). The system
+calculates risk scores and aggregates them to provide overall risk
+profiles. Visual representations help decision-makers understand risk
+distribution and prioritize mitigation efforts.</p>
+<p><strong>Mitigation Tracking</strong></p>
+<p>The system documents risk mitigation measures with effectiveness
+assessment. For each identified risk, assessors record proposed
+mitigation measures, the expected risk reduction, the implementation
+timeline, and the responsible party. The system tracks implementation
+progress and enables re-assessment of residual risk after mitigation.
+This tracking ensures that identified risks are actually addressed
+rather than merely documented.</p>
+<p><strong>DPO Consultation</strong></p>
+<p>The system implements workflow for mandatory DPO review as required
+by Article 35(2). Before a high-risk processing activity commences, the
+DPO receives the assessment for review, provides formal advice, and
+records any concerns or recommendations. The system documents whether
+DPO advice was followed and, if not, the justification for proceeding
+contrary to advice.</p>
+<p><strong>Supervisory Authority Consultation</strong></p>
+<p>The system tracks requirements for Article 36 prior consultation when
+residual risk remains high despite mitigation measures. If assessment
+determines that high risk cannot be mitigated sufficiently, the system
+generates documentation packages for supervisory authority consultation,
+tracks submission and response, and prevents processing from commencing
+until consultation concludes.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Example: Create and assess PIA</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>pia <span class="ot">&lt;-</span> <span class="fu">create_pia_assessment</span>(</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a> <span class="at">assessment_name =</span> <span class="st">&quot;Phase III Trial Data Processing&quot;</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a> <span class="at">processing_description =</span> <span class="st">&quot;Collection of sensitive health data&quot;</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a> <span class="at">legal_basis =</span> <span class="st">&quot;EXPLICIT_CONSENT&quot;</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a> <span class="at">created_by =</span> <span class="st">&quot;dpo&quot;</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>)</span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a><span class="co"># Add risk assessment</span></span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a><span class="fu">add_risk_assessment</span>(</span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a> <span class="at">pia_id =</span> pia<span class="sc">$</span>pia_id,</span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a> <span class="at">risk_category =</span> <span class="st">&quot;DATA_BREACH&quot;</span>,</span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a> <span class="at">risk_description =</span> <span class="st">&quot;Unauthorized access to trial data&quot;</span>,</span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a> <span class="at">likelihood =</span> <span class="st">&quot;LOW&quot;</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a> <span class="at">impact =</span> <span class="st">&quot;HIGH&quot;</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a> <span class="at">mitigation_measures =</span> <span class="st">&quot;Encryption, access controls, audit logging&quot;</span>,</span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a> <span class="at">residual_risk =</span> <span class="st">&quot;LOW&quot;</span>,</span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a> <span class="at">assessed_by =</span> <span class="st">&quot;security_officer&quot;</span></span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+</div>
+<div id="breach-notification-articles-33-34" class="section level2">
+<h2>11. Breach Notification (Articles 33-34)</h2>
+<div id="regulatory-requirement-10" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Article 33 requires notification to supervisory authorities within 72
+hours of becoming aware of a personal data breach likely to result in
+risk to data subject rights. Article 34 requires communication to
+affected data subjects when the breach is likely to result in high risk.
+These provisions ensure transparency and enable affected individuals to
+take protective measures.</p>
+</div>
+<div id="technical-implementation-10" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The breach notification module implements a complete incident
+response workflow:</p>
+<p><strong>Incident Recording</strong></p>
+<p>The system provides structured capture of breach details through a
+dedicated incident recording interface. Each incident record captures
+the discovery datetime, the nature of the breach (confidentiality,
+integrity, availability), the scope including estimated number of
+affected subjects and data categories involved, the likely consequences
+for data subjects, and initial containment measures taken. The recording
+interface guides staff through required information collection, ensuring
+that essential details are captured during the often-chaotic initial
+response period.</p>
+<p><strong>Timeline Tracking</strong></p>
+<p>The system implements automatic monitoring of the 72-hour
+notification deadline with escalation alerts. Upon incident recording,
+the system calculates the deadline based on the awareness timestamp and
+begins countdown tracking. As the deadline approaches, the system
+generates escalating alerts to response team members and management. A
+deadline dashboard provides real-time visibility into notification
+status. This tracking ensures that regulatory deadlines are met despite
+the complexity and stress of incident response.</p>
+<p><strong>Risk Assessment</strong></p>
+<p>The system provides structured assessment of breach severity and
+subject impact using criteria from regulatory guidance. Assessors
+evaluate the type of breach, the nature and sensitivity of affected
+data, the ease of identification of affected individuals, the severity
+of consequences for subjects, the number of affected individuals, and
+any special characteristics of affected individuals (such as vulnerable
+populations). The assessment determines whether supervisory authority
+notification is required and whether subject notification is
+necessary.</p>
+<p><strong>Notification Generation</strong></p>
+<p>The system generates template-based notifications for both
+supervisory authorities and affected subjects. Authority notifications
+include all elements required by Article 33(3): the nature of the
+breach, DPO contact information, likely consequences, and measures
+taken. Subject notifications include the elements required by Article
+34(2): clear language description of the breach, DPO contact
+information, likely consequences, and measures taken and recommended.
+Templates ensure consistency and completeness while enabling
+customization for specific circumstances.</p>
+<p><strong>Remediation Tracking</strong></p>
+<p>The system documents containment and remediation actions throughout
+the incident lifecycle. Each action is recorded with timestamp,
+responsible party, and outcome. The system supports action assignment
+and tracking, ensuring that remediation tasks are completed.
+Post-incident review documents lessons learned and process improvements,
+creating organizational learning from security events.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># Example: Report and assess breach</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>incident <span class="ot">&lt;-</span> <span class="fu">report_breach_incident</span>(</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a> <span class="at">breach_type =</span> <span class="st">&quot;UNAUTHORIZED_ACCESS&quot;</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a> <span class="at">breach_description =</span> <span class="st">&quot;Unauthorized login detected&quot;</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a> <span class="at">discovery_datetime =</span> <span class="fu">Sys.time</span>(),</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a> <span class="at">estimated_subjects =</span> <span class="dv">50</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a> <span class="at">data_categories =</span> <span class="st">&quot;HEALTH,IDENTIFICATION&quot;</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a> <span class="at">reported_by =</span> <span class="st">&quot;security_team&quot;</span></span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a>)</span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a><span class="co"># Check 72-hour deadline</span></span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a>deadline <span class="ot">&lt;-</span> <span class="fu">check_72_hour_deadline</span>(incident<span class="sc">$</span>incident_id)</span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a><span class="co"># Returns hours remaining and notification status</span></span></code></pre></div>
+</div>
+</div>
+</div>
+<div id="part-ii-good-clinical-practice-gcp-features" class="section level1">
+<h1>Part II: Good Clinical Practice (GCP) Features</h1>
+<p>Good Clinical Practice guidelines, established by the International
+Council for Harmonisation (ICH E6), define standards for clinical trial
+design, conduct, and reporting. ZZedc implements the following
+GCP-aligned features.</p>
+<div id="protocol-compliance-monitoring" class="section level2">
+<h2>12. Protocol Compliance Monitoring</h2>
+<div id="regulatory-requirement-11" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>ICH E6(R2) Section 4.5 requires that clinical trials be conducted in
+accordance with the protocol. Section 5.18 mandates monitoring to verify
+protocol adherence. Protocol deviations may affect subject safety, data
+integrity, and study validity, making systematic monitoring
+essential.</p>
+</div>
+<div id="technical-implementation-11" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The protocol compliance module provides systematic monitoring
+capabilities:</p>
+<p><strong>Protocol Definition</strong></p>
+<p>The system enables structured capture of protocol elements including
+visits, procedures, and eligibility criteria in a machine-readable
+format. Protocol definitions specify the study schedule with timing
+requirements, the assessments and procedures required at each visit, the
+inclusion and exclusion criteria for subject eligibility, and the
+endpoints and analysis populations. This structured capture enables
+automated monitoring that would be impossible with document-based
+protocol management.</p>
+<p><strong>Visit Scheduling</strong></p>
+<p>The system provides automated scheduling with configurable window
+calculations. When a subject enrolls or completes a reference visit, the
+system automatically calculates target dates for subsequent visits based
+on protocol-defined intervals. Visit windows specify acceptable
+variation from target dates, typically with narrower windows for
+critical assessments and wider windows for routine follow-up. The
+scheduling engine accounts for weekends and holidays when calculating
+permissible dates, reducing unnecessary deviations.</p>
+<p><strong>Deviation Detection</strong></p>
+<p>The system implements real-time identification of protocol deviations
+through continuous monitoring of data against protocol requirements.
+Deviations detected include visit timing outside protocol windows,
+missing required assessments, inclusion/exclusion criteria violations
+discovered after enrollment, and dosing errors or interruptions.
+Detection occurs as data is entered, enabling immediate corrective
+action rather than discovery during later monitoring visits.</p>
+<p><strong>Deviation Classification</strong></p>
+<p>The system categorizes deviations by severity and type according to
+sponsor- defined classification schemes. Severity categories typically
+distinguish major deviations affecting subject safety or data integrity
+from minor deviations with limited impact. Type categories identify the
+nature of the deviation such as visit window, informed consent,
+inclusion/exclusion, procedural, or study medication. This
+classification enables appropriate response and supports aggregate
+analysis of deviation patterns.</p>
+<p><strong>Corrective Action Tracking</strong></p>
+<p>The system documents responses to deviations and tracks completion of
+corrective actions. For each deviation, the system records the immediate
+response taken, root cause analysis, corrective actions to prevent
+recurrence, and verification that corrections were effective. This
+tracking demonstrates to regulators that deviations receive appropriate
+attention and that the organization learns from compliance failures.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Example: Define protocol and monitor compliance</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>protocol <span class="ot">&lt;-</span> <span class="fu">create_protocol</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a> <span class="at">protocol_code =</span> <span class="st">&quot;STUDY-001&quot;</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a> <span class="at">protocol_version =</span> <span class="st">&quot;2.0&quot;</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a> <span class="at">study_phase =</span> <span class="st">&quot;PHASE_3&quot;</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a> <span class="at">therapeutic_area =</span> <span class="st">&quot;ONCOLOGY&quot;</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a> <span class="at">created_by =</span> <span class="st">&quot;medical_director&quot;</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>)</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a><span class="co"># Add visit schedule</span></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a><span class="fu">add_protocol_visit</span>(</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a> <span class="at">protocol_id =</span> protocol<span class="sc">$</span>protocol_id,</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a> <span class="at">visit_code =</span> <span class="st">&quot;SCREENING&quot;</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a> <span class="at">visit_name =</span> <span class="st">&quot;Screening Visit&quot;</span>,</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a> <span class="at">visit_day =</span> <span class="sc">-</span><span class="dv">14</span>,</span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a> <span class="at">window_before =</span> <span class="dv">7</span>,</span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a> <span class="at">window_after =</span> <span class="dv">0</span>,</span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a> <span class="at">is_required =</span> <span class="cn">TRUE</span></span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a>)</span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a></span>
+<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a><span class="co"># Record protocol deviation</span></span>
+<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a><span class="fu">create_protocol_deviation</span>(</span>
+<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a> <span class="at">protocol_id =</span> protocol<span class="sc">$</span>protocol_id,</span>
+<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a> <span class="at">subject_id =</span> <span class="st">&quot;SUBJ-001&quot;</span>,</span>
+<span id="cb8-25"><a href="#cb8-25" tabindex="-1"></a> <span class="at">deviation_type =</span> <span class="st">&quot;VISIT_WINDOW&quot;</span>,</span>
+<span id="cb8-26"><a href="#cb8-26" tabindex="-1"></a> <span class="at">deviation_description =</span> <span class="st">&quot;Screening visit outside window&quot;</span>,</span>
+<span id="cb8-27"><a href="#cb8-27" tabindex="-1"></a> <span class="at">deviation_date =</span> <span class="fu">Sys.Date</span>(),</span>
+<span id="cb8-28"><a href="#cb8-28" tabindex="-1"></a> <span class="at">reported_by =</span> <span class="st">&quot;coordinator&quot;</span></span>
+<span id="cb8-29"><a href="#cb8-29" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+</div>
+<div id="adverse-event-management" class="section level2">
+<h2>13. Adverse Event Management</h2>
+<div id="regulatory-requirement-12" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>ICH E6(R2) Section 4.11 requires documentation and reporting of
+adverse events. Serious adverse events (SAEs) require expedited
+reporting to sponsors, institutional review boards, and regulatory
+authorities. Proper AE management is essential for subject safety and
+regulatory compliance.</p>
+</div>
+<div id="technical-implementation-12" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The adverse event module provides comprehensive AE/SAE
+management:</p>
+<p><strong>Event Capture</strong></p>
+<p>The system provides structured recording of adverse events with
+support for standardized medical terminology coding. Each event record
+captures the verbatim term as reported, the coded term using MedDRA
+(Medical Dictionary for Regulatory Activities), onset and resolution
+dates, outcome, and relationship to study treatment. The interface
+guides investigators through required fields while remaining efficient
+for high-volume data entry during busy clinic days.</p>
+<p><strong>Severity Grading</strong></p>
+<p>The system implements CTCAE (Common Terminology Criteria for Adverse
+Events) aligned severity grading using the standard Grade 1-5 scale.
+Grade 1 indicates mild events requiring no intervention. Grade 2
+indicates moderate events requiring minimal intervention. Grade 3
+indicates severe events with significant medical consequence. Grade 4
+indicates life-threatening events requiring urgent intervention. Grade 5
+indicates death. The system provides grading guidance and validation to
+ensure consistent application across sites.</p>
+<p><strong>Causality Assessment</strong></p>
+<p>The system implements systematic causality evaluation workflow to
+assess the relationship between adverse events and study treatment.
+Investigators assess causality using standardized categories (not
+related, unlikely, possible, probable, definite) with guided criteria.
+The assessment considers temporal relationship, biological plausibility,
+effect of dechallenge and rechallenge, and alternative explanations.
+Documentation of causality reasoning supports regulatory review.</p>
+<p><strong>SAE Escalation</strong></p>
+<p>The system automatically identifies events meeting serious adverse
+event criteria based on regulatory definitions. SAE criteria include
+death, life- threatening event, hospitalization, persistent incapacity,
+congenital anomaly, and other medically important events. When an AE
+meets SAE criteria, the system immediately elevates the event, notifies
+responsible personnel, initiates expedited reporting workflows, and
+applies enhanced documentation requirements.</p>
+<p><strong>Expedited Reporting</strong></p>
+<p>The system tracks timelines for regulatory reporting requirements
+including 24-hour notification for fatal or life-threatening unexpected
+events, 7-day submission of initial reports for fatal or
+life-threatening events, and 15-day submission for other serious
+unexpected events. The system calculates deadlines based on awareness
+date, generates alerts as deadlines approach, produces
+regulatory-compliant report formats, and tracks submission and
+response.</p>
+<p><strong>Follow-up Tracking</strong></p>
+<p>The system documents event evolution and resolution through
+structured follow- up records. Each follow-up captures the current
+status, any changes in severity or causality assessment, new information
+about etiology or treatment, and resolution details when applicable.
+Follow-up tracking continues until the event resolves or stabilizes,
+ensuring complete documentation of the event course.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Example: Record adverse event with SAE upgrade</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>ae <span class="ot">&lt;-</span> <span class="fu">create_adverse_event</span>(</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a> <span class="at">subject_id =</span> <span class="st">&quot;SUBJ-001&quot;</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a> <span class="at">ae_term =</span> <span class="st">&quot;Headache&quot;</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a> <span class="at">ae_description =</span> <span class="st">&quot;Moderate headache after dose&quot;</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a> <span class="at">onset_date =</span> <span class="fu">Sys.Date</span>(),</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a> <span class="at">severity_grade =</span> <span class="st">&quot;GRADE_2&quot;</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a> <span class="at">reported_by =</span> <span class="st">&quot;investigator&quot;</span></span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>)</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="co"># Upgrade to SAE if hospitalization required</span></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a><span class="fu">upgrade_to_sae</span>(</span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a> <span class="at">ae_id =</span> ae<span class="sc">$</span>ae_id,</span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a> <span class="at">sae_criteria =</span> <span class="st">&quot;HOSPITALIZATION&quot;</span>,</span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a> <span class="at">upgraded_by =</span> <span class="st">&quot;investigator&quot;</span></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+</div>
+<div id="crf-completion-guidelines" class="section level2">
+<h2>14. CRF Completion Guidelines</h2>
+<div id="regulatory-requirement-13" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>ICH E6(R2) Section 4.9 requires that data be recorded accurately and
+in a manner that allows verification. CRF completion guidelines (CCGs)
+support consistent data collection by providing detailed instructions
+for each form field, reducing variability and errors.</p>
+</div>
+<div id="technical-implementation-13" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The CCG module generates comprehensive field-level completion
+instructions:</p>
+<p><strong>Form Documentation</strong></p>
+<p>The system provides automatic generation of form completion guides
+from CRF metadata. Each guide includes the form purpose and context,
+completion timing and sequence, general instructions applicable to all
+fields, and special considerations for the form. Generation is automatic
+when CRF specifications change, ensuring that CCG documentation remains
+synchronized with actual forms.</p>
+<p><strong>Field Instructions</strong></p>
+<p>The system generates detailed guidance for each data field including
+the data type and format requirements, valid values and units of
+measure, source document requirements, collection procedures and timing,
+common errors to avoid, and examples of correct entries. These
+instructions draw from CRF specifications and supplementary guidance
+provided by study designers, creating comprehensive documentation
+without manual document creation.</p>
+<p><strong>Version Control</strong></p>
+<p>The system maintains CCG versioning aligned with CRF versions,
+ensuring that sites always have instructions matching the current form
+version. When CRFs are updated, the system generates updated CCGs and
+tracks which version is current at each site. Historical versions remain
+available for reference regarding data collected under prior
+versions.</p>
+<p><strong>Approval Workflow</strong></p>
+<p>The system implements review and approval process for CCG documents
+before distribution to sites. Medical monitors review clinical content,
+data managers review technical accuracy, and regulatory personnel review
+compliance considerations. Approved CCGs are distributed to sites with
+training acknowledgment tracking.</p>
+</div>
+</div>
+<div id="crf-version-control" class="section level2">
+<h2>15. CRF Version Control</h2>
+<div id="regulatory-requirement-14" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>ICH E6(R2) Section 5.5.3 requires documentation of CRF modifications.
+FDA 21 CFR 312.62 requires maintenance of accurate case histories.
+Sponsors must maintain clear records of what data was collected using
+which form versions.</p>
+</div>
+<div id="technical-implementation-14" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The version control module provides complete CRF lifecycle
+management:</p>
+<p><strong>Version History</strong></p>
+<p>The system maintains immutable records of all CRF versions throughout
+study conduct. Each version record includes the complete form
+specification at that version, the effective date range, the approvers
+and approval dates, and cross-references to related documents. This
+history enables reconstruction of exactly what form was in use at any
+point during the study, supporting data interpretation and regulatory
+inspection.</p>
+<p><strong>Change Documentation</strong></p>
+<p>The system captures detailed change logs with rationale for each
+modification. When a CRF is updated, the system records each field
+added, removed, or modified, the reason for the change, the assessment
+of impact on ongoing data collection, and any data migration
+requirements. This documentation demonstrates that changes were
+controlled and justified rather than arbitrary.</p>
+<p><strong>Comparison Tools</strong></p>
+<p>The system provides version-to-version comparison capabilities that
+highlight differences between CRF versions. Comparison reports identify
+added, removed, and modified fields, changes to validation rules,
+changes to field attributes such as labels or help text, and structural
+changes such as section reordering. These comparisons support impact
+assessment and training development.</p>
+<p><strong>Deployment Tracking</strong></p>
+<p>The system maintains records of version deployment to sites including
+the deployment date at each site, acknowledgment of receipt and
+training, and any site-specific implementation issues. This tracking
+ensures accountability for version currency and supports troubleshooting
+when sites report problems.</p>
+</div>
+</div>
+<div id="crf-design-review" class="section level2">
+<h2>16. CRF Design Review</h2>
+<div id="regulatory-requirement-15" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>ICH E6(R2) Section 5.5.3 specifies sponsor responsibilities for CRF
+design. Industry best practices recommend formal design review processes
+involving medical, statistical, regulatory, and operational stakeholders
+to optimize data collection.</p>
+</div>
+<div id="technical-implementation-15" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The review module implements structured CRF design review:</p>
+<p><strong>Review Cycles</strong></p>
+<p>The system supports multi-stage review with configurable reviewers at
+each stage. Typical stages include medical review for clinical content,
+statistical review for analysis requirements, regulatory review for
+compliance considerations, and operational review for site feasibility.
+Each stage has defined reviewers, completion criteria, and escalation
+procedures. The system tracks progress through review stages and alerts
+stakeholders to pending items.</p>
+<p><strong>Comment Tracking</strong></p>
+<p>The system provides structured capture and resolution of review
+comments. Comments are categorized by type (correction required,
+suggestion, clarification needed), severity, and affected form elements.
+Each comment tracks the commenter, the response, and resolution status.
+Comment discussion threads enable dialogue between reviewers and
+designers without losing context.</p>
+<p><strong>Approval Workflow</strong></p>
+<p>The system implements formal sign-off requirements by stage before
+CRF finalization. Approvers at each stage certify that they have
+reviewed the form and that it meets requirements within their domain.
+The system enforces approval sequence, preventing progression to later
+stages until earlier approvals are complete.</p>
+<p><strong>Design History</strong></p>
+<p>The system maintains complete record of review activities for
+regulatory inspection. The design history file includes all review
+comments and resolutions, all approval records, meeting notes and
+decision documentation, and change requests and their disposition. This
+history demonstrates appropriate design governance.</p>
+</div>
+</div>
+</div>
+<div id="part-iii-fda-21-cfr-part-11-features" class="section level1">
+<h1>Part III: FDA 21 CFR Part 11 Features</h1>
+<p>FDA 21 CFR Part 11 establishes requirements for electronic records
+and electronic signatures in FDA-regulated activities. ZZedc implements
+the following Part 11 features.</p>
+<div id="electronic-signatures" class="section level2">
+<h2>17. Electronic Signatures</h2>
+<div id="regulatory-requirement-16" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>21 CFR Part 11 Subpart C establishes requirements for electronic
+signatures including unique identification of the signer, signature
+manifestation showing the printed name, date/time, and meaning, and
+binding of the signature to the record such that it cannot be copied or
+transferred to falsify records.</p>
+</div>
+<div id="technical-implementation-16" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The electronic signature module implements compliant
+e-signatures:</p>
+<p><strong>Signature Components</strong></p>
+<p>The system implements username plus password combination as the
+signature component in accordance with 11.200(a). Each signature
+requires entry of both credentials at the time of signing, ensuring that
+the signer is present and actively consenting to the signature. The
+system does not permit signature using cached credentials or
+single-factor authentication, maintaining the regulatory requirement for
+two-component signatures.</p>
+<p><strong>Signature Meaning</strong></p>
+<p>The system captures the meaning of each signature as required by
+11.50. Upon signing, the signer selects from defined meanings including
+authorship (I created this content), review (I have reviewed and
+verified this content), approval (I authorize this action or content),
+and responsibility (I accept responsibility for this content). The
+meaning is recorded as part of the signature record and displayed with
+the signature manifestation.</p>
+<p><strong>Signature Manifestation</strong></p>
+<p>The system displays the printed name of the signer, the date and time
+of signature, and the signature meaning as required by 11.50. This
+manifestation appears wherever the signed record is displayed or
+printed, ensuring that viewers understand who signed, when, and for what
+purpose. The manifestation cannot be separated from the signed
+record.</p>
+<p><strong>Record Linking</strong></p>
+<p>The system implements cryptographic binding of signature to record
+content, ensuring that a signature cannot be transferred to a different
+record. Upon signing, the system computes a cryptographic hash of the
+record content and includes this hash in the signature record.
+Verification compares the current record hash to the stored hash,
+detecting any modification since signing. This binding prevents both
+intentional falsification and accidental association of signatures with
+wrong records.</p>
+<p><strong>Non-Repudiation</strong></p>
+<p>The system implements hash-based verification preventing signature
+forgery or repudiation. Because the signature includes a hash of the
+signer’s credentials and the record content at signing time, no one can
+create a valid signature without possessing the signer’s credentials and
+the exact record content. This provides non-repudiation: signers cannot
+plausibly deny their signatures, and others cannot forge signatures.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Example: Apply electronic signature</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>signature <span class="ot">&lt;-</span> <span class="fu">apply_electronic_signature</span>(</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a> <span class="at">record_type =</span> <span class="st">&quot;CRF&quot;</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a> <span class="at">record_id =</span> <span class="st">&quot;CRF-001-V1&quot;</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a> <span class="at">signer_id =</span> <span class="st">&quot;dr_smith&quot;</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a> <span class="at">signer_password =</span> <span class="st">&quot;****&quot;</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a> <span class="at">signature_meaning =</span> <span class="st">&quot;APPROVAL&quot;</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a> <span class="at">signature_reason =</span> <span class="st">&quot;Approving completed case report form&quot;</span></span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>)</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a><span class="co"># Verify signature integrity</span></span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a><span class="fu">verify_electronic_signature</span>(</span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a> <span class="at">signature_id =</span> signature<span class="sc">$</span>signature_id</span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+</div>
+<div id="audit-trail-system" class="section level2">
+<h2>18. Audit Trail System</h2>
+<div id="regulatory-requirement-17" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>21 CFR 11.10(e) requires computer-generated, time-stamped audit
+trails that independently record the date and time of operator entries
+and actions that create, modify, or delete electronic records. Audit
+trails must be available for agency review and copying.</p>
+</div>
+<div id="technical-implementation-17" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The audit trail module provides comprehensive activity logging:</p>
+<p><strong>Automatic Capture</strong></p>
+<p>The system logs all record operations automatically without operator
+intervention or ability to bypass. The audit system operates at the
+database layer, capturing events before they can be intercepted or
+suppressed by application code. This automatic capture ensures complete
+coverage regardless of which interface or process modifies data.
+Operators cannot disable or circumvent audit logging.</p>
+<p><strong>Immutability</strong></p>
+<p>The system implements hash-chained audit records preventing
+undetected tampering. Each audit record includes a cryptographic hash of
+the previous record, creating a chain where modification of any record
+invalidates all subsequent hashes. The system periodically verifies
+chain integrity and alerts administrators to any detected anomalies.
+This immutability ensures that audit trails provide reliable evidence of
+actual system activity.</p>
+<p><strong>Timestamp Accuracy</strong></p>
+<p>The system generates timestamps independently of operator input,
+using server system time synchronized via NTP (Network Time Protocol).
+Operators cannot specify or modify timestamps, ensuring temporal
+accuracy. The system logs any detected time synchronization failures,
+alerting administrators to conditions that might affect timestamp
+reliability.</p>
+<p><strong>Record Linkage</strong></p>
+<p>The system maintains direct association between audit entries and
+affected records through stable record identifiers. Each audit entry
+specifies the table, record identifier, and field affected. This linkage
+enables efficient retrieval of complete audit history for any record,
+supporting both routine review and regulatory inspection.</p>
+<p><strong>Retention</strong></p>
+<p>The system retains audit trails for the lifetime of the associated
+record plus the regulatory retention period. Retention configuration
+mirrors clinical data retention policies, ensuring that audit evidence
+remains available as long as the data it documents. The system prevents
+deletion of audit records while associated clinical records exist.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># Example: Audit trail verification</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="co"># All operations automatically logged</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="fu">create_correction_request</span>(</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a> <span class="at">table_name =</span> <span class="st">&quot;subjects&quot;</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a> <span class="at">record_id =</span> <span class="st">&quot;SUBJ-001&quot;</span>,</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a> <span class="at">field_name =</span> <span class="st">&quot;birth_date&quot;</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a> <span class="at">current_value =</span> <span class="st">&quot;1990-01-01&quot;</span>,</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a> <span class="at">proposed_value =</span> <span class="st">&quot;1990-01-02&quot;</span>,</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a> <span class="at">correction_reason =</span> <span class="st">&quot;Transcription error&quot;</span>,</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a> <span class="at">requested_by =</span> <span class="st">&quot;coordinator&quot;</span></span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>)</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="co"># Verify audit trail integrity</span></span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a><span class="fu">verify_correction_integrity</span>(request_id)</span></code></pre></div>
+</div>
+</div>
+<div id="data-correction-workflow" class="section level2">
+<h2>19. Data Correction Workflow</h2>
+<div id="regulatory-requirement-18" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>21 CFR 11.10(e) requires that changes to records not obscure
+previously recorded information. Original entries must remain visible
+with the date/time and identity of the person making the change. This
+requirement preserves data integrity while permitting necessary
+corrections.</p>
+</div>
+<div id="technical-implementation-18" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The data correction module implements controlled change
+management:</p>
+<p><strong>Correction Requests</strong></p>
+<p>The system implements a formal request process for data changes that
+separates the request from the authorization. Requestors identify the
+data requiring correction, document the correct value, and provide
+rationale. Requests enter a workflow queue for review, ensuring that
+corrections receive appropriate oversight. This separation of duties
+prevents unauthorized modifications and creates accountability.</p>
+<p><strong>Reason Documentation</strong></p>
+<p>The system requires mandatory capture of correction rationale meeting
+regulatory expectations. Every correction must include an explanation of
+why the correction is needed (such as transcription error, source
+document clarification, or protocol deviation). Vague or missing reasons
+are rejected by validation. This documentation supports regulatory
+review and demonstrates that corrections are legitimate rather than
+arbitrary data manipulation.</p>
+<p><strong>Dual Control</strong></p>
+<p>The system implements configurable approval requirements for
+corrections based on data sensitivity and correction type. Critical
+clinical endpoints may require approval from both the investigator and
+sponsor medical monitor. Administrative corrections may require only
+supervisor approval. The configuration reflects risk-based principles,
+applying greater control to higher-risk modifications while maintaining
+efficiency for routine corrections.</p>
+<p><strong>Original Preservation</strong></p>
+<p>The system retains original values with full history including who
+entered the original value and when, who requested the correction and
+why, who approved the correction and when, and the correction timestamp.
+This complete history ensures that original entries remain visible as
+required by regulation. Reports can display either current values or
+complete change history as needed.</p>
+<p><strong>Override Procedures</strong></p>
+<p>The system supports documented escalation for urgent corrections that
+cannot wait for normal approval cycles. Override authority is restricted
+to designated personnel. Each override is prominently flagged in audit
+records and reported to management. This procedure balances operational
+necessity with appropriate controls.</p>
+</div>
+</div>
+<div id="system-validation-framework" class="section level2">
+<h2>20. System Validation Framework</h2>
+<div id="regulatory-requirement-19" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>21 CFR 11.10(a) requires that systems be validated to ensure
+accuracy, reliability, consistent intended performance, and the ability
+to discern invalid or altered records. Validation provides documented
+evidence that systems function as intended.</p>
+</div>
+<div id="technical-implementation-19" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The validation framework implements a complete IQ/OQ/PQ approach:</p>
+<p><strong>Installation Qualification (IQ)</strong></p>
+<p>The system provides verification of correct installation and
+configuration through automated installation verification testing. IQ
+tests confirm that all required software components are present and at
+correct versions, configuration files contain expected values, database
+schemas match specifications, and system resources meet minimum
+requirements. IQ generates documentation suitable for inclusion in
+validation packages.</p>
+<p><strong>Operational Qualification (OQ)</strong></p>
+<p>The system implements testing of system functions under normal
+conditions to verify that all features work as designed. OQ tests
+exercise each system function with valid inputs, verify correct outputs
+and behaviors, test error handling with invalid inputs, and confirm user
+interface functionality. The comprehensive OQ test suite covers all
+regulatory-relevant functions.</p>
+<p><strong>Performance Qualification (PQ)</strong></p>
+<p>The system supports verification under actual use conditions to
+confirm ongoing proper operation. PQ tests use production-like data
+volumes and user loads, verify performance meets acceptance criteria,
+test system behavior under stress conditions, and confirm backup and
+recovery procedures. PQ may be repeated periodically to confirm
+continued proper operation.</p>
+<p><strong>Validation Documentation</strong></p>
+<p>The system automates generation of validation reports meeting
+regulatory expectations. Reports include test specifications with
+expected results, actual results with evidence, deviation documentation
+for any failures, overall pass/fail status, and approval signatures.
+This automation reduces documentation burden while ensuring completeness
+and consistency.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co"># Example: Run validation suite</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>validation <span class="ot">&lt;-</span> <span class="fu">run_validation_suite</span>(</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a> <span class="at">validation_type =</span> <span class="st">&quot;FULL&quot;</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a> <span class="at">environment =</span> <span class="st">&quot;PRODUCTION&quot;</span></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>)</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a><span class="co"># Generate validation report</span></span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a><span class="fu">generate_validation_report</span>(</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a> <span class="at">validation_id =</span> validation<span class="sc">$</span>validation_id,</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a> <span class="at">format =</span> <span class="st">&quot;PDF&quot;</span></span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+</div>
+<div id="change-control-system" class="section level2">
+<h2>21. Change Control System</h2>
+<div id="regulatory-requirement-20" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>21 CFR 11.10(k)(2) requires controls over the revision and change of
+system documentation and operational systems. Changes must be evaluated
+for impact on validation status and subject to appropriate approval
+before implementation.</p>
+</div>
+<div id="technical-implementation-20" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The change control module manages system modifications:</p>
+<p><strong>Change Requests</strong></p>
+<p>The system implements formal request process with categorization of
+change type, urgency, and scope. Requestors describe the proposed
+change, identify affected components, and propose implementation
+approach. Requests are assigned unique identifiers and enter the
+tracking workflow. This formality ensures that all changes are
+documented and visible to stakeholders.</p>
+<p><strong>Impact Assessment</strong></p>
+<p>The system provides systematic evaluation of change impacts on system
+validation, data integrity, regulatory compliance, and operational
+processes. Impact assessors consider whether the change affects
+validated functions, whether revalidation is required, whether training
+is needed, and whether documentation must be updated. Assessment
+findings inform approval decisions and implementation planning.</p>
+<p><strong>Approval Workflow</strong></p>
+<p>The system implements multi-level approval for changes based on
+impact severity. Minor changes with limited impact may require only
+technical approval. Significant changes affecting validated functions
+require quality assurance approval. Major changes affecting regulatory
+compliance require management approval. The system enforces approval
+requirements before implementation can proceed.</p>
+<p><strong>Implementation Tracking</strong></p>
+<p>The system documents change implementation with verification of
+completion. Implementation records capture who performed the change,
+when, and what specific actions were taken. Post-implementation
+verification confirms that the change achieved intended effects without
+adverse impacts. Implementation evidence is linked to the change request
+for complete traceability.</p>
+<p><strong>Validation Integration</strong></p>
+<p>The system triggers revalidation activities as appropriate based on
+change impact assessment. Changes affecting validated functions generate
+revalidation requirements specifying which tests must be repeated. The
+system tracks revalidation completion and prevents sign-off until
+validation is current. This integration ensures that validation status
+remains accurate after changes.</p>
+</div>
+</div>
+<div id="access-controls" class="section level2">
+<h2>22. Access Controls</h2>
+<div id="regulatory-requirement-21" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>21 CFR 11.10(d) requires limiting system access to authorized
+individuals. 11.10(g) requires authority checks ensuring that only
+authorized individuals can use the system, access operations, or perform
+functions. These controls protect against unauthorized access and
+inappropriate actions.</p>
+</div>
+<div id="technical-implementation-21" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The access control system implements role-based security:</p>
+<p><strong>Role Definitions</strong></p>
+<p>The system supports configurable roles with specific permission
+profiles reflecting organizational structure and job functions. Common
+roles include data entry (create and modify records), reviewer
+(read-only access with query capability), investigator (clinical
+oversight with signature authority), and administrator (system
+configuration and user management). Organizations define roles matching
+their specific needs and assign users to appropriate roles.</p>
+<p><strong>Function-Level Control</strong></p>
+<p>The system implements permissions at the operation level for granular
+access control. Beyond data access, the system controls who can perform
+specific functions such as running reports, exporting data, applying
+signatures, and modifying configurations. This granularity ensures that
+users can perform their job functions without access to unrelated
+capabilities that might create risk.</p>
+<p><strong>Session Management</strong></p>
+<p>The system implements secure session handling with configurable
+timeout to prevent unauthorized access through abandoned sessions.
+Sessions expire after configured inactivity periods, requiring
+reauthentication. Session tokens are generated with cryptographic
+randomness and transmitted only over encrypted connections. The system
+prevents session hijacking and fixation attacks.</p>
+<p><strong>Access Logging</strong></p>
+<p>The system maintains complete record of access attempts including
+both successful and failed authentications, session creation and
+termination, privilege changes, and access denial events. These logs
+support security monitoring, incident investigation, and compliance
+demonstration. Regular log review helps identify suspicious activity
+before security incidents occur.</p>
+</div>
+</div>
+</div>
+<div id="part-iv-integrated-compliance-features" class="section level1">
+<h1>Part IV: Integrated Compliance Features</h1>
+<p>The following features support compliance across multiple regulatory
+frameworks.</p>
+<div id="protocol-crf-linkage" class="section level2">
+<h2>23. Protocol-CRF Linkage</h2>
+<div id="regulatory-requirement-22" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>ICH E6(R2) requires traceability between protocol requirements and
+data collection elements. FDA expects clear documentation of data
+collection rationale. This traceability demonstrates that collected data
+serves specific scientific purposes.</p>
+</div>
+<div id="technical-implementation-22" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The linkage module connects protocol elements to CRF fields:</p>
+<p><strong>Objective Mapping</strong></p>
+<p>The system maintains explicit links between protocol objectives and
+data collection endpoints. Each protocol objective connects to the
+specific variables used to assess that objective. This mapping enables
+verification that all objectives have corresponding data collection and
+that all collected data serves identified purposes. Traceability reports
+demonstrate the scientific rationale for data collection.</p>
+<p><strong>Visit-Form Mapping</strong></p>
+<p>The system associates forms with protocol visits to define when each
+form should be completed. This mapping drives schedule displays showing
+which forms are due at each visit, compliance checking to identify
+missing forms, and data entry workflows presenting appropriate forms for
+each visit. The association ensures that data collection follows the
+protocol schedule.</p>
+<p><strong>Traceability Matrix</strong></p>
+<p>The system generates automated requirement traceability matrices
+linking protocol requirements to implementing CRF elements. These
+matrices satisfy regulatory expectations for documentation of CRF
+development rationale and support change impact assessment by
+identifying which CRF elements depend on which protocol
+requirements.</p>
+</div>
+</div>
+<div id="study-closeout-management" class="section level2">
+<h2>24. Study Closeout Management</h2>
+<div id="regulatory-requirement-23" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>ICH E6(R2) Section 4.13 and FDA regulations require systematic study
+closeout with complete documentation, reconciliation of all data, and
+appropriate archiving. Closeout procedures ensure that study records are
+complete and suitable for long-term retention.</p>
+</div>
+<div id="technical-implementation-23" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The closeout module provides structured study completion:</p>
+<p><strong>Closeout Checklist</strong></p>
+<p>The system provides comprehensive checklists of required activities
+customized by study type and regulatory requirements. Standard checklist
+items include query resolution, SAE reconciliation, signature
+completion, and documentation review. The system tracks checklist
+progress, assigns responsibility for each item, and prevents premature
+database lock until all critical items are complete.</p>
+<p><strong>Data Reconciliation</strong></p>
+<p>The system supports systematic data verification processes comparing
+clinical data against external sources such as safety databases,
+laboratory systems, and central facilities. Reconciliation identifies
+discrepancies requiring resolution before closeout. The system tracks
+discrepancy investigation and resolution, documenting the final
+reconciled state.</p>
+<p><strong>Database Lock</strong></p>
+<p>The system implements controlled database locking procedures with
+appropriate authorization requirements. Database lock prevents further
+data modification, preserving the dataset for analysis and regulatory
+submission. The lock process verifies that prerequisite conditions are
+met, captures authorization, and timestamps the lock event. Post-lock
+modifications require documented deviation procedures.</p>
+<p><strong>Archive Preparation</strong></p>
+<p>The system generates documentation of archive contents including data
+inventory, file manifests, and retention schedules. Archive packages
+include the database in preservation-appropriate format, audit trails,
+system configuration records, and metadata necessary for future
+interpretation. This documentation supports long-term retention and
+future data access.</p>
+</div>
+</div>
+<div id="master-field-library" class="section level2">
+<h2>25. Master Field Library</h2>
+<div id="regulatory-requirement-24" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>CDISC standards promote standardized data collection using common
+data elements. Regulatory submissions benefit from consistent variable
+definitions that align with submission standards. Standardization
+improves data quality and facilitates meta-analysis across studies.</p>
+</div>
+<div id="technical-implementation-24" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The field library provides standardized field definitions:</p>
+<p><strong>CDISC Alignment</strong></p>
+<p>The system provides pre-defined fields aligned with SDTM (Study Data
+Tabulation Model) domains and controlled terminology. Standard fields
+include proper variable names, labels, data types, and value sets
+matching CDISC specifications. Using library fields ensures that
+collected data maps correctly to submission formats without
+transformation complexity.</p>
+<p><strong>Controlled Terminology</strong></p>
+<p>The system integrates CDISC controlled terminology codelists,
+ensuring that categorical data uses standardized values. The terminology
+database includes NCI Thesaurus codes enabling regulatory submission.
+Terminology versions are tracked, and the system alerts administrators
+when updates are available.</p>
+<p><strong>Reusability</strong></p>
+<p>The system enables centralized definitions for consistency across
+studies within an organization. Once defined, library fields can be
+incorporated into any CRF design. Changes to library fields propagate to
+all studies using those fields, ensuring organizational consistency.
+Usage tracking shows which studies employ each field, supporting impact
+assessment for terminology updates.</p>
+</div>
+</div>
+<div id="conditional-logic-system" class="section level2">
+<h2>26. Conditional Logic System</h2>
+<div id="regulatory-requirement-25" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>GCP requires collection of data relevant to each subject’s situation
+while avoiding unnecessary data collection that burdens subjects and
+sites. Conditional logic ensures collection of applicable data based on
+subject characteristics and prior responses.</p>
+</div>
+<div id="technical-implementation-25" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The conditional logic module enables dynamic form behavior:</p>
+<p><strong>Show/Hide Rules</strong></p>
+<p>The system implements field visibility based on prior responses.
+Fields can be hidden when not applicable and shown when relevant. For
+example, pregnancy questions appear only for female subjects of
+childbearing potential, and detailed symptom questions appear only when
+the subject reports symptoms. This conditional visibility reduces form
+clutter and prevents collection of inapplicable data.</p>
+<p><strong>Enable/Disable Rules</strong></p>
+<p>The system controls field editability based on conditions separate
+from visibility. Disabled fields remain visible for reference but cannot
+be modified. This supports scenarios where data should be shown for
+context but not entered, such as calculated fields or data imported from
+external systems.</p>
+<p><strong>Validation Rules</strong></p>
+<p>The system implements conditional validation requirements that apply
+only when specific conditions are met. Required field validation can
+depend on other field values. Range checks can vary based on subject
+characteristics. Cross-field validation can enforce complex business
+rules. This conditional validation ensures appropriate data quality
+checks without inappropriate constraints.</p>
+<p><strong>Skip Logic</strong></p>
+<p>The system enables structured navigation based on responses,
+automatically advancing past inapplicable sections. Skip logic reduces
+data entry time and prevents errors from attempting to complete
+inapplicable sections. The navigation flow remains intuitive despite
+complexity of underlying rules.</p>
+</div>
+</div>
+<div id="calculated-fields" class="section level2">
+<h2>27. Calculated Fields</h2>
+<div id="regulatory-requirement-26" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>FDA and ICH require accurate derived data in clinical databases.
+Standard calculations implemented in the system reduce transcription
+errors and ensure consistency across sites and studies. Calculated
+fields must be clearly identified as derived rather than entered.</p>
+</div>
+<div id="technical-implementation-26" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The calculation module supports standard clinical calculations:</p>
+<p><strong>BMI Calculation</strong></p>
+<p>The system provides automatic Body Mass Index calculation with
+category assignment according to WHO standards. When weight and height
+are entered, BMI is calculated and the subject is assigned to
+underweight, normal, overweight, or obese category. The calculation
+formula and category thresholds are documented and consistent with
+scientific standards.</p>
+<p><strong>Age Calculation</strong></p>
+<p>The system computes precise age from birth date and reference date,
+typically informed consent date. Age is calculated in years with
+appropriate handling of leap years and partial years. Age at multiple
+study timepoints can be calculated using different reference dates. This
+standardized calculation eliminates site variability in age
+computation.</p>
+<p><strong>BSA Formulas</strong></p>
+<p>The system supports multiple body surface area formulas including the
+DuBois and DuBois formula, the Mosteller formula, and the Haycock
+formula. Users select the appropriate formula based on study
+requirements. Each formula is implemented per published specifications
+with documented references.</p>
+<p><strong>Score Summation</strong></p>
+<p>The system calculates composite scores from multi-item instruments
+with configurable handling of missing data. Summation can exclude
+missing items, impute missing items using mean substitution, or require
+complete data. The calculation method is documented, ensuring that score
+interpretation accounts for the specific algorithm used.</p>
+</div>
+</div>
+<div id="crf-designer" class="section level2">
+<h2>28. CRF Designer</h2>
+<div id="regulatory-requirement-27" class="section level3">
+<h3>Regulatory Requirement</h3>
+<p>Effective CRF design supports data quality and regulatory compliance.
+Visual design tools improve form usability by enabling designers to see
+forms as users will experience them. Well-designed forms reduce data
+entry errors and training requirements.</p>
+</div>
+<div id="technical-implementation-27" class="section level3">
+<h3>Technical Implementation</h3>
+<p>The designer module provides form creation capabilities:</p>
+<p><strong>Visual Layout</strong></p>
+<p>The system enables grid-based field positioning allowing precise
+control of form appearance. Designers drag fields to desired positions,
+seeing the layout as users will experience it. Grid-based positioning
+ensures consistent alignment and professional appearance. Layout can be
+adjusted for different screen sizes and printing formats.</p>
+<p><strong>Section Management</strong></p>
+<p>The system supports logical grouping of related fields into sections
+with headers and visual separation. Sections can expand and collapse to
+manage form complexity. Section-level permissions enable restricting
+access to sensitive portions of forms. Conditional section visibility
+hides entire groups of fields based on skip logic.</p>
+<p><strong>Field Properties</strong></p>
+<p>The system provides comprehensive field configuration including data
+type, label, help text, placeholder, validation rules, conditional
+logic, and database mapping. All field properties are accessible through
+an intuitive interface without requiring technical knowledge. Property
+changes take effect immediately in the preview.</p>
+<p><strong>Preview Generation</strong></p>
+<p>The system provides form preview before deployment, enabling
+validation of design decisions. Preview displays the form exactly as
+users will see it, including conditional logic behavior. Designers can
+test various scenarios by entering sample data and observing form
+response. This preview capability catches design issues before
+deployment to production.</p>
+</div>
+</div>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<p>ZZedc provides a comprehensive regulatory compliance framework
+addressing the requirements of GDPR, GCP, and FDA 21 CFR Part 11. The
+system’s modular architecture enables organizations to implement
+compliance features appropriate to their specific regulatory context
+while maintaining flexibility for diverse clinical research
+applications.</p>
+<p>The implementation emphasizes automation of compliance activities,
+reducing manual burden while improving consistency and reliability.
+Comprehensive audit trails support regulatory inspections and
+demonstrate organizational commitment to data protection and research
+integrity.</p>
+<p>Each feature described in this white paper has been designed with
+reference to the underlying regulatory requirements, implemented
+following software engineering best practices, and validated through
+extensive automated testing. Organizations deploying ZZedc benefit from
+this rigorous development approach, gaining confidence that their EDC
+system supports rather than undermines their compliance obligations.</p>
+</div>
+<div id="references" class="section level1">
+<h1>References</h1>
+<p>European Parliament and Council of the European Union. (2016).
+Regulation (EU) 2016/679 of the European Parliament and of the Council
+of 27 April 2016 on the protection of natural persons with regard to the
+processing of personal data and on the free movement of such data
+(General Data Protection Regulation). Official Journal of the European
+Union, L119, 1-88.</p>
+<p>International Council for Harmonisation of Technical Requirements for
+Pharmaceuticals for Human Use. (2016). Integrated Addendum to ICH
+E6(R1): Guideline for Good Clinical Practice E6(R2).</p>
+<p>U.S. Food and Drug Administration. (2003). 21 CFR Part 11: Electronic
+Records; Electronic Signatures. Code of Federal Regulations, Title
+21.</p>
+<p>U.S. Food and Drug Administration. (2017). Part 11, Electronic
+Records; Electronic Signatures - Scope and Application: Guidance for
+Industry.</p>
+<p>Article 29 Data Protection Working Party. (2017). Guidelines on Data
+Protection Impact Assessment (DPIA) (wp248rev.01).</p>
+<p>Article 29 Data Protection Working Party. (2018). Guidelines on
+Personal data breach notification under Regulation 2016/679
+(wp250rev.01).</p>
+<p>Clinical Data Interchange Standards Consortium. (2021). CDISC
+Standards. <a href="https://www.cdisc.org/standards" class="uri">https://www.cdisc.org/standards</a></p>
+<p>European Medicines Agency. (2010). Reflection paper on expectations
+for electronic source data and data transcribed to electronic data
+collection tools in clinical trials. EMA/INS/GCP/454280/2010.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
