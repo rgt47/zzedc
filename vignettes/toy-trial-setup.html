@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="ZZedc Team" />
+
+<meta name="date" content="2025-12-20" />
+
+<title>Toy Clinical Trial: Quick Start Guide</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Toy Clinical Trial: Quick Start Guide</h1>
+<h3 class="subtitle">Active vs. Placebo Memory Enhancement Study with 20
+Subjects</h3>
+<h4 class="author">ZZedc Team</h4>
+<h4 class="date">2025-12-20</h4>
+
+
+
+<div id="overview" class="section level2">
+<h2>Overview</h2>
+<p>This guide walks you through creating and running a complete, minimal
+clinical trial in ZZedc. The example includes:</p>
+<ul>
+<li><strong>Study</strong>: Active vs. Placebo Memory Enhancement
+Study</li>
+<li><strong>Population</strong>: 20 subjects in a single lab</li>
+<li><strong>Duration</strong>: 3 visits (Baseline → Week 4 → Week
+8)</li>
+<li><strong>Assessments</strong>: MMSE (Mini-Cog Mental State
+Examination)</li>
+<li><strong>Design</strong>: Simple 1:1 randomization (10 active, 10
+placebo)</li>
+</ul>
+<p>This toy trial is perfect for: - Learning ZZedc workflow - Testing
+new features (like Feature #1 encryption) - Understanding the complete
+clinical trial data flow - Using as a template for real studies</p>
+<hr />
+</div>
+<div id="part-1-trial-structure" class="section level2">
+<h2>Part 1: Trial Structure</h2>
+<div id="study-design-overview" class="section level3">
+<h3>Study Design Overview</h3>
+<pre><code>Timeline:
+  Visit 1 (Baseline) → Randomization → Visit 2 (Week 4) → Visit 3 (Week 8)
+
+Forms Needed:
+  1. Enrollment Form (demographics at baseline)
+  2. Randomization Form (treatment assignment)
+  3. MMSE Assessment Form (cognitive testing at all 3 visits)
+
+Data to Collect:
+  - Demographics (age, gender, education)
+  - Treatment assignment (Active/Placebo)
+  - MMSE component scores (7 components)
+  - MMSE total score (0-30)
+  - Adverse events (yes/no with description)
+
+Randomization:
+  - Target: 20 subjects
+  - Split: 10 active arm, 10 placebo arm
+  - Method: Simple 1:1 randomization</code></pre>
+<hr />
+</div>
+</div>
+<div id="part-2-project-setup" class="section level2">
+<h2>Part 2: Project Setup</h2>
+<div id="create-directory-structure" class="section level3">
+<h3>Create Directory Structure</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Create main project directory</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>project_dir <span class="ot">&lt;-</span> <span class="st">&quot;~/zzedc_toy_trial&quot;</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="fu">dir.create</span>(project_dir, <span class="at">showWarnings =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co"># Create subdirectories</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="fu">dir.create</span>(<span class="fu">file.path</span>(project_dir, <span class="st">&quot;data&quot;</span>), <span class="at">showWarnings =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="fu">dir.create</span>(<span class="fu">file.path</span>(project_dir, <span class="st">&quot;scripts&quot;</span>), <span class="at">showWarnings =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="fu">dir.create</span>(<span class="fu">file.path</span>(project_dir, <span class="st">&quot;logs&quot;</span>), <span class="at">showWarnings =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="fu">dir.create</span>(<span class="fu">file.path</span>(project_dir, <span class="st">&quot;exports&quot;</span>), <span class="at">showWarnings =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a><span class="co"># Verify structure</span></span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a><span class="fu">list.files</span>(project_dir, <span class="at">recursive =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
+<hr />
+</div>
+</div>
+<div id="part-3-data-dictionary-csv-files" class="section level2">
+<h2>Part 3: Data Dictionary &amp; CSV Files</h2>
+<p>The toy trial uses CSV files to define forms and data. All templates
+are included in this vignette package.</p>
+<div id="form-definitions" class="section level3">
+<h3>Form Definitions</h3>
+<p>Three form definitions (as CSV files):</p>
+<ol style="list-style-type: decimal">
+<li><strong>Enrollment Form</strong> (<code>form_enrollment.csv</code>)
+<ul>
+<li>Subject ID, enrollment date</li>
+<li>Age, gender, education years</li>
+<li>Medical history</li>
+</ul></li>
+<li><strong>Randomization Form</strong>
+(<code>form_randomization.csv</code>)
+<ul>
+<li>Randomization date</li>
+<li>Treatment assignment (Active/Placebo)</li>
+<li>Study coordinator name</li>
+</ul></li>
+<li><strong>MMSE Assessment Form</strong> (<code>form_mmse.csv</code>)
+<ul>
+<li>Visit label (Baseline/Week 4/Week 8)</li>
+<li>Assessment date</li>
+<li>7 MMSE component scores</li>
+<li>MMSE total score</li>
+<li>Adverse events</li>
+</ul></li>
+</ol>
+</div>
+<div id="subject-data" class="section level3">
+<h3>Subject Data</h3>
+<p><strong>CSV Files Included</strong>:</p>
+<ul>
+<li><code>subjects.csv</code> - 20 enrolled subjects with
+demographics</li>
+<li><code>randomization.csv</code> - Randomization assignments (1:1
+split)</li>
+<li><code>mmse_assessments.csv</code> - 60 MMSE assessments (3 visits ×
+20 subjects)</li>
+</ul>
+<p><strong>File Locations</strong>: All files are in
+<code>vignettes/toy-trial/csv_templates/</code></p>
+<hr />
+</div>
+</div>
+<div id="part-4-create-database" class="section level2">
+<h2>Part 4: Create Database</h2>
+<div id="using-the-setup-script" class="section level3">
+<h3>Using the Setup Script</h3>
+<p>The setup script creates the complete SQLite database with all
+tables, data, and indexes.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Path to toy trial vignette directory</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>vignette_dir <span class="ot">&lt;-</span> <span class="fu">system.file</span>(<span class="st">&quot;doc/toy-trial&quot;</span>, <span class="at">package =</span> <span class="st">&quot;zzedc&quot;</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="co"># Run setup script</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="fu">source</span>(<span class="fu">file.path</span>(vignette_dir, <span class="st">&quot;scripts/01-setup_toy_trial.R&quot;</span>))</span></code></pre></div>
+</div>
+<div id="what-the-setup-script-does" class="section level3">
+<h3>What the Setup Script Does</h3>
+<ol style="list-style-type: decimal">
+<li><strong>Creates SQLite database</strong> at
+<code>data/toy_trial.db</code></li>
+<li><strong>Creates tables</strong>:
+<ul>
+<li><code>study_info</code> - Study metadata</li>
+<li><code>subjects</code> - 20 enrolled subjects</li>
+<li><code>randomization</code> - Treatment assignments</li>
+<li><code>mmse_assessments</code> - 60 assessments across 3 visits</li>
+</ul></li>
+<li><strong>Loads CSV data</strong> from templates</li>
+<li><strong>Creates indexes</strong> for performance</li>
+<li><strong>Verifies data</strong> integrity</li>
+</ol>
+</div>
+<div id="expected-output" class="section level3">
+<h3>Expected Output</h3>
+<pre><code>Creating Toy Clinical Trial Database...
+=========================================
+
+Step 1: Creating SQLite database...
+Step 2: Creating study information table...
+  Study: TOY-TRIAL-001 created
+Step 3: Creating subjects table...
+  Loading 20 subjects...
+Step 4: Creating randomization table...
+  Loading randomization data for 20 subjects...
+Step 5: Creating MMSE assessments table...
+  Loading 60 MMSE assessments...
+Step 6: Creating database indexes...
+
+Step 7: Verifying data...
+  Total subjects enrolled: 20
+  Total randomizations: 20
+  Total MMSE assessments: 60
+
+  Treatment breakdown:
+     Active : 10
+     Placebo : 10
+
+  Visit breakdown:
+     Baseline : 20
+     Week 4 : 20
+     Week 8 : 20
+
+=========================================
+SUCCESS: Toy trial database created!
+Database location: ./data/toy_trial.db
+Ready to launch ZZedc with toy trial data
+=========================================</code></pre>
+<hr />
+</div>
+</div>
+<div id="part-5-create-test-users" class="section level2">
+<h2>Part 5: Create Test Users</h2>
+<div id="add-users-to-database" class="section level3">
+<h3>Add Users to Database</h3>
+<p>Test users are created with the <code>02-add_users.R</code>
+script:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Run add users script</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="fu">source</span>(<span class="fu">file.path</span>(vignette_dir, <span class="st">&quot;scripts/02-add_users.R&quot;</span>))</span></code></pre></div>
+</div>
+<div id="test-credentials" class="section level3">
+<h3>Test Credentials</h3>
+<p>After running the script, use these credentials to login:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Username</th>
+<th>Password</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>admin</td>
+<td>admin123</td>
+<td>Administrator</td>
+</tr>
+<tr class="even">
+<td>jane_smith</td>
+<td>jane123</td>
+<td>Coordinator</td>
+</tr>
+<tr class="odd">
+<td>bob_johnson</td>
+<td>bob123</td>
+<td>Coordinator</td>
+</tr>
+<tr class="even">
+<td>researcher</td>
+<td>research123</td>
+<td>Researcher</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</div>
+</div>
+<div id="part-6-verify-data" class="section level2">
+<h2>Part 6: Verify Data</h2>
+<div id="run-verification-script" class="section level3">
+<h3>Run Verification Script</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Run verification script</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="fu">source</span>(<span class="fu">file.path</span>(vignette_dir, <span class="st">&quot;scripts/03-verify_toy_trial.R&quot;</span>))</span></code></pre></div>
+</div>
+<div id="verification-output" class="section level3">
+<h3>Verification Output</h3>
+<p>The script displays:</p>
+<ol style="list-style-type: decimal">
+<li><strong>Study Information</strong>
+<ul>
+<li>Study ID, name, protocol ID, target enrollment</li>
+</ul></li>
+<li><strong>Subject Summary</strong>
+<ul>
+<li>Total subjects: 20</li>
+<li>Gender distribution</li>
+<li>Mean age, age range</li>
+</ul></li>
+<li><strong>Treatment Assignment</strong>
+<ul>
+<li>Active arm: 10 subjects</li>
+<li>Placebo arm: 10 subjects</li>
+</ul></li>
+<li><strong>MMSE Results by Visit and Treatment</strong>
+<ul>
+<li>Mean scores by arm and visit</li>
+<li>Score ranges (min/max)</li>
+<li>Shows pattern of scores across visits</li>
+</ul></li>
+<li><strong>Adverse Events</strong>
+<ul>
+<li>S002: Mild headache (Week 8)</li>
+<li>S017: Dizziness (Week 4)</li>
+</ul></li>
+</ol>
+<hr />
+</div>
+</div>
+<div id="part-7-quick-reference" class="section level2">
+<h2>Part 7: Quick Reference</h2>
+<div id="file-locations" class="section level3">
+<h3>File Locations</h3>
+<pre><code>vignettes/toy-trial/
+├── csv_templates/                    # Form definitions and data
+│   ├── form_enrollment.csv
+│   ├── form_randomization.csv
+│   ├── form_mmse.csv
+│   ├── subjects.csv                  # 20 subjects
+│   ├── randomization.csv             # Treatment assignments
+│   └── mmse_assessments.csv          # 60 assessments
+│
+└── scripts/                          # R setup scripts
+    ├── 01-setup_toy_trial.R          # Create database
+    ├── 02-add_users.R                # Add users
+    └── 03-verify_toy_trial.R         # Verify data</code></pre>
+</div>
+<div id="quick-start-commands" class="section level3">
+<h3>Quick Start Commands</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># 1. Setup database</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;vignettes/toy-trial/scripts/01-setup_toy_trial.R&quot;</span>)</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co"># 2. Add test users</span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;vignettes/toy-trial/scripts/02-add_users.R&quot;</span>)</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="co"># 3. Verify data</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;vignettes/toy-trial/scripts/03-verify_toy_trial.R&quot;</span>)</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a><span class="co"># 4. Query the database directly</span></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a><span class="fu">library</span>(DBI)</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a><span class="fu">library</span>(RSQLite)</span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>conn <span class="ot">&lt;-</span> <span class="fu">dbConnect</span>(<span class="fu">SQLite</span>(), <span class="st">&quot;data/toy_trial.db&quot;</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a></span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a><span class="co"># View all subjects</span></span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>subjects <span class="ot">&lt;-</span> <span class="fu">dbGetQuery</span>(conn, <span class="st">&quot;SELECT * FROM subjects LIMIT 5&quot;</span>)</span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a><span class="fu">print</span>(subjects)</span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a><span class="co"># View randomization</span></span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>randomization <span class="ot">&lt;-</span> <span class="fu">dbGetQuery</span>(conn, <span class="st">&quot;SELECT * FROM randomization LIMIT 5&quot;</span>)</span>
+<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a><span class="fu">print</span>(randomization)</span>
+<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a></span>
+<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a><span class="co"># Close connection</span></span>
+<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a><span class="fu">dbDisconnect</span>(conn)</span></code></pre></div>
+<hr />
+</div>
+</div>
+<div id="part-8-using-with-zzedc" class="section level2">
+<h2>Part 8: Using with ZZedc</h2>
+<div id="launch-zzedc-with-toy-trial" class="section level3">
+<h3>Launch ZZedc with Toy Trial</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Set up environment variables</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="fu">Sys.setenv</span>(</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">ZZEDC_DB_PATH =</span> <span class="st">&quot;data/toy_trial.db&quot;</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="at">ZZEDC_STUDY =</span> <span class="st">&quot;TOY-TRIAL-001&quot;</span></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>)</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a><span class="co"># Launch the application</span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="fu">launch_zzedc</span>(<span class="at">port =</span> <span class="dv">3838</span>)</span></code></pre></div>
+</div>
+<div id="explore-in-zzedc" class="section level3">
+<h3>Explore in ZZedc</h3>
+<p>Once ZZedc launches:</p>
+<ol style="list-style-type: decimal">
+<li><strong>Login</strong> with one of the test credentials</li>
+<li><strong>Home Tab</strong>: Overview of the study with 20 enrolled
+subjects</li>
+<li><strong>Data Explorer</strong>: Browse all subjects, randomization,
+assessments</li>
+<li><strong>Reports</strong>: Generate reports by treatment arm</li>
+<li><strong>Exports</strong>: Export data in CSV, Excel, or other
+formats</li>
+</ol>
+<hr />
+</div>
+</div>
+<div id="part-9-testing-feature-1-encryption" class="section level2">
+<h2>Part 9: Testing Feature #1 (Encryption)</h2>
+<p>The toy trial is perfect for testing ZZedc’s encryption features:</p>
+<div id="before-encryption" class="section level3">
+<h3>Before Encryption</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co"># Read database directly - data visible in plaintext</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="fu">library</span>(RSQLite)</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>conn <span class="ot">&lt;-</span> <span class="fu">dbConnect</span>(<span class="fu">SQLite</span>(), <span class="st">&quot;data/toy_trial.db&quot;</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>subjects <span class="ot">&lt;-</span> <span class="fu">dbGetQuery</span>(conn, <span class="st">&quot;SELECT * FROM subjects&quot;</span>)</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a><span class="fu">print</span>(subjects)  <span class="co"># Can read subject names, ages, etc.</span></span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a><span class="fu">dbDisconnect</span>(conn)</span></code></pre></div>
+</div>
+<div id="after-encryption-with-feature-1-step-4" class="section level3">
+<h3>After Encryption (with Feature #1 Step 4)</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># Database encrypted with SQLCipher</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="co"># Data only accessible with correct key</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>key <span class="ot">&lt;-</span> <span class="fu">get_encryption_key</span>()  <span class="co"># From Feature #1</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="co"># Database connection now transparent</span></span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>conn <span class="ot">&lt;-</span> <span class="fu">dbConnect</span>(RSQLite<span class="sc">::</span><span class="fu">SQLite</span>(), <span class="st">&quot;data/toy_trial_encrypted.db&quot;</span>, <span class="at">key =</span> key)</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>subjects <span class="ot">&lt;-</span> <span class="fu">dbGetQuery</span>(conn, <span class="st">&quot;SELECT * FROM subjects&quot;</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="fu">print</span>(subjects)  <span class="co"># Still works - encryption is transparent</span></span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="fu">dbDisconnect</span>(conn)</span></code></pre></div>
+</div>
+<div id="verify-encryption" class="section level3">
+<h3>Verify Encryption</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co"># Verify file is encrypted (binary, not plaintext)</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>file_content <span class="ot">&lt;-</span> <span class="fu">readBin</span>(<span class="st">&quot;data/toy_trial_encrypted.db&quot;</span>, <span class="st">&quot;raw&quot;</span>, <span class="at">n =</span> <span class="dv">100</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="co"># Should be random binary data, not readable text</span></span></code></pre></div>
+<hr />
+</div>
+</div>
+<div id="data-summary" class="section level2">
+<h2>Data Summary</h2>
+<div id="subjects-included" class="section level3">
+<h3>Subjects Included</h3>
+<ul>
+<li><strong>20 total subjects</strong> with realistic demographics</li>
+<li><strong>Age range</strong>: 58-76 years old</li>
+<li><strong>Gender</strong>: Mix of M/F</li>
+<li><strong>Education</strong>: 12-18 years</li>
+<li><strong>Medical history</strong>: Some with, some without</li>
+</ul>
+</div>
+<div id="mmse-scores" class="section level3">
+<h3>MMSE Scores</h3>
+<ul>
+<li><strong>Score range</strong>: 20-30 (realistic for older
+adults)</li>
+<li><strong>Baseline</strong>: All subjects assessed</li>
+<li><strong>Week 4</strong>: Follow-up assessment</li>
+<li><strong>Week 8</strong>: Final assessment</li>
+<li><strong>Adverse events</strong>: 2 subjects reported minor AEs</li>
+</ul>
+</div>
+<div id="treatment-groups" class="section level3">
+<h3>Treatment Groups</h3>
+<ul>
+<li><strong>Active arm</strong>: 10 subjects</li>
+<li><strong>Placebo arm</strong>: 10 subjects</li>
+<li><strong>Equal randomization</strong>: 1:1 split</li>
+</ul>
+<hr />
+</div>
+</div>
+<div id="next-steps" class="section level2">
+<h2>Next Steps</h2>
+<p>After setting up the toy trial:</p>
+<ol style="list-style-type: decimal">
+<li><strong>Explore ZZedc Features</strong>
+<ul>
+<li>Navigate the interface</li>
+<li>View subject data</li>
+<li>Generate reports</li>
+<li>Export data</li>
+</ul></li>
+<li><strong>Test Feature #1 (Encryption)</strong>
+<ul>
+<li>Convert to encrypted database</li>
+<li>Verify data accessibility</li>
+<li>Test key rotation</li>
+</ul></li>
+<li><strong>Customize for Your Study</strong>
+<ul>
+<li>Modify form definitions</li>
+<li>Add study-specific fields</li>
+<li>Adjust validation rules</li>
+</ul></li>
+<li><strong>Add Real Data</strong>
+<ul>
+<li>Enroll actual subjects</li>
+<li>Collect assessments</li>
+<li>Generate QC reports</li>
+</ul></li>
+</ol>
+<hr />
+</div>
+<div id="troubleshooting" class="section level2">
+<h2>Troubleshooting</h2>
+<div id="database-already-exists" class="section level3">
+<h3>Database Already Exists</h3>
+<p>If the database already exists and you want to recreate it:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># Remove old database</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="fu">file.remove</span>(<span class="st">&quot;data/toy_trial.db&quot;</span>)</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="co"># Run setup script again</span></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;vignettes/toy-trial/scripts/01-setup_toy_trial.R&quot;</span>)</span></code></pre></div>
+</div>
+<div id="missing-csv-files" class="section level3">
+<h3>Missing CSV Files</h3>
+<p>Ensure CSV files are in the correct location:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>csv_dir <span class="ot">&lt;-</span> <span class="fu">system.file</span>(<span class="st">&quot;doc/toy-trial/csv_templates&quot;</span>, <span class="at">package =</span> <span class="st">&quot;zzedc&quot;</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="fu">list.files</span>(csv_dir)  <span class="co"># Should show all CSV files</span></span></code></pre></div>
+</div>
+<div id="script-path-issues" class="section level3">
+<h3>Script Path Issues</h3>
+<p>If running scripts from different directory:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="co"># Use absolute paths</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a>script_path <span class="ot">&lt;-</span> <span class="fu">system.file</span>(<span class="st">&quot;doc/toy-trial/scripts/01-setup_toy_trial.R&quot;</span>,</span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a>                           <span class="at">package =</span> <span class="st">&quot;zzedc&quot;</span>)</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a><span class="fu">source</span>(script_path)</span></code></pre></div>
+<hr />
+</div>
+</div>
+<div id="summary" class="section level2">
+<h2>Summary</h2>
+<p><strong>Time to Complete</strong>: ~10-15 minutes - 2 min: Create
+directories - 3 min: Run setup script - 2 min: Add users - 2 min: Verify
+data - 1 min: Launch ZZedc</p>
+<p><strong>Result</strong>: Complete clinical trial with:</p>
+<ul>
+<li>20 enrolled subjects</li>
+<li>Randomization (10/10 split)</li>
+<li>60 MMSE assessments (3 visits)</li>
+<li>Test users ready to login</li>
+<li>Database verified and validated</li>
+</ul>
+<p><strong>Perfect for</strong>: - Learning ZZedc workflow - Testing new
+features - Demonstrating capabilities - Template for real studies</p>
+<hr />
+</div>
+<div id="resources" class="section level2">
+<h2>Resources</h2>
+<ul>
+<li><strong>ZZedc Documentation</strong>: See <code>?zzedc</code> and
+vignette(“getting-started”)</li>
+<li><strong>Clinical Trial Best Practices</strong>: See
+vignette(“advanced-features”)</li>
+<li><strong>Data Security</strong>: See vignette(“encryption-at-rest”)
+(Feature #1)</li>
+<li><strong>Feature Complete List</strong>: See CLAUDE.md in package
+root</li>
+</ul>
+<hr />
+<p><strong>Created</strong>: December 2025 <strong>Version</strong>:
+ZZedc 1.0.0+ <strong>Purpose</strong>: Minimal complete working example
+for clinical trial EDC</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

@@ -630,14 +630,14 @@ grep "user.*login" /srv/zzedc/zzedc.log
 
 ## Security Best Practices
 
-✅ Use environment variables for secrets (not in config files)
-✅ Enable HTTPS in production
-✅ Use AWS Secrets Manager for sensitive values
-✅ Enable audit logging for compliance
-✅ Restrict security group to necessary IPs
-✅ Regular database backups with verification
-✅ Monitor CloudTrail for AWS API calls
-✅ Use IAM roles instead of access keys
+- Use environment variables for secrets (not in config files)
+- Enable HTTPS in production
+- Use AWS Secrets Manager for sensitive values
+- Enable audit logging for compliance
+- Restrict security group to necessary IPs
+- Regular database backups with verification
+- Monitor CloudTrail for AWS API calls
+- Use IAM roles instead of access keys
 
 ---
 
@@ -674,12 +674,12 @@ chown -R ec2-user /srv/zzedc
 
 ## Summary
 
-✅ Create `zzedc_config.yml`
-✅ Run `zzedc::init(mode = 'config', ...)`
-✅ Set `ZZEDC_SALT` environment variable
-✅ Launch with `launch_zzedc()`
-✅ Access via HTTPS with certificate
-✅ Configure backups and monitoring
-✅ Scale horizontally with load balancer
+- Create `zzedc_config.yml`
+- Run `zzedc::init(mode = 'config', ...)`
+- Set `ZZEDC_SALT` environment variable
+- Launch with `launch_zzedc()`
+- Access via HTTPS with certificate
+- Configure backups and monitoring
+- Scale horizontally with load balancer
 
 **Non-interactive, fully automated ZZedc deployment**

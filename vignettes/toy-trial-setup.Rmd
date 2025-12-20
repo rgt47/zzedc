@@ -466,11 +466,12 @@ source(script_path)
 - 1 min: Launch ZZedc
 
 **Result**: Complete clinical trial with:
-- ✓ 20 enrolled subjects
-- ✓ Randomization (10/10 split)
-- ✓ 60 MMSE assessments (3 visits)
-- ✓ Test users ready to login
-- ✓ Database verified and validated
+
+- 20 enrolled subjects
+- Randomization (10/10 split)
+- 60 MMSE assessments (3 visits)
+- Test users ready to login
+- Database verified and validated
 
 **Perfect for**:
 - Learning ZZedc workflow

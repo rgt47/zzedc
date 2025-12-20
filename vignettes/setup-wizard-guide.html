@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Setup Wizard: Non-Technical System Configuration</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Setup Wizard: Non-Technical System
+Configuration</h1>
+
+
+
+<div id="zzedc-setup-wizard-getting-started-in-5-minutes" class="section level1">
+<h1>ZZedc Setup Wizard: Getting Started in 5 Minutes</h1>
+<p>The ZZedc Setup Wizard makes it easy to configure your system
+<strong>without programming knowledge</strong>. This guide walks you
+through each step.</p>
+<div id="what-youll-need" class="section level2">
+<h2>What You’ll Need</h2>
+<ul>
+<li>Your study information (name, protocol ID, principal
+investigator)</li>
+<li>An administrator username and password</li>
+<li>Email address for the admin account</li>
+<li>Names and email addresses of your team members (optional)</li>
+</ul>
+<p><strong>Time required: 5 minutes</strong></p>
+<hr />
+</div>
+<div id="starting-the-setup-wizard" class="section level2">
+<h2>Starting the Setup Wizard</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="co"># Launch ZZedc application</span></span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">launch_zzedc</span>()</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="co"># Your browser opens; navigate to Admin Dashboard &gt; Setup Wizard</span></span></code></pre></div>
+<p>You’ll see a progress bar at the top showing “Step 1 of 5”.</p>
+<hr />
+</div>
+<div id="step-1-basic-information-30-seconds" class="section level2">
+<h2>Step 1: Basic Information (30 seconds)</h2>
+<p>Enter your research study details:</p>
+<div id="fields-to-complete" class="section level3">
+<h3>Fields to Complete</h3>
+<ul>
+<li><strong>Study Name</strong>: The official name of your research
+project
+<ul>
+<li>Example: “Depression Treatment Trial v2.1”</li>
+<li>This appears in reports and user-facing screens</li>
+</ul></li>
+<li><strong>Protocol ID</strong>: Your institutional protocol number
+<ul>
+<li>Example: “DEPR-2024-001”</li>
+<li>Used for regulatory documentation</li>
+</ul></li>
+<li><strong>Principal Investigator Name</strong>: Full name of the study
+lead
+<ul>
+<li>Example: “Dr. Jane Smith”</li>
+</ul></li>
+<li><strong>PI Email</strong>: Contact email for the principal
+investigator
+<ul>
+<li>Example: “<a href="mailto:jane.smith@university.edu" class="email">jane.smith@university.edu</a>”</li>
+<li>Used for system notifications</li>
+</ul></li>
+<li><strong>Target Enrollment</strong>: How many participants you plan
+to enroll
+<ul>
+<li>Example: 50</li>
+<li>Used for progress tracking</li>
+</ul></li>
+<li><strong>Study Phase</strong>: Select from the dropdown
+<ul>
+<li>Pilot, Phase 1, Phase 2, Phase 3, Phase 4, or Observational</li>
+<li>Used for categorization</li>
+</ul></li>
+</ul>
+</div>
+<div id="example-entry" class="section level3">
+<h3>Example Entry</h3>
+<pre><code>Study Name: Depression Treatment Trial v2.1
+Protocol ID: DEPR-2024-001
+PI Name: Dr. Jane Smith
+PI Email: jane.smith@university.edu
+Target Enrollment: 50
+Study Phase: Phase 2</code></pre>
+<p>Click <strong>Next →</strong> to continue.</p>
+<hr />
+</div>
+</div>
+<div id="step-2-administrator-account-1-minute" class="section level2">
+<h2>Step 2: Administrator Account (1 minute)</h2>
+<p>Create your administrator login credentials. <strong>This is the
+account you’ll use to manage ZZedc.</strong></p>
+<div id="fields-to-complete-1" class="section level3">
+<h3>Fields to Complete</h3>
+<ul>
+<li><strong>Username</strong>: Your login name (no spaces, no special
+characters)
+<ul>
+<li>Example: “jane_smith” or “jsmith”</li>
+<li>Keep it simple and memorable</li>
+</ul></li>
+<li><strong>Full Name</strong>: Your full name
+<ul>
+<li>Example: “Dr. Jane Smith”</li>
+<li>Used in audit logs and system messages</li>
+</ul></li>
+<li><strong>Email</strong>: Your email address
+<ul>
+<li>Example: “<a href="mailto:jane.smith@university.edu" class="email">jane.smith@university.edu</a>”</li>
+<li>Used for password recovery</li>
+</ul></li>
+<li><strong>Password</strong>: Create a strong password
+<ul>
+<li>Minimum 8 characters</li>
+<li>Mix letters, numbers, and symbols</li>
+<li>Example: “UniquePass2024!”</li>
+</ul></li>
+<li><strong>Confirm Password</strong>: Re-type your password</li>
+</ul>
+</div>
+<div id="password-strength-tips" class="section level3">
+<h3>Password Strength Tips</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Weak</th>
+<th>Strong</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>“password”</td>
+<td>“Pass2024Study!”</td>
+</tr>
+<tr class="even">
+<td>“12345678”</td>
+<td>“Research&amp;Safe99”</td>
+</tr>
+<tr class="odd">
+<td>“MyStudy”</td>
+<td>“TrialData#2024”</td>
+</tr>
+<tr class="even">
+<td>“admin123”</td>
+<td>“<a href="mailto:ZZedc@Research2024" class="email">ZZedc@Research2024</a>”</td>
+</tr>
+</tbody>
+</table>
+<p>Click <strong>Next →</strong> to continue.</p>
+<hr />
+</div>
+</div>
+<div id="step-3-security-configuration-2-minutes" class="section level2">
+<h2>Step 3: Security Configuration (2 minutes)</h2>
+<p>Configure security settings for your system. <strong>You only do this
+once.</strong></p>
+<div id="security-salt" class="section level3">
+<h3>Security Salt</h3>
+<p>A unique security salt has been generated for your system.
+<strong>Save this in a secure place</strong> — it encrypts all
+passwords.</p>
+<pre><code>Generated Salt: a7f9e2c4d1b3f8a6e9d2c5b8f1a4e7d0</code></pre>
+<p><strong>Ways to save it:</strong> 1. Copy to a password manager
+(recommended) 2. Write in a notebook kept in a secure location 3. Email
+to yourself in an encrypted message</p>
+<p><strong>Important:</strong> If you lose this salt, you cannot recover
+it. Your passwords will not work without it.</p>
+</div>
+<div id="session-configuration" class="section level3">
+<h3>Session Configuration</h3>
+<ul>
+<li><strong>Session Timeout (minutes)</strong>: How long before inactive
+users are logged out
+<ul>
+<li>Recommended: 30 minutes</li>
+<li>Shorter = more secure, longer = less hassle</li>
+</ul></li>
+<li><strong>Enforce HTTPS</strong>: Require secure connections
+(recommended for production)
+<ul>
+<li>Yes = Only secure connections work</li>
+<li>No = Development use only</li>
+</ul></li>
+<li><strong>Max Failed Login Attempts</strong>: How many wrong passwords
+before account lockout
+<ul>
+<li>Recommended: 3</li>
+<li>Users must contact admin if locked out</li>
+</ul></li>
+</ul>
+</div>
+<div id="example-settings" class="section level3">
+<h3>Example Settings</h3>
+<pre><code>Session Timeout: 30 minutes
+Enforce HTTPS: Yes (recommended)
+Max Failed Login Attempts: 3</code></pre>
+<p><strong>Checkbox</strong>: Confirm that you have saved the security
+salt</p>
+<p>Click <strong>Next →</strong> to continue.</p>
+<hr />
+</div>
+</div>
+<div id="step-4-team-members-optional-1-minute" class="section level2">
+<h2>Step 4: Team Members (Optional, 1 minute)</h2>
+<p>Add your research team members. <strong>You can skip this and add
+them later.</strong></p>
+<div id="adding-team-members" class="section level3">
+<h3>Adding Team Members</h3>
+<ol style="list-style-type: decimal">
+<li>Enter username: “alex_r” or “maria_santos”</li>
+<li>Enter full name: “Alex Rodriguez” or “Maria Santos”</li>
+<li>Enter email: “<a href="mailto:arodriguez@university.edu" class="email">arodriguez@university.edu</a>”</li>
+<li>Select role:
+<ul>
+<li><strong>Coordinator</strong>: Data entry, basic reports</li>
+<li><strong>PI</strong>: Full access (usually reserved for study
+leads)</li>
+<li><strong>Data Manager</strong>: Data management and exports</li>
+<li><strong>Monitor</strong>: Read-only access for auditing</li>
+</ul></li>
+<li>Click <strong>Add Member</strong></li>
+</ol>
+</div>
+<div id="example-team" class="section level3">
+<h3>Example Team</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Username</th>
+<th>Name</th>
+<th>Email</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>coord_sarah</td>
+<td>Sarah Chen</td>
+<td><a href="mailto:schen@university.edu" class="email">schen@university.edu</a></td>
+<td>Coordinator</td>
+</tr>
+<tr class="even">
+<td>dm_alex</td>
+<td>Alex Rodriguez</td>
+<td><a href="mailto:arodriguez@university.edu" class="email">arodriguez@university.edu</a></td>
+<td>Data Manager</td>
+</tr>
+<tr class="odd">
+<td>monitor_john</td>
+<td>John Monitor</td>
+<td><a href="mailto:jmonitor@university.edu" class="email">jmonitor@university.edu</a></td>
+<td>Monitor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note:</strong> You’ll set their passwords on first login. For
+now, temporary passwords are generated automatically.</p>
+<p>Click <strong>Next →</strong> to continue.</p>
+<hr />
+</div>
+</div>
+<div id="step-5-data-dictionary-forms-1-minute" class="section level2">
+<h2>Step 5: Data Dictionary &amp; Forms (1 minute)</h2>
+<p>Choose how to set up your data collection forms.</p>
+<div id="four-options" class="section level3">
+<h3>Four Options</h3>
+<div id="start-with-blank-forms-easiest-for-new-users" class="section level4">
+<h4>1. <strong>Start with Blank Forms</strong> (Easiest for new
+users)</h4>
+<ul>
+<li>Creates an empty system</li>
+<li>You design forms in the Data Dictionary</li>
+<li>Best for: Custom studies, complex workflows</li>
+<li>Setup time: 5 minutes</li>
+<li>Design time: 30 minutes to 2 hours</li>
+</ul>
+</div>
+<div id="use-example-adhd-forms-recommended-for-testing" class="section level4">
+<h4>2. <strong>Use Example ADHD Forms</strong> (Recommended for
+testing)</h4>
+<ul>
+<li>Pre-built clinical trial forms</li>
+<li>Full validation rules included</li>
+<li>Best for: Learning ZZedc, testing features</li>
+<li>Ready immediately, then customize</li>
+</ul>
+</div>
+<div id="import-from-csv-file-for-spreadsheet-templates" class="section level4">
+<h4>3. <strong>Import from CSV File</strong> (For spreadsheet
+templates)</h4>
+<ul>
+<li><p>Upload your existing data dictionary as CSV</p></li>
+<li><p>Supports: Excel saved as CSV</p></li>
+<li><p>Format:</p>
+<pre><code>variable_name,variable_label,variable_type,valid_values
+subject_id,Subject ID,text,required
+age,Age (years),integer,between 18 and 120</code></pre></li>
+</ul>
+</div>
+<div id="import-from-google-sheets-for-team-collaboration" class="section level4">
+<h4>4. <strong>Import from Google Sheets</strong> (For team
+collaboration)</h4>
+<ul>
+<li>Share Google Sheets URL</li>
+<li>Multiple people can edit</li>
+<li>Auto-sync with ZZedc</li>
+<li>Best for: Teams, complex templates</li>
+</ul>
+</div>
+</div>
+<div id="our-recommendation" class="section level3">
+<h3>Our Recommendation</h3>
+<p><strong>Start with ADHD Examples</strong> ← Click this option - See a
+complete working system - Learn how ZZedc works - Import your own data
+later - Can always start over</p>
+<p>Click <strong>Create System</strong> to finish.</p>
+<hr />
+</div>
+</div>
+<div id="success-screen" class="section level2">
+<h2>Success Screen</h2>
+<p>When setup is complete, you’ll see:</p>
+<pre><code>Success! Your ZZedc system has been created</code></pre>
+<p>You’ll receive: - <strong>config.yml</strong> - System configuration
+file (automatically created) - <strong>launch_app.R</strong> - Script to
+start your system (automatically created) - Database with all users and
+tables</p>
+<hr />
+</div>
+<div id="next-steps" class="section level2">
+<h2>Next Steps</h2>
+<div id="launch-your-system" class="section level3">
+<h3>1. Launch Your System</h3>
+<p>Option A: Click <strong>Launch ZZedc</strong> button</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">launch_zzedc</span>()</span></code></pre></div>
+<p>Option B: Run from command line</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="ex">Rscript</span> launch_app.R</span></code></pre></div>
+</div>
+<div id="login" class="section level3">
+<h3>2. Login</h3>
+<p>Use the administrator account you created: - Username:
+<code>jane_smith</code> (your username) - Password:
+<code>UniquePass2024!</code> (your password)</p>
+</div>
+<div id="welcome" class="section level3">
+<h3>3. Welcome!</h3>
+<p>You’ll see: - Dashboard with system status - Data entry form (EDC
+tab) - Reports (Reports tab) - Admin dashboard (for user management,
+backups, audit logs)</p>
+</div>
+<div id="add-your-team" class="section level3">
+<h3>4. Add Your Team</h3>
+<p>In the <strong>Admin Dashboard</strong> → <strong>👤 User
+Management</strong>: 1. Click “Add User” 2. Enter team member
+information 3. System generates temporary password 4. Share credentials
+with team member</p>
+</div>
+<div id="create-forms" class="section level3">
+<h3>5. Create Forms</h3>
+<p>In the <strong>Admin Dashboard</strong> → <strong>⚙️ System
+Configuration</strong>: 1. Access form builder 2. Define your data
+collection fields 3. Add validation rules 4. Assign to forms</p>
+</div>
+<div id="start-collecting-data" class="section level3">
+<h3>6. Start Collecting Data</h3>
+<p>Team members log in and begin entering data. Validation happens in
+real-time.</p>
+<hr />
+</div>
+</div>
+<div id="troubleshooting" class="section level2">
+<h2>Troubleshooting</h2>
+<div id="database-already-exists" class="section level3">
+<h3>“Database already exists”</h3>
+<ul>
+<li>Your system has been set up before</li>
+<li>To start over: Delete database file in <code>data/</code>
+folder</li>
+<li>Run setup wizard again</li>
+</ul>
+</div>
+<div id="session-timeout-is-too-short" class="section level3">
+<h3>“Session timeout is too short”</h3>
+<ul>
+<li>Edit <code>config.yml</code> and change
+<code>session_timeout_minutes</code></li>
+<li>Or use Admin Dashboard → System Configuration</li>
+</ul>
+</div>
+<div id="lost-the-security-salt" class="section level3">
+<h3>“Lost the security salt”</h3>
+<ul>
+<li><strong>Critical:</strong> Cannot be recovered</li>
+<li>Only option: Delete database and start over</li>
+<li>Future: Store salt in password manager</li>
+</ul>
+</div>
+<div id="need-to-change-admin-password" class="section level3">
+<h3>“Need to change admin password”</h3>
+<ul>
+<li>Use Admin Dashboard → User Management</li>
+<li>Find admin account</li>
+<li>Click “Reset Password”</li>
+<li>System generates temporary password</li>
+</ul>
+</div>
+<div id="want-to-addremove-team-members" class="section level3">
+<h3>“Want to add/remove team members”</h3>
+<ul>
+<li>Use Admin Dashboard → User Management</li>
+<li>Add: Click “Add User”</li>
+<li>Remove: Click “Deactivate”</li>
+</ul>
+<hr />
+</div>
+</div>
+<div id="security-reminders" class="section level2">
+<h2>Security Reminders</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Item</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Security Salt</td>
+<td>Store in secure location (not email!)</td>
+</tr>
+<tr class="even">
+<td>Admin Password</td>
+<td>Share with no one, only you use</td>
+</tr>
+<tr class="odd">
+<td>Session Timeout</td>
+<td>30 minutes default (auto logout)</td>
+</tr>
+<tr class="even">
+<td>HTTPS</td>
+<td>Enable for production (production=cloud, development=local)</td>
+</tr>
+<tr class="odd">
+<td>Backups</td>
+<td>Automatic daily backups (can disable if needed)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</div>
+<div id="keeping-it-simple" class="section level2">
+<h2>Keeping It Simple</h2>
+<p><strong>Recommended Setup</strong></p>
+<ul>
+<li>Use ADHD example forms to start</li>
+<li>Set session timeout to 30 minutes</li>
+<li>Enable HTTPS if on the internet</li>
+<li>Keep 30 days of automatic backups</li>
+<li>Add team members as needed</li>
+</ul>
+<p><strong>Items to Defer</strong></p>
+<ul>
+<li>Advanced compliance settings (GDPR/CFR) for now</li>
+<li>Custom validation rules initially</li>
+<li>Complex multi-site configurations</li>
+<li>API integrations yet</li>
+</ul>
+<hr />
+</div>
+<div id="next-steps-after-setup" class="section level2">
+<h2>Next Steps After Setup</h2>
+<ol style="list-style-type: decimal">
+<li><strong>Read the Quick Start Guide</strong> - 5-minute overview</li>
+<li><strong>Check the User Guide</strong> - Complete feature
+documentation</li>
+<li><strong>Try the Data Entry</strong> - Enter sample data, see
+validation</li>
+<li><strong>Review Reports</strong> - See auto-generated analytics</li>
+<li><strong>Import Your Forms</strong> - Replace ADHD forms with your
+study</li>
+</ol>
+<hr />
+</div>
+<div id="getting-help" class="section level2">
+<h2>Getting Help</h2>
+<ul>
+<li><strong>Email:</strong> <a href="mailto:rgthomas@ucsd.edu" class="email">rgthomas@ucsd.edu</a></li>
+<li><strong>GitHub:</strong> <a href="https://github.com/rgt47/zzedc" class="uri">https://github.com/rgt47/zzedc</a></li>
+<li><strong>Documentation:</strong> All vignettes available in help
+menu</li>
+<li><strong>Admin Dashboard:</strong> Click “Help &amp; Documentation”
+tab</li>
+</ul>
+<hr />
+</div>
+<div id="summary-what-you-just-did" class="section level2">
+<h2>Summary: What You Just Did</h2>
+<ul>
+<li>Created a complete clinical trial data management system</li>
+<li>Set up administrator credentials</li>
+<li>Configured security settings</li>
+<li>Added team members</li>
+<li>Prepared for data collection</li>
+</ul>
+<p><strong>Time invested: 5 minutes</strong> <strong>System ready
+for:</strong> Immediate data collection</p>
+<hr />
+</div>
+<div id="common-questions" class="section level2">
+<h2>Common Questions</h2>
+<div id="q-can-i-change-study-information-later" class="section level3">
+<h3>Q: Can I change study information later?</h3>
+<p><strong>A:</strong> Yes. Use Admin Dashboard → System Configuration
+to update study details.</p>
+</div>
+<div id="q-what-if-my-team-grows" class="section level3">
+<h3>Q: What if my team grows?</h3>
+<p><strong>A:</strong> Add new users anytime in User Management. No
+restart needed.</p>
+</div>
+<div id="q-how-do-i-backup-my-data" class="section level3">
+<h3>Q: How do I backup my data?</h3>
+<p><strong>A:</strong> Automatic backups run daily. Manual backups in
+Admin Dashboard → Backup &amp; Restore.</p>
+</div>
+<div id="q-can-i-change-passwords" class="section level3">
+<h3>Q: Can I change passwords?</h3>
+<p><strong>A:</strong> Yes. Users can change their own password. Admins
+can reset any user’s password.</p>
+</div>
+<div id="q-what-if-something-goes-wrong" class="section level3">
+<h3>Q: What if something goes wrong?</h3>
+<p><strong>A:</strong> Restore from backup in Admin Dashboard → Backup
+&amp; Restore. No data is lost.</p>
+<hr />
+</div>
+</div>
+<div id="ready" class="section level2">
+<h2>Ready?</h2>
+<p>You’re all set! Your ZZedc system is ready for research data
+collection.</p>
+<p><a href="https://github.com/rgt47/zzedc">Launch ZZedc Now →</a></p>
+<p>Questions? Email <a href="mailto:rgthomas@ucsd.edu" class="email">rgthomas@ucsd.edu</a> or check the full documentation.</p>
+<hr />
+<p><strong>ZZedc Setup Wizard v1.0</strong> <em>Making clinical trial
+data management non-technical</em></p>
+</div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

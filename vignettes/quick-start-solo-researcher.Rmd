@@ -215,7 +215,7 @@ yes
 After setup completes, you'll see:
 ```
 ╔═══════════════════════════════════════════════════════════╗
-║          ✓ ZZedc Project Created Successfully!            ║
+║          ZZedc Project Created Successfully!              ║
 ╚═══════════════════════════════════════════════════════════╝
 
 Project Location: ./Depression_Treatment_Trial
@@ -259,9 +259,9 @@ Click **Login**
 
 ---
 
-## You're In! 🎉
+## Login Complete
 
-Congratulations! Your ZZedc system is running.
+Your ZZedc system is running.
 
 ### What You Can Do Now
 
@@ -426,15 +426,15 @@ Having trouble?
 
 ## Summary
 
-✅ Installed ZZedc
-✅ Ran `zzedc::init()` and answered 5 questions
-✅ Set security salt environment variable
-✅ Launched with `launch_zzedc()`
-✅ Logged in with your credentials
-✅ Ready to start collecting data
+- Installed ZZedc
+- Ran `zzedc::init()` and answered 5 questions
+- Set security salt environment variable
+- Launched with `launch_zzedc()`
+- Logged in with your credentials
+- Ready to start collecting data
 
 **Total time: ~10 minutes**
 **Your data is local and secure**
 **You have complete control**
 
-You're ready to begin your research! 🔬📊
+You are ready to begin your research.

@@ -35,10 +35,10 @@ The ZZedc Setup Wizard makes it easy to configure your system **without programm
 ```{r launch_wizard}
 library(zzedc)
 
-# Launch ZZedc with the setup wizard
-launch_zzedc_with_wizard()
+# Launch ZZedc application
+launch_zzedc()
 
-# Your browser opens with the Setup Wizard
+# Your browser opens; navigate to Admin Dashboard > Setup Wizard
 ```
 
 You'll see a progress bar at the top showing "Step 1 of 5".
@@ -116,7 +116,7 @@ Create your administrator login credentials. **This is the account you'll use to
 
 ### Password Strength Tips
 
-| ❌ Weak | ✅ Strong |
+| Weak | Strong |
 |----------|----------|
 | "password" | "Pass2024Study!" |
 | "12345678" | "Research&Safe99" |
@@ -168,7 +168,7 @@ Enforce HTTPS: Yes (recommended)
 Max Failed Login Attempts: 3
 ```
 
-**Checkbox**: Confirm that you have saved the security salt ✓
+**Checkbox**: Confirm that you have saved the security salt
 
 Click **Next →** to continue.
 
@@ -252,12 +252,12 @@ Click **Create System** to finish.
 
 ---
 
-## Success Screen ✓
+## Success Screen
 
 When setup is complete, you'll see:
 
 ```
-✓ Success! Your ZZedc system has been created
+Success! Your ZZedc system has been created
 ```
 
 You'll receive:
@@ -360,14 +360,16 @@ Team members log in and begin entering data. Validation happens in real-time.
 
 ## Keeping It Simple
 
-✅ **Recommended Setup**
+**Recommended Setup**
+
 - Use ADHD example forms to start
 - Set session timeout to 30 minutes
 - Enable HTTPS if on the internet
 - Keep 30 days of automatic backups
 - Add team members as needed
 
-❌ **Don't Worry About**
+**Items to Defer**
+
 - Advanced compliance settings (GDPR/CFR) for now
 - Custom validation rules initially
 - Complex multi-site configurations
@@ -390,17 +392,17 @@ Team members log in and begin entering data. Validation happens in real-time.
 - **Email:** rgthomas@ucsd.edu
 - **GitHub:** https://github.com/rgt47/zzedc
 - **Documentation:** All vignettes available in help menu
-- **Admin Dashboard:** Click "❓ Help & Documentation" tab
+- **Admin Dashboard:** Click "Help & Documentation" tab
 
 ---
 
 ## Summary: What You Just Did
 
-✅ Created a complete clinical trial data management system
-✅ Set up administrator credentials
-✅ Configured security settings
-✅ Added team members
-✅ Prepared for data collection
+- Created a complete clinical trial data management system
+- Set up administrator credentials
+- Configured security settings
+- Added team members
+- Prepared for data collection
 
 **Time invested: 5 minutes**
 **System ready for:** Immediate data collection
