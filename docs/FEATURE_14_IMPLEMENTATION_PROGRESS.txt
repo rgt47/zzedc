@@ -1,0 +1,415 @@
+===============================================================================
+      FEATURE #14: RIGHT TO DATA PORTABILITY - COMPLETE (100%)
+===============================================================================
+
+Completed: December 19, 2025
+Priority: CRITICAL
+Feasibility: MODERATE
+Regulatory: GDPR Article 20
+
+-------------------------------------------------------------------------------
+DELIVERABLES
+-------------------------------------------------------------------------------
+
+1. Portability System
+   R/portability.R (~1600 lines)
+   - Request creation and tracking (RECEIVE, TRANSMIT, BOTH)
+   - Dataset eligibility management
+   - Multi-format export generation (JSON, CSV, XML, XLSX)
+   - Controller-to-controller transfer management
+   - Statistics and reporting
+
+2. Comprehensive Test Suite
+   tests/testthat/test-portability.R (~900 lines)
+   - 48 test cases with 130 expectations
+   - All tests passing
+
+-------------------------------------------------------------------------------
+FUNCTIONS IMPLEMENTED
+-------------------------------------------------------------------------------
+
+Initialization:
+  - init_portability()               : Creates 5 database tables + indexes
+
+Reference Data:
+  - get_portability_request_types()  : RECEIVE, TRANSMIT, BOTH
+  - get_portability_legal_bases()    : CONSENT, CONTRACT
+  - get_portability_export_formats() : JSON, CSV, XML, XLSX
+  - get_portability_statuses()       : Request status values
+  - get_transfer_methods()           : SECURE_EMAIL, SECURE_FTP, API, etc.
+  - get_portability_exceptions()     : Article 20(4) exception grounds
+  - get_data_source_types()          : PROVIDED, OBSERVED, DERIVED, THIRD_PARTY
+
+Request Management:
+  - create_portability_request()     : Creates request with hash-chain
+  - log_portability_action()         : Logs action to audit history
+
+Dataset Management:
+  - add_portability_dataset()        : Adds dataset with eligibility check
+  - review_portability_dataset()     : Approve or mark ineligible
+
+Export Generation:
+  - generate_portability_export()    : Creates export file in requested format
+  - record_export_download()         : Records download with count tracking
+
+Transfer Management:
+  - initiate_controller_transfer()   : Initiates Article 20(2) transfer
+  - complete_controller_transfer()   : Records transfer completion
+  - fail_controller_transfer()       : Records transfer failure
+
+Request Completion:
+  - complete_portability_request()   : Completes with validation checks
+  - reject_portability_request()     : Reject with Article 20(4) exception
+
+Retrieval:
+  - get_portability_request()        : Retrieves by ID or number
+  - get_portability_datasets()       : Gets datasets, optionally eligible only
+  - get_portability_exports()        : Gets exports for request
+  - get_portability_transfers()      : Gets transfers for request
+  - get_portability_history()        : Gets audit history
+  - get_pending_portability_requests() : Gets pending requests
+
+Statistics and Reporting:
+  - get_portability_statistics()     : Returns comprehensive metrics
+  - generate_portability_report()    : Creates compliance report (TXT/JSON)
+
+-------------------------------------------------------------------------------
+DATABASE SCHEMA
+-------------------------------------------------------------------------------
+
+portability_requests:
+  - request_id               : Primary key
+  - request_number           : Unique number (PORT-TIMESTAMP-RANDOM)
+  - dsar_request_id          : Link to DSAR request (optional)
+  - subject_id               : Subject identifier if known
+  - subject_email            : Subject email (required)
+  - subject_name             : Subject name (required)
+  - request_type             : RECEIVE, TRANSMIT, BOTH
+  - legal_basis              : CONSENT or CONTRACT
+  - target_controller        : Target controller for TRANSMIT
+  - target_controller_contact: Contact at target controller
+  - preferred_format         : Preferred export format
+  - status                   : RECEIVED, EXPORTED, COMPLETED, etc.
+  - received_date            : Date request received
+  - due_date                 : Response deadline (30 days)
+  - completed_date           : Completion date
+  - requested_by             : User who created request
+  - reviewed_by              : Reviewer user ID
+  - reviewed_at              : Review timestamp
+  - review_notes             : Review notes
+  - rejection_reason         : Reason if rejected
+  - exception_ground         : Article 20(4) exception if applicable
+  - request_hash             : SHA-256 hash for integrity
+  - previous_hash            : Hash-chain link
+  - created_at               : Creation timestamp
+
+portability_datasets:
+  - dataset_id               : Primary key
+  - request_id               : Foreign key to portability_requests
+  - table_name               : Table containing data
+  - data_category            : Category of data
+  - record_count             : Number of records
+  - data_source              : PROVIDED, OBSERVED, DERIVED, THIRD_PARTY
+  - is_provided_by_subject   : Whether data was provided by subject
+  - is_derived               : Whether data is derived/inferred
+  - is_eligible              : Eligibility for portability
+  - ineligibility_reason     : Reason if not eligible
+  - status                   : PENDING, APPROVED, INELIGIBLE
+  - included_in_export       : Whether included in export
+  - dataset_hash             : SHA-256 hash for integrity
+  - created_at               : Creation timestamp
+
+portability_exports:
+  - export_id                : Primary key
+  - request_id               : Foreign key to portability_requests
+  - export_format            : JSON, CSV, XML, XLSX
+  - file_name                : Generated file name
+  - file_path                : Path to file
+  - file_size_bytes          : File size
+  - record_count             : Total records exported
+  - datasets_included        : Semicolon-separated dataset list
+  - generated_at             : Generation timestamp
+  - generated_by             : User who generated
+  - download_count           : Number of downloads
+  - last_downloaded_at       : Last download timestamp
+  - expires_at               : Expiration date
+  - is_encrypted             : Whether file is encrypted
+  - encryption_method        : Encryption method if applicable
+  - checksum                 : SHA-256 checksum
+  - export_hash              : SHA-256 hash for integrity
+  - created_at               : Creation timestamp
+
+portability_transfers:
+  - transfer_id              : Primary key
+  - request_id               : Foreign key to portability_requests
+  - export_id                : Foreign key to portability_exports
+  - target_controller        : Target controller name
+  - target_contact           : Contact at target
+  - transfer_method          : SECURE_EMAIL, SECURE_FTP, API, etc.
+  - transfer_status          : PENDING, INITIATED, COMPLETED, FAILED
+  - initiated_at             : Initiation timestamp
+  - initiated_by             : User who initiated
+  - completed_at             : Completion timestamp
+  - confirmation_received    : Whether confirmation received
+  - confirmation_date        : Confirmation date
+  - confirmation_reference   : Reference from receiving controller
+  - failure_reason           : Reason if failed
+  - transfer_hash            : SHA-256 hash for integrity
+  - created_at               : Creation timestamp
+
+portability_history:
+  - history_id               : Primary key
+  - request_id               : Foreign key to portability_requests
+  - dataset_id               : Foreign key to portability_datasets
+  - export_id                : Foreign key to portability_exports
+  - transfer_id              : Foreign key to portability_transfers
+  - action                   : Action performed
+  - action_details           : Details
+  - performed_by             : User who performed action
+  - performed_at             : Timestamp
+  - history_hash             : SHA-256 hash for integrity
+  - previous_history_hash    : Hash-chain link
+
+-------------------------------------------------------------------------------
+REQUEST TYPES
+-------------------------------------------------------------------------------
+
+  RECEIVE   : Subject wants to receive their data in portable format
+  TRANSMIT  : Subject wants data transmitted to another controller
+  BOTH      : Subject wants both - receive and transmit
+
+-------------------------------------------------------------------------------
+LEGAL BASES (Article 20(1))
+-------------------------------------------------------------------------------
+
+Only applies when processing is based on:
+
+  CONSENT   : Processing based on consent (Article 6(1)(a) or 9(2)(a))
+  CONTRACT  : Processing necessary for contract (Article 6(1)(b))
+
+NOT eligible if based on: legitimate interest, legal obligation, public task
+
+-------------------------------------------------------------------------------
+EXPORT FORMATS
+-------------------------------------------------------------------------------
+
+  JSON : JavaScript Object Notation - structured, machine-readable
+  CSV  : Comma-Separated Values - widely compatible
+  XML  : Extensible Markup Language - structured, self-describing
+  XLSX : Excel Spreadsheet - user-friendly
+
+-------------------------------------------------------------------------------
+DATA SOURCE TYPES (Eligibility)
+-------------------------------------------------------------------------------
+
+  PROVIDED    : Actively provided by data subject (ELIGIBLE)
+  OBSERVED    : Observed from data subject activity (ELIGIBLE)
+  DERIVED     : Derived or inferred by controller (NOT ELIGIBLE)
+  THIRD_PARTY : Received from third party (NOT ELIGIBLE unless provided)
+
+Per Article 29 Working Party guidelines, derived/inferred data is not
+covered by the right to data portability.
+
+-------------------------------------------------------------------------------
+TRANSFER METHODS
+-------------------------------------------------------------------------------
+
+  SECURE_EMAIL    : Encrypted email with attachment
+  SECURE_FTP      : Secure FTP file transfer
+  API             : Direct API transfer between controllers
+  SECURE_LINK     : Secure download link shared with target
+  PHYSICAL_MEDIA  : Encrypted USB/media delivered physically
+
+-------------------------------------------------------------------------------
+EXCEPTION GROUNDS (Article 20(4))
+-------------------------------------------------------------------------------
+
+  RIGHTS_OF_OTHERS       : Would adversely affect rights of others
+  NOT_PROVIDED_BY_SUBJECT: Data not provided by data subject
+  NOT_AUTOMATED          : Processing not by automated means
+  WRONG_LEGAL_BASIS      : Processing not based on consent or contract
+  TECHNICALLY_INFEASIBLE : Direct transmission technically not feasible
+
+-------------------------------------------------------------------------------
+COMPLIANCE STATUS
+-------------------------------------------------------------------------------
+
+GDPR Article 20(1) - Right to Receive Data:
+  - Structured, commonly used, machine-readable format
+  - Applies to data provided by subject
+  - Only for consent or contract-based processing
+  - Only for automated processing
+
+GDPR Article 20(2) - Right to Transmit:
+  - Controller should transmit directly where technically feasible
+  - Subject has right to request direct transmission
+  - Controller not obligated if technically impossible
+
+GDPR Article 20(3) - Erasure Unaffected:
+  - Right to portability does not affect right to erasure
+  - Subject may still request deletion after portability
+
+GDPR Article 20(4) - Rights of Others:
+  - Right shall not adversely affect rights of others
+  - Derived/inferred data may be excluded
+  - Trade secrets and IP may be protected
+
+-------------------------------------------------------------------------------
+TEST RESULTS
+-------------------------------------------------------------------------------
+
+Test File: tests/testthat/test-portability.R
+Status: ALL TESTS PASSING
+Total Tests: 48 test cases, 130 expectations
+
+Test Categories:
+  - Initialization tests (6 expectations)
+  - Reference data tests (20 expectations)
+  - Request creation tests (16 expectations)
+  - Dataset management tests (14 expectations)
+  - Export generation tests (18 expectations)
+  - Transfer tests (14 expectations)
+  - Request completion tests (12 expectations)
+  - Reject request tests (8 expectations)
+  - Retrieval tests (12 expectations)
+  - Statistics tests (4 expectations)
+  - Report generation tests (6 expectations)
+  - Integration tests (full RECEIVE + TRANSMIT + rejection workflows)
+
+-------------------------------------------------------------------------------
+USAGE EXAMPLES
+-------------------------------------------------------------------------------
+
+# Initialize portability system
+init_portability()
+
+# Create RECEIVE request (subject wants their data)
+request <- create_portability_request(
+  subject_email = "john.patient@example.com",
+  subject_name = "John Patient",
+  request_type = "RECEIVE",
+  legal_basis = "CONSENT",
+  requested_by = "dpo",
+  subject_id = "SUBJ-001",
+  preferred_format = "JSON"
+)
+
+# Create TRANSMIT request (subject wants data sent to new provider)
+transmit_request <- create_portability_request(
+  subject_email = "john.patient@example.com",
+  subject_name = "John Patient",
+  request_type = "TRANSMIT",
+  legal_basis = "CONTRACT",
+  requested_by = "dpo",
+  subject_id = "SUBJ-001",
+  target_controller = "New Healthcare Provider",
+  target_controller_contact = "dpo@newhealthcare.com"
+)
+
+# Add eligible dataset (provided by subject)
+dataset1 <- add_portability_dataset(
+  request_id = request$request_id,
+  table_name = "subjects",
+  data_category = "CONTACT",
+  data_source = "PROVIDED",
+  added_by = "dpo",
+  record_count = 10
+)
+print(dataset1$is_eligible)  # TRUE
+
+# Add ineligible dataset (derived data)
+dataset2 <- add_portability_dataset(
+  request_id = request$request_id,
+  table_name = "risk_scores",
+  data_category = "ANALYTICS",
+  data_source = "DERIVED",
+  added_by = "dpo"
+)
+print(dataset2$is_eligible)  # FALSE - derived data not portable
+
+# Review and approve eligible dataset
+review_portability_dataset(
+  dataset_id = dataset1$dataset_id,
+  is_eligible = TRUE,
+  reviewed_by = "admin"
+)
+
+# Generate export
+export <- generate_portability_export(
+  request_id = request$request_id,
+  export_format = "JSON",
+  generated_by = "dpo",
+  output_dir = "/exports"
+)
+print(export$file_path)
+print(export$checksum)
+
+# Record when subject downloads
+record_export_download(
+  export_id = export$export_id,
+  downloaded_by = "subject"
+)
+
+# Complete RECEIVE request
+complete_portability_request(
+  request_id = request$request_id,
+  completed_by = "dpo"
+)
+
+# For TRANSMIT request - initiate transfer
+transfer <- initiate_controller_transfer(
+  request_id = transmit_request$request_id,
+  export_id = export$export_id,
+  target_controller = "New Healthcare Provider",
+  target_contact = "dpo@newhealthcare.com",
+  transfer_method = "SECURE_EMAIL",
+  initiated_by = "dpo"
+)
+
+# Complete transfer when confirmed
+complete_controller_transfer(
+  transfer_id = transfer$transfer_id,
+  completed_by = "dpo",
+  confirmation_reference = "REF-2025-001"
+)
+
+# Or record failure
+fail_controller_transfer(
+  transfer_id = transfer$transfer_id,
+  failure_reason = "Target controller API unavailable",
+  failed_by = "dpo"
+)
+
+# Reject request if not eligible
+reject_portability_request(
+  request_id = other_request_id,
+  rejection_reason = "Processing based on legitimate interest, not consent or contract",
+  rejected_by = "legal",
+  exception_ground = "WRONG_LEGAL_BASIS"
+)
+
+# Get statistics
+stats <- get_portability_statistics()
+print(paste("Total requests:", stats$requests$total))
+print(paste("Exported:", stats$requests$exported))
+print(paste("Transferred:", stats$requests$transferred))
+print(paste("Datasets eligible:", stats$datasets$eligible))
+
+# Generate compliance report
+generate_portability_report(
+  output_file = "portability_report.txt",
+  format = "txt",
+  organization = "Healthcare Organization",
+  prepared_by = "Data Protection Officer"
+)
+
+-------------------------------------------------------------------------------
+NEXT STEPS
+-------------------------------------------------------------------------------
+
+Feature #14 complete. Ready to proceed with:
+- Feature #15: Right to Object
+- Feature #16: Consent Withdrawal
+- Feature #17: Consent Management System
+
+===============================================================================
