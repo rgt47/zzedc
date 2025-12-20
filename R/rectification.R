@@ -24,6 +24,20 @@ safe_scalar_rect <- function(x, default = NA_character_) {
   }
 }
 
+#' Safe Integer Scalar Conversion for Rectification
+#'
+#' @param x Value to convert
+#' @param default Default value if NULL
+#' @return Integer scalar or NA
+#' @keywords internal
+safe_int_rect <- function(x, default = NA_integer_) {
+  if (is.null(x) || length(x) == 0) {
+    default
+  } else {
+    as.integer(x)
+  }
+}
+
 # =============================================================================
 # Database Schema
 # =============================================================================
@@ -298,7 +312,7 @@ create_rectification_request <- function(subject_email,
       ) VALUES (?, ?, ?, ?, ?, ?, 'RECEIVED', ?, ?, ?, ?, ?)
     ", list(
       request_number,
-      dsar_request_id,
+      safe_int_rect(dsar_request_id),
       safe_scalar_rect(subject_id),
       safe_scalar_rect(subject_email),
       safe_scalar_rect(subject_name),
@@ -385,7 +399,7 @@ log_rectification_action <- function(request_id,
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ", list(
       request_id,
-      item_id,
+      safe_int_rect(item_id),
       safe_scalar_rect(action),
       safe_scalar_rect(action_details),
       safe_scalar_rect(previous_value),
