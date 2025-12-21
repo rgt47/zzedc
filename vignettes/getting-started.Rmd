@@ -33,24 +33,78 @@ The system includes the following functional components:
 
 ## Installation
 
-### Install from Package
+### System Requirements
+
+- **R version**: 4.0.0 or higher
+- **Git**: For cloning repositories
+- **Web browser**: Chrome, Firefox, Safari, or Edge
+- **Memory**: Minimum 4GB RAM recommended
+- **Storage**: 100MB for application, additional space for data
+
+### Step 1: Clone the Repositories
+
+Open a terminal and run:
+
+```bash
+# Create a project directory
+mkdir ~/zzedc-project
+cd ~/zzedc-project
+
+# Clone the main package
+git clone https://github.com/rgt47/zzedc.git
+
+# Clone the validation dependency (required)
+git clone https://github.com/rgt47/zzedc-validation.git
+```
+
+### Step 2: Install R Dependencies
+
+Open R or RStudio and install the required packages:
+
+```{r install_deps}
+# Install CRAN dependencies
+install.packages(c(
+  "shiny", "bslib", "bsicons", "shinyjs", "DT",
+  "ggplot2", "plotly", "dplyr", "jsonlite", "digest",
+  "writexl", "RSQLite", "pool", "config", "lubridate",
+  "stringr", "httr", "shinyalert", "googlesheets4",
+  "devtools", "testthat", "knitr", "rmarkdown"
+))
+```
+
+### Step 3: Install ZZedc Packages
+
+Install the packages in order (validation package first):
 
 ```{r installation}
-# Install ZZedc packages
-# Note: zzedc.validation is a required dependency
-install.packages("path/to/zzedc.validation_1.0.0.tar.gz", repos = NULL, type = "source")
-install.packages("path/to/zzedc_1.0.0.tar.gz", repos = NULL, type = "source")
+# Install zzedc.validation (required dependency)
+devtools::install("~/zzedc-project/zzedc-validation")
+
+# Install zzedc
+devtools::install("~/zzedc-project/zzedc")
 
 # Load the package
 library(zzedc)
 ```
 
-### System Requirements
+### Alternative: Install from GitHub Directly
 
-- **R version**: 4.0.0 or higher
-- **Web browser**: Chrome, Firefox, Safari, or Edge
-- **Memory**: Minimum 4GB RAM recommended
-- **Storage**: 100MB for application, additional space for data
+If you prefer not to clone locally:
+
+```{r install_github}
+# Install directly from GitHub
+devtools::install_github("rgt47/zzedc-validation")
+devtools::install_github("rgt47/zzedc")
+```
+
+### Verify Installation
+
+```{r verify}
+# Check that packages are installed
+library(zzedc)
+packageVersion("zzedc")
+packageVersion("zzedc.validation")
+```
 
 ## Quick Start
 
