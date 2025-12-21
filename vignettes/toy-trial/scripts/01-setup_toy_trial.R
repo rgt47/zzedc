@@ -3,6 +3,10 @@
 # Toy Clinical Trial Setup Script
 # Creates complete ZZedc database with 20 subjects, randomization, and MMSE data
 #
+# Usage:
+#   From package root: Rscript vignettes/toy-trial/scripts/01-setup_toy_trial.R
+#   From scripts dir:  Rscript 01-setup_toy_trial.R
+#
 
 cat("Creating Toy Clinical Trial Database...\n")
 cat("=========================================\n\n")
@@ -12,9 +16,47 @@ library(DBI)
 library(RSQLite)
 library(digest)
 
-# Paths (adjust based on working directory)
-script_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
-base_dir <- dirname(dirname(script_dir))
+# Determine script location (works from command line or RStudio)
+get_script_dir <- function() {
+
+  # Try RStudio API first
+
+  if (requireNamespace("rstudioapi", quietly = TRUE) &&
+      rstudioapi::isAvailable()) {
+    return(dirname(rstudioapi::getActiveDocumentContext()$path))
+  }
+
+ # Try command line args (Rscript)
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("^--file=", args, value = TRUE)
+  if (length(file_arg) > 0) {
+    return(dirname(normalizePath(sub("^--file=", "", file_arg))))
+  }
+
+ # Try sys.frames for source()
+  for (i in seq_len(sys.nframe())) {
+    if (!is.null(sys.frame(i)$ofile)) {
+      return(dirname(normalizePath(sys.frame(i)$ofile)))
+    }
+  }
+
+ # Fallback: check common locations
+  candidates <- c(
+    "vignettes/toy-trial/scripts",
+    ".",
+    file.path(getwd(), "vignettes/toy-trial/scripts")
+  )
+  for (cand in candidates) {
+    if (file.exists(file.path(cand, "01-setup_toy_trial.R"))) {
+      return(normalizePath(cand))
+    }
+  }
+
+  stop("Cannot determine script directory. Run from package root or scripts dir.")
+}
+
+script_dir <- get_script_dir()
+base_dir <- dirname(script_dir)
 db_path <- file.path(base_dir, "data", "toy_trial.db")
 csv_dir <- file.path(base_dir, "csv_templates")
 

@@ -2,14 +2,51 @@
 #
 # Add test users to toy trial database
 #
+# Usage:
+#   From package root: Rscript vignettes/toy-trial/scripts/02-add_users.R
+#   From scripts dir:  Rscript 02-add_users.R
+#
 
 library(DBI)
 library(RSQLite)
 library(digest)
 
-# Paths
-script_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
-base_dir <- dirname(dirname(script_dir))
+# Determine script location (works from command line or RStudio)
+get_script_dir <- function() {
+
+  if (requireNamespace("rstudioapi", quietly = TRUE) &&
+      rstudioapi::isAvailable()) {
+    return(dirname(rstudioapi::getActiveDocumentContext()$path))
+  }
+
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("^--file=", args, value = TRUE)
+  if (length(file_arg) > 0) {
+    return(dirname(normalizePath(sub("^--file=", "", file_arg))))
+  }
+
+  for (i in seq_len(sys.nframe())) {
+    if (!is.null(sys.frame(i)$ofile)) {
+      return(dirname(normalizePath(sys.frame(i)$ofile)))
+    }
+  }
+
+  candidates <- c(
+    "vignettes/toy-trial/scripts",
+    ".",
+    file.path(getwd(), "vignettes/toy-trial/scripts")
+  )
+  for (cand in candidates) {
+    if (file.exists(file.path(cand, "02-add_users.R"))) {
+      return(normalizePath(cand))
+    }
+  }
+
+  stop("Cannot determine script directory. Run from package root or scripts dir.")
+}
+
+script_dir <- get_script_dir()
+base_dir <- dirname(script_dir)
 db_path <- file.path(base_dir, "data", "toy_trial.db")
 
 conn <- dbConnect(SQLite(), db_path)
