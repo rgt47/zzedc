@@ -1,5 +1,23 @@
 # ZZedc Project - Claude Code Notes
 
+## Documentation Rendering
+
+When rendering Markdown to PDF with pandoc, use DejaVu Sans Mono for proper
+Unicode box-drawing character support:
+
+```bash
+pandoc doc.md -o doc.pdf --pdf-engine=xelatex -V monofont="DejaVu Sans Mono"
+```
+
+Full example with TOC:
+```bash
+pandoc docs/GUIDE.md -o docs/GUIDE.pdf \
+  --toc --toc-depth=3 \
+  --pdf-engine=xelatex \
+  -V monofont="DejaVu Sans Mono" \
+  -V geometry:margin=1in
+```
+
 ## Project Overview
 ZZedc is a modern, general-purpose Electronic Data Capture (EDC) system built with R/Shiny for all types of clinical research. This comprehensive platform supports any therapeutic area or study design, from pharmaceutical trials to academic research projects. Built on the zzcollab framework with enterprise-grade features and regulatory compliance.
 

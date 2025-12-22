@@ -4,9 +4,20 @@ subtitle: "System Architecture, Core Features, and Regulatory Compliance Framewo
 author: "ZZedc Development Team"
 date: "`r Sys.Date()`"
 output:
-  rmarkdown::html_vignette:
+  html_document:
     toc: true
     toc_depth: 4
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    number_sections: true
+    theme: cosmo
+  pdf_document:
+    toc: true
+    toc_depth: 4
+    number_sections: true
+    latex_engine: xelatex
+    keep_tex: false
 vignette: >
   %\VignetteIndexEntry{ZZedc System Architecture and Compliance Framework}
   %\VignetteEngine{knitr::rmarkdown}
