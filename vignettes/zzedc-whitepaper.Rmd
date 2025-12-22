@@ -2473,6 +2473,173 @@ create_correction_request(
 verify_correction_integrity(request_id)
 ```
 
+### Enhanced Security Event Monitoring
+
+Beyond standard data operations, the audit system captures security-relevant
+events critical for compliance monitoring and threat detection.
+
+**Authentication Events**
+
+The system logs all authentication activity including successful logins,
+failed login attempts, session timeouts, and explicit logouts. Failed login
+attempts capture the username attempted, failure reason, IP address, and
+cumulative attempt count. This information supports detection of brute force
+attacks and credential stuffing attempts.
+
+```r
+# Failed login attempts are automatically logged
+log_failed_login(
+  username = "john.doe",
+  reason = "Invalid password",
+  ip_address = "192.168.1.100",
+  attempt_count = 3
+)
+
+# Account lockout after threshold exceeded
+log_account_lockout(
+  username = "john.doe",
+  reason = "Too many failed attempts",
+  duration_minutes = 30
+)
+```
+
+**Access Control Events**
+
+The system captures all changes to user permissions and roles. Each role
+change records the user affected, previous role, new role, administrator
+making the change, and justification. Password changes are logged regardless
+of whether self-initiated or administratively reset. These records support
+access review audits and privilege escalation detection.
+
+```r
+# Role changes create audit records
+log_role_change(
+  user_id = "jane.smith",
+  old_role = "coordinator",
+  new_role = "data_manager",
+  changed_by = "admin_user",
+  reason = "Promotion per study staffing change"
+)
+```
+
+**Configuration Change Tracking**
+
+System configuration changes are logged with before and after values,
+enabling reconstruction of system state at any point in time. This tracking
+supports change control requirements and provides evidence for regulatory
+inspections demonstrating that configuration changes followed proper
+procedures.
+
+```r
+# Configuration changes are audited
+log_config_change(
+  setting_name = "session_timeout_minutes",
+  old_value = "30",
+  new_value = "15",
+  changed_by = "admin_user",
+  reason = "Security policy update per IT audit findings"
+)
+```
+
+**System Operations Logging**
+
+Backup operations, maintenance activities, and system restarts are logged
+with operational details. Backup logs capture file paths, sizes, durations,
+and success status. This information supports disaster recovery verification
+and demonstrates that appropriate data protection measures are operational.
+
+### Anomaly Detection and Alerting
+
+The audit system includes automated anomaly detection to identify suspicious
+patterns that may indicate security incidents or compliance violations.
+
+**Detection Categories**
+
+The system monitors for the following anomaly types:
+
+| Anomaly Type | Indicators | Risk Level |
+|--------------|------------|------------|
+| Brute Force Attack | Multiple failed logins per user | HIGH |
+| Credential Stuffing | High volume of failed logins across users | HIGH |
+| Data Exfiltration | Unusual export volume or timing | MEDIUM |
+| Privilege Escalation | Multiple role changes in short period | MEDIUM |
+| Off-Hours Activity | Significant activity outside business hours | LOW |
+
+**Risk Scoring**
+
+Each detected anomaly contributes to a cumulative risk score. The system
+categorizes overall risk as LOW (score < 25), MEDIUM (25-49), or HIGH (50+).
+This scoring enables prioritization of security response efforts.
+
+```r
+# Run anomaly detection
+anomalies <- detect_audit_anomalies(lookback_hours = 24)
+
+# Example output:
+# $risk_level: "MEDIUM"
+# $risk_score: 35
+# $alerts:
+#   - type: "BRUTE_FORCE_SUSPECTED"
+#     severity: "HIGH"
+#     message: "Multiple failed logins for users: john.doe"
+#     count: 7
+#   - type: "OFF_HOURS_ACTIVITY"
+#     severity: "LOW"
+#     message: "15 events during off-hours"
+```
+
+**Configurable Thresholds**
+
+Organizations can adjust detection thresholds to match their risk tolerance
+and operational patterns. Default thresholds are conservative but can be
+modified for environments with different usage patterns.
+
+### Advanced Audit Search and Analytics
+
+The audit system provides comprehensive search capabilities for compliance
+review and incident investigation.
+
+**Multi-Criteria Search**
+
+Search filters include free text search across operations and details,
+event type filtering (INSERT, UPDATE, DELETE, LOGIN, etc.), user filtering
+for activity by specific individuals, date range filtering for time-bounded
+investigations, and severity filtering for high-priority events.
+
+```r
+# Search audit trail with multiple criteria
+results <- search_audit_trail(
+  search_term = "password",
+  event_types = c("PASSWORD_CHANGE", "LOGIN_FAILED"),
+  users = c("john.doe", "jane.smith"),
+  date_from = as.Date("2024-01-01"),
+  date_to = as.Date("2024-03-31"),
+  limit = 500
+)
+```
+
+**Audit Statistics**
+
+The system generates summary statistics for operational monitoring and
+compliance reporting. Statistics include total events by period, events
+grouped by type, most active users, most accessed tables, and daily event
+trends.
+
+```r
+# Generate weekly audit statistics
+stats <- get_audit_statistics(period = "week")
+
+# Returns:
+# - total_events: 1,247
+# - events_per_day: 178.1
+# - events_by_type: INSERT (523), UPDATE (412), SELECT (189), ...
+# - events_by_user: coordinator_1 (312), data_mgr (287), ...
+# - security_events: 23
+```
+
+These statistics support compliance reporting, capacity planning, and
+identification of unusual patterns requiring investigation.
+
 ## 34. Data Correction Workflow
 
 ### Regulatory Requirement
