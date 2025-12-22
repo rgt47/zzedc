@@ -516,35 +516,270 @@ validation ensures consistency between related forms. Longitudinal
 validation checks value changes across visits for biological plausibility.
 Cross-subject validation identifies statistical outliers requiring review.
 
-### Validation Rule Definition
+### Plain English Validation Language (DSL)
 
-Validation rules are defined using a declarative syntax that specifies
-the validation type, target fields, parameters, and failure message.
-This declarative approach enables rule definition by study personnel
-without programming knowledge.
+ZZedc implements a domain-specific language (DSL) that enables clinical
+research staff to define validation rules using plain English syntax. This
+approach represents a significant advancement over traditional EDC systems
+that require programming knowledge for validation rule authoring. The DSL
+supports the full range of clinical trial validation requirements while
+remaining accessible to data managers, research coordinators, and clinical
+operations personnel.
+
+**Fundamental Design Principle**: The validation language prioritizes
+readability and clinical accuracy over technical elegance. A rule written
+as `between 18 and 65` communicates its intent immediately to clinical
+staff reviewing the validation specification, whereas equivalent R code
+`input$age >= 18 && input$age <= 65` requires programming literacy.
+
+#### DSL Syntax Categories
+
+**Range Validation** enforces numeric boundaries with intuitive syntax:
+
+```
+between 18 and 65
+1..100
+>= 0
+<= 200
+```
+
+**Value Matching** validates categorical and text fields:
+
+```
+== 'Female'
+!= 'Unknown'
+in('Yes', 'No', 'N/A')
+not in('Missing', 'Refused')
+required
+```
+
+**Conditional Logic** applies rules based on other field values:
+
+```
+if sex == 'Female' then pregnant in('Yes', 'No', 'Unknown') endif
+if age >= 18 then consent required endif
+if pregnant == 'Yes' then gestational_age between 0 and 42 endif
+```
+
+**Date Validation** supports clinical timing requirements:
+
+```
+consent_date <= enrollment_date
+visit_date within 7 days of scheduled_date
+birth_date <= today
+follow_up_date >= today + 14 days
+```
+
+**Cross-Visit Validation** enables longitudinal data quality checks:
+
+```
+weight within 10% of baseline_weight
+weight within 10% of previous_weight
+visit_date > previous_visit_date
+```
+
+#### DSL Processing Architecture
+
+The validation system processes DSL rules through a multi-stage pipeline:
+
+1. **Tokenization**: The lexer converts rule text into tokens, recognizing
+   keywords (between, and, if, then, within), operators (>=, <=, ==, !=),
+   literals (numbers, quoted strings), and field references.
+
+2. **Parsing**: A recursive descent parser constructs an Abstract Syntax
+   Tree (AST) representing the rule structure. The parser validates syntax
+   and reports errors with context (line, column, expected token).
+
+3. **R Code Generation**: The AST is compiled to executable R closures for
+   real-time validation during data entry. Generated validators achieve
+   sub-5ms execution time.
+
+4. **SQL Code Generation**: For batch validation, the AST compiles to SQL
+   WHERE clauses enabling efficient database-level quality checks across
+   thousands of records.
 
 ```r
-# Validation rule examples
-validation_rules <- list(
-  list(
-    type = "required",
-    fields = c("birth_date", "sex", "race"),
-    message = "Demographics are required"
-  ),
-  list(
-    type = "range",
-    field = "age",
-    min = 18,
-    max = 100,
-    message = "Age must be between 18 and 100"
-  ),
-  list(
-    type = "cross_field",
-    expression = "end_date >= start_date",
-    message = "End date must be on or after start date"
-  )
+# Example: DSL to R compilation
+dsl_rule <- "between 18 and 65"
+ast <- parse_dsl_rule(dsl_rule)
+validator <- generate_r_validator(ast)
+
+# The compiled validator can be applied to data
+validator(25)  # Returns TRUE
+validator(17)  # Returns FALSE with error message
+```
+
+### Google Sheets Integration for Validation Rules
+
+ZZedc provides seamless integration between the validation DSL and Google
+Sheets, enabling non-technical staff to author, review, and manage validation
+rules using familiar spreadsheet tools. This integration represents a novel
+approach to clinical trial validation management.
+
+#### Validation Rules Sheet Schema
+
+The system expects a Google Sheet with the following structure:
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| rule_id | Yes | Unique identifier (e.g., AGE_ELIGIBILITY) |
+| field_code | Yes | Target field code (e.g., age) |
+| rule_dsl | Yes | Validation rule in DSL syntax |
+| form_code | No | Specific form (blank = all forms) |
+| error_message | No | Custom error (auto-generated if blank) |
+| severity | No | ERROR, WARNING, or INFO (default: ERROR) |
+| rule_category | No | FIELD, CROSS_FIELD, ELIGIBILITY, SAFETY |
+| requires_approval | No | TRUE if PI approval needed |
+
+Example validation rules in Google Sheets format:
+
+| rule_id | field_code | rule_dsl | error_message | severity |
+|---------|------------|----------|---------------|----------|
+| AGE_RANGE | age | between 18 and 65 | Age must be 18-65 for eligibility | ERROR |
+| BP_SYSTOLIC | bp_sys | between 80 and 200 | Systolic BP outside valid range | ERROR |
+| WEIGHT_CHANGE | weight | within 10% of previous_weight | Weight change >10% | WARNING |
+| CONSENT_ORDER | consent_date | consent_date <= enrollment_date | Consent must precede enrollment | ERROR |
+
+#### Import and Synchronization
+
+```r
+# Import validation rules from Google Sheets
+result <- import_validation_rules_from_gsheets(
+  sheet_id = "1ABC...xyz",
+  sheet_name = "validation_rules",
+  imported_by = "data_manager_01",
+  validate_syntax = TRUE
+)
+
+# Result includes import statistics
+# Imported: 47 rules, Skipped: 2 with syntax errors
+```
+
+The import process validates DSL syntax before storing rules, preventing
+malformed rules from entering the system. Syntax errors are reported with
+specific line and column information enabling quick correction in the
+source spreadsheet.
+
+#### Template Generation
+
+For new studies, the system generates a pre-configured Google Sheet template
+with example rules and a syntax reference tab:
+
+```r
+# Create a new validation rules template
+create_validation_rules_template(
+  sheet_name = "STUDY_2024_001_Validation_Rules",
+  include_examples = TRUE
 )
 ```
+
+The template includes:
+
+- Example validation rules covering common patterns
+- Syntax reference documentation within the sheet
+- Column headers with data validation for severity and category
+- Conditional formatting to highlight required fields
+
+### Role-Based Validation Rule Management
+
+The validation system integrates with ZZedc's authentication framework to
+provide granular access control for rule management. This integration ensures
+that validation rules undergo appropriate review before affecting data entry.
+
+#### Permission Matrix
+
+| Role | View | Create | Edit | Delete | Approve | Activate |
+|------|------|--------|------|--------|---------|----------|
+| Admin | Yes | Yes | Yes | Yes | Yes | Yes |
+| PI | Yes | No | No | No | Yes | Yes |
+| Data Manager | Yes | Yes | Yes | No | No | Yes |
+| Coordinator | Yes | No | No | No | No | No |
+| Monitor | Yes | No | No | No | No | No |
+
+**View**: Access to view all validation rules and their status
+**Create**: Ability to import or create new validation rules
+**Edit**: Ability to modify existing rules (creates new version)
+**Delete**: Ability to remove rules from the system
+**Approve**: Authority to approve rules requiring PI sign-off
+**Activate**: Authority to enable/disable rules for production use
+
+#### Approval Workflow
+
+Rules flagged as `requires_approval = TRUE` must complete an approval
+workflow before activation:
+
+1. **Submission**: Data Manager imports or creates rule marked for approval
+2. **Pending Review**: Rule stored but not active; visible in approval queue
+3. **PI Review**: Principal Investigator or Admin reviews rule definition
+4. **Decision**: Approve (rule activated) or Reject (with comments)
+5. **Audit Trail**: All approval actions logged with timestamps and user IDs
+
+```r
+# Request approval for a rule
+request_dsl_rule_approval(
+  rule_id = "ELIGIBILITY_AGE",
+  requested_by = "data_manager_01",
+  comments = "New age criterion per protocol amendment 3"
+)
+
+# PI reviews and approves
+review_dsl_rule(
+  rule_id = "ELIGIBILITY_AGE",
+  reviewer_id = "pi_johnson",
+  reviewer_role = "pi",
+  decision = "APPROVE",
+  comments = "Approved per IRB amendment approval dated 2024-03-15"
+)
+```
+
+### Validation Rule Versioning and Audit
+
+Every modification to validation rules creates a new version with complete
+audit trail. This versioning supports regulatory requirements for documenting
+validation changes throughout the study lifecycle.
+
+The audit trail captures:
+
+- Original rule definition and all modifications
+- User performing each change with timestamp
+- Reason for change (when provided)
+- Approval workflow history
+- Activation and deactivation events
+
+```r
+# Retrieve version history for a rule
+history <- get_rule_version_history("ELIGIBILITY_AGE")
+
+# Output shows complete change history:
+# Version 1: Created 2024-01-15 by setup_wizard
+# Version 2: Modified 2024-03-10 by data_manager_01
+#            Change: "between 18 and 65" -> "between 18 and 70"
+#            Reason: "Protocol amendment 3"
+# Version 3: Approved 2024-03-12 by pi_johnson
+```
+
+### Batch Quality Control Engine
+
+Beyond real-time validation, the system includes a batch QC engine for
+scheduled data quality assessments. The QC engine compiles DSL rules to
+SQL for efficient database-level checking.
+
+```r
+# Run nightly batch validation
+qc_results <- run_batch_validation(
+  rule_categories = c("CROSS_VISIT", "CROSS_FORM"),
+  since_date = Sys.Date() - 1
+)
+
+# Results identify records failing validation
+# Record ID: 1042, Rule: WEIGHT_CHANGE
+# Current weight: 95kg, Previous: 75kg
+# Change: 26.7% (exceeds 10% threshold)
+```
+
+The batch engine supports complex cross-visit and cross-subject validations
+that cannot be evaluated during single-form data entry, enabling comprehensive
+longitudinal data quality monitoring.
 
 ### Query Generation
 
