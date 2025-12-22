@@ -1,14 +1,14 @@
 ---
-title: "Regulatory Compliance Framework in ZZedc"
-subtitle: "A Comprehensive Analysis of GDPR, GCP, and FDA 21 CFR Part 11 Implementation"
+title: "ZZedc: A Comprehensive Electronic Data Capture System"
+subtitle: "System Architecture, Core Features, and Regulatory Compliance Framework"
 author: "ZZedc Development Team"
 date: "`r Sys.Date()`"
 output:
   rmarkdown::html_vignette:
     toc: true
-    toc_depth: 3
+    toc_depth: 4
 vignette: >
-  %\VignetteIndexEntry{Regulatory Compliance Framework in ZZedc}
+  %\VignetteIndexEntry{ZZedc System Architecture and Compliance Framework}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 bibliography: references.bib
@@ -26,25 +26,931 @@ knitr::opts_chunk$set(
 
 # Executive Summary
 
-ZZedc is a modern Electronic Data Capture (EDC) system designed for clinical
-research with comprehensive regulatory compliance capabilities. This white
-paper provides a detailed analysis of the system's implementation of three
-critical regulatory frameworks: the European Union's General Data Protection
-Regulation (GDPR), Good Clinical Practice (GCP) guidelines, and the United
-States Food and Drug Administration's 21 CFR Part 11 regulations.
+ZZedc is an open-source Electronic Data Capture (EDC) system designed for
+clinical research across all therapeutic areas and study designs. Built on the
+R/Shiny framework, the system provides a modern, web-based platform for data
+collection, management, and regulatory compliance that addresses the needs of
+pharmaceutical trials, academic research institutions, and independent
+investigators.
 
-The system implements 32 distinct compliance features across these frameworks,
-with over 3,000 automated tests validating regulatory requirements. This
-document describes each feature's regulatory basis, technical implementation,
-and practical application in clinical research settings.
+This document serves two purposes. First, it provides comprehensive technical
+documentation of ZZedc's architecture, features, and implementation. Second,
+it offers a reference framework for what a modern, open-source, regulatory-
+compliant EDC system should include, using ZZedc as an exemplar implementation.
 
-# Part I: GDPR Compliance Features
+The system implements 49 distinct functional modules organized across six
+domains: core data capture, regulatory compliance, data management, system
+administration, integration services, and quality assurance. Over 3,000
+automated tests validate system functionality, and comprehensive documentation
+supports both users and developers.
+
+Key distinguishing characteristics of the ZZedc system include:
+
+- **Open Architecture**: The entire codebase is available for inspection,
+  modification, and extension, enabling organizations to verify compliance
+  implementations and customize functionality for specific requirements.
+
+- **Regulatory Framework**: Native implementation of GDPR, GCP, and FDA 21 CFR
+  Part 11 requirements, with 32 dedicated compliance features addressing data
+  protection, clinical trial integrity, and electronic records management.
+
+- **Modern Technology Stack**: Built on R 4.4+ with Bootstrap 5 responsive
+  design, providing a contemporary user experience while leveraging the
+  statistical computing capabilities of the R ecosystem.
+
+- **Deployment Flexibility**: Support for local installation, server deployment,
+  containerized environments, and cloud platforms, enabling organizations to
+  choose infrastructure appropriate to their security and scalability
+  requirements.
+
+- **Cost Efficiency**: As open-source software, ZZedc eliminates per-site
+  licensing fees that characterize commercial EDC systems, enabling broader
+  access to regulatory-compliant data capture for resource-constrained research
+  programs.
+
+The document is organized into seven parts. Part I describes the system
+architecture and technology foundation. Part II covers core EDC functionality
+including data capture, validation, and reporting. Part III addresses data
+management and export capabilities. Part IV details GDPR compliance features.
+Part V covers Good Clinical Practice (GCP) implementation. Part VI describes
+FDA 21 CFR Part 11 compliance. Part VII addresses integration, deployment,
+and quality assurance.
+
+# Part I: System Architecture
+
+This section describes the technical architecture underlying ZZedc, including
+the technology stack, database design, modular structure, and security
+framework. Understanding these architectural foundations provides context for
+the feature implementations described in subsequent sections.
+
+## 1. Technology Stack
+
+### Design Philosophy
+
+ZZedc employs a technology stack optimized for clinical research computing.
+The selection criteria emphasized statistical computing integration, open-source
+licensing, cross-platform compatibility, and long-term maintainability. The
+resulting stack leverages mature, well-supported technologies with extensive
+community resources.
+
+### Application Framework
+
+The system is built on Shiny, the web application framework for R developed
+by Posit (formerly RStudio). Shiny enables reactive programming paradigms where
+user interface elements automatically update in response to data changes,
+eliminating the complexity of manual state management that characterizes
+traditional web development.
+
+The user interface employs bslib, which provides Bootstrap 5 components adapted
+for Shiny applications. Bootstrap 5 represents the current industry standard
+for responsive web design, ensuring that the interface functions appropriately
+across desktop computers, tablets, and mobile devices. The bsicons package
+provides a consistent icon library that enhances visual communication without
+requiring external dependencies.
+
+```r
+# Core application dependencies
+library(shiny)      # Web application framework
+library(bslib)      # Bootstrap 5 UI components
+library(bsicons)    # Icon library
+library(shinyjs)    # JavaScript integration
+library(shinyalert) # User notifications
+```
+
+### Database Layer
+
+ZZedc uses SQLite as its primary database engine, with optional SQLCipher
+encryption for deployments requiring data-at-rest protection. SQLite provides
+a serverless, self-contained database that requires no separate installation
+or configuration, simplifying deployment while maintaining ACID (Atomicity,
+Consistency, Isolation, Durability) compliance.
+
+The RSQLite package provides the R interface to SQLite, implementing the
+DBI (Database Interface) specification for consistent database operations.
+The pool package manages database connections, providing connection pooling
+that improves performance under concurrent user load while preventing
+connection exhaustion.
+
+```r
+# Database connectivity
+library(RSQLite)    # SQLite database driver
+library(DBI)        # Database interface abstraction
+library(pool)       # Connection pooling
+```
+
+For deployments requiring encryption, SQLCipher extends SQLite with transparent
+AES-256 encryption. When configured, all data written to disk is encrypted,
+and decryption occurs transparently when the correct key is provided.
+
+### Data Processing
+
+The system leverages the tidyverse ecosystem for data manipulation, providing
+consistent, readable syntax for data transformation operations. The native R
+pipe operator (|>) is used throughout for operation chaining, reflecting
+current R coding standards.
+
+```r
+# Data processing packages
+library(dplyr)      # Data manipulation
+library(tidyr)      # Data reshaping
+library(stringr)    # String processing
+library(lubridate)  # Date/time handling
+```
+
+### Visualization and Reporting
+
+Interactive data visualization employs ggplot2 for statistical graphics with
+plotly providing interactive features such as tooltips, zooming, and panning.
+The DT package wraps the DataTables JavaScript library, providing feature-rich
+data tables with sorting, filtering, and pagination.
+
+```r
+# Visualization packages
+library(ggplot2)    # Statistical graphics
+library(plotly)     # Interactive visualization
+library(DT)         # Interactive data tables
+```
+
+### Security and Cryptography
+
+Security functions employ the digest package for cryptographic hashing and
+the openssl package for encryption operations. Password storage uses bcrypt-
+style hashing with configurable salt values, protecting credentials against
+both brute-force attacks and rainbow table lookups.
+
+```r
+# Security packages
+library(digest)     # Cryptographic hashing
+library(openssl)    # Encryption operations
+```
+
+## 2. Database Architecture
+
+### Schema Design Principles
+
+The database schema follows normalization principles appropriate for
+transactional data, balancing query performance against data integrity
+requirements. The design emphasizes flexibility to accommodate diverse
+study types without schema modification, enabling deployment across
+therapeutic areas and research methodologies.
+
+### Core Tables
+
+The database includes the following primary table categories:
+
+**Study Configuration Tables** store metadata defining study structure,
+including protocol information, form definitions, field specifications,
+and validation rules. These tables enable configuration-driven behavior
+where study-specific requirements are defined through data rather than code
+modification.
+
+**Subject Data Tables** contain participant information including
+demographics, enrollment status, and study-specific identifiers. The
+schema supports both screening and enrolled subjects, enabling tracking
+of the enrollment funnel.
+
+**Clinical Data Tables** store form responses organized by subject,
+visit, and form. The flexible schema accommodates forms with varying
+field counts and data types, supporting the diversity of case report
+forms across studies.
+
+**Audit Tables** maintain immutable records of all data modifications,
+user activities, and system events. The audit schema implements hash
+chaining for tamper detection, supporting regulatory compliance
+requirements.
+
+**System Tables** manage users, roles, permissions, and configuration
+settings. These tables support multi-site deployments with site-specific
+access controls.
+
+### Referential Integrity
+
+Foreign key constraints enforce referential integrity between related
+tables, preventing orphaned records and ensuring data consistency. Cascade
+rules are configured conservatively, typically preventing deletion of
+referenced records rather than cascading deletions, protecting against
+inadvertent data loss.
+
+### Indexing Strategy
+
+Indexes are defined for frequently queried columns including subject
+identifiers, visit dates, form types, and user identifiers. The indexing
+strategy balances query performance against insert performance, recognizing
+that clinical data entry involves frequent insertions that would be slowed
+by excessive indexing.
+
+## 3. Modular Architecture
+
+### Module Organization
+
+ZZedc implements a modular architecture where each major feature is
+encapsulated in a self-contained module. Each module consists of a UI
+function defining the user interface elements and a server function
+implementing the business logic. This encapsulation enables independent
+development, testing, and maintenance of features.
+
+```r
+# Module structure example
+example_module_ui <- function(id) {
+  ns <- NS(id)
+  tagList(
+    # UI elements with namespaced IDs
+  )
+}
+
+example_module_server <- function(id, shared_data) {
+  moduleServer(id, function(input, output, session) {
+    # Server logic
+  })
+}
+```
+
+### Module Categories
+
+The system organizes modules into functional categories:
+
+**Core Modules** implement fundamental EDC operations including data
+entry (edc_module), data viewing (data_module), and navigation (home_module).
+These modules are loaded for all deployments.
+
+**Authentication Modules** manage user identity and access control
+(auth_module, user_management_module). These modules implement session
+management, password policies, and role assignment.
+
+**Compliance Modules** provide regulatory-specific functionality including
+GDPR data subject rights (privacy_module), FDA electronic signatures
+(cfr_compliance_module), and audit logging (audit_log_viewer_module).
+
+**Administration Modules** support system management including backup
+and restore (backup_restore_module), configuration (setup_wizard_module),
+and quality monitoring (quality_dashboard_module).
+
+**Import Modules** enable external data integration including instrument
+import (instrument_import_module) and form configuration from external
+sources.
+
+### Inter-Module Communication
+
+Modules communicate through reactive values shared at the application level.
+The primary shared state includes the authenticated user information,
+current subject selection, and active study context. This shared state
+enables coordination between modules while maintaining encapsulation.
+
+```r
+# Shared reactive state
+app_state <- reactiveValues(
+  user = NULL,
+  current_subject = NULL,
+  current_visit = NULL,
+  study_context = NULL
+)
+```
+
+### Module Loading
+
+Modules load dynamically based on configuration and user permissions. The
+module loading system checks user role permissions before loading
+administrative modules, ensuring that unauthorized users cannot access
+restricted functionality even by manipulating URL parameters or form
+submissions.
+
+## 4. Security Architecture
+
+### Authentication System
+
+The authentication system implements secure credential verification with
+protection against common attack vectors. Upon login attempt, the system
+retrieves the stored password hash for the specified username, computes
+the hash of the provided password using the same algorithm and salt, and
+compares the results. This approach ensures that plaintext passwords are
+never stored or logged.
+
+Password hashing employs PBKDF2 (Password-Based Key Derivation Function 2)
+with configurable iteration count, defaulting to 256,000 iterations. This
+computational cost deliberately slows authentication attempts, rendering
+brute-force attacks impractical while remaining imperceptible to legitimate
+users.
+
+### Session Management
+
+Sessions use cryptographically random tokens generated at login and stored
+server-side. Session tokens are transmitted via secure cookies with
+appropriate flags (HttpOnly, Secure, SameSite) to prevent theft through
+cross-site scripting or request forgery attacks. Sessions expire after
+configurable inactivity periods, defaulting to 30 minutes.
+
+### Role-Based Access Control
+
+The permission system implements role-based access control (RBAC) where
+users are assigned to roles, and roles are granted permissions. Standard
+roles include Administrator, Principal Investigator, Research Coordinator,
+Data Manager, and Monitor, each with permissions appropriate to their
+responsibilities.
+
+Permissions operate at multiple levels: application features, data
+operations, and record scope. Feature permissions control which modules
+users can access. Operation permissions control which actions users can
+perform (create, read, update, delete). Scope permissions restrict which
+records users can access, enabling site-level or study-level data
+partitioning.
+
+### Input Validation
+
+All user input undergoes validation before processing. Server-side
+validation prevents malicious input from affecting database operations
+or application behavior regardless of client-side circumvention attempts.
+Validation includes type checking, range verification, format validation,
+and sanitization of special characters.
+
+### Audit Logging
+
+Every significant action generates an audit log entry capturing the user,
+timestamp, action type, affected data, and outcome. Audit logs are written
+atomically with the associated action, ensuring that no action can occur
+without corresponding audit documentation. The audit system operates at
+the database level, capturing events that bypass the application layer.
+
+## 5. Configuration Management
+
+### Environment-Based Configuration
+
+The system uses the config package for environment-aware configuration
+management. A single configuration file (config.yml) contains sections
+for development, testing, and production environments, with environment
+selection controlled by an environment variable. This approach enables
+consistent configuration management across deployment stages.
+
+```yaml
+default:
+  database:
+    path: "data/study.db"
+    pool_size: 5
+  security:
+    session_timeout: 1800
+    password_min_length: 8
+
+production:
+  database:
+    encryption: true
+    key_source: "aws_kms"
+  security:
+    session_timeout: 900
+```
+
+### Study Configuration
+
+Study-specific settings including form definitions, validation rules,
+and workflow configurations are stored in the database rather than
+configuration files. This database-driven approach enables modification
+of study parameters through the administrative interface without requiring
+file access or application restart.
+
+### Secret Management
+
+Sensitive configuration values such as encryption keys and API credentials
+are stored outside the configuration file, typically in environment
+variables or external secret management services. The configuration system
+retrieves these values at runtime, preventing accidental exposure through
+configuration file access.
+
+# Part II: Core Electronic Data Capture
+
+This section describes the fundamental data capture capabilities that form
+the heart of the EDC system. These features represent the essential
+functionality expected of any clinical data management platform.
+
+## 6. Form Rendering System
+
+### Dynamic Form Generation
+
+The form rendering system generates data entry interfaces dynamically from
+form specifications stored in the database. This configuration-driven
+approach eliminates the need for code modifications when adding or modifying
+forms, enabling study teams to define data collection requirements without
+developer involvement.
+
+Each form specification includes the form identifier and metadata, the
+list of fields with their properties, the layout defining field arrangement,
+and the validation rules governing data quality. The rendering engine
+interprets these specifications to generate Shiny UI elements with
+appropriate input controls, labels, help text, and validation feedback.
+
+### Field Types
+
+The system supports a comprehensive range of field types addressing
+clinical data collection requirements:
+
+**Text Fields** capture free-text responses with configurable length limits,
+pattern validation, and case handling. Subtypes include single-line text
+for brief responses and multi-line text areas for extended narratives.
+
+**Numeric Fields** collect quantitative data with configurable decimal
+precision, range limits, and unit specification. The system validates
+numeric input on both entry and submission, providing immediate feedback
+for invalid values.
+
+**Date Fields** capture temporal data with configurable format display,
+range restrictions, and partial date handling for situations where complete
+dates are unavailable. Date validation includes logical checks such as
+preventing future dates for historical events.
+
+**Selection Fields** present categorical choices through dropdown menus,
+radio buttons, or checkbox groups depending on the selection cardinality.
+Options can be defined inline or referenced from controlled terminology
+tables for reuse across forms.
+
+**Calculated Fields** display derived values computed from other field
+values. Calculations update automatically as source values change,
+providing immediate feedback on computed endpoints. The calculation
+engine supports standard arithmetic, date arithmetic, and conditional
+logic.
+
+### Layout Management
+
+Form layout employs a grid system enabling precise field positioning.
+Designers specify row and column positions for each field, with fields
+spanning multiple columns when appropriate for visual grouping. The grid
+system maintains consistent alignment while accommodating varying field
+widths.
+
+Sections group related fields under common headers, providing visual
+organization for complex forms. Sections can be configured for conditional
+visibility, appearing only when relevant based on prior responses. This
+conditional display reduces form complexity for subjects not requiring
+certain sections.
+
+### Form Navigation
+
+Multi-page forms present content across sequential pages with navigation
+controls for moving between pages. Page transitions validate data before
+proceeding, preventing navigation when required fields are incomplete or
+values fail validation. A progress indicator shows the current position
+within the form, helping users understand remaining effort.
+
+## 7. Data Validation Framework
+
+### Validation Architecture
+
+The validation framework implements multi-layer data quality enforcement
+operating at entry time, submission time, and batch processing. This
+layered approach catches errors as early as possible while enabling
+complex validations that require complete data.
+
+**Entry-Time Validation** provides immediate feedback as users enter data.
+Format validation confirms that entered values match expected patterns.
+Type validation ensures numeric fields contain numbers and dates contain
+valid date values. Range validation checks that values fall within
+acceptable bounds. This immediate validation prevents accumulation of
+errors requiring later correction.
+
+**Submission-Time Validation** performs comprehensive checks when users
+attempt to save form data. Required field validation confirms that
+mandatory fields contain values. Cross-field validation enforces
+relationships between fields, such as requiring end dates to follow start
+dates. Conditional validation applies rules that depend on other field
+values.
+
+**Batch Validation** runs scheduled quality checks across the database,
+identifying issues that cannot be detected at entry time. Cross-form
+validation ensures consistency between related forms. Longitudinal
+validation checks value changes across visits for biological plausibility.
+Cross-subject validation identifies statistical outliers requiring review.
+
+### Validation Rule Definition
+
+Validation rules are defined using a declarative syntax that specifies
+the validation type, target fields, parameters, and failure message.
+This declarative approach enables rule definition by study personnel
+without programming knowledge.
+
+```r
+# Validation rule examples
+validation_rules <- list(
+  list(
+    type = "required",
+    fields = c("birth_date", "sex", "race"),
+    message = "Demographics are required"
+  ),
+  list(
+    type = "range",
+    field = "age",
+    min = 18,
+    max = 100,
+    message = "Age must be between 18 and 100"
+  ),
+  list(
+    type = "cross_field",
+    expression = "end_date >= start_date",
+    message = "End date must be on or after start date"
+  )
+)
+```
+
+### Query Generation
+
+When validation identifies discrepancies, the system generates data
+queries requiring site resolution. Each query documents the specific
+issue, affected record, relevant field values, and the validation rule
+that triggered the query. Queries enter a workflow that tracks resolution
+through site response, verification, and closure.
+
+The query management system implements standard EDC query lifecycle:
+Open (issue identified), Answered (site response provided), Verified
+(response confirmed acceptable), and Closed (resolution complete). Query
+metrics track resolution times and identify sites or data patterns
+requiring attention.
+
+## 8. Visit and Schedule Management
+
+### Protocol Schedule Definition
+
+The scheduling system captures protocol-defined visit sequences with
+associated timing requirements. Each visit specification includes the
+visit identifier and display name, the target timing relative to a
+reference point (typically randomization or enrollment), the acceptable
+window defining permitted timing variation, the required and optional
+forms for the visit, and any predecessor requirements constraining
+visit ordering.
+
+```r
+# Visit schedule definition
+visits <- list(
+  list(
+    code = "SCREENING",
+    name = "Screening Visit",
+    day = -14,
+    window_before = 7,
+    window_after = 0,
+    required_forms = c("ELIGIBILITY", "DEMOGRAPHICS", "MEDICAL_HISTORY")
+  ),
+  list(
+    code = "BASELINE",
+    name = "Baseline Visit",
+    day = 1,
+    window_before = 0,
+    window_after = 3,
+    required_forms = c("VITALS", "LABS", "EFFICACY_ASSESSMENT")
+  )
+)
+```
+
+### Visit Tracking
+
+The system tracks visit status for each subject, displaying scheduled
+dates, completion status, and any timing deviations. A visual schedule
+shows upcoming and overdue visits, enabling coordinators to manage subject
+calendars effectively. Color coding distinguishes on-time visits from
+those approaching or exceeding window limits.
+
+### Window Violation Detection
+
+When visit data indicates timing outside protocol windows, the system
+flags the deviation and initiates documentation workflow. Window
+violations are categorized by severity (minor deviation within tolerance
+versus major violation affecting data interpretability) and type
+(early versus late). Deviation reports aggregate window violations for
+protocol compliance assessment.
+
+## 9. Subject Management
+
+### Subject Registration
+
+The subject management system handles participant identification and
+enrollment tracking. Registration captures screening identifiers before
+enrollment and assigns randomized subject identifiers upon enrollment.
+The system enforces identifier uniqueness within study and site scope,
+preventing duplicate registrations.
+
+### Enrollment Workflow
+
+The enrollment process implements configurable workflow stages reflecting
+study requirements:
+
+**Screening** captures initial subject contact and eligibility assessment.
+Screening forms collect demographic information and evaluate inclusion
+and exclusion criteria. The system calculates eligibility based on
+entered criteria values, flagging subjects who fail any criterion.
+
+**Enrollment** confirms eligible subjects for study participation. The
+enrollment action requires completion of informed consent documentation,
+verification of eligibility, and assignment of randomized identifier.
+The system timestamps enrollment and initiates the visit schedule.
+
+**Randomization** assigns treatment allocation for randomized studies.
+The system can integrate with external randomization systems or implement
+internal randomization algorithms. Randomization records are protected
+with additional access controls to maintain blinding.
+
+**Completion** documents study conclusion for each subject including
+completion status (completed, withdrawn, lost to follow-up, death) and
+date. Completion triggers closeout workflows including form completion
+verification and query resolution requirements.
+
+### Status Tracking
+
+The system maintains comprehensive status tracking at subject level,
+displaying current enrollment status, visit completion status, query
+status, and protocol deviation status. Status summaries enable study
+oversight through dashboards showing enrollment progress, retention
+rates, and data quality metrics.
+
+## 10. Multi-Site Support
+
+### Site Configuration
+
+The system supports deployment across multiple investigator sites with
+site-specific configuration and access controls. Each site record captures
+the site identifier, name, and contact information; the site principal
+investigator; the site activation date and status; and any site-specific
+configuration parameters such as timezone or form customizations.
+
+### Site-Level Permissions
+
+Access controls operate at site level, restricting user data access to
+their assigned site(s). Site coordinators can view and modify data for
+their site while sponsors and monitors can access data across sites.
+Role-based permissions combine with site assignments to determine effective
+access rights.
+
+### Multi-Site Queries
+
+Query management respects site partitioning, routing queries to appropriate
+site personnel based on the affected subject's site assignment. Query
+reports can be filtered by site, enabling site-specific performance
+assessment and targeted quality improvement efforts.
+
+### Site Performance Metrics
+
+The system calculates and displays site-level performance metrics including
+enrollment rate relative to target, data entry timeliness, query resolution
+time, and protocol deviation frequency. These metrics support site
+selection decisions for future studies and identify sites requiring
+additional support or monitoring.
+
+## 11. Reporting System
+
+### Three-Tier Architecture
+
+The reporting system implements a three-tier architecture addressing
+different reporting needs:
+
+**Tier 1: Basic Reports** provide operational summaries for day-to-day
+study management. These reports include enrollment status summaries,
+data entry completion by form and site, and visit completion tracking.
+Tier 1 reports are available to all authenticated users and update in
+near real-time.
+
+**Tier 2: Quality Reports** support data management oversight with
+metrics on data quality and query status. Reports include missing data
+summaries, query status and aging, validation failure patterns, and
+data correction activity. Tier 2 reports are typically restricted to
+data management and quality assurance personnel.
+
+**Tier 3: Statistical Reports** provide analytical summaries for
+scientific review. Reports include demographic summaries with baseline
+characteristics, endpoint distributions and trends, and safety data
+summaries. Tier 3 reports require appropriate authorization and may
+implement blinding rules to protect treatment allocation.
+
+### Report Generation
+
+Reports are generated dynamically from current data, ensuring that
+displayed information reflects the latest database state. The generation
+process queries relevant tables, applies appropriate filtering and
+aggregation, formats results for display, and renders through the
+Shiny interface with interactive features.
+
+```r
+# Report generation example
+enrollment_report <- function(study_id) {
+  subjects <- get_subjects(study_id)
+
+  subjects |>
+    group_by(site_id, enrollment_status) |>
+    summarize(
+      count = n(),
+      .groups = "drop"
+    ) |>
+    pivot_wider(
+      names_from = enrollment_status,
+      values_from = count,
+      values_fill = 0
+    )
+}
+```
+
+### Interactive Features
+
+Reports incorporate interactive elements enabling user-directed
+exploration. Data tables support sorting, filtering, and column
+visibility toggling. Charts support zooming, panning, and data point
+selection. Drill-down links navigate from summary metrics to underlying
+detail records.
+
+### Export Capabilities
+
+All reports support export to common formats including PDF for
+distribution, Excel for further analysis, and CSV for data interchange.
+Export includes metadata documenting generation timestamp, filter
+criteria, and user identity for audit purposes.
+
+# Part III: Data Management and Export
+
+This section describes capabilities for managing, transforming, and
+exporting study data. These features support data cleaning, analysis
+preparation, and regulatory submission requirements.
+
+## 12. Data Explorer
+
+### Interactive Data Viewing
+
+The data explorer provides an interactive interface for viewing and
+analyzing study data. Users can select data sources (forms, visits,
+subject populations), apply filters to subset data, choose display
+columns, and sort results. The interface updates dynamically as users
+modify selection criteria.
+
+### Filtering Capabilities
+
+The filtering system supports multiple filter types:
+
+**Categorical Filters** select records matching specified category values.
+Users can select single values, multiple values, or exclude specific
+values. Filter options are populated from actual data values, ensuring
+that displayed options exist in the dataset.
+
+**Numeric Filters** select records within specified ranges. Users can
+define minimum values, maximum values, or both. Open-ended ranges
+(greater than X, less than Y) support common filtering scenarios.
+
+**Date Filters** select records within date ranges. Preset ranges (last
+7 days, this month, last quarter) provide convenient shortcuts. Custom
+ranges enable precise date specification.
+
+**Text Filters** search for matching strings within text fields. Search
+supports exact match, contains, starts with, and ends with operators.
+Case sensitivity is configurable.
+
+### Saved Views
+
+Users can save filter configurations as named views for reuse. Saved
+views store all filter criteria, column selections, and sort orders.
+Shared views enable standardization of commonly needed data subsets
+across the study team.
+
+## 13. Export Service
+
+### Export Formats
+
+The export service generates data packages in multiple formats addressing
+different downstream requirements:
+
+**CSV (Comma-Separated Values)** provides maximum compatibility with
+statistical software, spreadsheet applications, and data processing
+pipelines. CSV export includes configurable options for delimiter
+character, text quoting, date format, and missing value representation.
+
+**Excel (XLSX)** generates formatted workbooks with appropriate column
+widths, headers, and data type formatting. Multi-sheet workbooks can
+include related data tables, data dictionaries, and metadata. Excel
+export supports formulas for calculated columns.
+
+**SAS Transport (XPT)** produces files in SAS XPORT format suitable for
+regulatory submission. Variable names are truncated to SAS naming limits,
+and variable labels preserve descriptive information. This format is
+required for FDA electronic submissions.
+
+**JSON (JavaScript Object Notation)** exports data in structured format
+for programmatic consumption. JSON export preserves data types and
+hierarchical relationships. This format supports integration with web
+services and modern applications.
+
+**R Data (RDS)** preserves R objects with complete metadata including
+factor levels, attributes, and class information. This format provides
+lossless export for R-based analysis pipelines.
+
+### Export Configuration
+
+Export operations are configured through an interface specifying data
+selection (forms, subjects, date ranges), format options, and output
+destination. Configurations can be saved for repeated exports with
+consistent parameters.
+
+```r
+# Export configuration example
+export_config <- list(
+  forms = c("DEMOGRAPHICS", "VITALS", "ADVERSE_EVENTS"),
+  subjects = "enrolled",
+  format = "csv",
+  options = list(
+    delimiter = ",",
+    date_format = "%Y-%m-%d",
+    na_string = ""
+  )
+)
+```
+
+### Audit Trail for Exports
+
+Every export operation generates an audit record documenting the export
+requestor, timestamp, data scope, and destination. For regulated studies,
+export audit enables demonstration that data access was controlled and
+traceable. Export logs support investigation if data appears in
+unauthorized locations.
+
+## 14. Data Dictionary
+
+### Dictionary Generation
+
+The system automatically generates data dictionaries from form
+specifications and database schema. Generated dictionaries include
+variable names and labels, data types and formats, valid value ranges
+and code lists, derivation formulas for calculated variables, and
+source form and field references.
+
+### Dictionary Formats
+
+Data dictionaries export in multiple formats:
+
+**Human-Readable** format produces formatted documents suitable for
+review by clinical personnel and regulatory authorities. This format
+emphasizes clarity and completeness over machine readability.
+
+**Machine-Readable** formats (JSON, XML) enable automated processing
+for tasks such as validation rule generation, SDTM mapping, and
+database documentation. These formats follow standard schemas for
+interoperability.
+
+**Define-XML** format produces CDISC-compliant metadata documentation
+for regulatory submission. Define-XML captures variable metadata in
+the structure required by FDA electronic submission standards.
+
+### Version Management
+
+Dictionary versions track as form specifications change throughout the
+study. Each dictionary version documents the specification version it
+describes, enabling accurate interpretation of data collected under
+each version.
+
+## 15. Query Management System
+
+### Query Lifecycle
+
+The query management system implements a standard lifecycle for data
+discrepancy resolution:
+
+**Generation**: Queries are created automatically by validation rules
+or manually by data managers identifying issues during review. Each
+query captures the affected record, the specific discrepancy, and the
+expected resolution.
+
+**Assignment**: Queries route to appropriate personnel based on query
+type, affected site, and role assignments. Assignment rules ensure
+queries reach personnel able to investigate and resolve them.
+
+**Response**: Site personnel provide responses explaining the discrepancy
+or proposing corrections. Responses are timestamped with user identity
+for accountability. Sites can request clarification if query intent is
+unclear.
+
+**Verification**: Data managers review responses to confirm adequacy.
+Acceptable responses lead to closure. Inadequate responses return to
+the response stage with additional guidance.
+
+**Closure**: Resolved queries are closed with documentation of the
+resolution. Closed queries remain in the audit trail for inspection
+purposes.
+
+### Query Metrics
+
+The system tracks query metrics supporting process oversight:
+
+**Volume Metrics** track query counts by type, site, form, and time
+period. Trend analysis identifies increasing error rates requiring
+intervention.
+
+**Timing Metrics** track query age from generation through resolution.
+Aging reports highlight overdue queries requiring escalation.
+
+**Resolution Metrics** track how queries are resolved (correction,
+confirmation of original value, unable to determine). Patterns in
+resolution types inform training and process improvement.
+
+### Auto-Query Configuration
+
+Validation rules can be configured to generate queries automatically
+upon failure. Auto-query configuration specifies which rule failures
+generate queries, the query text template, and assignment routing.
+This automation ensures consistent query generation without manual
+intervention.
+
+# Part IV: GDPR Compliance Features
 
 The General Data Protection Regulation (EU) 2016/679 establishes comprehensive
 data protection requirements for organizations processing personal data of EU
 residents. ZZedc implements the following GDPR-mandated features.
 
-## 1. Data Encryption at Rest (Article 32)
+## 16. Data Encryption at Rest (Article 32)
 
 ### Regulatory Requirement
 
@@ -95,8 +1001,8 @@ the extended timeframe over which such data must remain protected.
 ```r
 # Example: Initialize encrypted database
 initialize_encrypted_database(
- db_path = "study_data.db",
- key_source = "aws_kms"
+  db_path = "study_data.db",
+  key_source = "aws_kms"
 )
 ```
 
@@ -111,7 +1017,7 @@ process, timestamp, and success or failure status. These logs support
 compliance documentation during regulatory inspections and provide forensic
 evidence in the event of security incidents.
 
-## 2. Data Subject Access Request (Article 15)
+## 17. Data Subject Access Request (Article 15)
 
 ### Regulatory Requirement
 
@@ -174,17 +1080,17 @@ what information was provided and when.
 ```r
 # Example: Create and process DSAR
 request <- create_dsar_request(
- subject_email = "participant@example.com",
- subject_name = "John Doe",
- request_type = "ACCESS",
- requested_by = "dpo"
+  subject_email = "participant@example.com",
+  subject_name = "John Doe",
+  request_type = "ACCESS",
+  requested_by = "dpo"
 )
 
 # Verify identity before processing
 verify_subject_identity(
- request_id = request$request_id,
- verification_method = "DOCUMENT",
- verified_by = "admin"
+  request_id = request$request_id,
+  verification_method = "DOCUMENT",
+  verified_by = "admin"
 )
 ```
 
@@ -196,7 +1102,7 @@ compliance reports showing request volumes, average response times, and any
 instances where extensions were required. These metrics support both internal
 quality management and regulatory reporting obligations.
 
-## 3. Right to Rectification (Article 16)
+## 18. Right to Rectification (Article 16)
 
 ### Regulatory Requirement
 
@@ -264,7 +1170,7 @@ clinical data corrections, requiring both the investigator and sponsor
 representative to authorize changes to efficacy or safety data. This approach
 ensures regulatory compliance while respecting data subject rights.
 
-## 4. Right to Erasure (Article 17)
+## 19. Right to Erasure (Article 17)
 
 ### Regulatory Requirement
 
@@ -328,17 +1234,17 @@ processing ecosystem.
 ```r
 # Example: Create legal hold before erasure
 hold <- create_legal_hold(
- subject_id = "SUBJ-001",
- hold_type = "REGULATORY",
- hold_reason = "FDA retention requirement - 2 years post-study",
- held_by = "compliance_officer"
+  subject_id = "SUBJ-001",
+  hold_type = "REGULATORY",
+  hold_reason = "FDA retention requirement - 2 years post-study",
+  held_by = "compliance_officer"
 )
 
 # Erasure request blocked by legal hold
 request <- create_erasure_request(
- subject_email = "participant@example.com",
- erasure_grounds = "WITHDRAWAL",
- requested_by = "dpo"
+  subject_email = "participant@example.com",
+  erasure_grounds = "WITHDRAWAL",
+  requested_by = "dpo"
 )
 # Returns: status = "LEGAL_HOLD"
 ```
@@ -352,7 +1258,7 @@ for a subject enrolled in an active or recently completed clinical trial, the
 system checks applicable retention requirements and, if a conflict exists,
 automatically applies a legal hold with appropriate documentation.
 
-## 5. Right to Restriction of Processing (Article 18)
+## 20. Right to Restriction of Processing (Article 18)
 
 ### Regulatory Requirement
 
@@ -416,7 +1322,7 @@ requested, the timestamp, and the outcome (blocked or permitted with exception).
 Regular review of these logs helps identify gaps in technical controls and
 training needs.
 
-## 6. Right to Data Portability (Article 20)
+## 21. Right to Data Portability (Article 20)
 
 ### Regulatory Requirement
 
@@ -474,20 +1380,20 @@ including the data included, format selected, and delivery method used.
 ```r
 # Example: Generate portable data package
 export <- generate_portability_export(
- request_id = request$request_id,
- format = "JSON",
- include_metadata = TRUE
+  request_id = request$request_id,
+  format = "JSON",
+  include_metadata = TRUE
 )
 
 # Initiate controller transfer
 transfer <- initiate_controller_transfer(
- request_id = request$request_id,
- recipient_controller = "New Research Institution",
- transfer_method = "SECURE_API"
+  request_id = request$request_id,
+  recipient_controller = "New Research Institution",
+  transfer_method = "SECURE_API"
 )
 ```
 
-## 7. Right to Object (Article 21)
+## 22. Right to Object (Article 21)
 
 ### Regulatory Requirement
 
@@ -555,7 +1461,7 @@ of public interest. The system requires documentation of the public interest
 basis, assessment of whether the specific processing is necessary for that
 purpose, and maintenance of records supporting the exception determination.
 
-## 8. Consent Management (Articles 6-7)
+## 23. Consent Management (Articles 6-7)
 
 ### Regulatory Requirement
 
@@ -616,22 +1522,22 @@ processing activities.
 ```r
 # Example: Record granular consent
 record_consent(
- subject_id = "SUBJ-001",
- purpose_id = purpose$purpose_id,
- consent_given = TRUE,
- consent_method = "ELECTRONIC",
- consent_text_version = "1.2",
- recorded_by = "coordinator"
+  subject_id = "SUBJ-001",
+  purpose_id = purpose$purpose_id,
+  consent_given = TRUE,
+  consent_method = "ELECTRONIC",
+  consent_text_version = "1.2",
+  recorded_by = "coordinator"
 )
 
 # Check consent before processing
 check <- check_consent(
- subject_id = "SUBJ-001",
- purpose_code = "RESEARCH_PRIMARY"
+  subject_id = "SUBJ-001",
+  purpose_code = "RESEARCH_PRIMARY"
 )
 ```
 
-## 9. Data Retention Enforcement (Article 5)
+## 24. Data Retention Enforcement (Article 5)
 
 ### Regulatory Requirement
 
@@ -691,7 +1597,7 @@ and applies the longer retention period. The system maintains clear records
 of which requirement drives retention, enabling accurate response to data
 subject inquiries and demonstrating compliance with both frameworks.
 
-## 10. Privacy Impact Assessment (Article 35)
+## 25. Privacy Impact Assessment (Article 35)
 
 ### Regulatory Requirement
 
@@ -752,26 +1658,26 @@ response, and prevents processing from commencing until consultation concludes.
 ```r
 # Example: Create and assess PIA
 pia <- create_pia_assessment(
- assessment_name = "Phase III Trial Data Processing",
- processing_description = "Collection of sensitive health data",
- legal_basis = "EXPLICIT_CONSENT",
- created_by = "dpo"
+  assessment_name = "Phase III Trial Data Processing",
+  processing_description = "Collection of sensitive health data",
+  legal_basis = "EXPLICIT_CONSENT",
+  created_by = "dpo"
 )
 
 # Add risk assessment
 add_risk_assessment(
- pia_id = pia$pia_id,
- risk_category = "DATA_BREACH",
- risk_description = "Unauthorized access to trial data",
- likelihood = "LOW",
- impact = "HIGH",
- mitigation_measures = "Encryption, access controls, audit logging",
- residual_risk = "LOW",
- assessed_by = "security_officer"
+  pia_id = pia$pia_id,
+  risk_category = "DATA_BREACH",
+  risk_description = "Unauthorized access to trial data",
+  likelihood = "LOW",
+  impact = "HIGH",
+  mitigation_measures = "Encryption, access controls, audit logging",
+  residual_risk = "LOW",
+  assessed_by = "security_officer"
 )
 ```
 
-## 11. Breach Notification (Articles 33-34)
+## 26. Breach Notification (Articles 33-34)
 
 ### Regulatory Requirement
 
@@ -840,12 +1746,12 @@ from security events.
 ```r
 # Example: Report and assess breach
 incident <- report_breach_incident(
- breach_type = "UNAUTHORIZED_ACCESS",
- breach_description = "Unauthorized login detected",
- discovery_datetime = Sys.time(),
- estimated_subjects = 50,
- data_categories = "HEALTH,IDENTIFICATION",
- reported_by = "security_team"
+  breach_type = "UNAUTHORIZED_ACCESS",
+  breach_description = "Unauthorized login detected",
+  discovery_datetime = Sys.time(),
+  estimated_subjects = 50,
+  data_categories = "HEALTH,IDENTIFICATION",
+  reported_by = "security_team"
 )
 
 # Check 72-hour deadline
@@ -853,13 +1759,13 @@ deadline <- check_72_hour_deadline(incident$incident_id)
 # Returns hours remaining and notification status
 ```
 
-# Part II: Good Clinical Practice (GCP) Features
+# Part V: Good Clinical Practice (GCP) Features
 
 Good Clinical Practice guidelines, established by the International Council
 for Harmonisation (ICH E6), define standards for clinical trial design,
 conduct, and reporting. ZZedc implements the following GCP-aligned features.
 
-## 12. Protocol Compliance Monitoring
+## 27. Protocol Compliance Monitoring
 
 ### Regulatory Requirement
 
@@ -924,36 +1830,36 @@ organization learns from compliance failures.
 ```r
 # Example: Define protocol and monitor compliance
 protocol <- create_protocol(
- protocol_code = "STUDY-001",
- protocol_version = "2.0",
- study_phase = "PHASE_3",
- therapeutic_area = "ONCOLOGY",
- created_by = "medical_director"
+  protocol_code = "STUDY-001",
+  protocol_version = "2.0",
+  study_phase = "PHASE_3",
+  therapeutic_area = "ONCOLOGY",
+  created_by = "medical_director"
 )
 
 # Add visit schedule
 add_protocol_visit(
- protocol_id = protocol$protocol_id,
- visit_code = "SCREENING",
- visit_name = "Screening Visit",
- visit_day = -14,
- window_before = 7,
- window_after = 0,
- is_required = TRUE
+  protocol_id = protocol$protocol_id,
+  visit_code = "SCREENING",
+  visit_name = "Screening Visit",
+  visit_day = -14,
+  window_before = 7,
+  window_after = 0,
+  is_required = TRUE
 )
 
 # Record protocol deviation
 create_protocol_deviation(
- protocol_id = protocol$protocol_id,
- subject_id = "SUBJ-001",
- deviation_type = "VISIT_WINDOW",
- deviation_description = "Screening visit outside window",
- deviation_date = Sys.Date(),
- reported_by = "coordinator"
+  protocol_id = protocol$protocol_id,
+  subject_id = "SUBJ-001",
+  deviation_type = "VISIT_WINDOW",
+  deviation_description = "Screening visit outside window",
+  deviation_date = Sys.Date(),
+  reported_by = "coordinator"
 )
 ```
 
-## 13. Adverse Event Management
+## 28. Adverse Event Management
 
 ### Regulatory Requirement
 
@@ -1027,23 +1933,23 @@ event course.
 ```r
 # Example: Record adverse event with SAE upgrade
 ae <- create_adverse_event(
- subject_id = "SUBJ-001",
- ae_term = "Headache",
- ae_description = "Moderate headache after dose",
- onset_date = Sys.Date(),
- severity_grade = "GRADE_2",
- reported_by = "investigator"
+  subject_id = "SUBJ-001",
+  ae_term = "Headache",
+  ae_description = "Moderate headache after dose",
+  onset_date = Sys.Date(),
+  severity_grade = "GRADE_2",
+  reported_by = "investigator"
 )
 
 # Upgrade to SAE if hospitalization required
 upgrade_to_sae(
- ae_id = ae$ae_id,
- sae_criteria = "HOSPITALIZATION",
- upgraded_by = "investigator"
+  ae_id = ae$ae_id,
+  sae_criteria = "HOSPITALIZATION",
+  upgraded_by = "investigator"
 )
 ```
 
-## 14. CRF Completion Guidelines
+## 29. CRF Completion Guidelines
 
 ### Regulatory Requirement
 
@@ -1089,7 +1995,7 @@ review technical accuracy, and regulatory personnel review compliance
 considerations. Approved CCGs are distributed to sites with training
 acknowledgment tracking.
 
-## 15. CRF Version Control
+## 30. CRF Version Control
 
 ### Regulatory Requirement
 
@@ -1133,7 +2039,7 @@ deployment date at each site, acknowledgment of receipt and training, and
 any site-specific implementation issues. This tracking ensures accountability
 for version currency and supports troubleshooting when sites report problems.
 
-## 16. CRF Design Review
+## 31. CRF Design Review
 
 ### Regulatory Requirement
 
@@ -1179,13 +2085,13 @@ resolutions, all approval records, meeting notes and decision documentation,
 and change requests and their disposition. This history demonstrates
 appropriate design governance.
 
-# Part III: FDA 21 CFR Part 11 Features
+# Part VI: FDA 21 CFR Part 11 Features
 
 FDA 21 CFR Part 11 establishes requirements for electronic records and
 electronic signatures in FDA-regulated activities. ZZedc implements the
 following Part 11 features.
 
-## 17. Electronic Signatures
+## 32. Electronic Signatures
 
 ### Regulatory Requirement
 
@@ -1246,21 +2152,21 @@ deny their signatures, and others cannot forge signatures.
 ```r
 # Example: Apply electronic signature
 signature <- apply_electronic_signature(
- record_type = "CRF",
- record_id = "CRF-001-V1",
- signer_id = "dr_smith",
- signer_password = "****",
- signature_meaning = "APPROVAL",
- signature_reason = "Approving completed case report form"
+  record_type = "CRF",
+  record_id = "CRF-001-V1",
+  signer_id = "dr_smith",
+  signer_password = "****",
+  signature_meaning = "APPROVAL",
+  signature_reason = "Approving completed case report form"
 )
 
 # Verify signature integrity
 verify_electronic_signature(
- signature_id = signature$signature_id
+  signature_id = signature$signature_id
 )
 ```
 
-## 18. Audit Trail System
+## 33. Audit Trail System
 
 ### Regulatory Requirement
 
@@ -1319,20 +2225,20 @@ of audit records while associated clinical records exist.
 # Example: Audit trail verification
 # All operations automatically logged
 create_correction_request(
- table_name = "subjects",
- record_id = "SUBJ-001",
- field_name = "birth_date",
- current_value = "1990-01-01",
- proposed_value = "1990-01-02",
- correction_reason = "Transcription error",
- requested_by = "coordinator"
+  table_name = "subjects",
+  record_id = "SUBJ-001",
+  field_name = "birth_date",
+  current_value = "1990-01-01",
+  proposed_value = "1990-01-02",
+  correction_reason = "Transcription error",
+  requested_by = "coordinator"
 )
 
 # Verify audit trail integrity
 verify_correction_integrity(request_id)
 ```
 
-## 19. Data Correction Workflow
+## 34. Data Correction Workflow
 
 ### Regulatory Requirement
 
@@ -1389,7 +2295,7 @@ designated personnel. Each override is prominently flagged in audit records
 and reported to management. This procedure balances operational necessity
 with appropriate controls.
 
-## 20. System Validation Framework
+## 35. System Validation Framework
 
 ### Regulatory Requirement
 
@@ -1438,18 +2344,18 @@ documentation burden while ensuring completeness and consistency.
 ```r
 # Example: Run validation suite
 validation <- run_validation_suite(
- validation_type = "FULL",
- environment = "PRODUCTION"
+  validation_type = "FULL",
+  environment = "PRODUCTION"
 )
 
 # Generate validation report
 generate_validation_report(
- validation_id = validation$validation_id,
- format = "PDF"
+  validation_id = validation$validation_id,
+  format = "PDF"
 )
 ```
 
-## 21. Change Control System
+## 36. Change Control System
 
 ### Regulatory Requirement
 
@@ -1503,7 +2409,7 @@ requirements specifying which tests must be repeated. The system tracks
 revalidation completion and prevents sign-off until validation is current.
 This integration ensures that validation status remains accurate after changes.
 
-## 22. Access Controls
+## 37. Access Controls
 
 ### Regulatory Requirement
 
@@ -1552,11 +2458,13 @@ privilege changes, and access denial events. These logs support security
 monitoring, incident investigation, and compliance demonstration. Regular
 log review helps identify suspicious activity before security incidents occur.
 
-# Part IV: Integrated Compliance Features
+# Part VII: Integration, Deployment, and Quality Assurance
 
-The following features support compliance across multiple regulatory frameworks.
+This section covers system integration capabilities, deployment options,
+and quality assurance infrastructure. These features enable ZZedc deployment
+in diverse organizational and technical environments.
 
-## 23. Protocol-CRF Linkage
+## 38. Protocol-CRF Linkage
 
 ### Regulatory Requirement
 
@@ -1594,7 +2502,7 @@ regulatory expectations for documentation of CRF development rationale and
 support change impact assessment by identifying which CRF elements depend
 on which protocol requirements.
 
-## 24. Study Closeout Management
+## 39. Study Closeout Management
 
 ### Regulatory Requirement
 
@@ -1641,7 +2549,7 @@ the database in preservation-appropriate format, audit trails, system
 configuration records, and metadata necessary for future interpretation.
 This documentation supports long-term retention and future data access.
 
-## 25. Master Field Library
+## 40. Master Field Library
 
 ### Regulatory Requirement
 
@@ -1678,18 +2586,63 @@ those fields, ensuring organizational consistency. Usage tracking shows which
 studies employ each field, supporting impact assessment for terminology
 updates.
 
-## 26. Conditional Logic System
+## 41. CRF Template Library
 
-### Regulatory Requirement
+### Purpose
 
-GCP requires collection of data relevant to each subject's situation while
-avoiding unnecessary data collection that burdens subjects and sites.
-Conditional logic ensures collection of applicable data based on subject
-characteristics and prior responses.
+Pre-built form templates accelerate study setup by providing starting points
+for common data collection requirements. Templates embody best practices for
+form design and regulatory compliance, reducing the expertise required for
+effective CRF development.
 
 ### Technical Implementation
 
-The conditional logic module enables dynamic form behavior:
+**Standard Templates**
+
+The system includes templates for common clinical trial forms:
+
+- Demographics (CDISC DM domain aligned)
+- Medical History (MH domain aligned)
+- Vital Signs (VS domain aligned)
+- Physical Examination
+- Concomitant Medications (CM domain aligned)
+- Adverse Events (AE domain aligned)
+- Laboratory Results (LB domain aligned)
+- Electrocardiogram
+- Informed Consent Tracking
+- Study Completion/Discontinuation
+
+Each template includes field definitions, validation rules, completion
+guidelines, and SDTM mapping specifications.
+
+**Therapeutic Area Extensions**
+
+The library includes therapeutic area-specific templates addressing common
+requirements in major therapeutic areas:
+
+- Oncology (tumor assessment, RECIST criteria, survival endpoints)
+- Neurology (cognitive assessments, disability scales)
+- Cardiology (cardiac events, ECG interpretation)
+- Immunology (autoimmune disease activity)
+- Infectious Disease (pathogen detection, treatment response)
+
+**Customization**
+
+Templates serve as starting points for study-specific customization. The
+system enables copying templates into study-specific forms, modifying fields
+and validation as needed, and maintaining linkage to source templates for
+update propagation when desired.
+
+## 42. Conditional Logic System
+
+### Purpose
+
+Conditional logic enables dynamic form behavior where field visibility,
+editability, and validation depend on other field values. This capability
+reduces form complexity by showing only relevant fields and prevents collection
+of inapplicable data.
+
+### Technical Implementation
 
 **Show/Hide Rules**
 
@@ -1724,62 +2677,53 @@ advancing past inapplicable sections. Skip logic reduces data entry time and
 prevents errors from attempting to complete inapplicable sections. The
 navigation flow remains intuitive despite complexity of underlying rules.
 
-## 27. Calculated Fields
+## 43. Calculated Fields
 
-### Regulatory Requirement
+### Purpose
 
-FDA and ICH require accurate derived data in clinical databases. Standard
-calculations implemented in the system reduce transcription errors and ensure
-consistency across sites and studies. Calculated fields must be clearly
-identified as derived rather than entered.
-
-### Technical Implementation
-
-The calculation module supports standard clinical calculations:
-
-**BMI Calculation**
-
-The system provides automatic Body Mass Index calculation with category
-assignment according to WHO standards. When weight and height are entered,
-BMI is calculated and the subject is assigned to underweight, normal,
-overweight, or obese category. The calculation formula and category thresholds
-are documented and consistent with scientific standards.
-
-**Age Calculation**
-
-The system computes precise age from birth date and reference date, typically
-informed consent date. Age is calculated in years with appropriate handling
-of leap years and partial years. Age at multiple study timepoints can be
-calculated using different reference dates. This standardized calculation
-eliminates site variability in age computation.
-
-**BSA Formulas**
-
-The system supports multiple body surface area formulas including the DuBois
-and DuBois formula, the Mosteller formula, and the Haycock formula. Users
-select the appropriate formula based on study requirements. Each formula is
-implemented per published specifications with documented references.
-
-**Score Summation**
-
-The system calculates composite scores from multi-item instruments with
-configurable handling of missing data. Summation can exclude missing items,
-impute missing items using mean substitution, or require complete data. The
-calculation method is documented, ensuring that score interpretation accounts
-for the specific algorithm used.
-
-## 28. CRF Designer
-
-### Regulatory Requirement
-
-Effective CRF design supports data quality and regulatory compliance. Visual
-design tools improve form usability by enabling designers to see forms as
-users will experience them. Well-designed forms reduce data entry errors and
-training requirements.
+Calculated fields automatically derive values from other field entries,
+ensuring consistent computation of clinical measures and reducing
+transcription errors. Standard calculations implemented in the system
+reduce variability across sites and studies.
 
 ### Technical Implementation
 
-The designer module provides form creation capabilities:
+**Standard Calculations**
+
+The system provides common clinical calculations:
+
+- BMI (Body Mass Index) with WHO category assignment
+- BSA (Body Surface Area) using configurable formulas (DuBois, Mosteller)
+- eGFR (estimated Glomerular Filtration Rate) using CKD-EPI or MDRD
+- Age calculation from birth date and reference date
+- Duration calculations between dates
+- Score summation for multi-item instruments
+
+**Custom Calculations**
+
+The system supports definition of study-specific calculations using a
+formula syntax supporting arithmetic operations, date arithmetic, conditional
+logic, and reference to other field values. Custom calculations undergo
+validation to ensure syntactic correctness and reference to existing fields.
+
+**Calculation Timing**
+
+Calculations update automatically when source values change, providing
+immediate feedback. Calculated values are stored in the database for query
+efficiency while maintaining derivation traceability. The system logs
+calculation formula versions to ensure correct interpretation of historical
+values.
+
+## 44. CRF Designer
+
+### Purpose
+
+The CRF designer provides visual form creation capabilities enabling study
+teams to develop data collection forms without programming knowledge. Visual
+design improves form usability by enabling designers to see forms as users
+will experience them.
+
+### Technical Implementation
 
 **Visual Layout**
 
@@ -1813,27 +2757,426 @@ including conditional logic behavior. Designers can test various scenarios
 by entering sample data and observing form response. This preview capability
 catches design issues before deployment to production.
 
+## 45. Google Sheets Integration
+
+### Purpose
+
+Google Sheets integration enables study configuration through familiar
+spreadsheet interfaces, reducing technical barriers to study setup. Teams
+can define forms, users, and study parameters in spreadsheets, then import
+configurations into ZZedc.
+
+### Technical Implementation
+
+**Configuration Import**
+
+The system imports study configuration from Google Sheets including:
+
+- User accounts and role assignments
+- Form definitions with field specifications
+- Validation rules and conditional logic
+- Visit schedules and form assignments
+- Controlled terminology and code lists
+
+**Authentication**
+
+Integration uses the googlesheets4 package with OAuth 2.0 authentication.
+Service account credentials enable automated import without interactive
+login. Credentials are stored securely following Google security best
+practices.
+
+**Bidirectional Sync**
+
+For ongoing studies, the system supports synchronization between Google Sheets
+and the database. Updates in either location can propagate to the other,
+enabling collaborative configuration management. Conflict resolution rules
+handle concurrent modifications.
+
+```r
+# Example: Import configuration from Google Sheets
+setup_zzedc_from_gsheets(
+  auth_sheet_name = "Study_Users",
+  dd_sheet_name = "Data_Dictionary",
+  project_name = "My Clinical Trial"
+)
+```
+
+## 46. Deployment Options
+
+### Local Deployment
+
+Local deployment runs ZZedc on a single computer, suitable for individual
+researchers or small teams without server infrastructure. The application
+launches in a web browser while the R process runs locally. This deployment
+requires no network configuration and provides maximum simplicity.
+
+```r
+# Local deployment
+launch_zzedc(
+  host = "127.0.0.1",
+  port = 3838,
+  launch.browser = TRUE
+)
+```
+
+### Server Deployment
+
+Server deployment runs ZZedc on a dedicated server accessible to multiple
+users over a network. Shiny Server (open source or professional) manages
+application lifecycle and user connections. This deployment supports
+concurrent users with centralized data storage.
+
+### Container Deployment
+
+Docker containers provide reproducible deployment environments with all
+dependencies pre-configured. Container images include the R runtime, required
+packages, and application code. Orchestration platforms (Docker Compose,
+Kubernetes) manage multi-container deployments with database, application,
+and reverse proxy components.
+
+```yaml
+# docker-compose.yml example
+services:
+  zzedc:
+    image: zzedc:latest
+    ports:
+      - "3838:3838"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - ZZEDC_DB_ENCRYPTION_KEY_SOURCE=aws_kms
+```
+
+### Cloud Deployment
+
+Cloud platforms (AWS, Azure, Google Cloud) provide scalable infrastructure
+for enterprise deployments. Deployment patterns include:
+
+- Virtual machine hosting with Shiny Server
+- Container services (ECS, AKS, GKE)
+- Managed R platforms (Posit Connect)
+- Serverless options (Lambda with container images)
+
+Cloud deployment enables auto-scaling based on demand, managed database
+services with automated backup, and integration with cloud security services.
+
+## 47. Backup and Restore
+
+### Backup System
+
+The backup module provides automated and manual database backup capabilities:
+
+**Scheduled Backups**
+
+The system supports scheduled backup creation at configurable intervals.
+Backup schedules specify frequency (hourly, daily, weekly), retention
+periods determining how long backups are kept, and storage destinations
+for backup files. Scheduled backups run automatically without operator
+intervention.
+
+**On-Demand Backups**
+
+Administrators can create backups at any time through the administrative
+interface. On-demand backups are appropriate before significant changes,
+at study milestones, or when prompted by unusual activity. Each backup
+receives a timestamp and optional description for identification.
+
+**Backup Verification**
+
+The system verifies backup integrity by computing checksums at creation
+and verifying them before restore. Periodic verification confirms that
+stored backups remain readable. Failed verification triggers alerts to
+administrators.
+
+### Restore System
+
+**Restore Procedures**
+
+The restore process replaces current database content with backup data.
+Before restore, the system creates a backup of current state to enable
+recovery if restore fails. Restore requires administrative authorization
+and logs all details for audit purposes.
+
+**Point-in-Time Recovery**
+
+When combined with transaction logging, the system supports point-in-time
+recovery to any moment between backups. This capability minimizes data
+loss in failure scenarios by enabling recovery to the last committed
+transaction before failure.
+
+```r
+# Example: Backup and restore
+# Create backup
+backup <- create_backup(
+  description = "Pre-database-lock backup",
+  created_by = "admin"
+)
+
+# Restore from backup
+restore_backup(
+  backup_id = backup$backup_id,
+  authorized_by = "admin"
+)
+```
+
+## 48. Performance Optimization
+
+### Database Optimization
+
+The system implements several database performance optimizations:
+
+**Connection Pooling**
+
+The pool package manages a pool of database connections, eliminating
+connection establishment overhead for each request. Pool size is
+configurable based on expected concurrent users.
+
+**Query Optimization**
+
+Frequently executed queries use indexed columns. Complex queries employ
+query planning to identify efficient execution paths. Result caching
+reduces redundant database access for unchanged data.
+
+**Pagination**
+
+Large result sets are paginated to limit memory usage and response time.
+The data explorer and report modules display configurable page sizes
+with navigation controls for accessing additional pages.
+
+### Application Optimization
+
+**Lazy Loading**
+
+Modules and data load on demand rather than at application startup.
+This approach reduces initial load time and memory usage for features
+that users may not access during a session.
+
+**Caching**
+
+Computed values that change infrequently (such as reference data and
+aggregate statistics) are cached in memory. Cache invalidation occurs
+when underlying data changes. Configurable cache expiration ensures
+freshness for time-sensitive information.
+
+**Reactive Efficiency**
+
+Reactive expressions are structured to minimize unnecessary recalculation.
+Dependencies are scoped precisely to avoid triggering updates for unrelated
+changes. Observers are throttled where appropriate to prevent excessive
+processing during rapid data changes.
+
+## 49. Testing Infrastructure
+
+### Test Framework
+
+The system employs testthat for comprehensive automated testing:
+
+**Unit Tests**
+
+Unit tests verify individual functions in isolation. Each module includes
+tests for all exported functions, edge cases, and error conditions. Mock
+objects substitute for external dependencies (database, file system) to
+enable isolated testing.
+
+**Integration Tests**
+
+Integration tests verify interactions between modules. These tests exercise
+complete workflows such as subject enrollment, data entry, and report
+generation. Integration tests use test databases configured similarly to
+production.
+
+**End-to-End Tests**
+
+End-to-end tests verify complete user scenarios through the application
+interface. These tests confirm that the user experience matches expectations
+and that all components work together correctly.
+
+### Test Coverage
+
+The system maintains high test coverage with over 3,000 individual tests.
+Coverage reports identify untested code paths. New features require
+accompanying tests before acceptance.
+
+### Continuous Integration
+
+GitHub Actions workflows run the complete test suite on every code change.
+Tests execute across multiple R versions and operating systems (Ubuntu,
+Windows, macOS). Failed tests block code integration until resolved.
+
+```r
+# Run test suite
+devtools::test()
+
+# Run specific test file
+testthat::test_file("tests/testthat/test-auth-module.R")
+
+# Generate coverage report
+covr::package_coverage()
+```
+
 # Conclusion
 
-ZZedc provides a comprehensive regulatory compliance framework addressing the
-requirements of GDPR, GCP, and FDA 21 CFR Part 11. The system's modular
-architecture enables organizations to implement compliance features appropriate
-to their specific regulatory context while maintaining flexibility for diverse
-clinical research applications.
+ZZedc provides a comprehensive electronic data capture platform addressing
+the requirements of clinical research across regulatory frameworks. The
+system's modular architecture enables organizations to implement features
+appropriate to their specific regulatory context while maintaining flexibility
+for diverse clinical research applications.
+
+Several characteristics distinguish ZZedc from alternative approaches:
+
+**Open Source Foundation**: Complete source code availability enables
+verification of compliance implementations, customization for specific
+requirements, and freedom from vendor dependencies. Organizations can
+inspect exactly how regulatory features are implemented rather than relying
+on vendor attestations.
+
+**Integrated Compliance**: Rather than treating regulatory compliance as an
+add-on, ZZedc incorporates compliance requirements throughout the architecture.
+Audit trails, access controls, and data protection are fundamental to the
+system design rather than retrofitted features.
+
+**Modern Technology**: Built on current R and Shiny versions with Bootstrap 5
+interface components, the system provides a contemporary user experience
+while leveraging the statistical computing capabilities of the R ecosystem.
+The technology stack is actively maintained with clear upgrade paths.
+
+**Deployment Flexibility**: Support for local, server, container, and cloud
+deployment enables organizations to choose infrastructure appropriate to
+their security requirements, scalability needs, and technical capabilities.
+The same application code runs across all deployment models.
+
+**Documentation Depth**: This document, along with accompanying vignettes
+and API documentation, provides comprehensive guidance for deployment,
+configuration, and operation. The documentation serves both as user
+guidance and as a reference implementation for regulatory-compliant EDC
+systems.
 
 The implementation emphasizes automation of compliance activities, reducing
-manual burden while improving consistency and reliability. Comprehensive audit
-trails support regulatory inspections and demonstrate organizational commitment
-to data protection and research integrity.
+manual burden while improving consistency and reliability. Comprehensive
+audit trails support regulatory inspections and demonstrate organizational
+commitment to data protection and research integrity.
 
-Each feature described in this white paper has been designed with reference to
-the underlying regulatory requirements, implemented following software
-engineering best practices, and validated through extensive automated testing.
-Organizations deploying ZZedc benefit from this rigorous development approach,
-gaining confidence that their EDC system supports rather than undermines their
-compliance obligations.
+Each feature described in this document has been designed with reference to
+underlying regulatory requirements, implemented following software engineering
+best practices, and validated through extensive automated testing.
+Organizations deploying ZZedc benefit from this rigorous development
+approach, gaining confidence that their EDC system supports rather than
+undermines their compliance obligations.
+
+# Appendix A: Feature Summary
+
+The following table summarizes all features documented in this whitepaper:
+
+| # | Feature | Domain | Regulatory Basis |
+|---|---------|--------|------------------|
+| 1 | Technology Stack | Architecture | - |
+| 2 | Database Architecture | Architecture | - |
+| 3 | Modular Architecture | Architecture | - |
+| 4 | Security Architecture | Architecture | 21 CFR 11.10 |
+| 5 | Configuration Management | Architecture | - |
+| 6 | Form Rendering | Core EDC | ICH E6(R2) 4.9 |
+| 7 | Data Validation | Core EDC | ICH E6(R2) 4.9 |
+| 8 | Visit Management | Core EDC | ICH E6(R2) 4.5 |
+| 9 | Subject Management | Core EDC | ICH E6(R2) |
+| 10 | Multi-Site Support | Core EDC | ICH E6(R2) 5.18 |
+| 11 | Reporting System | Core EDC | - |
+| 12 | Data Explorer | Data Management | - |
+| 13 | Export Service | Data Management | GDPR Art. 20 |
+| 14 | Data Dictionary | Data Management | CDISC |
+| 15 | Query Management | Data Management | ICH E6(R2) |
+| 16 | Data Encryption | GDPR | Article 32 |
+| 17 | DSAR | GDPR | Article 15 |
+| 18 | Rectification | GDPR | Article 16 |
+| 19 | Erasure | GDPR | Article 17 |
+| 20 | Restriction | GDPR | Article 18 |
+| 21 | Portability | GDPR | Article 20 |
+| 22 | Objection | GDPR | Article 21 |
+| 23 | Consent Management | GDPR | Articles 6-7 |
+| 24 | Retention | GDPR | Article 5 |
+| 25 | Privacy Impact | GDPR | Article 35 |
+| 26 | Breach Notification | GDPR | Articles 33-34 |
+| 27 | Protocol Compliance | GCP | ICH E6(R2) 4.5 |
+| 28 | Adverse Events | GCP | ICH E6(R2) 4.11 |
+| 29 | CCG Generator | GCP | ICH E6(R2) 4.9 |
+| 30 | CRF Version Control | GCP | ICH E6(R2) 5.5.3 |
+| 31 | CRF Design Review | GCP | ICH E6(R2) 5.5.3 |
+| 32 | Electronic Signatures | FDA | 21 CFR 11.50 |
+| 33 | Audit Trail | FDA | 21 CFR 11.10(e) |
+| 34 | Data Correction | FDA | 21 CFR 11.10(e) |
+| 35 | System Validation | FDA | 21 CFR 11.10(a) |
+| 36 | Change Control | FDA | 21 CFR 11.10(k) |
+| 37 | Access Controls | FDA | 21 CFR 11.10(d,g) |
+| 38 | Protocol-CRF Linkage | Integration | ICH E6(R2) |
+| 39 | Study Closeout | Integration | ICH E6(R2) 4.13 |
+| 40 | Field Library | Integration | CDISC |
+| 41 | Template Library | Integration | - |
+| 42 | Conditional Logic | Integration | - |
+| 43 | Calculated Fields | Integration | - |
+| 44 | CRF Designer | Integration | - |
+| 45 | Google Sheets | Integration | - |
+| 46 | Deployment Options | Operations | - |
+| 47 | Backup and Restore | Operations | 21 CFR 11.10 |
+| 48 | Performance | Operations | - |
+| 49 | Testing | Quality | 21 CFR 11.10(a) |
+
+# Appendix B: Glossary
+
+**AE**: Adverse Event. Any untoward medical occurrence in a subject
+administered a pharmaceutical product.
+
+**ALCOA+**: Acronym for data quality attributes: Attributable, Legible,
+Contemporaneous, Original, Accurate, plus Complete, Consistent, Enduring,
+Available.
+
+**CCG**: CRF Completion Guidelines. Detailed instructions for completing
+case report forms.
+
+**CDISC**: Clinical Data Interchange Standards Consortium. Organization
+developing clinical data standards.
+
+**CFR**: Code of Federal Regulations. United States federal agency regulations.
+
+**CRF**: Case Report Form. Document designed to record protocol-required
+information.
+
+**CTCAE**: Common Terminology Criteria for Adverse Events. Standard severity
+grading system.
+
+**DPO**: Data Protection Officer. Role required by GDPR for certain organizations.
+
+**DSAR**: Data Subject Access Request. Request from individual to access
+their personal data.
+
+**EDC**: Electronic Data Capture. Computerized system for clinical trial
+data collection.
+
+**GCP**: Good Clinical Practice. International standard for clinical trial
+conduct.
+
+**GDPR**: General Data Protection Regulation. EU data protection law.
+
+**ICH**: International Council for Harmonisation. Organization developing
+pharmaceutical guidelines.
+
+**IQ/OQ/PQ**: Installation Qualification, Operational Qualification,
+Performance Qualification. Validation phases.
+
+**MedDRA**: Medical Dictionary for Regulatory Activities. Standardized
+medical terminology.
+
+**PBKDF2**: Password-Based Key Derivation Function 2. Cryptographic key
+derivation algorithm.
+
+**SAE**: Serious Adverse Event. Adverse event meeting regulatory criteria
+for seriousness.
+
+**SDTM**: Study Data Tabulation Model. CDISC standard for regulatory
+submission datasets.
 
 # References
+
+Clinical Data Interchange Standards Consortium. (2021). CDISC Standards.
+https://www.cdisc.org/standards
 
 European Parliament and Council of the European Union. (2016). Regulation (EU)
 2016/679 of the European Parliament and of the Council of 27 April 2016 on the
@@ -1857,12 +3200,19 @@ Impact Assessment (DPIA) (wp248rev.01).
 Article 29 Data Protection Working Party. (2018). Guidelines on Personal data
 breach notification under Regulation 2016/679 (wp250rev.01).
 
-Clinical Data Interchange Standards Consortium. (2021). CDISC Standards.
-https://www.cdisc.org/standards
-
 European Medicines Agency. (2010). Reflection paper on expectations for
 electronic source data and data transcribed to electronic data collection
 tools in clinical trials. EMA/INS/GCP/454280/2010.
+
+National Institute of Standards and Technology. (2017). Digital Identity
+Guidelines: Authentication and Lifecycle Management. NIST Special Publication
+800-63B.
+
+Posit PBC. (2024). Shiny: Web Application Framework for R.
+https://shiny.posit.co/
+
+R Core Team. (2024). R: A Language and Environment for Statistical Computing.
+R Foundation for Statistical Computing.
 
 ```{r session-info, eval=FALSE}
 sessionInfo()
