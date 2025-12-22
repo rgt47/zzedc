@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>ZZedc Study Coordinator Guide</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">ZZedc Study Coordinator Guide</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#zzedc-study-coordinator-guide"
+id="toc-zzedc-study-coordinator-guide">ZZedc Study Coordinator Guide</a>
+<ul>
+<li><a href="#daily-operations-manual-for-clinical-research-teams"
+id="toc-daily-operations-manual-for-clinical-research-teams">Daily
+Operations Manual for Clinical Research Teams</a>
+<ul>
+<li><a href="#document-information"
+id="toc-document-information">Document Information</a></li>
+</ul></li>
+<li><a href="#table-of-contents" id="toc-table-of-contents">Table of
+Contents</a></li>
+<li><a href="#getting-started" id="toc-getting-started">1. Getting
+Started</a>
+<ul>
+<li><a href="#logging-in" id="toc-logging-in">1.1 Logging In</a></li>
+<li><a href="#understanding-the-interface"
+id="toc-understanding-the-interface">1.2 Understanding the
+Interface</a></li>
+<li><a href="#understanding-your-role"
+id="toc-understanding-your-role">1.3 Understanding Your Role</a></li>
+<li><a href="#navigating-between-sites-multi-site-studies"
+id="toc-navigating-between-sites-multi-site-studies">1.4 Navigating
+Between Sites (Multi-Site Studies)</a></li>
+</ul></li>
+<li><a href="#daily-operations" id="toc-daily-operations">2. Daily
+Operations</a>
+<ul>
+<li><a href="#data-entry-workflow" id="toc-data-entry-workflow">2.1 Data
+Entry Workflow</a></li>
+<li><a href="#editing-existing-data" id="toc-editing-existing-data">2.2
+Editing Existing Data</a></li>
+<li><a href="#handling-missing-data" id="toc-handling-missing-data">2.3
+Handling Missing Data</a></li>
+<li><a href="#end-of-day-checklist" id="toc-end-of-day-checklist">2.4
+End-of-Day Checklist</a></li>
+</ul></li>
+<li><a href="#user-and-role-administration"
+id="toc-user-and-role-administration">3. User and Role
+Administration</a>
+<ul>
+<li><a href="#adding-new-users" id="toc-adding-new-users">3.1 Adding New
+Users</a></li>
+<li><a href="#modifying-user-accounts"
+id="toc-modifying-user-accounts">3.2 Modifying User Accounts</a></li>
+<li><a href="#password-resets" id="toc-password-resets">3.3 Password
+Resets</a></li>
+<li><a href="#role-permissions-reference"
+id="toc-role-permissions-reference">3.4 Role Permissions
+Reference</a></li>
+</ul></li>
+<li><a href="#form-and-instrument-management"
+id="toc-form-and-instrument-management">4. Form and Instrument
+Management</a>
+<ul>
+<li><a href="#understanding-the-data-dictionary"
+id="toc-understanding-the-data-dictionary">4.1 Understanding the Data
+Dictionary</a></li>
+<li><a href="#using-the-instrument-library"
+id="toc-using-the-instrument-library">4.2 Using the Instrument
+Library</a></li>
+<li><a href="#creating-custom-forms" id="toc-creating-custom-forms">4.3
+Creating Custom Forms</a></li>
+<li><a href="#branching-logic" id="toc-branching-logic">4.4 Branching
+Logic</a></li>
+<li><a href="#visit-schedule-configuration"
+id="toc-visit-schedule-configuration">4.5 Visit Schedule
+Configuration</a></li>
+</ul></li>
+<li><a href="#quality-control-procedures"
+id="toc-quality-control-procedures">5. Quality Control Procedures</a>
+<ul>
+<li><a href="#understanding-the-query-system"
+id="toc-understanding-the-query-system">5.1 Understanding the Query
+System</a></li>
+<li><a href="#responding-to-queries" id="toc-responding-to-queries">5.2
+Responding to Queries</a></li>
+<li><a href="#raising-queries-monitors-and-data-managers"
+id="toc-raising-queries-monitors-and-data-managers">5.3 Raising Queries
+(Monitors and Data Managers)</a></li>
+<li><a href="#reviewing-data-quality-reports"
+id="toc-reviewing-data-quality-reports">5.4 Reviewing Data Quality
+Reports</a></li>
+<li><a href="#query-resolution-workflow"
+id="toc-query-resolution-workflow">5.5 Query Resolution
+Workflow</a></li>
+<li><a href="#data-verification-checklist"
+id="toc-data-verification-checklist">5.6 Data Verification
+Checklist</a></li>
+</ul></li>
+<li><a href="#study-lifecycle-management"
+id="toc-study-lifecycle-management">6. Study Lifecycle Management</a>
+<ul>
+<li><a href="#study-setup-phase" id="toc-study-setup-phase">6.1 Study
+Setup Phase</a></li>
+<li><a href="#active-enrollment-phase"
+id="toc-active-enrollment-phase">6.2 Active Enrollment Phase</a></li>
+<li><a href="#maintenance-phase-after-enrollment-complete"
+id="toc-maintenance-phase-after-enrollment-complete">6.3 Maintenance
+Phase (After Enrollment Complete)</a></li>
+<li><a href="#study-closeout-phase" id="toc-study-closeout-phase">6.4
+Study Closeout Phase</a></li>
+<li><a href="#subject-status-management"
+id="toc-subject-status-management">6.5 Subject Status
+Management</a></li>
+</ul></li>
+<li><a href="#validation-rule-management"
+id="toc-validation-rule-management">7. Validation Rule Management</a>
+<ul>
+<li><a href="#introduction-to-validation-rules"
+id="toc-introduction-to-validation-rules">7.1 Introduction to Validation
+Rules</a></li>
+<li><a href="#using-google-sheets-for-validation-rules"
+id="toc-using-google-sheets-for-validation-rules">7.2 Using Google
+Sheets for Validation Rules</a></li>
+<li><a href="#common-validation-rule-examples"
+id="toc-common-validation-rule-examples">7.3 Common Validation Rule
+Examples</a></li>
+<li><a href="#importing-validation-rules"
+id="toc-importing-validation-rules">7.4 Importing Validation
+Rules</a></li>
+<li><a href="#rule-approval-workflow"
+id="toc-rule-approval-workflow">7.5 Rule Approval Workflow</a></li>
+<li><a href="#testing-validation-rules"
+id="toc-testing-validation-rules">7.6 Testing Validation Rules</a></li>
+</ul></li>
+<li><a href="#common-tasks-quick-reference"
+id="toc-common-tasks-quick-reference">8. Common Tasks Quick
+Reference</a>
+<ul>
+<li><a href="#data-entry-quick-reference"
+id="toc-data-entry-quick-reference">8.1 Data Entry Quick
+Reference</a></li>
+<li><a href="#query-management-quick-reference"
+id="toc-query-management-quick-reference">8.2 Query Management Quick
+Reference</a></li>
+<li><a href="#reporting-quick-reference"
+id="toc-reporting-quick-reference">8.3 Reporting Quick
+Reference</a></li>
+<li><a href="#administrative-quick-reference"
+id="toc-administrative-quick-reference">8.4 Administrative Quick
+Reference</a></li>
+<li><a href="#keyboard-shortcuts" id="toc-keyboard-shortcuts">8.5
+Keyboard Shortcuts</a></li>
+</ul></li>
+<li><a href="#appendix-a-troubleshooting-for-users"
+id="toc-appendix-a-troubleshooting-for-users">Appendix A:
+Troubleshooting for Users</a>
+<ul>
+<li><a href="#cannot-log-in" id="toc-cannot-log-in">Cannot Log
+In</a></li>
+<li><a href="#data-not-saving" id="toc-data-not-saving">Data Not
+Saving</a></li>
+<li><a href="#form-not-displaying" id="toc-form-not-displaying">Form Not
+Displaying</a></li>
+<li><a href="#report-taking-too-long"
+id="toc-report-taking-too-long">Report Taking Too Long</a></li>
+</ul></li>
+<li><a href="#appendix-b-glossary" id="toc-appendix-b-glossary">Appendix
+B: Glossary</a></li>
+<li><a href="#appendix-c-support-contacts"
+id="toc-appendix-c-support-contacts">Appendix C: Support
+Contacts</a></li>
+<li><a href="#document-history" id="toc-document-history">Document
+History</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="zzedc-study-coordinator-guide">ZZedc Study Coordinator
+Guide</h1>
+<h2 id="daily-operations-manual-for-clinical-research-teams">Daily
+Operations Manual for Clinical Research Teams</h2>
+<h3 id="document-information">Document Information</h3>
+<ul>
+<li><strong>Version</strong>: 1.0.0</li>
+<li><strong>Date</strong>: December 2025</li>
+<li><strong>Audience</strong>: Study Coordinators, Research Assistants,
+Site Staff, Data Entry Personnel</li>
+<li><strong>Prerequisites</strong>: Basic computer skills, familiarity
+with clinical research concepts</li>
+</ul>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol type="1">
+<li><a href="#1-getting-started">Getting Started</a></li>
+<li><a href="#2-daily-operations">Daily Operations</a></li>
+<li><a href="#3-user-and-role-administration">User and Role
+Administration</a></li>
+<li><a href="#4-form-and-instrument-management">Form and Instrument
+Management</a></li>
+<li><a href="#5-quality-control-procedures">Quality Control
+Procedures</a></li>
+<li><a href="#6-study-lifecycle-management">Study Lifecycle
+Management</a></li>
+<li><a href="#7-validation-rule-management">Validation Rule
+Management</a></li>
+<li><a href="#8-common-tasks-quick-reference">Common Tasks Quick
+Reference</a></li>
+</ol>
+<hr />
+<h2 id="getting-started">1. Getting Started</h2>
+<h3 id="logging-in">1.1 Logging In</h3>
+<ol type="1">
+<li>Open your web browser (Chrome, Firefox, or Edge recommended)</li>
+<li>Navigate to the ZZedc URL provided by your administrator</li>
+<li>Enter your username and password</li>
+<li>Click “Sign In”</li>
+</ol>
+<p><strong>First-time login</strong>: You will be prompted to change
+your temporary password. Choose a strong password with at least 8
+characters including uppercase, lowercase, numbers, and special
+characters.</p>
+<h3 id="understanding-the-interface">1.2 Understanding the
+Interface</h3>
+<p>After logging in, you will see the main navigation bar with these
+sections:</p>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Home</strong></td>
+<td>Dashboard with study overview and quick actions</td>
+</tr>
+<tr>
+<td><strong>EDC</strong></td>
+<td>Electronic Data Capture - enter and edit subject data</td>
+</tr>
+<tr>
+<td><strong>Reports</strong></td>
+<td>Generate enrollment, quality, and statistical reports</td>
+</tr>
+<tr>
+<td><strong>Data Explorer</strong></td>
+<td>Browse and search collected data</td>
+</tr>
+<tr>
+<td><strong>Export</strong></td>
+<td>Download data in various formats</td>
+</tr>
+<tr>
+<td><strong>Admin</strong></td>
+<td>User management and system settings (if authorized)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="understanding-your-role">1.3 Understanding Your Role</h3>
+<p>ZZedc uses role-based access control. Your role determines what
+actions you can perform:</p>
+<table>
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 32%" />
+<col style="width: 44%" />
+</colgroup>
+<thead>
+<tr>
+<th>Role</th>
+<th>Can Do</th>
+<th>Cannot Do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Data Entry</strong></td>
+<td>Enter data, view own entries</td>
+<td>Edit others’ data, export, admin</td>
+</tr>
+<tr>
+<td><strong>Coordinator</strong></td>
+<td>Enter/edit data, run reports, export</td>
+<td>Manage users, system settings</td>
+</tr>
+<tr>
+<td><strong>Data Manager</strong></td>
+<td>All coordinator tasks, resolve queries, manage data</td>
+<td>System administration</td>
+</tr>
+<tr>
+<td><strong>Monitor</strong></td>
+<td>View data, run reports, raise queries</td>
+<td>Enter or edit data</td>
+</tr>
+<tr>
+<td><strong>PI (Principal Investigator)</strong></td>
+<td>Full data access, approve changes</td>
+<td>System administration</td>
+</tr>
+<tr>
+<td><strong>Admin</strong></td>
+<td>Full system access</td>
+<td>N/A</td>
+</tr>
+</tbody>
+</table>
+<h3 id="navigating-between-sites-multi-site-studies">1.4 Navigating
+Between Sites (Multi-Site Studies)</h3>
+<p>If your study involves multiple sites:</p>
+<ol type="1">
+<li>Look for the “Site” dropdown in the top navigation bar</li>
+<li>Select your site to filter data and forms</li>
+<li>Your site assignment determines which subjects you can view and
+edit</li>
+</ol>
+<hr />
+<h2 id="daily-operations">2. Daily Operations</h2>
+<h3 id="data-entry-workflow">2.1 Data Entry Workflow</h3>
+<h4 id="step-1-select-or-enroll-a-subject">Step 1: Select or Enroll a
+Subject</h4>
+<p><strong>To enroll a new subject:</strong></p>
+<ol type="1">
+<li>Navigate to <strong>EDC</strong> &gt; <strong>Enroll
+Subject</strong></li>
+<li>Enter the Subject ID (follow your study’s ID format)</li>
+<li>Complete required enrollment fields:
+<ul>
+<li>Site (auto-filled if single-site user)</li>
+<li>Enrollment date</li>
+<li>Demographics as required</li>
+</ul></li>
+<li>Click <strong>Enroll Subject</strong></li>
+<li>The system will confirm enrollment and display the subject’s
+schedule</li>
+</ol>
+<p><strong>To select an existing subject:</strong></p>
+<ol type="1">
+<li>Navigate to <strong>EDC</strong> &gt; <strong>Subject
+List</strong></li>
+<li>Use the search box to find your subject by ID or name</li>
+<li>Click on the subject row to open their record</li>
+</ol>
+<h4 id="step-2-select-the-visit-and-form">Step 2: Select the Visit and
+Form</h4>
+<ol type="1">
+<li>From the subject view, you will see the visit schedule</li>
+<li>Click on the appropriate visit (e.g., “Screening”, “Week 4”,
+“Final”)</li>
+<li>Select the form to complete (e.g., “Vital Signs”, “Lab
+Results”)</li>
+<li>Forms with complete data show a green checkmark</li>
+<li>Forms with missing data show a yellow warning</li>
+<li>Forms with queries show a red exclamation mark</li>
+</ol>
+<h4 id="step-3-enter-data">Step 3: Enter Data</h4>
+<ol type="1">
+<li>Fill in each field according to the source document</li>
+<li>Required fields are marked with a red asterisk (*)</li>
+<li>Validation errors appear immediately below the field in red</li>
+<li>Use the <strong>Tab</strong> key to move between fields</li>
+<li>Date fields: Click the calendar icon or type in YYYY-MM-DD
+format</li>
+<li>Dropdown fields: Start typing to filter options</li>
+</ol>
+<p><strong>Validation Messages:</strong></p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 27%" />
+<col style="width: 51%" />
+</colgroup>
+<thead>
+<tr>
+<th>Color</th>
+<th>Meaning</th>
+<th>Action Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Red</td>
+<td>Value out of range or invalid</td>
+<td>Correct the value</td>
+</tr>
+<tr>
+<td>Yellow</td>
+<td>Value unusual but allowed</td>
+<td>Verify against source, can proceed</td>
+</tr>
+<tr>
+<td>Green</td>
+<td>Value accepted</td>
+<td>No action needed</td>
+</tr>
+</tbody>
+</table>
+<h4 id="step-4-save-and-verify">Step 4: Save and Verify</h4>
+<ol type="1">
+<li>Click <strong>Save</strong> to store the entered data</li>
+<li>Review the confirmation message</li>
+<li>Check that all required fields are complete</li>
+<li>The form status will update (Complete/Incomplete/Has Queries)</li>
+</ol>
+<p><strong>Auto-save</strong>: ZZedc automatically saves your work every
+60 seconds. However, always click Save before leaving a form.</p>
+<h3 id="editing-existing-data">2.2 Editing Existing Data</h3>
+<h4 id="minor-corrections-no-approval-required">Minor Corrections (No
+Approval Required)</h4>
+<p>For data entry corrections within 24 hours of initial entry:</p>
+<ol type="1">
+<li>Navigate to the form with the error</li>
+<li>Click the field to edit</li>
+<li>Make the correction</li>
+<li>Enter a reason in the “Reason for Change” popup</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<p>The original value and your correction are both recorded in the audit
+trail.</p>
+<h4 id="data-corrections-may-require-approval">Data Corrections (May
+Require Approval)</h4>
+<p>For changes after 24 hours or to verified data:</p>
+<ol type="1">
+<li>Navigate to the form</li>
+<li>Click <strong>Request Correction</strong> (or the pencil icon)</li>
+<li>Select the field(s) to correct</li>
+<li>Enter the new value</li>
+<li>Provide a detailed reason for the correction</li>
+<li>Attach supporting documentation if available</li>
+<li>Click <strong>Submit for Review</strong></li>
+</ol>
+<p>The Data Manager or PI will review and approve/reject the change.</p>
+<h3 id="handling-missing-data">2.3 Handling Missing Data</h3>
+<h4 id="expected-missing-data">Expected Missing Data</h4>
+<p>When data is intentionally not collected (e.g., visit not
+performed):</p>
+<ol type="1">
+<li>Leave the field blank</li>
+<li>Select the appropriate “Not Done” reason:
+<ul>
+<li>Not applicable</li>
+<li>Not done per protocol</li>
+<li>Participant refused</li>
+<li>Equipment failure</li>
+</ul></li>
+<li>Document the reason in the comments field</li>
+</ol>
+<h4 id="unexpected-missing-data">Unexpected Missing Data</h4>
+<p>When data should exist but is unavailable:</p>
+<ol type="1">
+<li>Leave the field blank temporarily</li>
+<li>Open a query against yourself: “Source document pending”</li>
+<li>Follow up to obtain the source document</li>
+<li>Complete the data entry when available</li>
+<li>Close the query with resolution notes</li>
+</ol>
+<h3 id="end-of-day-checklist">2.4 End-of-Day Checklist</h3>
+<p>Before logging out each day:</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />Verify all data entered today is
+saved</label></li>
+<li><label><input type="checkbox" />Review any validation warnings and
+resolve if possible</label></li>
+<li><label><input type="checkbox" />Check your query inbox and respond
+to open queries</label></li>
+<li><label><input type="checkbox" />Ensure subject statuses are
+accurate</label></li>
+<li><label><input type="checkbox" />Log out of the system (click your
+name &gt; Sign Out)</label></li>
+</ul>
+<hr />
+<h2 id="user-and-role-administration">3. User and Role
+Administration</h2>
+<p><em>This section is for Coordinators, Data Managers, and
+Administrators</em></p>
+<h3 id="adding-new-users">3.1 Adding New Users</h3>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt; <strong>User
+Management</strong></li>
+<li>Click <strong>Add New User</strong></li>
+<li>Complete the required fields:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Username</td>
+<td>Login identifier (no spaces)</td>
+<td>jsmith</td>
+</tr>
+<tr>
+<td>Email</td>
+<td>Contact email address</td>
+<td>j.smith@example.org</td>
+</tr>
+<tr>
+<td>Full Name</td>
+<td>Display name</td>
+<td>Jane Smith</td>
+</tr>
+<tr>
+<td>Role</td>
+<td>Access level</td>
+<td>Coordinator</td>
+</tr>
+<tr>
+<td>Site(s)</td>
+<td>Assigned site(s)</td>
+<td>Site 001</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Active or Inactive</td>
+<td>Active</td>
+</tr>
+</tbody>
+</table>
+<ol start="4" type="1">
+<li>Click <strong>Create User</strong></li>
+<li>The system generates a temporary password</li>
+<li>Send credentials securely to the new user (not via unencrypted
+email)</li>
+</ol>
+<h3 id="modifying-user-accounts">3.2 Modifying User Accounts</h3>
+<p><strong>To change a user’s role or site assignment:</strong></p>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt; <strong>User
+Management</strong></li>
+<li>Find the user in the list</li>
+<li>Click <strong>Edit</strong> (pencil icon)</li>
+<li>Modify the desired fields</li>
+<li>Click <strong>Save Changes</strong></li>
+<li>The user will see updated permissions on their next login</li>
+</ol>
+<p><strong>To deactivate a user:</strong></p>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt; <strong>User
+Management</strong></li>
+<li>Find the user in the list</li>
+<li>Click <strong>Deactivate</strong> (or toggle Status to
+Inactive)</li>
+<li>Confirm the action</li>
+<li>The user can no longer log in but their audit history is
+preserved</li>
+</ol>
+<h3 id="password-resets">3.3 Password Resets</h3>
+<p><strong>User-initiated reset:</strong></p>
+<ol type="1">
+<li>On the login page, click “Forgot Password”</li>
+<li>Enter registered email address</li>
+<li>Check email for reset link (valid for 1 hour)</li>
+<li>Set new password</li>
+</ol>
+<p><strong>Administrator-initiated reset:</strong></p>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt; <strong>User
+Management</strong></li>
+<li>Find the user</li>
+<li>Click <strong>Reset Password</strong></li>
+<li>System generates a temporary password</li>
+<li>Securely communicate the temporary password to the user</li>
+</ol>
+<h3 id="role-permissions-reference">3.4 Role Permissions Reference</h3>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 18%" />
+<col style="width: 19%" />
+<col style="width: 12%" />
+<col style="width: 6%" />
+<col style="width: 9%" />
+</colgroup>
+<thead>
+<tr>
+<th>Permission</th>
+<th>Data Entry</th>
+<th>Coordinator</th>
+<th>Data Manager</th>
+<th>Monitor</th>
+<th>PI</th>
+<th>Admin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>View own site data</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>View all sites data</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Enter new data</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Edit own entries</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Edit others’ entries</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Resolve queries</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Raise queries</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Run reports</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Export data</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Manage users</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>System settings</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Approve corrections</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Lock/unlock visits</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="form-and-instrument-management">4. Form and Instrument
+Management</h2>
+<h3 id="understanding-the-data-dictionary">4.1 Understanding the Data
+Dictionary</h3>
+<p>The Data Dictionary defines all forms and fields in your study. Each
+field has:</p>
+<ul>
+<li><strong>Field Name</strong>: Technical identifier (e.g.,
+<code>sbp</code>)</li>
+<li><strong>Label</strong>: Display text (e.g., “Systolic Blood
+Pressure”)</li>
+<li><strong>Type</strong>: Data type (text, number, date, dropdown,
+etc.)</li>
+<li><strong>Validation</strong>: Rules for acceptable values</li>
+<li><strong>Required</strong>: Whether the field must be completed</li>
+</ul>
+<h3 id="using-the-instrument-library">4.2 Using the Instrument
+Library</h3>
+<p>ZZedc includes pre-built validated instruments:</p>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt;
+<strong>Instruments</strong></li>
+<li>Click <strong>Import from Library</strong></li>
+<li>Browse available instruments:
+<ul>
+<li>PHQ-9 (Depression)</li>
+<li>GAD-7 (Anxiety)</li>
+<li>SF-36 (Quality of Life)</li>
+<li>PROMIS measures</li>
+<li>And many more</li>
+</ul></li>
+<li>Select the instrument to preview</li>
+<li>Click <strong>Import to Study</strong></li>
+<li>Configure display options and visit assignment</li>
+<li>Click <strong>Activate</strong></li>
+</ol>
+<h3 id="creating-custom-forms">4.3 Creating Custom Forms</h3>
+<h4 id="using-google-sheets-recommended-for-non-technical-users">Using
+Google Sheets (Recommended for Non-Technical Users)</h4>
+<ol type="1">
+<li>Open the provided Google Sheets template</li>
+<li>For each field, enter:
+<ul>
+<li>Field name (lowercase, no spaces, use underscores)</li>
+<li>Label (human-readable)</li>
+<li>Type (text, integer, decimal, date, dropdown, etc.)</li>
+<li>Validation rule (see Section 7)</li>
+<li>Options (for dropdowns, comma-separated)</li>
+<li>Required (yes/no)</li>
+</ul></li>
+<li>Save the Google Sheet</li>
+<li>In ZZedc, navigate to <strong>Admin</strong> &gt;
+<strong>Forms</strong> &gt; <strong>Import</strong></li>
+<li>Select “Import from Google Sheets”</li>
+<li>Enter the Sheet URL or ID</li>
+<li>Click <strong>Preview</strong> to review</li>
+<li>Click <strong>Import</strong> to create the form</li>
+</ol>
+<h4 id="using-the-form-builder">Using the Form Builder</h4>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt; <strong>Forms</strong> &gt;
+<strong>Create New</strong></li>
+<li>Enter form name and description</li>
+<li>Add fields by clicking <strong>Add Field</strong></li>
+<li>Configure each field:
+<ul>
+<li>Drag to reorder</li>
+<li>Click gear icon for advanced settings</li>
+</ul></li>
+<li>Set up branching logic if needed (see Section 4.4)</li>
+<li>Click <strong>Save Draft</strong> to save work in progress</li>
+<li>Click <strong>Publish</strong> when ready for use</li>
+</ol>
+<h3 id="branching-logic">4.4 Branching Logic</h3>
+<p>Branching logic shows or hides fields based on other responses.</p>
+<p><strong>Example</strong>: Show pregnancy-related questions only if
+sex is Female</p>
+<table>
+<thead>
+<tr>
+<th>If Field</th>
+<th>Operator</th>
+<th>Value</th>
+<th>Then Show</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sex</td>
+<td>equals</td>
+<td>Female</td>
+<td>pregnant, lmp_date, gravida</td>
+</tr>
+</tbody>
+</table>
+<p><strong>To set up branching:</strong></p>
+<ol type="1">
+<li>Open the form in edit mode</li>
+<li>Click on the field that should be conditionally shown</li>
+<li>Click <strong>Add Condition</strong></li>
+<li>Select the controlling field</li>
+<li>Choose the operator (equals, not equals, greater than, etc.)</li>
+<li>Enter the trigger value</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<h3 id="visit-schedule-configuration">4.5 Visit Schedule
+Configuration</h3>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt; <strong>Visit
+Schedule</strong></li>
+<li>Define each visit:</li>
+</ol>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 12%" />
+<col style="width: 31%" />
+<col style="width: 25%" />
+<col style="width: 14%" />
+</colgroup>
+<thead>
+<tr>
+<th>Visit</th>
+<th>Name</th>
+<th>Window (Days)</th>
+<th>Target Day</th>
+<th>Forms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V1</td>
+<td>Screening</td>
+<td>-7 to 0</td>
+<td>-3</td>
+<td>Demographics, Medical History, Screening</td>
+</tr>
+<tr>
+<td>V2</td>
+<td>Baseline</td>
+<td>0 to 3</td>
+<td>0</td>
+<td>Vital Signs, Labs, Randomization</td>
+</tr>
+<tr>
+<td>V3</td>
+<td>Week 4</td>
+<td>25 to 31</td>
+<td>28</td>
+<td>Vital Signs, Efficacy, AEs</td>
+</tr>
+<tr>
+<td>V4</td>
+<td>Week 8</td>
+<td>53 to 59</td>
+<td>56</td>
+<td>Vital Signs, Efficacy, AEs, Labs</td>
+</tr>
+<tr>
+<td>VF</td>
+<td>Final</td>
+<td>81 to 87</td>
+<td>84</td>
+<td>All assessments, Study Completion</td>
+</tr>
+</tbody>
+</table>
+<ol start="3" type="1">
+<li>Assign forms to each visit</li>
+<li>Set visit window dates</li>
+<li>Click <strong>Save Schedule</strong></li>
+</ol>
+<hr />
+<h2 id="quality-control-procedures">5. Quality Control Procedures</h2>
+<h3 id="understanding-the-query-system">5.1 Understanding the Query
+System</h3>
+<p>Queries are questions or issues raised about data that require
+clarification or correction. The query workflow ensures data accuracy
+and creates an audit trail.</p>
+<p><strong>Query States:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Action Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open</td>
+<td>Query raised, awaiting response</td>
+<td>Site must respond</td>
+</tr>
+<tr>
+<td>Answered</td>
+<td>Site has responded</td>
+<td>Monitor/DM reviews</td>
+</tr>
+<tr>
+<td>Closed</td>
+<td>Issue resolved</td>
+<td>None</td>
+</tr>
+<tr>
+<td>Cancelled</td>
+<td>Query withdrawn</td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<h3 id="responding-to-queries">5.2 Responding to Queries</h3>
+<ol type="1">
+<li>Navigate to <strong>Home</strong> &gt; <strong>My Queries</strong>
+(or click the query notification)</li>
+<li>Review the query details:
+<ul>
+<li>Subject ID</li>
+<li>Visit and Form</li>
+<li>Field in question</li>
+<li>Query text</li>
+<li>Date raised</li>
+</ul></li>
+<li>Investigate the source document</li>
+<li>Enter your response:
+<ul>
+<li>If data is correct: Explain why (e.g., “Verified against
+source”)</li>
+<li>If data needs correction: Make the correction and note it</li>
+</ul></li>
+<li>Attach supporting documentation if needed</li>
+<li>Click <strong>Submit Response</strong></li>
+</ol>
+<p><strong>Query Response Best Practices:</strong></p>
+<ul>
+<li>Be specific and reference source documents</li>
+<li>“Per source document dated 2025-01-15, value is correct”</li>
+<li>“Corrected per physician note, original entry was transcription
+error”</li>
+<li>Avoid vague responses like “fixed” or “ok”</li>
+</ul>
+<h3 id="raising-queries-monitors-and-data-managers">5.3 Raising Queries
+(Monitors and Data Managers)</h3>
+<ol type="1">
+<li>Navigate to the subject and form with the issue</li>
+<li>Click on the field in question</li>
+<li>Click <strong>Raise Query</strong> (flag icon)</li>
+<li>Select query type:
+<ul>
+<li>Data Clarification</li>
+<li>Missing Data</li>
+<li>Protocol Deviation</li>
+<li>Consistency Check</li>
+<li>Source Document Request</li>
+</ul></li>
+<li>Enter the query text (be specific)</li>
+<li>Set priority (High, Medium, Low)</li>
+<li>Click <strong>Submit Query</strong></li>
+</ol>
+<p><strong>Example Query Texts:</strong></p>
+<ul>
+<li>“Please verify: BP reading of 180/95 is higher than typical for this
+subject. Was this value confirmed on re-measurement?”</li>
+<li>“Missing laboratory results for Visit 3. Please provide or mark as
+Not Done with reason.”</li>
+<li>“Date inconsistency: Visit 3 date (2025-03-15) is before Visit 2
+date (2025-03-20). Please clarify.”</li>
+</ul>
+<h3 id="reviewing-data-quality-reports">5.4 Reviewing Data Quality
+Reports</h3>
+<ol type="1">
+<li>Navigate to <strong>Reports</strong> &gt; <strong>Quality
+Reports</strong></li>
+<li>Select report type:
+<ul>
+<li><strong>Missing Data Report</strong>: Lists all incomplete required
+fields</li>
+<li><strong>Query Status Report</strong>: Summary of open/closed queries
+by site</li>
+<li><strong>Validation Failures</strong>: Fields that triggered
+validation warnings</li>
+<li><strong>Data Entry Timeliness</strong>: Time between visit and data
+entry</li>
+</ul></li>
+<li>Set filters (site, date range, visit)</li>
+<li>Click <strong>Generate Report</strong></li>
+<li>Review findings and take action</li>
+</ol>
+<h3 id="query-resolution-workflow">5.5 Query Resolution Workflow</h3>
+<pre><code>┌──────────────┐     ┌─────────────────┐     ┌──────────────────┐
+│   Monitor    │     │   Coordinator   │     │   Data Manager   │
+│  raises      │────▶│   responds to   │────▶│   reviews and    │
+│  query       │     │   query         │     │   closes query   │
+└──────────────┘     └─────────────────┘     └──────────────────┘
+                              │
+                              │ If data correction needed
+                              ▼
+                     ┌─────────────────┐
+                     │   Coordinator   │
+                     │   makes         │
+                     │   correction    │
+                     └─────────────────┘</code></pre>
+<h3 id="data-verification-checklist">5.6 Data Verification
+Checklist</h3>
+<p>Weekly review for each active subject:</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />All scheduled visits have data
+entered</label></li>
+<li><label><input type="checkbox" />No outstanding queries older than 7
+days</label></li>
+<li><label><input type="checkbox" />All required fields are
+complete</label></li>
+<li><label><input type="checkbox" />No validation warnings
+unaddressed</label></li>
+<li><label><input type="checkbox" />Visit dates are within protocol
+windows</label></li>
+<li><label><input type="checkbox" />No duplicate data
+entries</label></li>
+<li><label><input type="checkbox" />Adverse events properly
+documented</label></li>
+</ul>
+<hr />
+<h2 id="study-lifecycle-management">6. Study Lifecycle Management</h2>
+<h3 id="study-setup-phase">6.1 Study Setup Phase</h3>
+<h4 id="before-first-subject">Before First Subject</h4>
+<ol type="1">
+<li><strong>Configure Study Settings</strong>
+<ul>
+<li>Navigate to <strong>Admin</strong> &gt; <strong>Study
+Settings</strong></li>
+<li>Enter study name, protocol number, sponsor</li>
+<li>Set enrollment targets by site</li>
+<li>Configure visit schedule</li>
+</ul></li>
+<li><strong>Set Up Forms</strong>
+<ul>
+<li>Import or create all required forms</li>
+<li>Test each form with sample data</li>
+<li>Verify validation rules work correctly</li>
+</ul></li>
+<li><strong>Create User Accounts</strong>
+<ul>
+<li>Add all site staff with appropriate roles</li>
+<li>Provide training before access granted</li>
+<li>Document training completion</li>
+</ul></li>
+<li><strong>Test Data Entry</strong>
+<ul>
+<li>Create test subjects (use IDs like TEST001)</li>
+<li>Complete full data entry for all visits</li>
+<li>Verify reports generate correctly</li>
+<li>Delete test data before go-live</li>
+</ul></li>
+</ol>
+<h3 id="active-enrollment-phase">6.2 Active Enrollment Phase</h3>
+<h4 id="daily-tasks">Daily Tasks</h4>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Frequency</th>
+<th>Responsible</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enter new data</td>
+<td>Daily</td>
+<td>Data Entry / Coordinator</td>
+</tr>
+<tr>
+<td>Respond to queries</td>
+<td>Daily</td>
+<td>Coordinator</td>
+</tr>
+<tr>
+<td>Review dashboards</td>
+<td>Daily</td>
+<td>Data Manager</td>
+</tr>
+<tr>
+<td>Backup verification</td>
+<td>Daily</td>
+<td>System Admin</td>
+</tr>
+</tbody>
+</table>
+<h4 id="weekly-tasks">Weekly Tasks</h4>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Frequency</th>
+<th>Responsible</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Missing data review</td>
+<td>Weekly</td>
+<td>Coordinator</td>
+</tr>
+<tr>
+<td>Query aging report</td>
+<td>Weekly</td>
+<td>Data Manager</td>
+</tr>
+<tr>
+<td>Enrollment tracking</td>
+<td>Weekly</td>
+<td>PI / Coordinator</td>
+</tr>
+<tr>
+<td>User access review</td>
+<td>Weekly</td>
+<td>Admin</td>
+</tr>
+</tbody>
+</table>
+<h4 id="monthly-tasks">Monthly Tasks</h4>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Frequency</th>
+<th>Responsible</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data quality metrics</td>
+<td>Monthly</td>
+<td>Data Manager</td>
+</tr>
+<tr>
+<td>Site performance review</td>
+<td>Monthly</td>
+<td>Monitor</td>
+</tr>
+<tr>
+<td>Protocol deviation log</td>
+<td>Monthly</td>
+<td>Coordinator</td>
+</tr>
+<tr>
+<td>Audit log review</td>
+<td>Monthly</td>
+<td>Admin</td>
+</tr>
+</tbody>
+</table>
+<h3 id="maintenance-phase-after-enrollment-complete">6.3 Maintenance
+Phase (After Enrollment Complete)</h3>
+<ol type="1">
+<li><strong>Continue data collection</strong> for follow-up visits</li>
+<li><strong>Intensify query resolution</strong> to achieve database lock
+readiness</li>
+<li><strong>Begin data cleaning</strong> systematic review</li>
+<li><strong>Prepare for database lock</strong></li>
+</ol>
+<h3 id="study-closeout-phase">6.4 Study Closeout Phase</h3>
+<h4 id="pre-lock-checklist">Pre-Lock Checklist</h4>
+<p>Before requesting database lock:</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />All subjects have completed final
+visits (or are documented as early terminations)</label></li>
+<li><label><input type="checkbox" />All required forms are complete or
+documented as missing with reason</label></li>
+<li><label><input type="checkbox" />Zero open queries (or documented
+exceptions approved by sponsor)</label></li>
+<li><label><input type="checkbox" />All data corrections are
+complete</label></li>
+<li><label><input type="checkbox" />All protocol deviations are
+documented</label></li>
+<li><label><input type="checkbox" />Site PI has reviewed and signed off
+on site data</label></li>
+<li><label><input type="checkbox" />Data Manager has completed final
+data review</label></li>
+</ul>
+<h4 id="requesting-database-lock">Requesting Database Lock</h4>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt; <strong>Database
+Lock</strong></li>
+<li>Run the <strong>Lock Readiness Check</strong></li>
+<li>Review any blocking issues</li>
+<li>Resolve all blocking issues</li>
+<li>Request lock approval from sponsor/DM</li>
+<li>Once approved, execute lock</li>
+<li>System prevents all further data changes</li>
+</ol>
+<h4 id="post-lock-activities">Post-Lock Activities</h4>
+<ul>
+<li>Generate final data exports</li>
+<li>Archive audit trails</li>
+<li>Complete study-specific reports</li>
+<li>Maintain read-only access as required</li>
+</ul>
+<h3 id="subject-status-management">6.5 Subject Status Management</h3>
+<h4 id="enrolling-a-subject">Enrolling a Subject</h4>
+<p>See Section 2.1</p>
+<h4 id="withdrawing-a-subject">Withdrawing a Subject</h4>
+<ol type="1">
+<li>Navigate to the subject record</li>
+<li>Click <strong>Change Status</strong></li>
+<li>Select “Withdrawn”</li>
+<li>Select withdrawal reason:
+<ul>
+<li>Participant request</li>
+<li>Lost to follow-up</li>
+<li>Adverse event</li>
+<li>Protocol violation</li>
+<li>Other (specify)</li>
+</ul></li>
+<li>Enter withdrawal date</li>
+<li>Complete any required early termination forms</li>
+<li>Click <strong>Confirm Status Change</strong></li>
+</ol>
+<h4 id="completing-a-subject">Completing a Subject</h4>
+<ol type="1">
+<li>Subject completes all protocol-required visits</li>
+<li>Complete the Study Completion form</li>
+<li>Change status to “Completed”</li>
+<li>Document completion date</li>
+<li>The subject is now closed to further data entry</li>
+</ol>
+<hr />
+<h2 id="validation-rule-management">7. Validation Rule Management</h2>
+<h3 id="introduction-to-validation-rules">7.1 Introduction to Validation
+Rules</h3>
+<p>Validation rules ensure data quality by checking values as they are
+entered. ZZedc uses a plain English language for defining rules that
+non-programmers can create and maintain.</p>
+<h3 id="using-google-sheets-for-validation-rules">7.2 Using Google
+Sheets for Validation Rules</h3>
+<p>Your data dictionary Google Sheet includes a “Validation” column
+where you enter rules using simple English syntax.</p>
+<h4 id="basic-rule-syntax">Basic Rule Syntax</h4>
+<table>
+<thead>
+<tr>
+<th>Rule Type</th>
+<th>Syntax</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Range</td>
+<td><code>between X and Y</code></td>
+<td><code>between 18 and 100</code></td>
+</tr>
+<tr>
+<td>Minimum</td>
+<td><code>&gt;= X</code> or <code>at least X</code></td>
+<td><code>&gt;= 0</code></td>
+</tr>
+<tr>
+<td>Maximum</td>
+<td><code>&lt;= X</code> or <code>at most X</code></td>
+<td><code>&lt;= 300</code></td>
+</tr>
+<tr>
+<td>Required</td>
+<td><code>required</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td>Pattern</td>
+<td><code>matches PATTERN</code></td>
+<td><code>matches ###-##-####</code></td>
+</tr>
+<tr>
+<td>Options</td>
+<td><code>in(opt1, opt2, ...)</code></td>
+<td><code>in('Yes', 'No', 'Unknown')</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="conditional-rules">Conditional Rules</h4>
+<p>Show validation only under certain conditions:</p>
+<pre><code>if field == value then RULE endif</code></pre>
+<p><strong>Examples:</strong></p>
+<pre><code># If female, pregnancy status is required
+if sex == &#39;Female&#39; then required endif
+
+# If pregnant, gestational age must be provided
+if pregnant == &#39;Yes&#39; then between 0 and 42 endif
+
+# Diastolic must be less than systolic
+dbp &lt; sbp</code></pre>
+<h4 id="cross-field-validation">Cross-Field Validation</h4>
+<p>Reference other fields in the same form:</p>
+<pre><code># End date must be after start date
+end_date &gt; start_date
+
+# Weight change should be within 10% of baseline
+weight within 10% of baseline_weight
+
+# Visit date within window of scheduled date
+visit_date within 7 days of scheduled_date</code></pre>
+<h3 id="common-validation-rule-examples">7.3 Common Validation Rule
+Examples</h3>
+<p><strong>Demographics Form:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Validation Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>age</td>
+<td><code>between 18 and 100</code></td>
+</tr>
+<tr>
+<td>sex</td>
+<td><code>in('Male', 'Female', 'Other')</code></td>
+</tr>
+<tr>
+<td>race</td>
+<td><code>in('White', 'Black', 'Asian', 'Other', 'Unknown')</code></td>
+</tr>
+<tr>
+<td>dob</td>
+<td><code>before today</code></td>
+</tr>
+<tr>
+<td>phone</td>
+<td><code>matches (###) ###-####</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Vital Signs Form:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Validation Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sbp</td>
+<td><code>between 70 and 250</code></td>
+</tr>
+<tr>
+<td>dbp</td>
+<td><code>between 40 and 150</code></td>
+</tr>
+<tr>
+<td>dbp_vs_sbp</td>
+<td><code>dbp &lt; sbp</code></td>
+</tr>
+<tr>
+<td>heart_rate</td>
+<td><code>between 40 and 200</code></td>
+</tr>
+<tr>
+<td>temperature</td>
+<td><code>between 95.0 and 105.0</code></td>
+</tr>
+<tr>
+<td>weight_kg</td>
+<td><code>between 30 and 300</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Laboratory Form:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Validation Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hemoglobin</td>
+<td><code>between 5 and 20</code></td>
+</tr>
+<tr>
+<td>wbc</td>
+<td><code>between 1 and 50</code></td>
+</tr>
+<tr>
+<td>platelets</td>
+<td><code>between 50 and 1000</code></td>
+</tr>
+<tr>
+<td>creatinine</td>
+<td><code>between 0.1 and 15</code></td>
+</tr>
+<tr>
+<td>alt</td>
+<td><code>between 0 and 500</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="importing-validation-rules">7.4 Importing Validation Rules</h3>
+<ol type="1">
+<li>Complete your Google Sheet with validation rules</li>
+<li>Navigate to <strong>Admin</strong> &gt; <strong>Validation
+Rules</strong> &gt; <strong>Import</strong></li>
+<li>Select your Google Sheet</li>
+<li>Click <strong>Preview</strong> to review rules</li>
+<li>Check for any syntax errors (shown in red)</li>
+<li>Fix any errors in the Google Sheet</li>
+<li>Click <strong>Import</strong></li>
+<li>Rules are now active for data entry</li>
+</ol>
+<h3 id="rule-approval-workflow">7.5 Rule Approval Workflow</h3>
+<p>Certain sensitive rules require PI approval before activation:</p>
+<p><strong>Rules requiring approval:</strong></p>
+<ul>
+<li>Rules that reject previously valid data</li>
+<li>Rules with ranges outside standard clinical values</li>
+<li>Cross-form validation rules</li>
+<li>Rules marked as “hard stops” (block saving)</li>
+</ul>
+<p><strong>Approval process:</strong></p>
+<ol type="1">
+<li>Submit rule for review</li>
+<li>PI receives notification</li>
+<li>PI reviews rule and supporting rationale</li>
+<li>PI approves or requests modification</li>
+<li>Upon approval, rule becomes active</li>
+</ol>
+<h3 id="testing-validation-rules">7.6 Testing Validation Rules</h3>
+<p>Before deploying new rules to production:</p>
+<ol type="1">
+<li>Navigate to <strong>Admin</strong> &gt; <strong>Validation
+Rules</strong> &gt; <strong>Test</strong></li>
+<li>Select the rule to test</li>
+<li>Enter sample values:
+<ul>
+<li>Valid values (should pass)</li>
+<li>Invalid values (should fail)</li>
+<li>Edge cases (boundary values)</li>
+</ul></li>
+<li>Click <strong>Run Test</strong></li>
+<li>Verify expected behavior</li>
+<li>Document test results</li>
+</ol>
+<hr />
+<h2 id="common-tasks-quick-reference">8. Common Tasks Quick
+Reference</h2>
+<h3 id="data-entry-quick-reference">8.1 Data Entry Quick Reference</h3>
+<table>
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 48%" />
+<col style="width: 28%" />
+</colgroup>
+<thead>
+<tr>
+<th>Task</th>
+<th>Navigation</th>
+<th>Steps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enroll new subject</td>
+<td>EDC &gt; Enroll</td>
+<td>Enter ID, demographics, save</td>
+</tr>
+<tr>
+<td>Enter form data</td>
+<td>EDC &gt; Subject &gt; Visit &gt; Form</td>
+<td>Fill fields, save</td>
+</tr>
+<tr>
+<td>Edit existing data</td>
+<td>EDC &gt; Subject &gt; Visit &gt; Form</td>
+<td>Click field, edit, reason, save</td>
+</tr>
+<tr>
+<td>Request correction</td>
+<td>Form &gt; Request Correction</td>
+<td>Select field, new value, reason, submit</td>
+</tr>
+</tbody>
+</table>
+<h3 id="query-management-quick-reference">8.2 Query Management Quick
+Reference</h3>
+<table>
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 48%" />
+<col style="width: 28%" />
+</colgroup>
+<thead>
+<tr>
+<th>Task</th>
+<th>Navigation</th>
+<th>Steps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>View my queries</td>
+<td>Home &gt; My Queries</td>
+<td>Review list, sort by priority</td>
+</tr>
+<tr>
+<td>Respond to query</td>
+<td>My Queries &gt; Select query</td>
+<td>Enter response, submit</td>
+</tr>
+<tr>
+<td>Raise query</td>
+<td>Form &gt; Field &gt; Flag icon</td>
+<td>Select type, enter text, submit</td>
+</tr>
+<tr>
+<td>Close query</td>
+<td>Query &gt; Review response</td>
+<td>Verify, close</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reporting-quick-reference">8.3 Reporting Quick Reference</h3>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 40%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Report</th>
+<th>Navigation</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enrollment</td>
+<td>Reports &gt; Basic &gt; Enrollment</td>
+<td>Track recruitment progress</td>
+</tr>
+<tr>
+<td>Missing Data</td>
+<td>Reports &gt; Quality &gt; Missing</td>
+<td>Find incomplete forms</td>
+</tr>
+<tr>
+<td>Query Status</td>
+<td>Reports &gt; Quality &gt; Queries</td>
+<td>Monitor query resolution</td>
+</tr>
+<tr>
+<td>Data Export</td>
+<td>Export &gt; Select format</td>
+<td>Get data for analysis</td>
+</tr>
+</tbody>
+</table>
+<h3 id="administrative-quick-reference">8.4 Administrative Quick
+Reference</h3>
+<table>
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 48%" />
+<col style="width: 28%" />
+</colgroup>
+<thead>
+<tr>
+<th>Task</th>
+<th>Navigation</th>
+<th>Steps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Add user</td>
+<td>Admin &gt; Users &gt; Add</td>
+<td>Enter details, assign role</td>
+</tr>
+<tr>
+<td>Reset password</td>
+<td>Admin &gt; Users &gt; Select &gt; Reset</td>
+<td>Generate temp password</td>
+</tr>
+<tr>
+<td>Import form</td>
+<td>Admin &gt; Forms &gt; Import</td>
+<td>Select source, preview, import</td>
+</tr>
+<tr>
+<td>View audit log</td>
+<td>Admin &gt; Audit Trail</td>
+<td>Set filters, search</td>
+</tr>
+</tbody>
+</table>
+<h3 id="keyboard-shortcuts">8.5 Keyboard Shortcuts</h3>
+<table>
+<thead>
+<tr>
+<th>Shortcut</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Tab</code></td>
+<td>Move to next field</td>
+</tr>
+<tr>
+<td><code>Shift+Tab</code></td>
+<td>Move to previous field</td>
+</tr>
+<tr>
+<td><code>Ctrl+S</code> / <code>Cmd+S</code></td>
+<td>Save form</td>
+</tr>
+<tr>
+<td><code>Ctrl+Enter</code></td>
+<td>Submit and move to next form</td>
+</tr>
+<tr>
+<td><code>Esc</code></td>
+<td>Cancel current edit</td>
+</tr>
+<tr>
+<td><code>/</code></td>
+<td>Open search</td>
+</tr>
+<tr>
+<td><code>?</code></td>
+<td>Show help</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="appendix-a-troubleshooting-for-users">Appendix A:
+Troubleshooting for Users</h2>
+<h3 id="cannot-log-in">Cannot Log In</h3>
+<ol type="1">
+<li>Verify username spelling (case-sensitive)</li>
+<li>Check Caps Lock is off</li>
+<li>Try “Forgot Password” to reset</li>
+<li>Contact your administrator if locked out</li>
+</ol>
+<h3 id="data-not-saving">Data Not Saving</h3>
+<ol type="1">
+<li>Check for validation errors (red messages)</li>
+<li>Verify required fields are complete</li>
+<li>Check internet connection</li>
+<li>Try refreshing the page (Ctrl+F5)</li>
+<li>Contact support if issue persists</li>
+</ol>
+<h3 id="form-not-displaying">Form Not Displaying</h3>
+<ol type="1">
+<li>Clear browser cache</li>
+<li>Try a different browser</li>
+<li>Check if form is assigned to current visit</li>
+<li>Verify you have permission for this form</li>
+</ol>
+<h3 id="report-taking-too-long">Report Taking Too Long</h3>
+<ol type="1">
+<li>Narrow date range</li>
+<li>Filter by site or subject</li>
+<li>Try off-peak hours</li>
+<li>Contact support for large exports</li>
+</ol>
+<hr />
+<h2 id="appendix-b-glossary">Appendix B: Glossary</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 66%" />
+</colgroup>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AE</strong></td>
+<td>Adverse Event - any untoward medical occurrence</td>
+</tr>
+<tr>
+<td><strong>Audit Trail</strong></td>
+<td>Chronological record of all system activities</td>
+</tr>
+<tr>
+<td><strong>CRF</strong></td>
+<td>Case Report Form - data collection instrument</td>
+</tr>
+<tr>
+<td><strong>Data Dictionary</strong></td>
+<td>Specification of all fields and their attributes</td>
+</tr>
+<tr>
+<td><strong>EDC</strong></td>
+<td>Electronic Data Capture</td>
+</tr>
+<tr>
+<td><strong>Query</strong></td>
+<td>Request for clarification about entered data</td>
+</tr>
+<tr>
+<td><strong>SAE</strong></td>
+<td>Serious Adverse Event</td>
+</tr>
+<tr>
+<td><strong>Source Document</strong></td>
+<td>Original record where data was first recorded</td>
+</tr>
+<tr>
+<td><strong>Validation Rule</strong></td>
+<td>Automated check for data accuracy</td>
+</tr>
+<tr>
+<td><strong>Visit Window</strong></td>
+<td>Acceptable date range for a protocol visit</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="appendix-c-support-contacts">Appendix C: Support Contacts</h2>
+<table>
+<thead>
+<tr>
+<th>Issue Type</th>
+<th>Contact</th>
+<th>Response Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Password reset</td>
+<td>Site administrator</td>
+<td>Same day</td>
+</tr>
+<tr>
+<td>Data entry questions</td>
+<td>Study coordinator</td>
+<td>Same day</td>
+</tr>
+<tr>
+<td>System errors</td>
+<td>IT support</td>
+<td>4 hours</td>
+</tr>
+<tr>
+<td>Protocol questions</td>
+<td>Study PI</td>
+<td>24 hours</td>
+</tr>
+<tr>
+<td>Database issues</td>
+<td>Data management center</td>
+<td>24 hours</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="document-history">Document History</h2>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Date</th>
+<th>Author</th>
+<th>Changes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.0.0</td>
+<td>December 2025</td>
+<td>ZZedc Team</td>
+<td>Initial release</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
