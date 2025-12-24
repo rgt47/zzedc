@@ -3,9 +3,8 @@ Type: Package
 Title: Electronic Data Capture System for Clinical Trials
 Version: 1.0.0
 Authors@R:
-    person("Ronald G. Thomas", email = "rgthomas@ucsd.edu", role = c("aut", "cre"))
-Author: Ronald G. Thomas [aut, cre]
-Maintainer: Ronald G. Thomas <rgthomas@ucsd.edu>
+    person("Ronald (Ryy) G", "Thomas", , "rgthomas@ucsd.edu", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-1686-4965"))
 Description: A comprehensive 'Shiny' application for electronic data capture (EDC) 
     in clinical trials. Features include secure user authentication, data entry forms,
     quality control reports, data visualization, and flexible export capabilities.
