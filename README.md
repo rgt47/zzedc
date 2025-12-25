@@ -140,9 +140,37 @@ This package builds on several R packages:
 - `dplyr` - Data manipulation
 - `jsonlite` - JSON processing
 
+## Regulatory Compliance
+
+ZZedc includes frameworks for regulatory compliance:
+
+- **GDPR**: Data subject rights, consent management, audit logging
+- **21 CFR Part 11**: Electronic signatures, audit trails, access controls
+
+See `vignette("regulatory-compliance-whitepaper")` for details.
+
+## Documentation
+
+- `vignette("quickstart")` - Quick start guide
+- `vignette("getting-started")` - Detailed setup
+- `vignette("small-project-guide")` - 10-50 participants
+- `vignette("medium-project-guide")` - 50-500 participants
+- `vignette("advanced-features")` - Custom development
+
+## Reproducibility
+
+This package is developed using the zzcollab framework for reproducible
+research. To reproduce the development environment:
+
+```bash
+git clone https://github.com/rgt47/zzedc.git
+cd zzedc
+make r  # Enter Docker container with all dependencies
+```
+
 ## Contributing
 
-Please report issues at: https://github.com/rythomas/zzedc/issues
+Please report issues at: https://github.com/rgt47/zzedc/issues
 
 ## License
 
@@ -150,8 +178,4 @@ GPL-3
 
 ## Author
 
-Ronald "Ryy" G. Thomas
-
----
-
-*This package was developed following modern R/Shiny development patterns.*
+Ronald (Ryy) G. Thomas (rgthomas@ucsd.edu)
