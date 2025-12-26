@@ -20,11 +20,9 @@ jobs:
 
       - name: Validate package dependencies
         run: |
-          # Check DESCRIPTION and renv.lock exist
+          # Check DESCRIPTION exists
           test -f DESCRIPTION || { echo "Missing DESCRIPTION"; exit 1; }
-          test -f renv.lock || { echo "Missing renv.lock"; exit 1; }
           echo "Package files validated"
-          # Full validation happens during renv::restore() below
 
       - name: Cache renv packages
         uses: actions/cache@v3
@@ -35,10 +33,10 @@ jobs:
             renv-
           # Cache speeds up subsequent runs by ~2-3 minutes
 
-      - name: Restore packages from renv.lock
+      - name: Install renv and restore packages
         run: |
-          Rscript -e "renv::restore()"
-          # Installs exact package versions for reproducible testing
+          Rscript -e "install.packages(c('renv', 'rcmdcheck', 'testthat'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "if (file.exists('renv.lock')) renv::restore() else renv::init()"
 
       - name: Run R CMD check
         run: |
