@@ -1,8 +1,6 @@
 # Tests for Phase 1 Modules: Setup Wizard, User Management, Backup/Restore, Audit Log
 # Comprehensive testing of non-technical admin features
 
-context("Phase 1: Setup Wizard Utilities")
-
 describe("create_wizard_database", {
   it("creates database with all required tables", {
     # Create temporary database
@@ -170,7 +168,7 @@ describe("complete_wizard_setup", {
   })
 })
 
-context("Phase 1: User Management Functions")
+# Phase 1: User Management Functions
 
 describe("save_user_to_db", {
   it("creates new user with hashed password", {
@@ -178,7 +176,7 @@ describe("save_user_to_db", {
   })
 })
 
-context("Phase 1: Backup and Restore Functions")
+# Phase 1: Backup and Restore Functions
 
 describe("perform_automatic_backup", {
   it("creates compressed database backup", {
@@ -190,7 +188,7 @@ describe("perform_automatic_backup", {
   })
 })
 
-context("Phase 1: Audit Logging Functions")
+# Phase 1: Audit Logging Functions
 
 describe("log_audit_action", {
   it("requires valid parameters", {
@@ -198,7 +196,7 @@ describe("log_audit_action", {
   })
 })
 
-context("Phase 1: Integration Tests")
+# Phase 1: Integration Tests
 
 describe("Complete wizard setup end-to-end", {
   it("creates fully functional ZZedc instance", {
@@ -260,7 +258,7 @@ describe("Complete wizard setup end-to-end", {
   })
 })
 
-context("Phase 1: Error Handling")
+# Phase 1: Error Handling
 
 describe("Error handling in setup functions", {
   it("gracefully handles invalid database paths", {
@@ -279,8 +277,10 @@ describe("Error handling in setup functions", {
       team_members = data.frame()
     )
 
-    # Try to create database in invalid path
-    result <- create_wizard_database(config, "/nonexistent/path/to/db.db")
+    # Try to create database in invalid path (suppress expected warning)
+    result <- suppressWarnings(
+      create_wizard_database(config, "/nonexistent/path/to/db.db")
+    )
 
     expect_false(result$success)
     expect_match(result$message, "Error")
@@ -291,7 +291,7 @@ describe("Error handling in setup functions", {
   })
 })
 
-context("Phase 1: Module Instantiation")
+# Phase 1: Module Instantiation
 
 describe("Shiny modules can be instantiated", {
   it("setup_wizard_ui creates valid UI", {

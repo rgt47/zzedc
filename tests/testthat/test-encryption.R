@@ -499,12 +499,12 @@ test_that("export_encrypted_data creates CSV file", {
   ))
   DBI::dbDisconnect(conn)
 
-  export_path <- export_encrypted_data(
+  export_path <- suppressWarnings(export_encrypted_data(
     query = "SELECT * FROM export_test",
     format = "csv",
     export_dir = export_dir,
     db_path = test_db
-  )
+  ))
 
   expect_true(file.exists(export_path))
   expect_match(export_path, "\\.csv$")
@@ -533,13 +533,13 @@ test_that("export_encrypted_data creates integrity hash file", {
   DBI::dbWriteTable(conn, "hash_test", data.frame(id = 1:3))
   DBI::dbDisconnect(conn)
 
-  export_path <- export_encrypted_data(
+  export_path <- suppressWarnings(export_encrypted_data(
     query = "SELECT * FROM hash_test",
     format = "csv",
     include_hash = TRUE,
     export_dir = export_dir,
     db_path = test_db
-  )
+  ))
 
   hash_file <- paste0(export_path, ".sha256")
   expect_true(file.exists(hash_file))
@@ -673,12 +673,12 @@ test_that("log_audit_event validates event types", {
   init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
   audit_init <- init_audit_logging(db_path = test_db)
 
-  result <- log_audit_event(
+  result <- suppressWarnings(log_audit_event(
     event_type = "INVALID_EVENT",
     table_name = "test",
     operation = "test operation",
     db_path = test_db
-  )
+  ))
 
   expect_false(result)
 
@@ -714,13 +714,13 @@ test_that("full encryption workflow: init -> write -> export -> verify", {
   DBI::dbWriteTable(conn, "assessments", clinical_data)
   DBI::dbDisconnect(conn)
 
-  export_path <- export_encrypted_data(
+  export_path <- suppressWarnings(export_encrypted_data(
     query = "SELECT * FROM assessments",
     format = "csv",
     include_hash = TRUE,
     export_dir = export_dir,
     db_path = test_db
-  )
+  ))
 
   verification <- verify_exported_data(export_path)
   expect_true(verification$valid)

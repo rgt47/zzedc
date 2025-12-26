@@ -36,6 +36,9 @@ validate_filename <- function(filename, max_length = 100) {
     return("")
   }
 
+  # Normalize path separators (handle both Unix / and Windows \)
+  filename <- gsub("\\\\", "/", filename)
+
   # Remove any path components (basename extracts only filename)
   filename <- basename(filename)
 

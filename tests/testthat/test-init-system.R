@@ -149,7 +149,7 @@ test_that("launch_setup_if_needed() returns correct status", {
 test_that("get_setup_instructions() returns helpful text", {
   instructions <- get_setup_instructions()
 
-  expect_is(instructions, "character")
+  expect_type(instructions, "character")
   expect_true(nchar(instructions) > 0)
   expect_true(grepl("zzedc::init()", instructions, fixed = TRUE))
   expect_true(grepl("Interactive", instructions))
