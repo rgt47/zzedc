@@ -35,8 +35,9 @@ jobs:
 
       - name: Install renv and restore packages
         run: |
-          Rscript -e "install.packages(c('renv', 'rcmdcheck', 'testthat'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "install.packages('renv', repos = 'https://cloud.r-project.org')"
           Rscript -e "if (file.exists('renv.lock')) renv::restore() else renv::init()"
+          Rscript -e "install.packages(c('rcmdcheck', 'testthat'), repos = 'https://cloud.r-project.org')"
 
       - name: Run R CMD check
         run: |
