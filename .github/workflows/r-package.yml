@@ -59,7 +59,7 @@ jobs:
         env:
           _R_CHECK_FORCE_SUGGESTS_: false
         run: |
-          Rscript -e "rcmdcheck::rcmdcheck(args = '--no-manual', build_args = '--no-build-vignettes', error_on = 'warning')"
+          Rscript -e "rcmdcheck::rcmdcheck(args = c('--no-manual', '--no-vignettes'), build_args = '--no-build-vignettes', error_on = 'warning')"
 
       - name: Run tests
         continue-on-error: true
