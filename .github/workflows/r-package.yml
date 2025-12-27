@@ -55,6 +55,11 @@ jobs:
           Rscript -e "if (file.exists('renv.lock')) renv::restore() else renv::init()"
           Rscript -e "install.packages(c('rcmdcheck', 'testthat', 'knitr', 'rmarkdown'), repos = 'https://cloud.r-project.org')"
 
+      - name: Install tinytex for vignettes
+        run: |
+          Rscript -e "install.packages('tinytex', repos = 'https://cloud.r-project.org')"
+          Rscript -e "tinytex::install_tinytex()"
+
       - name: Run R CMD check
         run: |
           Rscript -e "rcmdcheck::rcmdcheck(args = '--no-manual', error_on = 'warning')"
