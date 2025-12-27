@@ -36,7 +36,8 @@ jobs:
             libcurl4-openssl-dev \
             libssl-dev \
             libxml2-dev \
-            pandoc
+            pandoc \
+            imagemagick
 
       - name: Validate DESCRIPTION exists
         run: |
