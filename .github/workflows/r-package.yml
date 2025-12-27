@@ -12,7 +12,7 @@ jobs:
   # ===========================================
   check:
     runs-on: ubuntu-latest
-    container: rocker/r-ver:latest
+    container: rocker/verse:latest
 
     outputs:
       has_report: ${{ steps.detect.outputs.has_report }}
@@ -54,11 +54,6 @@ jobs:
           Rscript -e "install.packages('renv', repos = 'https://cloud.r-project.org')"
           Rscript -e "if (file.exists('renv.lock')) renv::restore() else renv::init()"
           Rscript -e "install.packages(c('rcmdcheck', 'testthat', 'knitr', 'rmarkdown'), repos = 'https://cloud.r-project.org')"
-
-      - name: Install tinytex for vignettes
-        run: |
-          Rscript -e "install.packages('tinytex', repos = 'https://cloud.r-project.org')"
-          Rscript -e "tinytex::install_tinytex()"
 
       - name: Run R CMD check
         run: |
