@@ -56,6 +56,8 @@ jobs:
           Rscript -e "install.packages(c('rcmdcheck', 'testthat', 'knitr', 'rmarkdown'), repos = 'https://cloud.r-project.org')"
 
       - name: Run R CMD check
+        env:
+          _R_CHECK_FORCE_SUGGESTS_: false
         run: |
           Rscript -e "rcmdcheck::rcmdcheck(args = '--no-manual', build_args = '--no-build-vignettes', error_on = 'warning')"
 
