@@ -216,20 +216,41 @@ test_encryption <- function(db_path, key) {
 #'
 #' @export
 get_encryption_key <- function(aws_kms_key_id = NULL) {
-  # Try AWS KMS first
-  if (!is.null(aws_kms_key_id) || Sys.getenv("USE_AWS_KMS") == "true") {
+  # Caching strategy: the resolved key is invariant for the
+  # session in production, but tests rotate the env var between
+  # fixtures. AWS-path callers cache by key_id; env-var-path
+  # callers cache only when the current env var matches the
+  # cached value (so a test-side `Sys.setenv()` invalidates it
+  # automatically).
+  use_aws <- !is.null(aws_kms_key_id) ||
+    Sys.getenv("USE_AWS_KMS") == "true"
+
+  if (is.null(.zzedc_env$encryption_keys)) {
+    .zzedc_env$encryption_keys <- list()
+  }
+
+  if (use_aws) {
+    cache_key <- paste0(
+      "aws::",
+      if (is.null(aws_kms_key_id)) "_default_" else aws_kms_key_id
+    )
+    cached <- .zzedc_env$encryption_keys[[cache_key]]
+    if (!is.null(cached)) return(cached)
+
     tryCatch({
       key <- get_encryption_key_from_aws_kms(aws_kms_key_id)
+      .zzedc_env$encryption_keys[[cache_key]] <- key
       return(key)
     }, error = function(e) {
-      message("AWS KMS error, falling back to environment variable: ", e$message)
+      message(
+        "AWS KMS error, falling back to environment variable: ",
+        e$message
+      )
     })
   }
 
-  # Fallback to environment variable
-  key <- Sys.getenv("DB_ENCRYPTION_KEY")
-
-  if (key == "") {
+  current <- Sys.getenv("DB_ENCRYPTION_KEY")
+  if (current == "") {
     stop(
       "Database encryption key not found.\n\n",
       "Set one of the following:\n",
@@ -244,8 +265,29 @@ get_encryption_key <- function(aws_kms_key_id = NULL) {
     )
   }
 
-  verify_db_key(key)
-  return(key)
+  cached_env <- .zzedc_env$encryption_keys[["env::value"]]
+  if (!is.null(cached_env) && identical(cached_env, current)) {
+    return(cached_env)
+  }
+
+  verify_db_key(current)
+  .zzedc_env$encryption_keys[["env::value"]] <- current
+  current
+}
+
+#' Clear the cached encryption key
+#'
+#' The result of `get_encryption_key()` is cached in the package
+#' environment for the session. Call this to drop the cache:
+#' for example, after rotating the key with
+#' `rotate_encryption_key()`, or in tests that need to validate
+#' the key-resolution code path itself.
+#'
+#' @return `invisible(NULL)`.
+#' @export
+clear_encryption_key_cache <- function() {
+  .zzedc_env$encryption_keys <- NULL
+  invisible(NULL)
 }
 
 

@@ -170,6 +170,9 @@ rotate_encryption_key <- function(new_key) {
       ClientRequestToken = paste0("rotation-", as.integer(Sys.time()))
     )
 
+    # Invalidate the cached encryption key so callers refresh.
+    clear_encryption_key_cache()
+
     return(list(
       success = TRUE,
       old_key_archived = TRUE,
