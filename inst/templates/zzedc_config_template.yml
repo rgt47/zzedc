@@ -1,0 +1,208 @@
+# ZZedc Configuration Template
+# ===========================
+#
+# This file defines the initial configuration for a ZZedc project.
+# Use this template for automated/non-interactive setup (DevOps, AWS, Docker)
+#
+# Usage:
+#   zzedc::init(mode = "config", config_file = "zzedc_config.yml")
+#
+# For interactive setup instead, use:
+#   zzedc::init()
+
+# ─────────────────────────────────────────────────────────────────
+# STUDY CONFIGURATION
+# ─────────────────────────────────────────────────────────────────
+study:
+  # Official study name
+  # Example: "Depression Treatment Trial", "ADHD Intervention Study"
+  name: "My Research Study"
+
+  # Protocol ID / Study Code
+  # Example: "DEPR-2024-001", "ADHD-2024-100"
+  protocol_id: "STUDY-2024-001"
+
+  # Principal Investigator Information
+  pi_name: "Dr. Jane Smith"
+  pi_email: "jane.smith@university.edu"
+
+  # Target enrollment number
+  # Example: 50, 100, 500
+  target_enrollment: 50
+
+  # Study phase
+  # Options: Pilot, Phase1, Phase2, Phase3, Phase4, Observational
+  phase: "Pilot"
+
+# ─────────────────────────────────────────────────────────────────
+# ADMINISTRATOR ACCOUNT
+# ─────────────────────────────────────────────────────────────────
+admin:
+  # System administrator username
+  # Requirements: no spaces, alphanumeric recommended
+  # Example: "jane_smith", "admin_user"
+  username: "admin"
+
+  # Administrator full name
+  fullname: "Jane Smith"
+
+  # Administrator email address
+  # Used for notifications and password recovery
+  email: "jane.smith@university.edu"
+
+  # Administrator password
+  # Requirements:
+  #   - Minimum 8 characters
+  #   - Mix of letters, numbers, and symbols recommended
+  #   - Example: "SecurePass2024!", "TrialData#Study1"
+  # WARNING: This will be hashed. Do not use placeholder passwords in production!
+  password: "ChangeMeToSecurePassword123!"
+
+# ─────────────────────────────────────────────────────────────────
+# SECURITY CONFIGURATION
+# ─────────────────────────────────────────────────────────────────
+security:
+  # Session timeout in minutes
+  # Users will be logged out after this duration of inactivity
+  # Recommended: 30 (5-60 range typical)
+  session_timeout_minutes: 30
+
+  # Enforce HTTPS
+  # For production: true (requires SSL certificate)
+  # For development: false (http only)
+  # Default: true
+  enforce_https: true
+
+  # Maximum failed login attempts before account lockout
+  # Recommended: 3 (prevents brute force)
+  max_failed_login_attempts: 3
+
+# ─────────────────────────────────────────────────────────────────
+# COMPLIANCE FEATURES (Optional)
+# ─────────────────────────────────────────────────────────────────
+compliance:
+  # Enable GDPR compliance features
+  # Provides data subject rights, consent management, privacy controls
+  gdpr_enabled: true
+
+  # Enable 21 CFR Part 11 features
+  # For FDA-regulated clinical trials
+  # Requires electronic signatures and audit trails
+  cfr_part11_enabled: true
+
+  # Enable comprehensive audit logging
+  # Tracks all user actions for compliance
+  audit_logging_enabled: true
+
+# ─────────────────────────────────────────────────────────────────
+# DATABASE CONFIGURATION (Optional)
+# ─────────────────────────────────────────────────────────────────
+database:
+  # Database type (currently only SQLite supported)
+  type: "sqlite"
+
+  # Maximum number of concurrent database connections
+  pool_size: 5
+
+# ─────────────────────────────────────────────────────────────────
+# EXAMPLE CONFIGURATIONS
+# ─────────────────────────────────────────────────────────────────
+
+# EXAMPLE 1: Solo Researcher (Local Machine)
+# ───────────────────────────────────────────
+# study:
+#   name: "Depression Pilot Study"
+#   protocol_id: "DEPR-2024-001"
+#   pi_name: "Dr. Alice Chen"
+#   pi_email: "alice.chen@university.edu"
+#   target_enrollment: 25
+#   phase: "Pilot"
+#
+# admin:
+#   username: "alice_chen"
+#   fullname: "Alice Chen"
+#   email: "alice.chen@university.edu"
+#   password: "MySecurePassword2024!"
+#
+# security:
+#   session_timeout_minutes: 60
+#   enforce_https: false  # For local development
+#   max_failed_login_attempts: 3
+
+
+# EXAMPLE 2: Multi-Site Clinical Trial (AWS Server)
+# ───────────────────────────────────────────────────
+# study:
+#   name: "Multi-Site Stroke Intervention Trial"
+#   protocol_id: "STROKE-2024-100"
+#   pi_name: "Dr. James Wilson"
+#   pi_email: "jwilson@ucsd.edu"
+#   target_enrollment: 500
+#   phase: "Phase3"
+#
+# admin:
+#   username: "trial_admin"
+#   fullname: "Administrative User"
+#   email: "trial.admin@ucsd.edu"
+#   password: "SecureAWSPassword123!@#"
+#
+# security:
+#   session_timeout_minutes: 30
+#   enforce_https: true  # Required for cloud
+#   max_failed_login_attempts: 3
+#
+# compliance:
+#   gdpr_enabled: true
+#   cfr_part11_enabled: true
+#   audit_logging_enabled: true
+
+
+# EXAMPLE 3: Academic Research Study (Minimal Setup)
+# ───────────────────────────────────────────────────
+# study:
+#   name: "Aging and Cognition Cohort"
+#   protocol_id: "AGING-2024-50"
+#   pi_name: "Dr. Maria Rodriguez"
+#   pi_email: "mrodriguez@university.edu"
+#   target_enrollment: 100
+#   phase: "Observational"
+#
+# admin:
+#   username: "mrodriguez"
+#   fullname: "Maria Rodriguez"
+#   email: "mrodriguez@university.edu"
+#   password: "CohortStudy2024!"
+#
+# security:
+#   session_timeout_minutes: 45
+#   enforce_https: false  # Internal network
+#   max_failed_login_attempts: 5  # More lenient for academic setting
+
+# ─────────────────────────────────────────────────────────────────
+# NOTES
+# ─────────────────────────────────────────────────────────────────
+#
+# 1. YAML Format: This file uses YAML syntax. Ensure:
+#    - Consistent indentation (spaces, not tabs)
+#    - Strings in quotes if containing special characters
+#    - Colons followed by spaces
+#
+# 2. Security:
+#    - Keep this file secure (chmod 600 on Unix)
+#    - Don't commit to version control with real passwords
+#    - Use environment variables for secrets in production
+#
+# 3. Validation:
+#    - Email addresses must be valid format
+#    - Passwords must be 8+ characters
+#    - phase must be one of: Pilot, Phase1, Phase2, Phase3, Phase4, Observational
+#
+# 4. After Setup:
+#    - A security salt will be generated and saved in .env
+#    - All passwords are hashed immediately
+#    - Plain text passwords are never stored
+#
+# 5. For AWS/Docker:
+#    - Mount this config file into container
+#    - Set ZZEDC_SALT environment variable if needed
+#    - Log file will be in logs/ directory

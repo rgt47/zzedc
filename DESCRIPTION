@@ -1,0 +1,66 @@
+Package: zzedc
+Type: Package
+Title: Electronic Data Capture System for Clinical Trials
+Version: 0.5.0
+Authors@R:
+    person("Ronald (Ryy) G", "Thomas", , "rgthomas@ucsd.edu", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-1686-4965"))
+Description: A comprehensive 'Shiny' application for electronic data capture (EDC) 
+    in clinical trials. Features include secure user authentication, data entry forms,
+    quality control reports, data visualization, and flexible export capabilities.
+    Built with modern 'bslib' components for responsive design and professional
+    appearance. Supports the zzcollab framework for clinical research workflows.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+Imports:
+    methods,
+    shiny (>= 1.7.0),
+    shinyjs (>= 2.1.0),
+    DBI,
+    R6,
+    rlang,
+    openssl,
+    openxlsx,
+    dplyr (>= 1.0.0),
+    jsonlite (>= 1.7.0),
+    digest (>= 0.6.0),
+    tibble,
+    writexl (>= 1.4.0),
+    RSQLite (>= 2.2.0),
+    stringr (>= 1.4.0),
+    shinyalert (>= 3.0.0),
+    googlesheets4 (>= 1.0.0),
+    bslib,
+    bsicons,
+    DT,
+    plotly,
+    shinydashboard,
+    R.utils
+Suggests:
+    tinytest (>= 1.4.0),
+    knitr,
+    rmarkdown,
+    here,
+    yaml,
+    config,
+    shinyTime,
+    shinyWidgets,
+    haven,
+    duckdb,
+    RPostgres,
+    RMariaDB,
+    RClickhouse,
+    pool,
+    withr,
+    paws,
+    data.table,
+    arrow,
+    httr,
+    REDCapR (>= 1.0.0)
+URL: https://github.com/rgt47/zzedc
+BugReports: https://github.com/rgt47/zzedc/issues
+VignetteBuilder: knitr

@@ -1,0 +1,25 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be 7 characters
+visit_code,Visit,L,select,1,baseline:week4:week8:week12,,
+assessment_date,Assessment Date,D,date,1,,,
+adhd_1,Often fails to give close attention to details,N,radio,1,0:1:2:3,,adhd_1 >= 0 && adhd_1 <= 3,Must select 0-3
+adhd_2,Often has difficulty sustaining attention,N,radio,1,0:1:2:3,,adhd_2 >= 0 && adhd_2 <= 3,Must select 0-3
+adhd_3,Often does not seem to listen when spoken to,N,radio,1,0:1:2:3,,adhd_3 >= 0 && adhd_3 <= 3,Must select 0-3
+adhd_4,Often does not follow through on instructions,N,radio,1,0:1:2:3,,adhd_4 >= 0 && adhd_4 <= 3,Must select 0-3
+adhd_5,Often has difficulty organizing tasks,N,radio,1,0:1:2:3,,adhd_5 >= 0 && adhd_5 <= 3,Must select 0-3
+adhd_6,Often avoids tasks requiring sustained attention,N,radio,1,0:1:2:3,,adhd_6 >= 0 && adhd_6 <= 3,Must select 0-3
+adhd_7,Often loses things necessary for activities,N,radio,1,0:1:2:3,,adhd_7 >= 0 && adhd_7 <= 3,Must select 0-3
+adhd_8,Often easily distracted by extraneous stimuli,N,radio,1,0:1:2:3,,adhd_8 >= 0 && adhd_8 <= 3,Must select 0-3
+adhd_9,Often forgetful in daily activities,N,radio,1,0:1:2:3,,adhd_9 >= 0 && adhd_9 <= 3,Must select 0-3
+adhd_inattention_total,Inattention Subscale Total,N,numeric,0,,,adhd_inattention_total >= 0 && adhd_inattention_total <= 27,Total must be 0-27
+adhd_10,Often fidgets with hands or feet,N,radio,1,0:1:2:3,,adhd_10 >= 0 && adhd_10 <= 3,Must select 0-3
+adhd_11,Often leaves seat inappropriately,N,radio,1,0:1:2:3,,adhd_11 >= 0 && adhd_11 <= 3,Must select 0-3
+adhd_12,Often runs about or climbs excessively,N,radio,1,0:1:2:3,,adhd_12 >= 0 && adhd_12 <= 3,Must select 0-3
+adhd_13,Often has difficulty with quiet activities,N,radio,1,0:1:2:3,,adhd_13 >= 0 && adhd_13 <= 3,Must select 0-3
+adhd_14,Often on the go or acts as if driven by motor,N,radio,1,0:1:2:3,,adhd_14 >= 0 && adhd_14 <= 3,Must select 0-3
+adhd_15,Often talks excessively,N,radio,1,0:1:2:3,,adhd_15 >= 0 && adhd_15 <= 3,Must select 0-3
+adhd_16,Often blurts out answers before questions completed,N,radio,1,0:1:2:3,,adhd_16 >= 0 && adhd_16 <= 3,Must select 0-3
+adhd_17,Often has difficulty waiting turn,N,radio,1,0:1:2:3,,adhd_17 >= 0 && adhd_17 <= 3,Must select 0-3
+adhd_18,Often interrupts or intrudes on others,N,radio,1,0:1:2:3,,adhd_18 >= 0 && adhd_18 <= 3,Must select 0-3
+adhd_hyperactive_total,Hyperactivity Subscale Total,N,numeric,0,,,adhd_hyperactive_total >= 0 && adhd_hyperactive_total <= 27,Total must be 0-27
+adhd_total_score,Total ADHD Rating Scale Score,N,numeric,0,,,adhd_total_score >= 0 && adhd_total_score <= 54,Total must be 0-54

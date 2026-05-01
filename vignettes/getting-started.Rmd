@@ -1,0 +1,163 @@
+---
+title: "Getting Started with ZZedc"
+subtitle: "A role-based router to the right runbook for your job"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with ZZedc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+# Welcome
+
+ZZedc is an Electronic Data Capture (EDC) system for clinical
+trials and research studies. It provides:
+
+- AES-256 encryption at rest with SQLCipher (and TDE on
+  server backends)
+- A hash-chained audit log that supports 21 CFR Part 11
+  continuity-of-record claims
+- Role-based access control with site-aware siloing for
+  multi-site trials
+- A choice of five database backends (SQLite, DuckDB,
+  PostgreSQL, MySQL/MariaDB, ClickHouse)
+- Google Sheets and CSV authoring paths so the trial's
+  content owner does not need to write code
+- A one-call REDCap migration importer
+
+This page is a **router**, not a tutorial. It points you to
+the canonical guide for your role, then to reference docs you
+will need along the way.
+
+---
+
+# Pick your role
+
+## I am setting up the trial content
+
+You design the case-report forms, write the validation rules,
+build the user roster, and train site staff. Skip everything
+else on this page and go to:
+
+> **[Content-Author Guide](content-author-guide.html)**
+
+You will also use the
+[Demonstration Trial via Google Sheets](demonstration-trial-via-gsheets.html)
+example as a worked sample.
+
+## I am deploying and maintaining the application
+
+You install the package, provision the server, configure
+encryption, run backups, and respond to operational
+escalations. Skip everything else and go to:
+
+> **[Technical-Lead Guide](technical-lead-guide.html)**
+
+The technical-lead guide cross-references everything else on
+this page; you do not have to consult them in any particular
+order.
+
+## I am both (solo investigator)
+
+For a single-investigator trial running locally on a laptop,
+the same person plays both roles. Read both guides in order:
+[Content-Author Guide](content-author-guide.html) first to
+understand what content you will produce, then
+[Technical-Lead Guide](technical-lead-guide.html) (especially
+Chapters 3, 5, 6, 8, 9) for the deployment.
+
+---
+
+# Reference docs
+
+These reference vignettes are cross-linked from the canonical
+guides. Read them when the canonical guide tells you to.
+
+## Backend quickstarts
+
+One per supported database. Pick the one matching your
+deployment:
+
+- [`vignette('backend-quickstart')`](backend-quickstart.html) —
+  decision tree across SQLite, DuckDB, MySQL/MariaDB,
+  PostgreSQL, and ClickHouse, with per-backend appendices
+
+## Specific topics
+
+- [`vignette('mysql-redcap-migration-roadmap')`](mysql-redcap-migration-roadmap.html)
+  — REDCap import phases, REST API + MySQL paths, audit replay
+
+Encryption, disaster recovery, and AWS deployment are covered
+in the Technical-Lead Guide (Chapters 5, 9, and 8 respectively).
+Custom Shiny modules and REST API patterns live in the
+contributor docs at `docs/development/custom-modules-and-api.md`.
+
+## Worked examples
+
+- [`vignette('demonstration-trial-setup')`](demonstration-trial-setup.html)
+  — a synthetic memory study, set up via the CSV path with
+  multiple backend examples
+- [`vignette('demonstration-trial-via-gsheets')`](demonstration-trial-via-gsheets.html)
+  — the same study, set up via Google Sheets
+
+## White papers
+
+- [`vignette('zzedc-whitepaper')`](zzedc-whitepaper.html)
+  — architectural and design rationale, regulatory framing
+
+---
+
+# Installing from CRAN
+
+```{r}
+install.packages('zzedc')
+```
+
+This pulls all required dependencies. Optional database
+drivers are installed separately:
+
+```{r}
+install.packages('RPostgres')   # PostgreSQL
+install.packages('RMariaDB')    # MySQL / MariaDB
+install.packages('duckdb')      # DuckDB
+```
+
+For full installation guidance including renv setup, see
+[Technical-Lead Guide](technical-lead-guide.html) Chapter 3.
+
+---
+
+# Where to ask for help
+
+- **GitHub issues**: bug reports, feature requests, and
+  technical questions at the project's repository.
+- **CRAN page**: latest version, NEWS, downloads.
+- **Email the maintainer**: for security findings or
+  regulatory questions you do not want public.
+
+---
+
+# Where this guide used to live
+
+If you arrived here looking for a quickstart, the content has
+been reorganised into role-based runbooks (above). Five older
+vignettes were retired in favour of the two canonical guides:
+
+- `quick-start-solo-researcher`, `small-project-guide`, and
+  `medium-project-guide` are subsumed by
+  [Content-Author Guide](content-author-guide.html) and
+  [Technical-Lead Guide](technical-lead-guide.html).
+- `gsheets-authoring-guide` is now Chapter 3 of the
+  Content-Author Guide.
+- The setup-wizard reference (the UI-driven alternative to
+  the Google Sheets path) is at
+  [`vignette('setup-wizard-guide')`](setup-wizard-guide.html).
+
+The retired vignettes overlapped in ways that made it hard for
+new users to know where to start.
+The new structure is two canonical role-based runbooks plus
+focused reference docs.

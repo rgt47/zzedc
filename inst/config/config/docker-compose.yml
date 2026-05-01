@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # RStudio Server for GUI users
+  rstudio:
+    build: .
+    ports:
+      - "8787:8787"
+    volumes:
+      - .:/project
+      - renv-cache:/renv/cache
+    environment:
+      - RENV_PATHS_CACHE=/renv/cache
+      - USER=analyst
+      - PASSWORD=analyst
+    working_dir: /project
+    command: /init
+
+  # Interactive R console
+  r-console:
+    build: .
+    volumes:
+      - .:/project
+      - renv-cache:/renv/cache
+    environment:
+      - RENV_PATHS_CACHE=/renv/cache
+    working_dir: /project
+    stdin_open: true
+    tty: true
+    command: R
+
+  # Interactive development shell
+  dev:
+    build: .
+    volumes:
+      - .:/project
+      - renv-cache:/renv/cache
+    environment:
+      - RENV_PATHS_CACHE=/renv/cache
+    working_dir: /project
+    stdin_open: true
+    tty: true
+
+  # Paper rendering service
+  render:
+    build: .
+    volumes:
+      - .:/project
+      - renv-cache:/renv/cache
+      - ./analysis/report:/output
+    environment:
+      - RENV_PATHS_CACHE=/renv/cache
+    working_dir: /project
+    command: R -e "rmarkdown::render('analysis/report/report.Rmd', output_dir = '/output')"
+
+  # Package testing
+  test:
+    build: .
+    volumes:
+      - .:/project
+      - renv-cache:/renv/cache
+    environment:
+      - RENV_PATHS_CACHE=/renv/cache
+    working_dir: /project
+    command: R -e "devtools::test()"
+
+volumes:
+  renv-cache:

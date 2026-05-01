@@ -1,0 +1,4 @@
+field_name,field_label,field_type,required,validation,description
+randomization_date,Randomization Date,date,TRUE,NA,Date subject randomized
+treatment_assignment,Treatment Assignment,select,TRUE,in(Active,Placebo),Random assignment to treatment
+study_coordinator,Study Coordinator,text,TRUE,NA,Name of coordinator performing randomization

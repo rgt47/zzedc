@@ -1,0 +1,1074 @@
+---
+title: 'Quick Start: Database Backends'
+subtitle: 'A unified setup guide for the five supported ZZedc backends'
+author: 'ZZedc Team'
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Quick Start: Database Backends}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = '#>',
+  eval = FALSE
+)
+```
+
+## Scope
+
+ZZedc runs against five database backends through a single adapter
+interface: SQLite, DuckDB, MySQL or MariaDB, PostgreSQL, and ClickHouse.
+The application layer is backend-agnostic. Once a connection is
+configured, study setup, form authoring, data entry, and reporting are
+identical across backends. This vignette consolidates what was
+previously five parallel quick-start guides into one document.
+
+The body covers the workflow that is the same for every backend: pick
+a backend, install ZZedc, write a `config.yml`, initialise the
+database, and launch the application. Backend-specific mechanics
+(server install, driver selection, dialect features, backup tooling)
+are isolated in five short appendices. Read the body first, then read
+only the appendix that matches your chosen backend.
+
+---
+
+## 1. Picking a backend
+
+### Decision tree
+
+The backend choice is a function of study size, deployment context,
+and whether analytics or transactions dominate the workload.
+
+- **SQLite** for prototypes, single-investigator studies, pilots, and
+  any deployment with fewer than approximately 200 subjects and one
+  to three concurrent users. It is the default and requires nothing
+  beyond an R installation.
+- **PostgreSQL** for multi-site production deployments, regulated
+  studies (21 CFR Part 11, GDPR Article 32), and any context where
+  the institution already operates a PostgreSQL server. It offers
+  true multi-user concurrency, streaming replication, and
+  point-in-time recovery.
+- **MySQL or MariaDB** for the same multi-site profile when the
+  institution standardises on MySQL or MariaDB rather than
+  PostgreSQL, or when an existing REDCap deployment is the source of
+  data. The two server families share a wire protocol and a single R
+  driver (`RMariaDB`).
+- **DuckDB** for analytics-heavy studies on data already in hand:
+  interim analyses, secondary analyses of existing trial data, and
+  any workflow where Parquet export to Python or SAS is on the
+  critical path. DuckDB is file-based like SQLite but uses columnar
+  storage, so aggregation queries are roughly an order of magnitude
+  faster.
+- **ClickHouse** for very-high-volume telemetry-style data: hundreds
+  of millions of rows of sensor or device output, real-time
+  dashboards, and time-series analytics. ClickHouse is not
+  recommended for typical CRF data entry, where transactional
+  guarantees matter more than aggregation speed.
+
+A more detailed comparison, including a backend cheat sheet keyed to
+specific study scenarios, lives in Chapter 2 of the
+[Technical Lead Guide](technical-lead-guide.html). Refer there before
+committing to a non-default backend on a production study.
+
+### Comparison at a glance
+
+The following table summarises the dimensions that drive the choice.
+It is intentionally coarse; treat it as orientation, not as a scoring
+rubric.
+
+| Dimension          | SQLite    | DuckDB    | MySQL/MariaDB | PostgreSQL | ClickHouse |
+|--------------------|-----------|-----------|---------------|------------|------------|
+| Architecture       | File      | File      | Server        | Server     | Server     |
+| Server install     | None      | None      | Required      | Required   | Required   |
+| Concurrent writers | 1-3       | 1-3       | Many          | Many       | Many       |
+| Best workload      | OLTP      | OLAP      | OLTP          | OLTP       | OLAP       |
+| Best dataset size  | <1M rows  | <100M     | <1B rows      | <1B rows   | Unlimited  |
+| Parquet export     | Via R pkg | Native    | Via R pkg     | Via R pkg  | Native     |
+| Replication / HA   | No        | No        | Yes           | Yes        | Yes        |
+| Compliance posture | Basic     | Basic     | Full          | Full       | Full       |
+| Setup complexity   | None      | Minimal   | Moderate      | Moderate   | High       |
+
+`OLTP` denotes online transaction processing, the typical CRF
+data-entry pattern. `OLAP` denotes online analytical processing, the
+aggregation-heavy pattern statisticians use during analysis.
+
+---
+
+## 2. Prerequisites
+
+The following prerequisites are common to every backend. Backend-specific
+server prerequisites appear in the corresponding appendix.
+
+- R version 4.1 or higher (the codebase uses the native pipe `|>`).
+- An R environment with package installation available (RStudio is
+  the supported IDE but not required).
+- Internet access for the initial `devtools::install_github()` call.
+- Write access to a working directory for the study artefacts (the
+  `config.yml`, the `logs/` and `exports/` subdirectories, and, for
+  the file-based backends, the database file itself).
+
+Verify the R version:
+
+```{r check_r}
+R.version.string
+# Should print 'R version 4.1.0' or higher.
+```
+
+---
+
+## 3. Install ZZedc
+
+### From GitHub
+
+```{r install_github}
+if (!requireNamespace('devtools', quietly = TRUE)) {
+  install.packages('devtools')
+}
+devtools::install_github('rgt47/zzedc')
+```
+
+### From a local clone
+
+```{r install_local}
+# Clone first:
+#   git clone https://github.com/rgt47/zzedc.git
+#   cd zzedc
+devtools::install('.')
+```
+
+### Verify
+
+```{r verify}
+library(zzedc)
+packageVersion('zzedc')
+```
+
+The R driver for the chosen backend (`RSQLite`, `duckdb`, `RMariaDB`,
+`RPostgres`, or `RClickhouse`) is installed separately; see the
+relevant appendix.
+
+---
+
+## 4. Create the project layout
+
+Every study, regardless of backend, uses the same on-disk layout:
+
+```
+my_study/
+  config.yml          # study and database configuration
+  data/               # SQLite or DuckDB file lives here
+  logs/               # application logs
+  exports/            # Parquet or CSV exports
+  backups/            # database backups
+```
+
+```{r project_layout}
+project_dir <- 'my_study'
+dir.create(project_dir, showWarnings = FALSE)
+for (sub in c('data', 'logs', 'exports', 'backups')) {
+  dir.create(file.path(project_dir, sub), showWarnings = FALSE)
+}
+setwd(project_dir)
+```
+
+For the client-server backends the `data/` directory is unused; the
+database lives on the server. The other three directories are still
+useful for application logs, exports, and locally cached backups.
+
+---
+
+## 5. Write `config.yml`
+
+ZZedc reads its database configuration from a `config.yml` in the
+working directory. The shape is the same for every backend; only the
+`database` block differs. Below is the SQLite default. Substitute the
+appropriate block from the relevant appendix when targeting a different
+backend.
+
+```yaml
+default:
+  study_name:  'My Clinical Trial'
+  protocol_id: 'STUDY-2026-001'
+
+  database:
+    backend: sqlite
+    sqlite:
+      path: 'data/my_study.db'
+
+  session_timeout_minutes: 30
+  max_login_attempts: 3
+
+  app_title:  'My Clinical Trial EDC'
+  debug_mode: false
+```
+
+Two conventions are worth flagging:
+
+- The `${ZZEDC_DB_PASSWORD}` syntax interpolates from the process
+  environment. Use it for any client-server backend so the password is
+  not committed alongside the configuration. Set the variable in your
+  shell or in a `.env` file the runtime sources.
+- A `production:` section can inherit from `default:` and override
+  individual keys (e.g., a shorter `session_timeout_minutes`). This is
+  the recommended pattern when the same `config.yml` is used in both
+  development and production.
+
+---
+
+## 6. Initialise the database
+
+The `create_db_adapter()` factory dispatches on `db_backend` and
+returns an R6 adapter object whose `connect()`, `query()`, `execute()`,
+and `disconnect()` methods are identical across backends. Study setup
+runs through `create_wizard_database()`, which creates the canonical
+ZZedc tables (`edc_users`, `subjects`, `data_entries`, `audit_trail`,
+and the supporting tables) and seeds the admin account.
+
+```{r init_db}
+library(zzedc)
+
+config <- list(
+  db_backend = 'sqlite',
+  sqlite = list(path = 'data/my_study.db'),
+
+  study_name        = 'My Clinical Trial',
+  protocol_id       = 'STUDY-2026-001',
+  pi_name           = 'Dr. Investigator',
+  pi_email          = 'investigator@example.org',
+  study_phase       = 'Phase 2',
+  target_enrollment = 50,
+
+  admin_username = 'admin',
+  admin_password = 'ChangeMe!2026',
+  admin_fullname = 'Study Administrator',
+  admin_email    = 'admin@example.org',
+
+  security_salt = paste0(
+    sample(c(letters, LETTERS, 0:9), 32, replace = TRUE),
+    collapse = ''
+  ),
+  session_timeout    = 30,
+  max_login_attempts = 3
+)
+
+adapter <- create_db_adapter(config)
+conn    <- adapter$connect()
+on.exit(adapter$disconnect(conn), add = TRUE)
+
+result <- create_wizard_database(
+  config,
+  config$sqlite$path,
+  backend = config$db_backend
+)
+
+if (!isTRUE(result$success)) {
+  stop('Database initialisation failed: ', result$message)
+}
+```
+
+The `default_db_config()` helper reduces the boilerplate when the
+study-level fields are inherited from elsewhere:
+
+```{r default_config}
+config <- default_db_config(
+  'postgresql',
+  host     = 'db.example.org',
+  name     = 'my_clinical_trial',
+  user     = 'zzedc_user',
+  password = Sys.getenv('ZZEDC_DB_PASSWORD')
+)
+adapter <- create_db_adapter(config)
+```
+
+For non-default backends, replace the `db_backend` and the
+corresponding nested list with the values shown in the appendix.
+
+### Setup wizard alternative
+
+The interactive wizard accepts the same configuration and is suitable
+for non-programmatic study setup:
+
+```{r wizard}
+library(zzedc)
+launch_setup_wizard()
+```
+
+The wizard prompts for study information, the admin account, security
+parameters, the database backend, and the initial data dictionary.
+
+---
+
+## 7. Launch the application
+
+Once the database is initialised, launching the Shiny application is
+backend-independent:
+
+```{r launch}
+library(zzedc)
+
+Sys.setenv(ZZEDC_DB_BACKEND = 'sqlite')
+Sys.setenv(ZZEDC_DB_PATH    = 'data/my_study.db')
+
+launch_zzedc(port = 3838)
+```
+
+For client-server backends, set the connection variables instead:
+
+```{r launch_server}
+Sys.setenv(ZZEDC_DB_BACKEND = 'postgresql')
+Sys.setenv(ZZEDC_DB_HOST    = 'localhost')
+Sys.setenv(ZZEDC_DB_PORT    = '5432')
+Sys.setenv(ZZEDC_DB_NAME    = 'my_clinical_trial')
+Sys.setenv(ZZEDC_DB_USER    = 'zzedc_user')
+Sys.setenv(ZZEDC_DB_PASSWORD = '...')
+
+launch_zzedc(port = 3838)
+```
+
+The browser opens to `http://localhost:3838`. Log in with the admin
+credentials seeded during setup, then proceed to user management, form
+design, and subject enrollment.
+
+---
+
+## 8. Migrating between backends
+
+A study that begins on SQLite during the pilot can be promoted to
+PostgreSQL or MySQL when it goes multi-site. The
+`migrate_between_backends()` helper copies all canonical tables
+between any pair of supported backends and translates the dialect
+differences (auto-increment columns, `JSON` versus `JSONB`, `DateTime`
+versus `TIMESTAMP`, and so on).
+
+```{r migrate}
+library(zzedc)
+
+source_config <- default_db_config(
+  'sqlite',
+  path = 'data/my_study.db'
+)
+dest_config <- default_db_config(
+  'postgresql',
+  host     = 'db.example.org',
+  name     = 'my_clinical_trial',
+  user     = 'zzedc_user',
+  password = Sys.getenv('ZZEDC_DB_PASSWORD')
+)
+
+result <- migrate_between_backends(source_config, dest_config)
+result$tables  # per-table row counts and timing
+```
+
+The reverse direction (e.g., PostgreSQL to SQLite for an offline
+archive) works by swapping the two configuration objects. Migration
+preserves the audit-trail hash chain; the integrity check in
+`verify_audit_chain()` should pass on the destination database after
+migration.
+
+---
+
+## 9. Backup, recovery, and maintenance
+
+A consistent backup posture has two pieces: a regular full backup and,
+for client-server backends, a write-ahead-log archive that supports
+point-in-time recovery. The mechanics are backend-specific and live in
+the appendix. The principles below apply universally:
+
+- Schedule full backups daily, retained for at least thirty days.
+- Test the restore path quarterly. An untested backup is a hypothesis,
+  not a guarantee.
+- Store backups off the database host. A backup co-located with the
+  database it is intended to protect does not protect against host
+  loss.
+- For regulated studies, encrypt backups at rest and document the key
+  custody chain.
+
+The application-level audit trail in `audit_trail` is a separate
+artefact from the database backup and complies with 21 CFR Part 11
+ALCOA-C requirements. It is preserved by every backup mechanism the
+appendices describe, but its hash-chained integrity should be
+verified after any restore.
+
+---
+
+## 10. Troubleshooting (common patterns)
+
+The five backends share a small set of failure modes. Backend-specific
+errors appear in the appendix. The patterns below are universal.
+
+- **'Could not connect'.** For file-based backends, check the path
+  resolves and the directory is writable. For client-server
+  backends, check the server is reachable
+  (`pg_isready`, `mysqladmin ping`, `clickhouse-client --query
+  'SELECT 1'`), the port is open, and the user is permitted from the
+  client IP.
+- **'Authentication failed'.** Check the credential value (a stale
+  `ZZEDC_DB_PASSWORD` is the most common cause), then check the
+  authentication method on the server side. PostgreSQL's
+  `pg_hba.conf` and MySQL's `'user'@'host'` grant pattern are both
+  strict.
+- **'Driver not found'.** Install the driver listed in the
+  appendix (`install.packages('RPostgres')`, etc.). The error message
+  usually names the missing package.
+- **'Session expired'.** The default timeout is 30 minutes. Adjust
+  `session_timeout_minutes` in `config.yml` if the workflow requires
+  a longer window.
+- **'Database is locked' (SQLite only).** Close the other R session
+  or application that holds the file. SQLite serialises writers.
+
+---
+
+## 11. Summary
+
+The unified workflow is: pick a backend (Section 1), install ZZedc
+(Section 3), assemble the project layout and `config.yml` (Sections
+4-5), initialise the database (Section 6), launch (Section 7). Sections
+8-10 cover the operational lifecycle. The five appendices document the
+backend-specific mechanics: server install, R driver, dialect features,
+and backup tooling.
+
+For a complete worked example end-to-end, see the
+[Demonstration Trial Setup](demonstration-trial-setup.html) vignette,
+which walks through study setup with synthetic data on the SQLite
+backend.
+
+---
+
+## Appendix A. SQLite
+
+### Server install
+
+None. SQLite ships with the `RSQLite` package, which is a
+recommended dependency of ZZedc. No server process runs. The database
+is a single file (`data/my_study.db` by default).
+
+### R driver
+
+```{r sqlite_driver}
+install.packages('RSQLite')
+```
+
+### `config.yml` block
+
+```yaml
+database:
+  backend: sqlite
+  sqlite:
+    path: 'data/my_study.db'
+```
+
+### Backup and maintenance
+
+A SQLite backup is a file copy of a database that is not currently
+being written. Use `sqlite3 ... .backup` for online backups, or stop
+the application briefly for a `file.copy()`.
+
+```{r sqlite_backup}
+backup_path <- sprintf(
+  'backups/my_study_%s.db',
+  format(Sys.time(), '%Y%m%d_%H%M%S')
+)
+file.copy('data/my_study.db', backup_path)
+```
+
+Periodic `VACUUM` reclaims space from deleted rows; `ANALYZE` updates
+the query planner's statistics. Both are cheap to run during a
+maintenance window:
+
+```{r sqlite_vacuum}
+library(DBI)
+library(RSQLite)
+conn <- dbConnect(SQLite(), 'data/my_study.db')
+dbExecute(conn, 'VACUUM')
+dbExecute(conn, 'ANALYZE')
+dbDisconnect(conn)
+```
+
+### Backend-specific notes
+
+- SQLite serialises writers. A second R session attempting to write
+  will block until the first releases its lock. This is the expected
+  cost of zero-configuration concurrency.
+- For studies that outgrow SQLite, the most common promotion path is
+  to PostgreSQL via `migrate_between_backends()`.
+- Encryption at rest is supported via the encrypted-database helpers
+  documented in
+  [Technical-Lead Guide Chapter 5](technical-lead-guide.html).
+  The other backends configure encryption at the server level instead.
+
+---
+
+## Appendix B. DuckDB
+
+### Server install
+
+None. DuckDB is in-process like SQLite, but uses columnar storage.
+
+### R driver
+
+```{r duckdb_driver}
+install.packages('duckdb')
+library(duckdb)
+packageVersion('duckdb')
+```
+
+### `config.yml` block
+
+```yaml
+database:
+  backend: duckdb
+  duckdb:
+    path: 'data/my_study.duckdb'
+```
+
+### Native Parquet export
+
+DuckDB's defining feature for clinical trial work is direct Parquet
+export. Statisticians can read the resulting files in Python, R, or
+SAS without an intermediate CSV step:
+
+```{r duckdb_parquet}
+library(duckdb)
+conn <- dbConnect(duckdb(), 'data/my_study.duckdb')
+
+# Export a single table.
+dbExecute(conn, "
+  COPY subjects
+  TO 'exports/subjects.parquet'
+  (FORMAT PARQUET)
+")
+
+# Export a join result with ZSTD compression.
+dbExecute(conn, "
+  COPY (
+    SELECT s.*, r.treatment_arm
+    FROM subjects s
+    LEFT JOIN randomization r ON s.subject_id = r.subject_id
+  ) TO 'exports/subjects_with_treatment.parquet'
+  (FORMAT PARQUET, COMPRESSION ZSTD)
+")
+
+dbDisconnect(conn)
+```
+
+For a full archive, iterate over `SHOW TABLES` and emit one Parquet
+file per table.
+
+### Backup and maintenance
+
+DuckDB databases are single files. A backup is a file copy taken with
+the application stopped or with all writers disconnected. The Parquet
+export above is also a portable archive format and is recommended in
+addition to file-level backup for long-term retention.
+
+### Backend-specific notes
+
+- Memory usage is higher than SQLite for the same dataset because
+  DuckDB streams columns into memory for analytical queries. Cap it
+  with `config = list(memory_limit = '2GB')` on the connection if the
+  default exceeds available RAM.
+- Indexes are less critical than on row-oriented databases because of
+  columnar layout, but `CREATE INDEX` is supported for selective
+  filters.
+- Concurrent writers are limited (similar to SQLite). DuckDB is best
+  treated as a single-writer analytical store.
+
+---
+
+## Appendix C. MySQL or MariaDB
+
+### Server versions supported
+
+| Server             | Versions                       | Notes                |
+|--------------------|--------------------------------|----------------------|
+| MariaDB 11.4 LTS   | June 2024 to June 2029         | Headline target      |
+| MariaDB 10.11 LTS  | February 2023 to February 2028 | Documented floor     |
+| MySQL 8.4 LTS      | April 2024 to April 2032       | Headline MySQL target|
+
+End-of-life server versions (MySQL 8.0 EOL April 2026, MariaDB 10.5
+EOL June 2025) are not supported. The adapter requires features
+present from MySQL 8.0 / MariaDB 10.5 onward.
+
+### Server install (Docker)
+
+```bash
+docker run -d --name zzedc_mariadb \
+  -e MARIADB_ROOT_PASSWORD='RootPwd!' \
+  -e MARIADB_DATABASE=zzedc_study \
+  -e MARIADB_USER=zzedc_user \
+  -e MARIADB_PASSWORD='StudyPassword!' \
+  -p 3306:3306 \
+  mariadb:11.4
+```
+
+For a managed institutional MySQL or MariaDB server, the DBA performs
+the equivalent setup; no Docker is involved.
+
+### Initial server setup (SQL)
+
+```sql
+CREATE DATABASE zzedc_study
+  CHARACTER SET = 'utf8mb4'
+  COLLATE       = 'utf8mb4_unicode_ci';
+
+CREATE USER 'zzedc_user'@'%'
+  IDENTIFIED BY 'your-strong-password';
+
+GRANT SELECT, INSERT, UPDATE, DELETE,
+      CREATE, DROP, ALTER, INDEX, REFERENCES
+  ON zzedc_study.*
+  TO 'zzedc_user'@'%';
+
+FLUSH PRIVILEGES;
+```
+
+The `utf8mb4` character set is required (not `utf8`) so that subject
+names and free-text fields handle the full Unicode range.
+
+### R driver
+
+```{r mysql_driver}
+install.packages('RMariaDB')
+# Optional, for multi-user Shiny deployments:
+install.packages('pool')
+```
+
+`RMariaDB` is the maintained DBI driver for both MySQL and MariaDB
+servers. The older `RMySQL` package is in maintenance mode and is not
+recommended.
+
+### `config.yml` block
+
+```yaml
+database:
+  backend: mysql
+  mysql:
+    host:     'db.example.org'
+    port:     3306
+    name:     'zzedc_study'
+    user:     'zzedc_user'
+    password: '${ZZEDC_DB_PASSWORD}'
+    ssl_mode: 'REQUIRED'
+    pool_min: 1
+    pool_max: 5
+```
+
+`backend: mariadb` is accepted as an alias and produces an identical
+adapter; the wire protocol is shared.
+
+### TLS
+
+For any deployment crossing a network boundary, configure
+`ssl-cert`, `ssl-key`, and `ssl-ca` on the server, then set
+`ssl_mode: REQUIRED` (or `VERIFY_IDENTITY` for full peer-certificate
+validation) in `config.yml`. The adapter exposes
+`adapter$is_ssl_connected(conn)` to verify the negotiated state.
+
+### Backup
+
+```bash
+mysqldump --single-transaction --routines --triggers \
+  -h db.example.org -u zzedc_user -p \
+  zzedc_study | gzip > backups/zzedc_$(date +%Y%m%d).sql.gz
+```
+
+For continuous protection, configure binary-log replication to a
+standby server. The binary log is also the basis for point-in-time
+recovery (`mysqlbinlog --start-datetime=...`).
+
+### REDCap migration
+
+REDCap stores its data in MySQL. A common reason to choose this
+backend is the prospect of ingesting a REDCap export. The current
+supported path is to export REDCap data as CSV plus the metadata
+dictionary and author the corresponding ZZedc CRFs from there. A
+direct REDCap-to-ZZedc importer is on the roadmap; see
+[the roadmap vignette](mysql-redcap-migration-roadmap.html).
+
+### Backend-specific notes
+
+- Encryption at rest is configured at the server level (InnoDB
+  tablespace encryption), not through the adapter. The `key` argument
+  used by the SQLite encrypted-database helpers is ignored on this
+  backend.
+- The most common error is the host pattern in the `CREATE USER`
+  grant: `'zzedc_user'@'%'` allows any host;
+  `'zzedc_user'@'10.0.0.0/8'` restricts to a subnet. Mismatches
+  produce 'Access denied for user'.
+
+---
+
+## Appendix D. PostgreSQL
+
+### Server install (Docker)
+
+```bash
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    container_name: zzedc_postgres
+    environment:
+      POSTGRES_USER:     zzedc_admin
+      POSTGRES_PASSWORD: SecurePassword123!
+      POSTGRES_DB:       zzedc_trial
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+volumes:
+  pgdata:
+EOF
+
+docker-compose up -d
+```
+
+### Server install (Homebrew, macOS)
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+psql --version
+```
+
+### Server install (Ubuntu / Debian)
+
+```bash
+sudo apt update
+sudo apt install postgresql-16
+sudo systemctl enable --now postgresql
+psql --version
+```
+
+### Initial server setup (SQL)
+
+Connect as the superuser (`psql -U postgres`) and run:
+
+```sql
+CREATE USER zzedc_user WITH PASSWORD 'StudyPassword123!';
+
+CREATE DATABASE my_clinical_trial
+  OWNER      = zzedc_user
+  ENCODING   = 'UTF8'
+  LC_COLLATE = 'en_US.UTF-8'
+  LC_CTYPE   = 'en_US.UTF-8';
+
+GRANT ALL PRIVILEGES ON DATABASE my_clinical_trial TO zzedc_user;
+
+\c my_clinical_trial
+GRANT ALL ON SCHEMA public TO zzedc_user;
+```
+
+### R driver
+
+```{r postgres_driver}
+install.packages('RPostgres')
+library(RPostgres)
+packageVersion('RPostgres')
+```
+
+### `config.yml` block
+
+```yaml
+database:
+  backend: postgresql
+  postgresql:
+    host:     'localhost'
+    port:     5432
+    name:     'my_clinical_trial'
+    user:     'zzedc_user'
+    password: '${ZZEDC_DB_PASSWORD}'
+    sslmode:  'verify-full'
+```
+
+### TLS and `pg_hba.conf`
+
+For production, enable TLS in `postgresql.conf`:
+
+```
+ssl              = on
+ssl_cert_file    = '/path/to/server.crt'
+ssl_key_file     = '/path/to/server.key'
+ssl_ca_file      = '/path/to/ca.crt'
+```
+
+Restrict authentication in `pg_hba.conf` so non-TLS connections are
+rejected:
+
+```
+# TYPE      DATABASE         USER         ADDRESS         METHOD
+local       all              postgres                     peer
+hostssl     my_clinical_trial zzedc_user  10.0.0.0/8      scram-sha-256
+hostssl     my_clinical_trial zzedc_user  192.168.0.0/16  scram-sha-256
+hostnossl   all              all          0.0.0.0/0       reject
+```
+
+### Backup and recovery
+
+For full backups, schedule `pg_dump` via cron:
+
+```bash
+#!/bin/bash
+BACKUP_DIR='/var/backups/postgresql'
+DB_NAME='my_clinical_trial'
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+mkdir -p "$BACKUP_DIR"
+pg_dump -h localhost -U zzedc_user "$DB_NAME" \
+  | gzip > "${BACKUP_DIR}/${DB_NAME}_${TIMESTAMP}.sql.gz"
+find "$BACKUP_DIR" -name '*.sql.gz' -mtime +30 -delete
+```
+
+For point-in-time recovery, enable WAL archiving:
+
+```
+wal_level       = replica
+archive_mode    = on
+archive_command = 'cp %p /var/lib/postgresql/wal_archive/%f'
+```
+
+For high availability, set up streaming replication. On the primary:
+
+```
+wal_level       = replica
+max_wal_senders = 3
+wal_keep_size   = 1GB
+```
+
+```sql
+CREATE ROLE replicator WITH REPLICATION LOGIN
+  PASSWORD 'ReplicaPass123!';
+```
+
+On the replica, stop PostgreSQL, clear the data directory, and run
+`pg_basebackup -h primary -U replicator -D /var/lib/postgresql/16/main
+-Fp -Xs -P -R`.
+
+### Connection pooling
+
+For multi-user Shiny deployments, place PgBouncer in front of
+PostgreSQL. The `pool` R package provides session-level pooling on
+top, which is complementary.
+
+### Backend-specific notes
+
+- PostgreSQL is the recommended backend for any deployment that needs
+  to satisfy 21 CFR Part 11 audit and access-control requirements.
+- The maintenance commands worth scheduling are `ANALYZE` (cheap, run
+  weekly) and `VACUUM FULL ANALYZE` (requires an exclusive lock, run
+  during a maintenance window only when bloat is significant).
+
+---
+
+## Appendix E. ClickHouse
+
+### When ClickHouse is and is not appropriate
+
+ClickHouse is a column-oriented analytical database. It excels at
+aggregating hundreds of millions to billions of rows with sub-second
+query times. It is **not** designed for transactional workloads.
+Typical CRF data entry is transactional, so for a routine clinical
+trial PostgreSQL or SQLite is usually the better choice. ClickHouse is
+appropriate when the study generates very-high-volume telemetry
+(continuous device output, sensor streams, real-time monitoring) and
+real-time dashboards are a primary deliverable.
+
+### Server install (Docker)
+
+```bash
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: zzedc_clickhouse
+    ports:
+      - '8123:8123'   # HTTP
+      - '9000:9000'   # Native TCP
+    environment:
+      CLICKHOUSE_USER:     zzedc_user
+      CLICKHOUSE_PASSWORD: SecurePassword123!
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    restart: unless-stopped
+volumes:
+  clickhouse_data:
+  clickhouse_logs:
+EOF
+
+docker-compose up -d
+```
+
+### Server install (Ubuntu / Debian)
+
+```bash
+sudo apt-get install -y apt-transport-https ca-certificates dirmngr
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 \
+  --recv 8919F6BD2B48D754
+echo 'deb https://packages.clickhouse.com/deb stable main' \
+  | sudo tee /etc/apt/sources.list.d/clickhouse.list
+sudo apt-get update
+sudo apt-get install -y clickhouse-server clickhouse-client
+sudo systemctl enable --now clickhouse-server
+```
+
+### Initial server setup (SQL)
+
+```sql
+CREATE DATABASE IF NOT EXISTS my_clinical_trial;
+
+CREATE USER IF NOT EXISTS zzedc_user
+  IDENTIFIED WITH sha256_password BY 'StudyPassword123!';
+
+GRANT ALL ON my_clinical_trial.* TO zzedc_user;
+```
+
+### R driver
+
+```{r clickhouse_driver}
+install.packages('RClickhouse')
+library(RClickhouse)
+packageVersion('RClickhouse')
+```
+
+### `config.yml` block
+
+```yaml
+database:
+  backend: clickhouse
+  clickhouse:
+    host:     'localhost'
+    port:     9000
+    name:     'my_clinical_trial'
+    user:     'zzedc_user'
+    password: '${ZZEDC_DB_PASSWORD}'
+```
+
+### MergeTree engine and `ORDER BY`
+
+ClickHouse tables require an explicit storage engine and an
+`ORDER BY` clause that defines the primary sort order on disk. The
+`MergeTree` family is the workhorse:
+
+```{r ch_create}
+library(RClickhouse)
+conn <- dbConnect(
+  RClickhouse::clickhouse(),
+  host = 'localhost', port = 9000,
+  db = 'my_clinical_trial',
+  user = 'zzedc_user',
+  password = Sys.getenv('ZZEDC_DB_PASSWORD')
+)
+
+dbExecute(conn, "
+  CREATE TABLE IF NOT EXISTS subjects (
+    subject_id      UInt32,
+    study_id        String,
+    site_id         String,
+    enrollment_date Date,
+    status          String,
+    treatment_arm   String,
+    created_at      DateTime DEFAULT now(),
+    updated_at      DateTime DEFAULT now()
+  ) ENGINE = MergeTree()
+  ORDER BY (site_id, subject_id)
+")
+
+dbExecute(conn, "
+  CREATE TABLE IF NOT EXISTS audit_trail (
+    audit_id     UInt64,
+    user_id      UInt32,
+    action       String,
+    table_name   String,
+    record_id    String,
+    old_value    String,
+    new_value    String,
+    action_date  DateTime DEFAULT now(),
+    ip_address   String
+  ) ENGINE = MergeTree()
+  ORDER BY (action_date, user_id)
+  TTL action_date + INTERVAL 7 YEAR
+")
+
+dbDisconnect(conn)
+```
+
+The `TTL` clause on `audit_trail` retains audit records for seven
+years (a common regulatory floor) and discards them automatically
+afterward.
+
+### Materialised views
+
+Pre-aggregated views support real-time dashboards:
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_enrollment_summary
+ENGINE = SummingMergeTree()
+ORDER BY (site_id, enrollment_date)
+AS SELECT
+  site_id,
+  enrollment_date,
+  count() AS enrolled_count,
+  countIf(status = 'Active') AS active_count
+FROM subjects
+GROUP BY site_id, enrollment_date;
+```
+
+### Backup
+
+Use `clickhouse-backup` for table-level backups:
+
+```bash
+clickhouse-backup create my_trial_backup
+clickhouse-backup list
+clickhouse-backup restore my_trial_backup
+```
+
+For Docker deployments, a tar of the data volume is a workable
+fallback, taken with the container stopped.
+
+### Backend-specific notes
+
+- ClickHouse's transactional guarantees are limited; do not use it as
+  the system of record for transactional CRF entry.
+- For genuinely large deployments, the cluster configuration in
+  `/etc/clickhouse-server/config.d/cluster.xml` distributes a study
+  across shards and replicas. This is out of scope for the quick
+  start; consult the
+  [ClickHouse documentation](https://clickhouse.com/docs/) before
+  committing to a clustered deployment.
+- Periodic `OPTIMIZE TABLE ... FINAL` merges small parts and reduces
+  the on-disk part count. Schedule it during a maintenance window;
+  it is I/O-intensive.
+
+---
+
+## Resources
+
+- [Technical Lead Guide, Chapter 2 (Picking the right backend)](technical-lead-guide.html)
+- [Technical Lead Guide, Chapter 5 (Encryption)](technical-lead-guide.html)
+- [Technical Lead Guide, Chapter 9 (Disaster recovery)](technical-lead-guide.html)
+- [Demonstration Trial Setup](demonstration-trial-setup.html)
+- [Demonstration Trial via Google Sheets](demonstration-trial-via-gsheets.html)
+- `?create_db_adapter`, `?default_db_config`,
+  `?create_wizard_database`, `?migrate_between_backends`
+- Driver documentation:
+  [RSQLite](https://rsqlite.r-dbi.org),
+  [duckdb](https://duckdb.org/docs/api/r),
+  [RMariaDB](https://rmariadb.r-dbi.org),
+  [RPostgres](https://rpostgres.r-dbi.org),
+  [RClickhouse](https://github.com/IMSMWU/RClickhouse)
+
+**Support:**
+
+- Email: rgthomas@ucsd.edu
+- GitHub: <https://github.com/rgt47/zzedc/issues>

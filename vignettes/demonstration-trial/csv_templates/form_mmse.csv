@@ -1,0 +1,13 @@
+field_name,field_label,field_type,required,validation,description
+visit_label,Visit,select,TRUE,in(Baseline,Week 4,Week 8),Study visit
+assessment_date,Assessment Date,date,TRUE,NA,Date of MMSE assessment
+orientation_time,Orientation to Time,numeric,TRUE,between 0 and 5,Score (0-5 points)
+orientation_place,Orientation to Place,numeric,TRUE,between 0 and 5,Score (0-5 points)
+registration,Registration,numeric,TRUE,between 0 and 3,Score (0-3 points)
+attention,Attention and Calculation,numeric,TRUE,between 0 and 5,Score (0-5 points)
+recall,Recall,numeric,TRUE,between 0 and 3,Score (0-3 points)
+language,Language,numeric,TRUE,between 0 and 8,Score (0-8 points)
+visual_spatial,Visual-Spatial,numeric,TRUE,between 0 and 1,Score (0-1 point)
+mmse_total,MMSE Total Score,numeric,TRUE,between 0 and 30,Sum of all components (calculated)
+adverse_events,Adverse Events,select,FALSE,in(Yes,No),Any adverse events reported?
+ae_description,AE Description,text,FALSE,NA,Description if adverse events reported

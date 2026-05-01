@@ -1,0 +1,250 @@
+name: Multi-Backend Tests
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'R/db_*.R'
+      - 'tests/testthat/test-db-*.R'
+      - 'tests/testthat/helper-db-*.R'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      backends:
+        description: 'Comma-separated list of backends to test'
+        required: false
+        default: 'sqlite,duckdb,postgresql'
+
+env:
+  R_LIBS_USER: /usr/local/lib/R/site-library
+
+jobs:
+  # ===========================================
+  # SQLite Tests (always runs, no external deps)
+  # ===========================================
+  test-sqlite:
+    runs-on: ubuntu-latest
+    container: rocker/r-ver:4.4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update && apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev
+
+      - name: Cache R packages
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-sqlite-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: r-sqlite-
+
+      - name: Install R dependencies
+        run: |
+          Rscript -e "install.packages(c('remotes', 'testthat', 'RSQLite', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "remotes::install_deps(dependencies = TRUE)"
+
+      - name: Run SQLite tests
+        env:
+          ZZEDC_TEST_BACKENDS: sqlite
+        run: |
+          Rscript -e "testthat::test_local(filter = 'db-')"
+
+  # ===========================================
+  # DuckDB Tests
+  # ===========================================
+  test-duckdb:
+    runs-on: ubuntu-latest
+    container: rocker/r-ver:4.4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update && apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev
+
+      - name: Cache R packages
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-duckdb-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: r-duckdb-
+
+      - name: Install R dependencies
+        run: |
+          Rscript -e "install.packages(c('remotes', 'testthat', 'duckdb', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "remotes::install_deps(dependencies = TRUE)"
+
+      - name: Run DuckDB tests
+        env:
+          ZZEDC_TEST_BACKENDS: duckdb
+        run: |
+          Rscript -e "testthat::test_local(filter = 'db-')"
+
+  # ===========================================
+  # PostgreSQL Tests (with service container)
+  # ===========================================
+  test-postgresql:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: zzedc_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    container:
+      image: rocker/r-ver:4.4
+      options: --network-alias test-runner
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update && apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev \
+            libpq-dev
+
+      - name: Cache R packages
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-postgresql-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: r-postgresql-
+
+      - name: Install R dependencies
+        run: |
+          Rscript -e "install.packages(c('remotes', 'testthat', 'RPostgres', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "remotes::install_deps(dependencies = TRUE)"
+
+      - name: Run PostgreSQL tests
+        env:
+          ZZEDC_TEST_BACKENDS: postgresql
+          ZZEDC_TEST_PG_HOST: postgres
+          ZZEDC_TEST_PG_PORT: 5432
+          ZZEDC_TEST_PG_DB: zzedc_test
+          ZZEDC_TEST_PG_USER: postgres
+          ZZEDC_TEST_PG_PASSWORD: postgres
+        run: |
+          Rscript -e "testthat::test_local(filter = 'db-')"
+
+  # ===========================================
+  # Combined Test Summary
+  # ===========================================
+  test-summary:
+    needs: [test-sqlite, test-duckdb, test-postgresql]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check test results
+        run: |
+          echo "## Multi-Backend Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.test-sqlite.result }}" == "success" ]; then
+            echo "✅ SQLite: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ SQLite: ${{ needs.test-sqlite.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.test-duckdb.result }}" == "success" ]; then
+            echo "✅ DuckDB: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ DuckDB: ${{ needs.test-duckdb.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.test-postgresql.result }}" == "success" ]; then
+            echo "✅ PostgreSQL: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ PostgreSQL: ${{ needs.test-postgresql.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail if any backend failed
+        if: |
+          needs.test-sqlite.result == 'failure' ||
+          needs.test-duckdb.result == 'failure' ||
+          needs.test-postgresql.result == 'failure'
+        run: exit 1
+
+  # ===========================================
+  # ClickHouse Tests (optional, manual trigger)
+  # ===========================================
+  test-clickhouse:
+    if: github.event_name == 'workflow_dispatch' && contains(github.event.inputs.backends, 'clickhouse')
+    runs-on: ubuntu-latest
+
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:latest
+        ports:
+          - 9000:9000
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    container:
+      image: rocker/r-ver:4.4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update && apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev
+
+      - name: Cache R packages
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-clickhouse-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: r-clickhouse-
+
+      - name: Install R dependencies
+        run: |
+          Rscript -e "install.packages(c('remotes', 'testthat', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "install.packages('RClickhouse', repos = 'https://cloud.r-project.org')"
+          Rscript -e "remotes::install_deps(dependencies = TRUE)"
+
+      - name: Create test database
+        run: |
+          apt-get install -y clickhouse-client
+          clickhouse-client --host clickhouse --query "CREATE DATABASE IF NOT EXISTS zzedc_test"
+
+      - name: Run ClickHouse tests
+        env:
+          ZZEDC_TEST_BACKENDS: clickhouse
+          ZZEDC_TEST_CH_HOST: clickhouse
+          ZZEDC_TEST_CH_PORT: 9000
+          ZZEDC_TEST_CH_DB: zzedc_test
+          ZZEDC_TEST_CH_USER: default
+          ZZEDC_TEST_CH_PASSWORD: ""
+        run: |
+          Rscript -e "testthat::test_local(filter = 'db-')"

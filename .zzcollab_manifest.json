@@ -1,0 +1,152 @@
+{
+  "version": "1.0",
+  "created_at": "2025-09-12T01:29:20Z",
+  "package_name": "zzedc",
+  "modules_loaded": [
+    "core",
+    "templates",
+    "structure",
+    "rpackage",
+    "docker",
+    "analysis",
+    "cicd",
+    "devtools",
+    "team_init"
+  ],
+  "command_line_options": {
+    "build_docker": true,
+    "dotfiles_dir": "/Users/zenn/Dropbox/dotfiles",
+    "dotfiles_nodot": true,
+    "base_image": "rocker/r-ver"
+  },
+  "directories": [
+    "data/raw",
+    "data/processed",
+    "analysis/exploratory",
+    "analysis/modeling",
+    "analysis/validation",
+    "reports",
+    "reports/dashboard",
+    "outputs/figures",
+    "outputs/tables",
+    "scripts",
+    ".github/workflows",
+    "tests",
+    "tests/testthat",
+    "tests/integration",
+    "analysis",
+    "analysis/report",
+    "analysis/figures",
+    "analysis/tables",
+    "analysis/templates",
+    "scripts",
+    ".github/workflows"
+  ],
+  "files": [
+    "DESCRIPTION",
+    "LICENSE",
+    "NAMESPACE",
+    "zzedc.Rproj",
+    "tests/testthat.R",
+    "tests/testthat/test-utils.R",
+    "setup_renv.R",
+    "./.zshrc_docker",
+    "scripts/02_data_validation.R",
+    "scripts/00_setup_parallel.R",
+    "scripts/00_database_setup.R",
+    "scripts/99_reproducibility_check.R",
+    "scripts/00_testing_guide.R",
+    "zzcollab-uninstall.sh"
+  ],
+  "template_files": [
+    {
+      "template": "paradigms/analysis/Makefile.analysis",
+      "destination": "Makefile.analysis"
+    },
+    {
+      "template": "paradigms/analysis/DESCRIPTION.analysis",
+      "destination": "DESCRIPTION.analysis"
+    },
+    {
+      "template": ".Rbuildignore",
+      "destination": ".Rbuildignore"
+    },
+    {
+      "template": "R/utils.R",
+      "destination": "R/utils.R"
+    },
+    {
+      "template": "tests/integration/test-data-pipeline.R",
+      "destination": "tests/integration/test-data-pipeline.R"
+    },
+    {
+      "template": "tests/integration/test-analysis-scripts.R",
+      "destination": "tests/integration/test-analysis-scripts.R"
+    },
+    {
+      "template": "tests/integration/test-report-rendering.R",
+      "destination": "tests/integration/test-report-rendering.R"
+    },
+    {
+      "template": ".gitignore",
+      "destination": ".gitignore"
+    },
+    {
+      "template": ".Rprofile",
+      "destination": ".Rprofile"
+    },
+    {
+      "template": "Dockerfile.unified",
+      "destination": "Dockerfile"
+    },
+    {
+      "template": "docker-compose.yml",
+      "destination": "docker-compose.yml"
+    },
+    {
+      "template": ".zshrc_docker",
+      "destination": ".zshrc_docker"
+    },
+    {
+      "template": "check_renv_for_commit.R",
+      "destination": "check_renv_for_commit.R"
+    },
+    {
+      "template": "ZZCOLLAB_USER_GUIDE.md",
+      "destination": "ZZCOLLAB_USER_GUIDE.md"
+    },
+    {
+      "template": "PARADIGM_GUIDE.md",
+      "destination": "PARADIGM_GUIDE.md"
+    },
+    {
+      "template": "report.Rmd",
+      "destination": "analysis/report/report.Rmd"
+    },
+    {
+      "template": "references.bib",
+      "destination": "analysis/report/references.bib"
+    },
+    {
+      "template": "statistics-in-medicine.csl",
+      "destination": "analysis/report/statistics-in-medicine.csl"
+    },
+    {
+      "template": "workflows/analysis-paradigm.yml",
+      "destination": ".github/workflows/analysis-workflow.yml"
+    },
+    {
+      "template": "workflows/render-report.yml",
+      "destination": ".github/workflows/render-report.yml"
+    },
+    {
+      "template": "Makefile",
+      "destination": "Makefile"
+    }
+  ],
+  "symlinks": [],
+  "dotfiles": [
+    ".vimrc"
+  ],
+  "docker_image": null
+}

@@ -1,0 +1,73 @@
+---
+title: "Setup Wizard Guide (Reference)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Setup Wizard Guide (Reference)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+# The web setup wizard
+
+The setup wizard is a click-through alternative to the Google
+Sheets authoring path described in
+[Content-Author Guide](content-author-guide.html). Use it when
+your team prefers an in-application UI over a spreadsheet.
+
+## When the wizard makes sense
+
+- A solo investigator setting up a single-site trial without a
+  separate technical lead.
+- An institution that blocks Google Drive but allows you to
+  reach the application's own URL.
+- A small team that does not need the structured
+  spreadsheet-as-source-of-truth workflow.
+
+## When the Google Sheets path is better
+
+- Multi-site studies where coordinators at different sites
+  want to collaborate on the data dictionary before import.
+- Trials whose validation-rule list is large enough that
+  side-by-side editing in a spreadsheet is faster than
+  clicking through screens.
+- Trials that re-import an updated workbook periodically (the
+  spreadsheet remains the source of truth).
+
+## How to use the wizard
+
+1. Launch the application: `zzedc::launch_zzedc()`.
+2. Open `http://localhost:3838` (or the deployed URL).
+3. The wizard appears automatically the first time the
+   application connects to an empty database. Otherwise,
+   navigate to *Admin → Setup Wizard*.
+
+The wizard walks through six steps:
+
+1. **Study info**: name, protocol ID, PI, target enrollment.
+2. **Admin account**: the first administrator's username,
+   password, and email.
+3. **Security configuration**: encryption key, salt, and
+   session timeout.
+4. **Team members**: usernames, roles, and site assignments
+   for the rest of the team.
+5. **Database backend**: SQLite (default) or one of the
+   server backends.
+6. **Data dictionary**: choose to upload a CSV, paste a
+   workbook link, or build forms one at a time in the wizard.
+
+Each step has its own help text. The wizard does not enforce
+the multi-site site_id consistency that the Google Sheets
+path makes obvious; for multi-site trials, prefer the
+spreadsheet.
+
+## Companion guides
+
+- [Content-Author Guide](content-author-guide.html) — the
+  canonical Google Sheets authoring path
+- [Technical-Lead Guide](technical-lead-guide.html) — Chapter
+  5 covers programmatic database initialisation that
+  complements the wizard's GUI-driven path

@@ -1,0 +1,7 @@
+field_name,field_label,field_type,required,validation,description
+subject_id,Subject ID,text,TRUE,^S[0-9]{3}$,Unique identifier (format: SXXX)
+enrollment_date,Enrollment Date,date,TRUE,NA,Date of enrollment visit
+age,Age (years),numeric,TRUE,between 50 and 90,Age at baseline
+gender,Gender,select,TRUE,in(M,F),Biological sex
+education_years,Years of Education,numeric,FALSE,between 0 and 30,Years of formal education
+medical_history,Has Medical History,select,FALSE,in(Yes,No),Any significant medical conditions

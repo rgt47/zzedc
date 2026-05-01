@@ -1,0 +1,915 @@
+---
+title: "Content-Author Guide: Setting Up a Clinical Trial in ZZedc"
+subtitle: "A complete role-based runbook for the study coordinator who provides the trial content"
+author: "ZZedc Team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Content-Author Guide for Study Coordinators}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+# About this guide
+
+This is the canonical guide for the **non-technical team
+member** who provides the content of a clinical trial in
+ZZedc: the case-report forms, the validation rules, the user
+roster, the site assignments, and the day-to-day operating
+procedures. You do not need to write R code or run command-line
+tools. You will work alongside a **technical lead** (a
+statistician, biomedical informaticist, or IT-adjacent
+colleague) who handles installation, server configuration, and
+key management. That person follows a parallel guide,
+[Technical-Lead Guide](technical-lead-guide.html).
+
+The guide is written for a first small-to-medium clinical trial
+(roughly 10 to 200 participants, 1 to 5 sites). It assumes you
+are setting up the trial from scratch. It does not assume any
+prior experience with ZZedc, R, or institutional IT.
+
+By the end of this guide your trial will be ready for sites to
+begin collecting real subject data. The technical lead will
+have a working server; you will have a working data dictionary,
+validation rules, user roster, and trained site staff.
+
+---
+
+# Chapter 1. Where you fit in the team
+
+ZZedc separates the *trial content* (forms, rules, users) from
+the *technical infrastructure* (server, encryption, backups).
+This separation is intentional: it lets a domain expert author
+the content using tools they are comfortable with (Google
+Sheets), while a technical colleague handles the parts that
+require a terminal, database, or server.
+
+## Division of labour
+
+| You (content author) | Technical lead |
+|---|---|
+| Define the case-report forms | Install the package and provision the server |
+| Author validation rules in plain language | Initialise the encrypted database |
+| Build the user roster (names, sites, roles) | Run the import that loads your workbook |
+| Test-drive the trial with synthetic data | Configure TLS, backups, and monitoring |
+| Train site staff to use the application | Give site staff the URL and credentials |
+| Resolve data queries with site coordinators | Maintain the system and verify the audit chain |
+
+You will exchange three artefacts with the technical lead:
+**(1)** the Google Sheets workbook URL, **(2)** the list of
+site-id values for your trial, **(3)** the agreed go-live date.
+Everything else lives in the workbook or in the application.
+
+## What if there is no technical lead?
+
+For a single-investigator trial running locally on a laptop,
+the same person can play both roles. The
+[Technical-Lead Guide](technical-lead-guide.html) walks through
+a 60-minute SQLite-on-laptop setup that is appropriate for
+solo work; if you can copy and paste a few R commands, you can
+follow it. For anything multi-site or multi-user, do not skip
+the technical lead.
+
+---
+
+# Chapter 2. Trial-planning checklist before you start authoring
+
+Spending an hour on this checklist saves a week of rework. Do
+not start filling in the workbook until you can answer every
+question.
+
+## Trial design
+
+- [ ] What is the trial's full name and protocol identifier?
+- [ ] How many participants will you enrol (a realistic ceiling
+      for the next 12 months)?
+- [ ] How many sites will collect data (1 for a single-site
+      trial; otherwise list each)?
+- [ ] What are the visit-points (Baseline, Week 4, Week 12,
+      Month 6, ...)?
+- [ ] Which case-report forms are filled in at each visit
+      (a Baseline-only form, a per-visit form, an at-discharge
+      form)?
+- [ ] Is the trial blinded, and if so, who sees what?
+
+## Forms and fields
+
+For each case-report form on your list, sketch out:
+
+- [ ] The form's short code (`enrollment`, `vitals`, `mmse`)
+- [ ] The fields and their data types
+      (text, number, date, single-choice, multi-choice)
+- [ ] Which fields are required, which are optional
+- [ ] Plausible ranges for each numeric field
+- [ ] Allowed values for each single-choice field
+
+You do not need to fill out the workbook yet. Sketch on paper
+or in a plain document.
+
+## Sites and roles
+
+- [ ] List every site by short identifier (`SITE-001`,
+      `SITE-002`, ...) and full name
+- [ ] For each site, list the people who will work on the trial
+      and their roles (PI, Coordinator, Researcher, Monitor)
+- [ ] Decide whether coordinators at one site should be able to
+      see another site's data (usually no; default to siloed)
+
+## Validation rules
+
+- [ ] Eligibility constraints (age range, exclusion criteria
+      that can be expressed as a rule)
+- [ ] Plausibility ranges for every numeric field (heart rate
+      between 30 and 200, MMSE total between 0 and 30)
+- [ ] Date orderings (date of birth before consent;
+      randomisation before any visit)
+- [ ] Visit-window rules (Week 4 visit must occur 25 to 31 days
+      after randomisation)
+- [ ] Cross-field consistency (if pregnant is `Yes`, sex must
+      be `Female`; if a serious AE, a description is required)
+
+These four lists are the input to the workbook. You can sketch
+them on paper, in a Word document, or in any tool you find
+convenient.
+
+---
+
+# Chapter 3. Authoring the workbook in Google Sheets
+
+This chapter is the core of your work. By the end of it you
+will have a Google Sheets workbook with three completed tabs
+(`Study_Users`, `Data_Dictionary`, `validation_rules`) ready
+to hand to the technical lead.
+
+## 3.1 Before you begin
+
+You will need:
+
+- A Google account (work or personal).
+- The workbook template URL from your technical lead. They will
+  share a Sheet with you, or send you a template you can copy.
+- Your sketches from Chapter 2.
+
+You do **not** need:
+
+- R, RStudio, or any command-line tool.
+- A Google Cloud account.
+- Any programming knowledge.
+
+## 3.2 Create your workbook
+
+If your technical lead sent you a template URL, click it and
+choose *File → Make a copy*. The copy lands in your own Google
+Drive. Rename it to something memorable, for example
+*MEMORY-001 Study Configuration*.
+
+If you are starting from scratch, create a new Sheet at
+[sheets.google.com](https://sheets.google.com) and add three
+tabs. Right-click the tab strip at the bottom and choose
+*Rename*; name them `Study_Users`, `Data_Dictionary`, and
+`validation_rules` exactly as written. Capitalisation and
+spelling matter: the import tool looks for those tab names
+exactly.
+
+## 3.3 Define your study team (`Study_Users` tab)
+
+Click the `Study_Users` tab. The first row is for column
+headers; type these into row 1:
+
+```
+username | full_name | email | role | password_initial | site_id | active
+```
+
+Then start adding your team members, one per row.
+
+### Example: a four-person memory study at one site
+
+| username     | full_name        | email                  | role        | password_initial | site_id | active |
+|--------------|------------------|------------------------|-------------|------------------|---------|--------|
+| dr_smith     | Jane Smith       | jsmith@example.org     | PI          | TempPass!2026    | 001     | TRUE   |
+| coord_jones  | Bob Jones        | bjones@example.org     | Coordinator | TempPass!2026    | 001     | TRUE   |
+| nurse_lee    | Carol Lee        | clee@example.org       | Coordinator | TempPass!2026    | 001     | TRUE   |
+| analyst_park | Diego Park       | dpark@example.org      | Researcher  | TempPass!2026    | 001     | TRUE   |
+
+### What each column means
+
+- **username**: login name, no spaces, all lowercase. Once set,
+  it should not change.
+- **full_name**: how the person should appear in the audit log
+  and reports.
+- **email**: used for password resets and notifications.
+- **role**: choose one of `PI`, `Coordinator`, `Researcher`,
+  `DataManager`, `Monitor`, `Admin`. The role controls what the
+  user is allowed to do. If you are unsure, `Coordinator` is
+  the most common choice for nurses and study coordinators.
+- **password_initial**: a starting password. The user is forced
+  to change it the first time they log in. Use the same value
+  for everyone.
+- **site_id**: the site the user belongs to (see §3.4 for
+  multi-site).
+- **active**: `TRUE` for current team members, `FALSE` to
+  disable an account without deleting the row.
+
+### Role cheat sheet
+
+| Role | Can do | Cannot do |
+|---|---|---|
+| `Admin` | Everything, including user management | (no restrictions) |
+| `PI` | Read all subjects at their site, sign-off on data | User management |
+| `Coordinator` | Enter and edit subject data at their site | See other sites |
+| `Researcher` | Read and export data | Edit subject data |
+| `Monitor` | Read-only audit and quality reports | Edit anything |
+| `DataManager` | Edit, query, lock data; manage validation rules | Run the server |
+
+## 3.4 Multi-site authoring
+
+For a multi-site trial, the `site_id` column is the only thing
+that changes. Each user belongs to exactly one site (or to
+"all sites" via the special `site_id = "ALL"`, reserved for the
+PI, central monitor, and data manager).
+
+### Example: a three-site memory trial
+
+| username | full_name | email | role | password_initial | site_id | active |
+|---|---|---|---|---|---|---|
+| dr_smith | Jane Smith | jsmith@example.org | PI | TempPass!2026 | ALL | TRUE |
+| ucsd_coord | Anh Nguyen | aN@ucsd.edu | Coordinator | TempPass!2026 | UCSD | TRUE |
+| ucsd_pi | Maria Lopez | ml@ucsd.edu | PI | TempPass!2026 | UCSD | TRUE |
+| jhu_coord | Sam Patel | sp@jhu.edu | Coordinator | TempPass!2026 | JHU | TRUE |
+| stan_coord | Tara Liu | tl@stanford.edu | Coordinator | TempPass!2026 | STAN | TRUE |
+| central_dm | Kim Tran | kt@central.org | DataManager | TempPass!2026 | ALL | TRUE |
+| central_mon | Pat Diaz | pd@central.org | Monitor | TempPass!2026 | ALL | TRUE |
+
+### Site-id naming convention
+
+Use short, uppercase, alphabetic codes for site identifiers
+(`UCSD`, `JHU`, `STAN`, `BWH`). Numeric codes (`001`, `002`)
+work too but are less self-documenting. Whatever you choose,
+agree on the list with the technical lead before authoring,
+and reuse the exact same codes throughout the workbook.
+
+### Site-roster sub-tab (recommended)
+
+Create an additional sub-tab named `Sites` with the columns
+`site_id`, `site_name`, `pi_name`, `pi_email`, `irb_number`,
+`active`. The technical lead can read this for reporting; the
+import does not require it but the document is essential for
+day-2 operations.
+
+## 3.5 Define your forms (`Data_Dictionary` tab)
+
+This is the longest of the three tabs. Each row describes one
+field on one form. If your study has three forms with ten
+fields each, this tab has thirty rows.
+
+Click the `Data_Dictionary` tab and add these column headers in
+row 1:
+
+```
+form_code | field_name | field_label | field_type | required | validation | description | field_order
+```
+
+### What each column means
+
+- **form_code**: short name for the form, in lowercase, no
+  spaces. Examples: `enrollment`, `vitals`, `mmse`.
+- **field_name**: short, lowercase variable name for the field.
+  No spaces. Examples: `subject_id`, `dob`, `mmse_total`.
+- **field_label**: the human-readable label that appears next
+  to the input box on screen.
+- **field_type**: one of `text`, `numeric`, `date`, `select`,
+  `radio`, `checkbox`. See the cheat sheet below.
+- **required**: `TRUE` if the field must be filled in, `FALSE`
+  otherwise.
+- **validation**: optional. A short rule like
+  `between 0 and 30` or `in(Yes, No)`. We expand on these in
+  §3.6.
+- **description**: help text that appears under the field for
+  the data-entry user.
+- **field_order**: a number from 1 upward, controlling the
+  order in which fields appear. Use 10, 20, 30 to leave room
+  for inserting fields later.
+
+### Field-type cheat sheet
+
+| Use this type | When the answer is... |
+|---|---|
+| `text` | A short free-text answer (name, ID, comment) |
+| `numeric` | A number (age, weight, score) |
+| `date` | A calendar date |
+| `select` | One choice from a long drop-down list |
+| `radio` | One choice from 2-5 visible options |
+| `checkbox` | A yes/no answer or a multi-select list |
+
+### Example A: Enrollment form
+
+| form_code | field_name | field_label | field_type | required | validation | description | field_order |
+|---|---|---|---|---|---|---|---|
+| enrollment | subject_id | Subject ID | text | TRUE | | Format: SUBJ-NNN | 10 |
+| enrollment | enrollment_date | Enrollment Date | date | TRUE | | Date the consent was signed | 20 |
+| enrollment | dob | Date of Birth | date | TRUE | | | 30 |
+| enrollment | sex | Sex | radio | TRUE | in(Female, Male, Other) | | 40 |
+| enrollment | education_years | Years of Education | numeric | TRUE | between 0 and 30 | Total years of formal education | 50 |
+| enrollment | medical_history | Notable Medical History | text | FALSE | | Free text, brief | 60 |
+
+### Example B: Vital signs form
+
+| form_code | field_name | field_label | field_type | required | validation | description | field_order |
+|---|---|---|---|---|---|---|---|
+| vitals | visit | Visit | select | TRUE | in(Baseline, Week 4, Week 8) | | 10 |
+| vitals | exam_date | Examination Date | date | TRUE | | | 20 |
+| vitals | weight_kg | Weight (kg) | numeric | TRUE | between 30 and 200 | | 30 |
+| vitals | sbp | Systolic BP (mmHg) | numeric | TRUE | between 70 and 220 | Average of two readings | 40 |
+| vitals | dbp | Diastolic BP (mmHg) | numeric | TRUE | between 40 and 130 | | 50 |
+| vitals | hr | Heart Rate (bpm) | numeric | TRUE | between 30 and 200 | | 60 |
+
+### Example C: MMSE assessment
+
+| form_code | field_name | field_label | field_type | required | validation | description | field_order |
+|---|---|---|---|---|---|---|---|
+| mmse | visit | Visit | select | TRUE | in(Baseline, Week 4, Week 8) | | 10 |
+| mmse | assessment_date | Assessment Date | date | TRUE | | | 20 |
+| mmse | orientation_time | Orientation to Time | numeric | TRUE | between 0 and 5 | Score 0-5 | 30 |
+| mmse | orientation_place | Orientation to Place | numeric | TRUE | between 0 and 5 | Score 0-5 | 40 |
+| mmse | registration | Registration | numeric | TRUE | between 0 and 3 | Score 0-3 | 50 |
+| mmse | attention | Attention and Calculation | numeric | TRUE | between 0 and 5 | Score 0-5 | 60 |
+| mmse | recall | Recall | numeric | TRUE | between 0 and 3 | Score 0-3 | 70 |
+| mmse | language | Language | numeric | TRUE | between 0 and 8 | Score 0-8 | 80 |
+| mmse | visual_spatial | Visual-Spatial | numeric | TRUE | between 0 and 1 | Score 0-1 | 90 |
+| mmse | mmse_total | MMSE Total | numeric | TRUE | between 0 and 30 | | 100 |
+
+### Example D: Adverse event log
+
+| form_code | field_name | field_label | field_type | required | validation | description | field_order |
+|---|---|---|---|---|---|---|---|
+| ae | ae_term | Adverse Event | text | TRUE | | Brief description | 10 |
+| ae | onset_date | Onset Date | date | TRUE | | | 20 |
+| ae | severity | Severity | radio | TRUE | in(Mild, Moderate, Severe) | | 30 |
+| ae | relationship | Study-Drug Relation | radio | TRUE | in(Unrelated, Unlikely, Possible, Probable, Definite) | | 40 |
+| ae | serious | Meets SAE Criteria? | checkbox | TRUE | | | 50 |
+| ae | resolution_date | Resolution Date | date | FALSE | | Leave blank if ongoing | 60 |
+
+## 3.6 Define validation rules (`validation_rules` tab)
+
+Validation rules catch data-entry errors before they propagate.
+A rule is a short condition that must be true for the data to
+be saved. If the condition is false, ZZedc shows an error and
+asks the user to correct the entry.
+
+Click the `validation_rules` tab and add these column headers
+in row 1:
+
+```
+rule_id | field_code | rule_dsl | form_code | rule_name | error_message | severity | rule_category | is_active
+```
+
+### What each column means
+
+- **rule_id**: unique short label, in upper case. Examples:
+  `AGE_RANGE`, `MMSE_SUM`, `DOB_BEFORE_CONSENT`.
+- **field_code**: the field the rule applies to. Match exactly
+  what you put in the `field_name` column on the
+  `Data_Dictionary` tab.
+- **rule_dsl**: the rule itself, in plain English (see below).
+- **form_code**: which form the rule belongs to.
+- **rule_name**: a human-readable name shown in reports.
+- **error_message**: what the data-entry user sees when the
+  rule fails. Be specific and constructive.
+- **severity**: `ERROR` (blocks save), `WARNING` (saves but
+  flags), `INFO` (shows a note). When in doubt, use `ERROR`.
+- **rule_category**: `FIELD` for single-field checks,
+  `CROSS_FIELD` for checks involving multiple fields on the
+  same form, `CROSS_FORM` for checks across forms.
+- **is_active**: `TRUE` for rules that should fire, `FALSE` to
+  temporarily disable a rule without deleting it.
+
+### Six validation patterns to copy
+
+#### 1. Range check
+
+The field must fall in a numeric range.
+
+```
+age between 18 and 90
+mmse_total between 0 and 30
+weight_kg between 30 and 200
+```
+
+#### 2. List membership
+
+The field must be one of a small set of allowed values.
+
+```
+sex in (Female, Male, Other)
+severity in (Mild, Moderate, Severe)
+visit in (Baseline, Week 4, Week 8)
+```
+
+#### 3. Date ordering
+
+```
+dob < enrollment_date
+enrollment_date <= randomization_date
+randomization_date <= assessment_date
+resolution_date >= onset_date
+```
+
+#### 4. Visit window
+
+```
+assessment_date - randomization_date between 25 and 31
+```
+
+(Week 4 visit must occur between 25 and 31 days after
+randomisation.)
+
+#### 5. Conditional consistency
+
+```
+if pregnant == "Yes" then sex == "Female" endif
+if serious == TRUE then sae_criteria != "" endif
+if visit == "Baseline" then visit_number == 1 endif
+```
+
+#### 6. Sum / formula
+
+```
+mmse_total = orientation_time + orientation_place + registration + attention + recall + language + visual_spatial
+```
+
+### A complete example
+
+| rule_id | field_code | rule_dsl | form_code | rule_name | error_message | severity | rule_category | is_active |
+|---|---|---|---|---|---|---|---|---|
+| AGE_RANGE | dob | (enrollment_date - dob) / 365 between 50 and 90 | enrollment | Age at enrollment 50-90 | Subject must be aged 50 to 90 at enrollment | ERROR | CROSS_FIELD | TRUE |
+| EDU_RANGE | education_years | education_years between 0 and 30 | enrollment | Education 0-30 years | Education must be 0-30 years | ERROR | FIELD | TRUE |
+| BP_RANGE | sbp | sbp between 70 and 220 | vitals | Systolic BP plausible | Systolic BP outside 70-220 mmHg | ERROR | FIELD | TRUE |
+| BP_ORDER | sbp | sbp > dbp | vitals | Systolic > Diastolic | Systolic must be greater than diastolic | ERROR | CROSS_FIELD | TRUE |
+| MMSE_TOTAL | mmse_total | mmse_total between 0 and 30 | mmse | MMSE total in range | MMSE total must be 0-30 | ERROR | FIELD | TRUE |
+| MMSE_SUM | mmse_total | mmse_total = orientation_time + orientation_place + registration + attention + recall + language + visual_spatial | mmse | MMSE component sum | MMSE total does not match component sum | ERROR | CROSS_FIELD | TRUE |
+| WK4_WINDOW | assessment_date | assessment_date - randomization_date between 25 and 31 | mmse | Week 4 visit window | Week 4 visit must occur 25-31 days after randomization | WARNING | CROSS_FORM | TRUE |
+| AE_RESOLVED | resolution_date | if resolution_date != "" then resolution_date >= onset_date endif | ae | Resolution after onset | Resolution date must be on or after onset date | ERROR | CROSS_FIELD | TRUE |
+| SAE_REQUIRES_DESC | ae_description | if serious == TRUE then ae_description != "" endif | ae | SAE requires description | Serious adverse events must include a description | ERROR | CROSS_FIELD | TRUE |
+
+You do not need every rule on day one. Start with range checks
+and required fields, and add cross-field rules as the study
+matures.
+
+## 3.7 Share the workbook with your technical lead
+
+Once the three tabs are filled in, click *Share* in the upper
+right of Google Sheets and share the workbook with your
+technical lead's Google account. Editor permission is
+appropriate.
+
+Send the technical lead:
+
+- The URL of the workbook (copy it from the address bar).
+- The intended database file name, if you have one in mind.
+- Whether this is a fresh setup or an update to an existing
+  database.
+
+The technical lead will run a single R command,
+`setup_zzedc_from_gsheets()`, that reads your three tabs and
+populates the ZZedc database. Expected time: under one minute
+for a small study.
+
+---
+
+# Chapter 4. Test-driving the trial
+
+Before site staff touch the application, *you* should walk
+through one synthetic subject end-to-end. This is the single
+highest-value quality check you can do. It catches every
+problem that paper review will miss: a misspelled field name,
+a validation rule that was supposed to be a warning but got set
+to error, a confusing label, a missing required field.
+
+## The dry-run protocol
+
+After the technical lead confirms the import succeeded, ask
+them for the application URL and your `Admin` credentials.
+Then:
+
+1. **Log in as Admin.** Confirm you see all forms in the
+   sidebar.
+2. **Create a synthetic subject.** Use a fake ID
+   (`TEST-001`). Do not use any real patient data.
+3. **Walk through every form, every field, every visit.**
+   Enter realistic but synthetic values.
+4. **Test the "wrong" path.** Try to enter a value that should
+   trigger each validation rule. Confirm the error message is
+   helpful.
+5. **Save and re-open the subject.** Confirm the data persists.
+6. **Run a basic export.** Choose CSV; open it in a
+   spreadsheet; confirm every field appears with the value you
+   entered.
+7. **Log in as a Coordinator at the wrong site.** Confirm you
+   cannot see your synthetic subject.
+8. **Delete the synthetic subject.** Confirm it disappears
+   from the list (a record of the deletion remains in the
+   audit log; this is intentional).
+
+If anything looks wrong, do not paper over it. Tell the
+technical lead, and either re-edit the workbook (for
+form/rule/user changes) or have the technical lead fix the
+configuration directly.
+
+## What "looks wrong" usually means
+
+| Symptom | Likely cause |
+|---|---|
+| A field is missing from a form | Wrong `form_code` or missing row in `Data_Dictionary` |
+| A validation rule never fires | `field_code` typo or `is_active` set to `FALSE` |
+| Site siloing is wrong | Wrong `site_id` on a user or on the rule |
+| A drop-down is missing options | `validation` cell uses wrong syntax (`in(A, B, C)` is correct) |
+| The audit log shows no entries | Technical-lead issue, not a content issue |
+
+---
+
+# Chapter 5. Training site staff
+
+## Train each site separately
+
+Plan a 30 to 45 minute training session for each site. Schedule
+it within a week of go-live, not earlier (people forget). Do
+not train multiple sites at once unless they share staff.
+
+## Training agenda (30 minutes)
+
+1. **Trial recap (5 min).** What we are studying, what data we
+   collect at each visit, what counts as an adverse event.
+2. **Live demo (10 min).** Open the application; log in;
+   create a synthetic subject; fill in the Baseline form;
+   trigger one validation error on purpose; save; re-open.
+3. **Each coordinator does one synthetic subject (10 min).**
+   They drive; you watch over their shoulder. Use a different
+   fake ID per coordinator (`TEST-SITE-001`,
+   `TEST-SITE-002`).
+4. **Questions and red flags (5 min).** Anything that confused
+   anyone is a sign that the form, label, or description text
+   needs revision.
+
+## What to hand over
+
+- The application URL.
+- Each coordinator's username (you do not see their password;
+  they will set it on first login).
+- A one-page printed cheat sheet with: how to log in, how to
+  create a subject, how to enter a visit, how to ask for help.
+- Your phone or email for the first two weeks (so problems do
+  not pile up while site staff figure out who to ask).
+
+## Common training gotchas
+
+- **First login.** Coordinators are forced to change the
+  initial password. Some get nervous and call you. Reassure
+  them: a strong password they choose is the right answer.
+- **Browser compatibility.** ZZedc works in any modern browser.
+  Internet Explorer 11 is not modern; ask sites running it to
+  use Edge or Chrome.
+- **Required fields.** People sometimes assume optional fields
+  are required because the form is long. Print the cheat sheet
+  with the required-vs-optional distinction visible.
+- **Form layout on mobile.** The application is responsive but
+  not optimised for phones. Site coordinators should use a
+  laptop or tablet.
+
+---
+
+# Chapter 6. Day-to-day operations
+
+Once sites begin entering subjects, your job shifts from
+*authoring* to *operating*. This chapter covers the
+procedures that keep the trial running smoothly.
+
+## 6.1 Reviewing data weekly
+
+Block 30 to 60 minutes per week to review newly entered data.
+Open the application, switch to the *Data Explorer* tab, and
+look at:
+
+- New subjects since last week.
+- Visits completed since last week.
+- Validation warnings (rules with `severity = WARNING` that
+  fired but did not block save).
+- Any subjects with no follow-up visit recorded but a baseline
+  more than (visit-window-end + 7 days) ago.
+
+The technical lead can configure an automated weekly summary
+e-mail; ask for it if you do not have one.
+
+## 6.2 Resolving data queries
+
+A *query* is a question you raise about a specific data point.
+Common reasons: a value is implausible (a 27-year-old in a
+50-90 trial), a date is missing, a follow-up visit is overdue.
+
+### The query life cycle
+
+1. **Open** the query in the application: navigate to the
+   subject, click the field in question, choose
+   *Raise query*. Write a specific question
+   (*"Is the height value 1.65 in metres or 165 in cm?"*).
+2. The site coordinator gets the query in their *Open Queries*
+   list at next login.
+3. **Respond.** The coordinator either corrects the value
+   (with a reason) or explains why the value is correct.
+4. **Close** the query. You read the response, accept it (or
+   send it back if more clarification is needed), and close.
+
+### Query SLA
+
+Agree on a service-level expectation with the site coordinators
+at training. Suggested:
+
+| Query type | Response expected | Closure expected |
+|---|---|---|
+| Plausibility check | 3 business days | 5 business days |
+| Missing required value | 1 business day | 3 business days |
+| SAE-related | 24 hours | 24 hours |
+
+Record the SLA in the protocol and on the cheat sheet.
+
+## 6.3 Locking completed visits
+
+Once a subject completes a visit and all queries are resolved,
+the visit can be *locked*. Locked data cannot be edited
+without a documented data-correction request, which the audit
+log records. Use the *Lock Visit* control in the application.
+
+Lock visits as soon as they are clean. This protects the trial
+from late-stage edits that compromise data integrity.
+
+## 6.4 Exporting data for analysis
+
+When the analyst needs a snapshot for an interim analysis or
+for the final report:
+
+1. Tell the technical lead you need an export.
+2. They will produce a snapshot in CSV, Excel, or SAS XPT
+   format from the *Export* tab and place it in the agreed
+   secure-share location.
+3. The audit log records the export, who ran it, and what was
+   in it. The analyst inherits the obligation to handle the
+   data per the protocol.
+
+Do not export the database directly; always go through the
+application's *Export* tab so the action is logged.
+
+---
+
+# Chapter 7. Pre-go-live checklist
+
+Use this checklist 7 to 14 days before the planned go-live
+date.
+
+## Content readiness
+
+- [ ] All case-report forms are in the `Data_Dictionary` tab,
+      with required-vs-optional set correctly
+- [ ] All validation rules are in the `validation_rules` tab
+      and active
+- [ ] Every site is represented in `Study_Users` with at least
+      one PI and one Coordinator
+- [ ] The roster has been reviewed by the trial PI and approved
+- [ ] You have walked through one synthetic subject end-to-end
+      (Chapter 4)
+
+## Technical readiness (verify with the technical lead)
+
+- [ ] Server is provisioned and reachable from each site
+- [ ] TLS / HTTPS is enabled (the URL starts with `https://`)
+- [ ] Daily backups are configured and tested (the technical
+      lead has performed at least one restore-from-backup
+      drill)
+- [ ] Encryption at rest is enabled and the encryption key is
+      held by the agreed custodian
+- [ ] The audit log validates end-to-end (the technical lead
+      has run `verify_audit_log_integrity()`)
+
+## People readiness
+
+- [ ] Each site has had its 30-minute training session
+- [ ] Each coordinator has logged in once with their initial
+      credentials and changed their password
+- [ ] Each coordinator has created their own synthetic subject
+      successfully
+- [ ] You have a documented escalation path
+      (coordinator → you → technical lead → PI)
+- [ ] The query SLA is agreed and documented
+
+## Trial-specific readiness
+
+- [ ] The IRB has approved the final CRF set
+- [ ] The protocol references the correct ZZedc CRF version
+- [ ] Sponsor (or DCC, or PI) has signed off on go-live
+
+When every box is checked, schedule a 30-minute go-live call
+with the technical lead and the site PIs. On the call: confirm
+the URL, confirm the credentials work, ask each site PI for
+"go" or "no-go", and switch the application to the *Live*
+banner state via the technical lead's command.
+
+---
+
+# Chapter 8. After go-live
+
+The first two weeks after go-live are the highest-risk window.
+Plan for it.
+
+## Week 1
+
+- Daily check-in with each site coordinator (5 minutes by
+  phone or message).
+- Daily review of new subjects in the application.
+- Same-day query resolution for anything that comes up.
+
+## Weeks 2 to 4
+
+- Weekly check-in with each coordinator.
+- Weekly review of new data.
+- 24- to 48-hour query-resolution turnaround.
+
+## Steady state (week 5 onward)
+
+- Weekly data review.
+- Per the agreed SLA on queries.
+- Quarterly backup-restore drill with the technical lead.
+- Quarterly review of new validation rules to add (the trial
+  always teaches you something).
+
+## When to update the workbook after go-live
+
+Validation rules can be re-imported any time you update the
+`validation_rules` tab; the audit log captures every change.
+For changes to forms or team membership, ask the technical
+lead to make the change directly in the application's admin
+interface (the importer is one-way for those changes today).
+The roadmap in the
+[Technical-Lead Guide](technical-lead-guide.html) discusses
+when bidirectional sync is expected.
+
+---
+
+# Chapter 9. Common mistakes to avoid
+
+**Tab names must match exactly.** `Study_Users`, not
+`study_users` or `StudyUsers` or `Users`. Same for the other
+two tabs.
+
+**Field names must match exactly between tabs.** If you write
+`mmse_total` in `Data_Dictionary`, every reference in
+`validation_rules` must also be `mmse_total` (not
+`MMSE_total`, not `mmse-total`).
+
+**No empty rows in the middle of a tab.** The importer reads
+until it hits the first empty row, then stops. If you delete
+a row, delete the cells, do not just clear the contents.
+
+**Do not put real patient data in the workbook.** The workbook
+is for *configuration* (forms, rules, users), not subject
+data. Subject data goes into ZZedc directly through the
+application.
+
+**Initial passwords are temporary.** Do not use the same
+password as a real account. The user is forced to change it on
+first login.
+
+**Validation rule expressions need exact spelling.**
+`between 0 and 30` works. `Between 0 and 30` (capital B) might
+not. `between 0 to 30` definitely will not. Stick to the
+patterns in §3.6.
+
+**Site-id values must be consistent.** If you call the site
+`UCSD` in `Study_Users`, do not call it `Ucsd` in the
+`Sites` sub-tab. The string match is exact and case-sensitive.
+
+**Adding a site after go-live works; renaming one does not.**
+Do not change a `site_id` after data exists for that site.
+Adding a new site is fine; rename it before any subject is
+enrolled there, or live with the original name forever.
+
+**One coordinator per site is risky.** Plan for at least two
+people per site who can log in, even if only one is the
+primary data entry person. Vacation, illness, and turnover
+happen.
+
+---
+
+# Chapter 10. Frequently asked questions
+
+**Q. Do I need to use Google Sheets, or can I use Excel?**
+
+You can give the technical lead a CSV-shaped folder with
+`Study_Users.csv`, `Data_Dictionary.csv`, and
+`validation_rules.csv`. The technical lead has an alternate
+import path (see the [Technical-Lead Guide](technical-lead-guide.html)
+§"CSV authoring path") that does not require Google. Google
+Sheets is the easier option because it gives you live editing
+and collaboration. CSV works for sites that block Google Drive.
+
+**Q. Can two of us edit the workbook at the same time?**
+
+Yes. Google Sheets handles concurrent editing well. Coordinate
+who is editing which tab to avoid stepping on each other's
+work, but the tool itself will not lose your edits.
+
+**Q. What happens if I get the validation DSL syntax wrong?**
+
+The technical lead will see the parsing error in their import
+output and tell you which rule failed. Common fixes: change
+`Between` to `between`, change `to` to `and` in a range
+expression, and check for typos in field names.
+
+**Q. Can I have a field that depends on another field?**
+
+Yes. Use the conditional pattern in §3.6:
+
+```
+if pregnant == "Yes" then sex == "Female" endif
+```
+
+This expresses "if the subject is pregnant, sex must be
+Female". You can chain conditions and combine them with `and`
+and `or`.
+
+**Q. How do I version-control the workbook?**
+
+Google Sheets automatic version history is sufficient for
+most studies. *File → Version history → See version history*
+shows every edit. For higher-stakes trials, ask the technical
+lead to set up a daily snapshot of the workbook into the
+trial's document repository.
+
+**Q. We are migrating from REDCap. Do I still need to do all
+this?**
+
+Less of it. The technical lead can use
+`import_redcap_to_zzedc_db()` to migrate metadata and audit
+log. You will still want to walk through the dry-run protocol
+in Chapter 4 to confirm the migration produced the trial you
+expected. See the
+[REDCap migration roadmap](mysql-redcap-migration-roadmap.html).
+
+**Q. The technical lead says my workbook has 'skipped rules'.
+What does that mean?**
+
+A skipped rule is one the importer did not understand. The
+technical lead will give you the list. Two things to do: pick
+each one off and rewrite it using the patterns in §3.6, or
+flag it for manual implementation by the technical lead. Most
+skipped rules can be rewritten in five minutes once you see
+the patterns.
+
+**Q. A site refuses to use the application. What now?**
+
+Find out why. The most common reasons are: institutional
+firewall blocks the URL (technical-lead problem); browser too
+old (replace it); confused by the interface (more training);
+they liked the previous EDC system (the protocol's choice is
+final, but the more they understand *why* this system was
+chosen, the more they will accept it).
+
+---
+
+# Glossary
+
+- **Audit log**: an immutable record of every change made to
+  the database. Every save, edit, query, and export is logged
+  with the user, timestamp, and what changed.
+- **CRF** (Case Report Form): a form on which study data are
+  collected.
+- **DSL** (Domain-Specific Language): the small plain-English
+  syntax used in the `rule_dsl` column.
+- **Field**: a single data-entry box on a form.
+- **Form**: a collection of fields filled in together.
+- **Lock**: marking a visit as final, blocking further edits
+  without a documented data-correction request.
+- **PI** (Principal Investigator): the study lead.
+- **Query**: a question raised about a specific data point;
+  resolved by the site coordinator.
+- **Role**: the permission level assigned to a user
+  (Admin, PI, Coordinator, Researcher, Monitor, DataManager).
+- **SAE** (Serious Adverse Event): an adverse event meeting
+  one of six regulatory seriousness criteria.
+- **Site**: a physical or institutional location collecting
+  data; identified by a `site_id`.
+- **Validation rule**: a check that fires when a user enters
+  data, blocking the save or warning the user if the data
+  fail the check.
+
+---
+
+# Companion guides
+
+- [Technical-Lead Guide](technical-lead-guide.html) — the
+  parallel guide for your technical colleague
+- [Demonstration Trial via Google Sheets](demonstration-trial-via-gsheets.html)
+  — a worked example using a synthetic memory study
+- [REDCap Migration Roadmap](mysql-redcap-migration-roadmap.html)
+  — only relevant if you are migrating from REDCap

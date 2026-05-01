@@ -1,0 +1,21 @@
+subject_id,randomization_date,treatment_assignment,study_coordinator
+S001,2025-12-15,Active,Jane Smith
+S002,2025-12-15,Placebo,Jane Smith
+S003,2025-12-16,Active,Bob Johnson
+S004,2025-12-16,Placebo,Bob Johnson
+S005,2025-12-17,Active,Jane Smith
+S006,2025-12-17,Placebo,Jane Smith
+S007,2025-12-18,Active,Bob Johnson
+S008,2025-12-18,Placebo,Bob Johnson
+S009,2025-12-19,Active,Jane Smith
+S010,2025-12-19,Placebo,Jane Smith
+S011,2025-12-20,Active,Bob Johnson
+S012,2025-12-20,Placebo,Bob Johnson
+S013,2025-12-21,Active,Jane Smith
+S014,2025-12-21,Placebo,Jane Smith
+S015,2025-12-22,Active,Bob Johnson
+S016,2025-12-22,Placebo,Bob Johnson
+S017,2025-12-23,Active,Jane Smith
+S018,2025-12-23,Placebo,Jane Smith
+S019,2025-12-24,Active,Bob Johnson
+S020,2025-12-24,Placebo,Bob Johnson

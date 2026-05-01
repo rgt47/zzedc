@@ -1,0 +1,14 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be 7 characters
+visit_code,Visit,L,select,1,week4:week8:week12,,
+assessment_date,Assessment Date,D,date,1,,,
+pills_dispensed,Pills dispensed since last visit,N,numeric,1,,,pills_dispensed >= 0 && pills_dispensed <= 200,Must be 0-200 pills
+pills_returned,Pills returned at this visit,N,numeric,1,,,pills_returned >= 0 && pills_returned <= 200,Must be 0-200 pills
+pills_taken,Pills taken (calculated),N,numeric,0,,,pills_taken >= 0,Cannot be negative
+compliance_percent,Compliance percentage,N,numeric,0,,,compliance_percent >= 0 && compliance_percent <= 100,Must be 0-100%
+missed_doses_reason,Reason for missed doses,L,checkbox,0,Forgot:Side_Effects:Felt_Better:Too_Busy:Lost_Pills:Other:None,,
+timing_compliance,Taking at correct times?,L,radio,1,Always:Usually:Sometimes:Rarely:Never,,
+storage_appropriate,Storing medication appropriately?,L,radio,1,Yes:No:Unsure,,
+sharing_medication,Sharing medication with others?,L,radio,1,Yes:No,,
+taking_extra_doses,Taking extra doses?,L,radio,1,Yes:No,,
+notes,Compliance Notes,C,textarea,0,,

@@ -1,0 +1,13 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be 7 characters
+visit_date,Visit Date,D,date,1,,,
+prior_adhd_diagnosis,Prior ADHD diagnosis?,L,radio,1,Yes:No,,
+age_first_diagnosed,Age at first ADHD diagnosis,N,numeric,0,,,age_first_diagnosed >= 3 && age_first_diagnosed <= 65,Age must be 3-65 years
+prior_adhd_medications,Previous ADHD medications,C,textarea,0,,
+current_medications,Current medications (non-ADHD),C,textarea,0,,
+allergies,Known allergies,C,textarea,0,,
+psychiatric_history,Psychiatric history,L,checkbox,0,Depression:Anxiety:Bipolar:PTSD:Substance_Abuse:Other,,
+medical_conditions,Current medical conditions,L,checkbox,0,Hypertension:Diabetes:Heart_Disease:Thyroid:Seizure_Disorder:Other,,
+family_history_adhd,Family history of ADHD?,L,radio,0,Yes:No:Unknown,,
+substance_use,Current substance use,L,checkbox,0,Alcohol:Tobacco:Cannabis:Other:None,,
+pregnancy_status,Pregnancy status (if applicable),L,radio,0,Not_Pregnant:Pregnant:Trying_to_Conceive:Not_Applicable,gender=='Female',

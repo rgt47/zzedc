@@ -1,0 +1,1818 @@
+---
+title: "Technical-Lead Guide: Deploying ZZedc for a Clinical Trial"
+subtitle: "End-to-end runbook for the statistician/IT-adjacent team member"
+author: "ZZedc Team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Technical-Lead Guide for Deployment}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+# About this guide
+
+This is the canonical guide for the **technical lead** of a
+clinical trial running ZZedc: the statistician, biomedical
+informaticist, or IT-adjacent colleague who is responsible for
+installation, server configuration, encryption, backups, and
+day-2 operations. You work alongside a **content author** (a
+study coordinator, project manager, or PI's research assistant)
+who provides the case-report forms, validation rules, and user
+roster. That person follows
+[Content-Author Guide](content-author-guide.html).
+
+The guide is written for a first small-to-medium clinical
+trial (10 to 200 participants, 1 to 5 sites). It assumes you
+have moderate R familiarity (you can `install.packages()`,
+read a function signature, debug a stack trace) and basic
+sysadmin skills (you can SSH to a Linux VM, edit a config
+file, manage TLS certificates). If this describes your
+intended role exactly, this guide will take you from a fresh
+CRAN install to a production-ready deployment.
+
+By the end of this guide:
+
+- a server is provisioned with the chosen database backend
+- ZZedc is installed, configured, and reachable over HTTPS
+- the content author's workbook has been imported
+- multi-site role-based access works
+- the audit log validates end-to-end
+- daily backups run automatically and a restore drill has
+  succeeded
+- the trial is ready for go-live
+
+This document absorbs three previously separate vignettes
+(disaster recovery, encryption at rest, AWS quick-start). The
+material is now folded into Chapters 5, 8, 9, and Appendix C
+respectively. There are no other vignette dependencies for
+deployment; the per-backend quickstarts remain as separate
+references.
+
+---
+
+# Chapter 1. Architecture overview
+
+ZZedc separates concerns into five layers; each is documented
+in its own reference vignette, but you should understand the
+whole picture before deploying.
+
+## The five-layer model
+
+```
++------------------------------------------------------------+
+| 1. Shiny application (UI + reactive logic)                |
++------------------------------------------------------------+
+| 2. Module layer (auth, EDC, reports, exports, compliance) |
++------------------------------------------------------------+
+| 3. R6 DatabaseAdapter (dialect-aware queries, pooling)    |
++------------------------------------------------------------+
+| 4. SQLCipher / DBI driver (encryption + transport)        |
++------------------------------------------------------------+
+| 5. Storage backend                                        |
+|    SQLite | DuckDB | PostgreSQL | MySQL | ClickHouse      |
++------------------------------------------------------------+
+```
+
+The application interacts only with the adapter; backend
+choice is configured per-project in `config.yml` and is
+otherwise transparent.
+
+## Three foundational guarantees
+
+ZZedc commits to three things and the rest of this guide is
+about preserving them:
+
+1. **Encryption at rest.** Subject data is stored on disk
+   under AES-256 when the package is run against a
+   SQLCipher-enabled RSQLite (for example via
+   SQLite3MultipleCiphers or a custom build), or against a
+   server-side encrypted backend (TDE for
+   PostgreSQL/MySQL/ClickHouse). The default stock RSQLite
+   binary on CRAN does not include SQLCipher, so encryption
+   on SQLite-backed deployments is opt-in and depends on the
+   driver build present on the production host. Verify on
+   the deployment host with `verify_database_encryption()`
+   (Chapter 5).
+2. **Hash-chained audit log.** Every database mutation appends
+   a row to `audit_log` whose `audit_hash` depends on the
+   previous row's hash. Tampering with any row breaks the
+   chain. `verify_audit_log_integrity()` validates the chain
+   end-to-end. The chain is correct by construction; an
+   integrity claim against a particular live database
+   requires running the verifier against that database.
+   This is what the trial's 21 CFR Part 11
+   continuity-of-record argument rests on.
+3. **No side channels.** The application never writes subject
+   data to disk except through the adapter; never to
+   stdout/stderr, never to log files, never to caches. If you
+   see subject data on disk outside the encrypted database,
+   something is wrong.
+
+The audit chain in particular is the differentiator vs. less
+formal capture systems. Treat it as the system's most
+load-bearing invariant. Any operation that bypasses the
+adapter is a bug.
+
+## Multi-site model
+
+ZZedc treats *site* as a tag on every user, every subject, and
+every audit-log entry. The `site_id` column is filterable in
+every query. Coordinator-class roles are scoped to their site;
+PI-class roles can be scoped to a site or to all sites; the
+data-manager and central monitor roles are scoped to all sites
+by convention.
+
+This model is **logical, not physical**: there is one server,
+one database, and the application enforces site-based access
+at the adapter layer. There is no federated multi-database
+mode and no cross-server replication for site isolation.
+Trials whose threat model requires physical isolation per site
+should run a separate ZZedc instance per site.
+
+---
+
+# Chapter 2. Picking the right backend
+
+ZZedc supports five backends. For a first small-to-medium
+trial, only two are likely candidates: **SQLite** (if you
+expect under ~50 concurrent users and the database fits on
+one disk) or **PostgreSQL** (if you need more than that, or
+have institutional infrastructure already). The other three
+are for specific situations.
+
+## Decision tree
+
+```
+Are you running locally on one machine or one VM?
++-- Yes: SQLite.
++-- No: continue.
+
+Is institutional MySQL/MariaDB already provisioned and managed
+by your IT team?
++-- Yes: MySQL/MariaDB.
++-- No: continue.
+
+Are you migrating from REDCap?
++-- Yes: MySQL/MariaDB (matches REDCap's native backend; the
+|         migration importer is fastest against this).
++-- No: continue.
+
+Will analysts run heavy ad-hoc OLAP queries against the EDC
+database directly, or do you ship to Parquet/SAS/S3 for
+analysis anyway?
++-- Heavy OLAP: DuckDB.
++-- Ship for analysis: continue.
+
+Will you have more than 1000 subjects with frequent
+high-cardinality time-series data (mobile-health, sensor
+streams)?
++-- Yes: ClickHouse.
++-- No: PostgreSQL.
+```
+
+For 90% of academic clinical trials, the answer is **SQLite**
+for solo or small-site work and **PostgreSQL** for
+institutional multi-site deployments. Per-backend setup
+mechanics are in
+[`vignette('backend-quickstart')`](backend-quickstart.html)
+(decision tree plus an appendix per backend: A SQLite,
+B DuckDB, C MySQL/MariaDB, D PostgreSQL, E ClickHouse).
+
+The rest of this guide assumes SQLite for examples (because
+it is the simplest and the path most readers will follow);
+where the answer differs for PostgreSQL/MySQL we call out the
+delta.
+
+## Backend cheat sheet
+
+| Backend | When to use | Concurrent users | Encryption | Backup model |
+|---|---|---|---|---|
+| SQLite + SQLCipher | Solo, small site, on-prem | up to ~50 | SQLCipher (driver-dependent) | File copy |
+| DuckDB | Analytics-heavy, columnar | up to ~50 | At-rest via OS | File copy |
+| PostgreSQL | Institutional, multi-site | hundreds | TDE / pgcrypto | pg_dump or WAL archive |
+| MySQL/MariaDB | REDCap shops, institutional | hundreds | TDE | mysqldump or binlog |
+| ClickHouse | High-volume analytics | thousands | TDE | clickhouse-backup |
+
+---
+
+# Chapter 3. Installing ZZedc
+
+## 3.1 Prerequisites
+
+- R 4.1.0 or later. R 4.4 is recommended.
+- A Linux VM (Ubuntu 22.04 LTS or Debian 12 are tested), a
+  macOS machine, or a Windows server.
+- ~2 GB disk space (R, dependencies, encrypted database).
+- Outbound HTTPS to CRAN to install R packages.
+- For a server deployment: a domain name and a TLS certificate.
+
+For a Docker-based deployment (recommended for any deployment
+above one user), also: Docker 24+ and Docker Compose 2+.
+
+## 3.2 Installing from CRAN
+
+Once the package is on CRAN, installation is one line:
+
+```{r}
+install.packages("zzedc")
+```
+
+This pulls all required dependencies, including `shiny`,
+`bslib`, `DBI`, `RSQLite`, `R6`, `digest`, `openssl`,
+`jsonlite`, and `googlesheets4`.
+
+For backends other than SQLite, install the optional driver:
+
+```{r}
+install.packages("RPostgres")   # PostgreSQL
+install.packages("RMariaDB")    # MySQL / MariaDB
+install.packages("duckdb")      # DuckDB
+# ClickHouse: see vignette('backend-quickstart') Appendix E
+```
+
+For SQLCipher-enabled SQLite (required if you want at-rest
+encryption on a SQLite-backed deployment), install a
+SQLCipher-aware build of RSQLite. The stock CRAN build of
+`RSQLite` does not include SQLCipher; consult the
+SQLite3MultipleCiphers project or your distribution for a
+suitable build.
+
+## 3.3 Reproducibility: pin dependencies with renv
+
+For any deployment that will outlive a single session, pin
+dependencies with `renv`. This guarantees that the exact
+version of every package on the production server matches
+the version your tests passed against.
+
+```{r}
+install.packages("renv")
+renv::init()
+renv::snapshot()
+```
+
+Commit `renv.lock` and `renv/activate.R` to your trial's
+configuration repository (separate from the package source).
+On the production server, `renv::restore()` rebuilds the
+exact library.
+
+## 3.4 Verify the install
+
+```{r}
+library(zzedc)
+packageVersion("zzedc")
+```
+
+If you see the package version without errors, the install is
+working. Continue to Chapter 4 for configuration.
+
+---
+
+# Chapter 4. Configuring the trial
+
+ZZedc reads configuration from two places: a YAML file
+(`config.yml`) and environment variables. The YAML file holds
+the per-trial settings; environment variables hold secrets.
+
+## 4.1 The trial's `config.yml`
+
+Create `config.yml` in your trial's working directory. A
+minimal configuration for a SQLite-backed solo trial:
+
+```yaml
+default:
+  study_name: "Memory Study 001"
+  protocol_id: "MEMORY-001"
+  pi_name: "Jane Smith, MD"
+  pi_email: "jsmith@example.org"
+  study_phase: "II"
+  target_enrollment: 60
+
+  db_backend: "sqlite"
+  db_path: "/srv/zzedc/MEMORY-001/study.db"
+
+  encryption_at_rest: true
+  audit_logging: true
+  session_timeout_minutes: 30
+```
+
+For PostgreSQL replace the `db_path` block with:
+
+```yaml
+  db_backend: "postgresql"
+  db_host: "postgres.internal"
+  db_port: 5432
+  db_name: "zzedc_memory001"
+  db_user: "zzedc_app"
+  db_sslmode: "require"
+```
+
+(The password comes from an environment variable, not the
+file; see §4.2.)
+
+For MySQL/MariaDB:
+
+```yaml
+  db_backend: "mysql"
+  db_host: "mariadb.internal"
+  db_port: 3306
+  db_name: "zzedc_memory001"
+  db_user: "zzedc_app"
+```
+
+The full list of options is documented in
+`?zzedc::read_config`.
+
+## 4.2 Environment variables (secrets)
+
+Never put secrets in `config.yml`. Use environment variables:
+
+```sh
+# /etc/zzedc/MEMORY-001.env  (chmod 600, owned by zzedc user)
+DB_ENCRYPTION_KEY="..."         # SQLite/DuckDB master key
+DB_PASSWORD="..."               # Postgres/MySQL/ClickHouse
+ZZEDC_SALT="..."                # Random 32-byte hex string
+ZZEDC_DB_PATH="/srv/zzedc/MEMORY-001/study.db"
+GOOGLE_APPLICATION_CREDENTIALS="/etc/zzedc/gcs-svc.json"
+```
+
+Source this file in the launch script. For a systemd-managed
+deployment, use `EnvironmentFile=`. For Docker, use
+`--env-file`.
+
+## 4.3 Encryption-key custody
+
+For SQLite/DuckDB, the encryption key is generated at database
+init. *Where you store it determines the trial's threat model*.
+Three patterns:
+
+| Pattern | Custodian | When to use |
+|---|---|---|
+| **Server env var** | The server's local environment | Solo work, low-risk trials |
+| **AWS KMS / GCP KMS** | A cloud key-management service | Most institutional deployments |
+| **HSM / Yubikey** | Hardware security module | Pharma trials, FDA-submitted studies |
+
+For institutional deployments use AWS KMS (or your cloud's
+equivalent). The `R/aws_kms_utils.R` helpers expose the
+encrypt/decrypt operations the application needs; see
+`?zzedc::aws_kms_encrypt`. The custody scenarios common in
+practice are:
+
+- *Pharmaceutical trial, sponsor-held key.* Key in the
+  sponsor's AWS Secrets Manager; sites access via a
+  sponsor-controlled interface; rotation managed by the
+  sponsor's IT security team; unblinding requires sponsor
+  authorisation.
+- *Academic trial, DCC-held key.* Key in the Data
+  Coordinating Center's institutional secret store;
+  investigators receive encrypted exports; the DCC controls
+  the rotation schedule.
+- *Single-site trial, site-held key.* Key in local
+  institutional secrets management; the PI holds ultimate
+  responsibility; consider a dual-key arrangement for
+  critical studies and document recovery procedures.
+
+## 4.4 Per-trial filesystem layout
+
+Adopt this layout per trial; it makes backups, audits, and
+restores predictable:
+
+```
+/srv/zzedc/
++-- MEMORY-001/
+|   +-- study.db                 # encrypted SQLite database
+|   +-- config.yml               # per-trial config
+|   +-- renv.lock                # pinned dependencies
+|   +-- exports/                 # signed exports
+|   +-- backups/                 # daily snapshots
+|   +-- logs/                    # application logs (no PHI)
++-- MEMORY-002/
++-- ...
+```
+
+For PostgreSQL/MySQL deployments, `study.db` is replaced by
+the database service's data directory; the rest of the
+layout is identical.
+
+---
+
+# Chapter 5. Initialising the database
+
+## 5.1 Encryption-at-rest architecture
+
+Database encryption operates at the connection layer. When
+the SQLite driver in use is SQLCipher-aware, all data
+written to disk is automatically encrypted and queries
+decrypt transparently. Application code is unchanged.
+Characteristics of the SQLCipher integration:
+
+- *Algorithm.* AES-256-CBC with HMAC-SHA256 authentication.
+- *Key length.* 256-bit (64 hexadecimal characters).
+- *Page size.* 4096 bytes (SQLCipher default).
+- *Key derivation.* PBKDF2 with SHA256.
+
+For PostgreSQL/MySQL/ClickHouse, encryption-at-rest is the
+backend's transparent data encryption (TDE) feature; ZZedc
+contributes only the application-side key custody and audit
+logic.
+
+Note on the partial nature of this guarantee for
+SQLite-backed deployments: the stock RSQLite binary
+distributed via CRAN is built without SQLCipher. ZZedc will
+still create and use a SQLite database, but at-rest
+encryption requires a SQLCipher-enabled RSQLite (for example
+via SQLite3MultipleCiphers or a custom build). Run
+`verify_database_encryption()` on the deployment host
+(§5.5) before claiming encryption-at-rest in any DMP or IRB
+submission.
+
+## 5.2 Generate and verify the encryption key
+
+Generate a 256-bit key:
+
+```{r}
+library(zzedc)
+key <- generate_db_key()
+verify_db_key(key)               # checks 64-hex-char format
+```
+
+Store this key immediately in your secrets manager or in the
+trial's env file under `DB_ENCRYPTION_KEY`. If you lose this
+key, the database is unrecoverable. There is no backdoor.
+
+For production, retrieve the key from a managed service:
+
+```{r}
+key <- get_encryption_key(
+  aws_kms_key_id = "zzedc/db-encryption-key"
+)
+```
+
+This pattern centralises custody, supports rotation, and
+captures access in CloudTrail.
+
+## 5.3 Create the encrypted database
+
+For SQLite/DuckDB:
+
+```{r}
+init <- initialize_encrypted_database(
+  db_path   = "/srv/zzedc/MEMORY-001/study.db",
+  overwrite = FALSE
+)
+init$success           # TRUE
+init$key               # SAVE THIS; treat as a password
+```
+
+The returned `init$key` is the master encryption key. Store
+it as in §5.2.
+
+For PostgreSQL/MySQL the equivalent is to provision an empty
+database and grant the application user `CREATE` and `INSERT`
+on it. See the per-backend quickstart vignettes for SQL.
+
+## 5.4 Connect to an existing encrypted database
+
+```{r}
+conn <- connect_encrypted_db(
+  db_path = "/srv/zzedc/MEMORY-001/study.db"
+)
+res <- DBI::dbGetQuery(conn, "SELECT COUNT(*) FROM subjects")
+DBI::dbDisconnect(conn)
+```
+
+`connect_encrypted_db()` retrieves the key from
+`DB_ENCRYPTION_KEY` or from the configured KMS automatically.
+
+## 5.5 Verify encryption is actually in effect
+
+```{r}
+verification <- verify_database_encryption(
+  db_path = "/srv/zzedc/MEMORY-001/study.db"
+)
+verification$encrypted     # TRUE only if SQLCipher is active
+verification$message
+```
+
+This check opens the file with a stock SQLite reader and
+confirms the bytes are not interpretable as plaintext SQLite.
+If `encrypted` is `FALSE`, the running RSQLite is not
+SQLCipher-enabled; subject data on this host is at rest in
+the clear. Stop and rebuild against a SQLCipher driver
+before proceeding.
+
+## 5.6 Migrate an unencrypted database to encrypted
+
+If the trial accumulated data on a stock RSQLite before a
+SQLCipher driver was available, convert the database in place:
+
+```{r}
+result <- migrate_to_encrypted(
+  old_db_path = "/srv/zzedc/MEMORY-001/legacy.db",
+  backup_dir  = "/srv/zzedc/MEMORY-001/backups"
+)
+result$success
+result$records_migrated
+result$new_path
+```
+
+The function takes a backup before migration and verifies
+row-counts after. Validate independently:
+
+```{r}
+verify_migration(
+  old_db_path = "/srv/zzedc/MEMORY-001/legacy.db",
+  new_db_path = "/srv/zzedc/MEMORY-001/legacy_encrypted.db"
+)
+```
+
+If migration fails, roll back from the backup:
+
+```{r}
+rollback_migration(
+  backup_path = "/srv/zzedc/MEMORY-001/backups/legacy_*.db",
+  restore_to  = "/srv/zzedc/MEMORY-001/legacy.db"
+)
+```
+
+## 5.7 Initialise the audit log
+
+```{r}
+audit_res <- init_audit_logging(
+  db_path = "/srv/zzedc/MEMORY-001/study.db"
+)
+audit_res$success
+```
+
+This creates the `audit_log`, `audit_events`, and
+`audit_chain` tables. Every subsequent database write
+appends to them. Valid event types written by the
+application: INSERT, UPDATE, DELETE, SELECT, EXPORT, LOGIN,
+LOGOUT, ACCESS.
+
+## 5.8 Create the canonical core tables
+
+The setup wizard normally does this. For a programmatic setup,
+provision the core tables (study_info, edc_users, edc_roles,
+subjects, form_data, etc.) via:
+
+```{r}
+result <- create_wizard_database(
+  config_list = list(
+    study_name        = "Memory Study 001",
+    protocol_id       = "MEMORY-001",
+    pi_name           = "Jane Smith, MD",
+    pi_email          = "jsmith@example.org",
+    study_phase       = "II",
+    target_enrollment = 60,
+    admin_username    = "admin",
+    admin_password    = "TempPass!2026-CHANGEME",
+    admin_fullname    = "Trial Admin",
+    admin_email       = "admin@example.org",
+    security_salt     = Sys.getenv("ZZEDC_SALT")
+  ),
+  db_path = "/srv/zzedc/MEMORY-001/study.db",
+  backend = "sqlite"
+)
+```
+
+This produces an admin user (whose password the admin must
+change on first login) and the empty `study_info` /
+`edc_roles` rows the application expects.
+
+## 5.9 Encryption-key rotation
+
+Rotate the encryption key once a year, or sooner if you
+suspect compromise. Plan a 30-minute maintenance window;
+the trial is unavailable during rotation. The procedure is:
+
+1. Stop the application (`docker compose stop zzedc`).
+2. Take a fresh backup (Chapter 9).
+3. Generate a new key with `generate_db_key()`.
+4. Use SQLCipher's `PRAGMA rekey = 'new-key';` (via a
+   privileged R session) to re-encrypt the database in
+   place.
+5. Update `DB_ENCRYPTION_KEY` in the secrets store.
+6. Restart and run `verify_audit_log_integrity()` (Chapter
+   10) before re-opening to users.
+
+Document the rotation in the trial's DMP. Keep the prior
+key in escrow long enough to decrypt any backups taken
+before rotation.
+
+## 5.10 Performance and security notes
+
+Encryption overhead in practice: connection establishment
+adds <10ms; query execution adds <5% for typical clinical
+data volumes; export operations scale linearly with data
+volume. The overhead is invisible to end users.
+
+Operational hygiene:
+
+- Never store keys in source code, in `config.yml`, or in
+  Git history. Use environment variables in development
+  and a managed secrets service in production.
+- Restrict database file access to the application user;
+  on Linux, `chmod 640` and a dedicated `zzedc` group.
+- Encrypt backups at rest (the daily-backup recipe in
+  Chapter 9 produces gzip + SHA-256-verified files; for
+  off-site mirrors use S3 server-side encryption or
+  equivalent).
+- Encrypt backup transfers in transit (TLS 1.2+).
+- Conduct a periodic security review of who holds the key
+  and who can read the secrets store.
+
+---
+
+# Chapter 6. Loading the content author's workbook
+
+The content author follows
+[Content-Author Guide](content-author-guide.html) to produce
+a Google Sheets workbook with three tabs: `Study_Users`,
+`Data_Dictionary`, `validation_rules`. They share the workbook
+URL with you. Your job is one R command.
+
+## 6.1 Authentication to Google Sheets
+
+Authenticate `googlesheets4` once per server:
+
+```{r}
+library(googlesheets4)
+gs4_auth(email = "svc-zzedc@example.iam.gserviceaccount.com")
+```
+
+Use a service account, not a personal Google account, so the
+import does not depend on any one human's credentials. The
+service-account JSON goes into
+`GOOGLE_APPLICATION_CREDENTIALS` (§4.2).
+
+## 6.2 Run the import
+
+```{r}
+library(zzedc)
+result <- setup_zzedc_from_gsheets(
+  sheet_id = "https://docs.google.com/spreadsheets/d/SHEET_ID/edit",
+  db_path  = "/srv/zzedc/MEMORY-001/study.db",
+  imported_by = "tech_lead"
+)
+
+result$success                 # TRUE
+result$users$imported          # number of users created
+result$forms$imported_forms    # number of CRFs created
+result$forms$imported_fields   # number of fields across CRFs
+result$validation_rules$imported  # number of rules
+length(result$skipped_rules)   # rules that need manual review
+```
+
+The import is idempotent: re-running it after the content
+author updates the workbook re-applies the deltas. The audit
+log captures every change.
+
+## 6.3 Resolve skipped rules
+
+If `length(result$skipped_rules) > 0`, the importer found a
+validation rule it could not parse. Print the list:
+
+```{r}
+str(result$skipped_rules)
+```
+
+Each entry is a named list with `field`, `reason`, and the
+original `rule_dsl`. Send this list to the content author with
+a note: rewrite each rule using one of the six patterns in
+[Content-Author Guide](content-author-guide.html) §3.6, or
+flag it for manual implementation by you.
+
+## 6.4 CSV authoring path (alternative to Google Sheets)
+
+For sites that block Google Drive, the content author can
+deliver three CSV files (`Study_Users.csv`,
+`Data_Dictionary.csv`, `validation_rules.csv`) instead. Use:
+
+```{r}
+result <- setup_zzedc_from_csv(
+  csv_dir = "/srv/zzedc/MEMORY-001/incoming/",
+  db_path = "/srv/zzedc/MEMORY-001/study.db",
+  imported_by = "tech_lead"
+)
+```
+
+The contract is otherwise identical. See
+[`vignette('demonstration-trial-setup')`](demonstration-trial-setup.html)
+for a full worked example.
+
+---
+
+# Chapter 7. Multi-site setup
+
+Multi-site setup is enforced at the database adapter layer
+through the `site_id` column on `edc_users`, `subjects`,
+and `form_data`. The content author has already populated
+`site_id` on the user roster (Chapter 6 of their guide).
+Your job is to confirm:
+
+1. Every site appears in the application's *Admin -> Sites*
+   view.
+2. Coordinator-class users see only their site.
+3. PI-class users with `site_id = "ALL"` see all sites.
+
+## 7.1 Verifying site-based access
+
+The cleanest verification is to log in as a coordinator at
+each site and confirm they cannot list subjects from another
+site. Do this with synthetic subjects (the content author
+will create one per site during the dry run; see their
+Chapter 4).
+
+You can also verify directly against the database:
+
+```{r}
+library(DBI)
+conn <- connect_encrypted_db(
+  db_path = "/srv/zzedc/MEMORY-001/study.db",
+  key     = Sys.getenv("DB_ENCRYPTION_KEY")
+)
+on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+# How many sites are configured
+DBI::dbGetQuery(conn, "
+  SELECT site_id, COUNT(*) AS n_users
+    FROM edc_users
+   GROUP BY site_id
+")
+
+# Per-site user list
+DBI::dbGetQuery(conn, "
+  SELECT site_id, username, role
+    FROM edc_users
+   ORDER BY site_id, username
+")
+```
+
+## 7.2 Adding a site after go-live
+
+To add a site after the trial is live, ask the content author
+to append rows to the `Study_Users` workbook for the new
+site, then re-run `setup_zzedc_from_gsheets()`. The importer
+treats new rows as additions and leaves existing rows alone
+unless their data has changed.
+
+## 7.3 Renaming a site
+
+**Don't.** A `site_id` is referenced by every subject, every
+form-data row, and every audit-log entry for that site.
+Renaming would either break those references or require a
+data-migration step that mutates the audit log (which would
+break the hash chain). If you must, treat it as a new site
+(append) and freeze the old site (set `active = FALSE`).
+
+---
+
+# Chapter 8. Deploying the application
+
+## 8.1 Quick local launch (development only)
+
+For a quick test on your laptop:
+
+```{r}
+library(zzedc)
+launch_zzedc()
+# Open http://localhost:3838
+```
+
+This is appropriate for the content author's dry-run protocol
+(their Chapter 4) but not for any real-site use. For
+production, use one of the patterns below.
+
+## 8.2 Production pattern: Docker on a single VM
+
+Recommended for any multi-site deployment. The Dockerfile is
+included in the package; here is a minimal launch flow.
+
+### Build the image
+
+```sh
+docker build -t zzedc:1.0.0 .
+```
+
+### Compose file
+
+```yaml
+# /srv/zzedc/MEMORY-001/docker-compose.yml
+services:
+  zzedc:
+    image: zzedc:1.0.0
+    container_name: zzedc-memory001
+    restart: unless-stopped
+    env_file: /etc/zzedc/MEMORY-001.env
+    volumes:
+      - /srv/zzedc/MEMORY-001:/srv/zzedc/MEMORY-001
+    ports:
+      - "127.0.0.1:3838:3838"
+
+  caddy:
+    image: caddy:2
+    container_name: zzedc-tls
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/zzedc/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
+```
+
+### Caddyfile (TLS termination)
+
+```
+edc.example.org {
+    reverse_proxy 127.0.0.1:3838
+    encode gzip
+    log {
+        output file /var/log/caddy/edc.access.log
+    }
+}
+```
+
+### Bring it up
+
+```sh
+cd /srv/zzedc/MEMORY-001
+docker compose up -d
+docker compose ps
+```
+
+Caddy obtains a TLS certificate automatically via Let's
+Encrypt. Confirm `https://edc.example.org` returns the ZZedc
+login page.
+
+## 8.3 AWS deployment pattern (config-file-driven)
+
+For an AWS-hosted deployment, the recommended pattern is a
+config-file-driven, non-interactive initialisation: the
+deployment is declarative, reproducible, and friendly to
+CloudFormation, ECS task definitions, or Kubernetes manifests.
+Time estimate after infrastructure provisioning: 5 to 10
+minutes.
+
+### Prerequisites
+
+- An AWS EC2 instance (or ECS/EKS task host) with R 4.4+ and
+  ZZedc installed (§3.2, §3.3).
+- SSH access to the instance.
+- Optional: Docker / container orchestration available.
+
+### Step 1: write `zzedc_config.yml`
+
+```yaml
+study:
+  name: "Multi-Site Stroke Trial"
+  protocol_id: "STROKE-2024-100"
+  pi_name: "Dr. James Wilson"
+  pi_email: "jwilson@ucsd.edu"
+  target_enrollment: 500
+  phase: "Phase3"
+
+admin:
+  username: "trial_admin"
+  fullname: "Trial Administrator"
+  email: "admin@trial-site.org"
+  password: "SecureAWSPassword123!@#"
+
+security:
+  session_timeout_minutes: 30
+  enforce_https: true
+  max_failed_login_attempts: 3
+
+compliance:
+  gdpr_enabled: true
+  cfr_part11_enabled: true
+  audit_logging_enabled: true
+
+database:
+  backend: "sqlite"        # or duckdb / postgresql / clickhouse
+  sqlite:
+    path: "data/zzedc.db"
+  pool_size: 5
+```
+
+The five sections (`study`, `admin`, `security`,
+`compliance`, `database`) are each documented in
+`?zzedc::init`. For PostgreSQL replace the `sqlite` block
+with a `postgresql:` block carrying `host`, `port`,
+`database`, `user`, and a `${DB_PASSWORD}` reference.
+
+Backend selection guide for AWS:
+
+| Deployment context | Recommended backend |
+|---|---|
+| Single EC2, dev | SQLite |
+| Single EC2, production | DuckDB or SQLite |
+| AWS RDS | PostgreSQL |
+| ECS / EKS, multi-node | PostgreSQL |
+| High-volume analytics | DuckDB or ClickHouse |
+
+### Step 2: run the initialiser
+
+```sh
+cd /srv/zzedc
+
+Rscript -e "
+  library(zzedc)
+  zzedc::init(mode = 'config', config_file = 'zzedc_config.yml')
+"
+```
+
+`zzedc::init()` creates the encrypted database, initialises
+the audit log, creates the admin user, and writes the
+generated `ZZEDC_SALT` to the local `.env`. Capture that
+value and move it into your secrets manager.
+
+### Step 3: set the salt and launch
+
+```sh
+export ZZEDC_SALT="<generated-salt-from-init-output>"
+nohup Rscript launch_app.R > zzedc.log 2>&1 &
+```
+
+For container-based deployment, the equivalent
+`docker-compose.yml` with an optional PostgreSQL sidecar:
+
+```yaml
+services:
+  zzedc:
+    build: .
+    ports:
+      - "3838:3838"
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    environment:
+      ZZEDC_SALT: ${ZZEDC_SALT}
+      DB_BACKEND: sqlite
+    restart: always
+    networks: [zzedc-network]
+
+  postgres:           # optional
+    image: postgres:15
+    environment:
+      POSTGRES_DB: zzedc
+      POSTGRES_USER: zzedc_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [zzedc-network]
+
+networks:
+  zzedc-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+```
+
+The container entrypoint should run `zzedc::init(mode =
+'config', ...)` once on first start, then `exec` into
+`launch_app.R`.
+
+### CloudFormation, Kubernetes, and TLS
+
+For full Infrastructure-as-Code recipes (CloudFormation
+template provisioning the EC2 instance and security group;
+Kubernetes Deployment + Service + ConfigMap + PVC; nginx as
+a reverse proxy or AWS Certificate Manager + Application
+Load Balancer for TLS), see the deployment manifests under
+`inst/deployment/`. The architecture in this guide (Docker
+on a VM) is appropriate up to several hundred concurrent
+users; AWS multi-AZ becomes worth the operational overhead
+beyond that or for trials with FDA submission paths that
+require documented redundancy.
+
+### AWS-specific operational notes
+
+- Use IAM roles for the application's AWS access; do not
+  embed access keys.
+- Use AWS Secrets Manager (via `get_encryption_key()`) for
+  `DB_ENCRYPTION_KEY`, `DB_PASSWORD`, and `ZZEDC_SALT`.
+- Restrict the security group to the IPs that need port 22
+  (admin) and the load-balancer subnet for port 3838.
+- Forward CloudWatch logs by setting
+  `logging.format: json` in `zzedc_config.yml` and
+  configuring the CloudWatch agent on the host.
+- Use AWS Certificate Manager rather than self-signed
+  certificates; the Application Load Balancer handles
+  termination.
+
+## 8.4 Other patterns
+
+- **Posit Connect / shinyapps.io.** Possible for dev/test, but
+  inappropriate for production storage of subject data unless
+  you have a BAA with the host (shinyapps.io does not offer
+  one at the time of writing).
+- **Kubernetes.** Apply the manifests under
+  `inst/deployment/k8s/` after building and pushing the
+  container image. Overkill for a small trial; appropriate
+  for an organisation running many trials.
+- **On-prem bare metal.** Same Docker/Compose pattern, no
+  cloud. Adjust backups (Chapter 9) to write to local NAS
+  instead of S3.
+
+---
+
+# Chapter 9. Backups and disaster recovery
+
+## 9.1 Recovery objectives
+
+Your trial's protocol or DMP should specify two numbers:
+
+- **RPO** (Recovery Point Objective): how much data loss is
+  acceptable.
+- **RTO** (Recovery Time Objective): how long to restore
+  service.
+
+Indicative targets by environment class:
+
+| Environment | RPO | RTO | Strategy |
+|---|---|---|---|
+| Development | 24 h | 24-48 h | Manual restore |
+| Production, non-regulated | 1-4 h | 1-4 h | Automated with verification |
+| Production, regulated/clinical | 15-60 min | 15-60 min | Automated failover + hot standby |
+
+A daily SQLite backup with on-site retention satisfies a
+24-hour RPO and a 4-hour RTO for a SQLite-backed trial.
+PostgreSQL with continuous WAL archiving can reach a
+5-minute RPO. Most academic trials commit to a 24-hour RPO
+and a 4-hour RTO; document whichever you actually achieve,
+not the aspirational target.
+
+## 9.2 Daily backup recipes
+
+### SQLite (online backup API)
+
+The SQLite online-backup API produces a consistent snapshot
+without requiring application downtime:
+
+```sh
+#!/bin/bash
+# /srv/zzedc/MEMORY-001/bin/daily-backup.sh
+set -euo pipefail
+
+TRIAL=MEMORY-001
+SRC=/srv/zzedc/${TRIAL}/study.db
+DST=/srv/zzedc/${TRIAL}/backups/study-$(date +%F).db
+
+sqlite3 "$SRC" ".backup '$DST'"
+gzip "$DST"
+sha256sum "${DST}.gz" > "${DST}.gz.sha256"
+
+# Retention: keep 30 daily, 12 monthly
+find /srv/zzedc/${TRIAL}/backups/ -name 'study-*.db.gz' \
+    -mtime +30 -delete
+
+# Off-site mirror
+aws s3 cp "${DST}.gz" "s3://zzedc-backups/${TRIAL}/daily/"
+```
+
+Schedule via cron at 02:00:
+
+```
+0 2 * * * /srv/zzedc/MEMORY-001/bin/daily-backup.sh \
+    >> /var/log/zzedc/backup.log 2>&1
+```
+
+### DuckDB
+
+Use Parquet export plus a SQL dump for cross-platform
+portability:
+
+```sh
+duckdb "$DB_PATH" "EXPORT DATABASE '$PARQUET_DIR' (FORMAT PARQUET);"
+tar -czf "$BACKUP_DIR/zzedc_parquet_$(date +%F).tar.gz" \
+    -C "$BACKUP_DIR" parquet
+duckdb "$DB_PATH" ".dump" | gzip \
+    > "$BACKUP_DIR/zzedc_$(date +%F).sql.gz"
+```
+
+### PostgreSQL
+
+Combine `pg_basebackup` for daily base backups with
+continuous WAL archiving:
+
+```sh
+# In postgresql.conf:
+# archive_mode = on
+# archive_command = 'cp %p /var/backups/zzedc/postgresql/wal/%f'
+
+pg_basebackup \
+    -h "$DB_HOST" \
+    -U "$DB_USER" \
+    -D "$BACKUP_DIR/base_$(date +%F)" \
+    -Ft -z -P
+
+pg_dump \
+    -h "$DB_HOST" \
+    -U "$DB_USER" \
+    -Fc \
+    -f "$BACKUP_DIR/zzedc_$(date +%F).dump" \
+    "$DB_NAME"
+```
+
+WAL archiving is the mechanism that brings PostgreSQL's RPO
+below an hour.
+
+## 9.3 Backup verification
+
+An untested backup is not a backup. Verify daily via a
+shell script and weekly via a full restore drill.
+
+### Daily file-integrity check
+
+```sh
+#!/bin/bash
+set -e
+BACKUP_DIR="/srv/zzedc/MEMORY-001/backups"
+LOG="/var/log/zzedc/backup_verify.log"
+
+LATEST=$(ls -t "$BACKUP_DIR"/*.db.gz 2>/dev/null | head -1)
+[ -n "$LATEST" ] || { echo "$(date) ERROR: no backups" >> "$LOG"; exit 1; }
+gzip -t "$LATEST" || { echo "$(date) ERROR: corrupt $LATEST" >> "$LOG"; exit 1; }
+
+AGE_H=$(( ($(date +%s) - $(stat -f%m "$LATEST")) / 3600 ))
+[ "$AGE_H" -le 25 ] || echo "$(date) WARN: latest backup ${AGE_H}h old" >> "$LOG"
+
+echo "$(date) OK $LATEST" >> "$LOG"
+```
+
+### Programmatic R-side verification
+
+```{r}
+verify_backup <- function(backup_path, config) {
+  temp_dir <- tempfile("backup_verify_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE))
+
+  if (grepl("\\.gz$", backup_path)) {
+    out <- file.path(temp_dir, "backup.sql")
+    system2("gunzip", c("-c", backup_path), stdout = out)
+    backup_path <- out
+  }
+
+  test_config <- config
+  test_config$sqlite$path <- file.path(temp_dir, "verify.db")
+  adapter <- create_db_adapter(test_config)
+  conn <- adapter$connect()
+  on.exit(adapter$disconnect(conn), add = TRUE)
+
+  tryCatch({
+    sql <- readLines(backup_path)
+    for (stmt in split_sql_statements(sql)) {
+      DBI::dbExecute(conn, stmt)
+    }
+    for (tbl in c("subjects", "forms", "form_data", "audit_log")) {
+      n <- DBI::dbGetQuery(
+        conn, sprintf("SELECT COUNT(*) AS n FROM %s", tbl)
+      )$n
+      message(sprintf("Table %s: %d rows", tbl, n))
+    }
+    list(success = TRUE, message = "Backup verification passed")
+  }, error = function(e) {
+    list(success = FALSE, message = e$message)
+  })
+}
+```
+
+### Backup health monitor
+
+A second R helper, suitable for cron, raises an alert when
+the most recent backup is older than expected, suspiciously
+small, or the backup volume is filling up:
+
+```{r}
+check_backup_health <- function(backup_dir, max_age_hours = 25) {
+  issues <- character()
+  files <- list.files(
+    backup_dir,
+    pattern = "\\.(sql\\.gz|db\\.gz|dump)$",
+    full.names = TRUE
+  )
+  if (length(files) == 0) {
+    issues <- c(issues, "No backup files found")
+  } else {
+    latest <- files[which.max(file.mtime(files))]
+    age_h <- as.numeric(
+      difftime(Sys.time(), file.mtime(latest), units = "hours")
+    )
+    if (age_h > max_age_hours) {
+      issues <- c(issues, sprintf("Latest backup %.1fh old", age_h))
+    }
+    if (file.size(latest) < 1000) {
+      issues <- c(issues, "Latest backup suspiciously small")
+    }
+  }
+  list(
+    healthy    = length(issues) == 0,
+    issues     = issues,
+    checked_at = Sys.time()
+  )
+}
+```
+
+## 9.4 Quarterly restore drill
+
+```sh
+# Stop the application
+docker compose -f /srv/zzedc/MEMORY-001/docker-compose.yml stop zzedc
+
+# Restore the latest backup to a scratch path
+TRIAL=MEMORY-001
+LATEST=$(ls -1t /srv/zzedc/${TRIAL}/backups/study-*.db.gz | head -1)
+gunzip -c "$LATEST" > /tmp/restored-${TRIAL}.db
+
+# Verify the restored DB opens and the audit chain validates
+Rscript -e '
+  library(zzedc)
+  res <- verify_audit_log_integrity(
+    db_path = "/tmp/restored-MEMORY-001.db",
+    key     = Sys.getenv("DB_ENCRYPTION_KEY")
+  )
+  stopifnot(isTRUE(res$valid))
+'
+
+docker compose -f /srv/zzedc/MEMORY-001/docker-compose.yml start zzedc
+rm /tmp/restored-MEMORY-001.db
+```
+
+Document each drill in the trial's DMP (drill date, RTO
+achieved, audit-chain result, any anomalies).
+
+## 9.5 Recovery scenarios
+
+The four scenarios below cover the recovery situations a
+small clinical trial actually encounters. Each scenario
+assumes you have a recent valid backup; if not, the immediate
+priority is to preserve any partial state and call the
+project maintainer.
+
+### Scenario 1: SQLite database corruption
+
+Symptoms: application errors, *database disk image is
+malformed*, unexpected query results.
+
+```sh
+#!/bin/bash
+CORRUPT=/srv/zzedc/MEMORY-001/study.db
+BACKUP_DIR=/srv/zzedc/MEMORY-001/backups
+TS=$(date +%Y%m%d_%H%M%S)
+
+systemctl stop zzedc-shiny
+mv "$CORRUPT" "${CORRUPT}.corrupted.${TS}"
+
+# Try SQLite's .recover first
+sqlite3 "${CORRUPT}.corrupted.${TS}" ".recover" \
+  | sqlite3 "${CORRUPT}.recovered"
+
+if sqlite3 "${CORRUPT}.recovered" "PRAGMA integrity_check;" \
+     | grep -q '^ok$'; then
+  mv "${CORRUPT}.recovered" "$CORRUPT"
+else
+  LATEST=$(ls -t "$BACKUP_DIR"/*.db.gz | head -1)
+  gunzip -c "$LATEST" | sqlite3 "$CORRUPT"
+fi
+
+chown shiny:shiny "$CORRUPT" && chmod 640 "$CORRUPT"
+systemctl start zzedc-shiny
+sleep 5
+curl -sf http://localhost:3838/health || echo "WARN: health check failed"
+```
+
+After recovery, run `verify_audit_log_integrity()` (Chapter
+10). Any chain break is a serious incident; preserve the
+corrupt-database file (`.corrupted.TS`) for forensic
+analysis.
+
+### Scenario 2: PostgreSQL failure
+
+Symptoms: connection errors, transaction failures,
+replication lag.
+
+Self-hosted, with WAL archive available:
+
+```sh
+PG_DATA=/var/lib/postgresql/14/main
+BACKUP_DIR=/var/backups/zzedc/postgresql
+
+systemctl stop postgresql
+# WAL recovery on restart
+systemctl start postgresql
+sleep 10
+pg_isready && exit 0
+
+# Otherwise, full restore from base + WAL
+systemctl stop postgresql
+mv "$PG_DATA" "${PG_DATA}.failed.$(date +%F)"
+LATEST_BASE=$(ls -td "$BACKUP_DIR"/base_* | head -1)
+cp -r "$LATEST_BASE" "$PG_DATA"
+chown -R postgres:postgres "$PG_DATA"
+
+cat > "$PG_DATA/recovery.signal" <<EOF
+EOF
+cat >> "$PG_DATA/postgresql.conf" <<EOF
+restore_command = 'cp $BACKUP_DIR/wal/%f %p'
+recovery_target_time = '$(date -d "5 minutes ago" "+%Y-%m-%d %H:%M:%S")'
+EOF
+
+systemctl start postgresql
+until pg_isready; do sleep 5; done
+```
+
+AWS RDS, restore from snapshot:
+
+```sh
+DB_INSTANCE=zzedc-production
+REGION=us-east-1
+NEW=${DB_INSTANCE}-restored-$(date +%F)
+
+aws rds describe-db-snapshots \
+  --db-instance-identifier "$DB_INSTANCE" \
+  --region "$REGION" \
+  --query 'DBSnapshots[*].[DBSnapshotIdentifier,SnapshotCreateTime]' \
+  --output table
+
+# Choose a snapshot, then:
+aws rds restore-db-instance-from-db-snapshot \
+  --db-instance-identifier "$NEW" \
+  --db-snapshot-identifier "$SNAPSHOT_ID" \
+  --db-instance-class db.t3.medium \
+  --region "$REGION"
+
+aws rds wait db-instance-available \
+  --db-instance-identifier "$NEW" --region "$REGION"
+
+NEW_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier "$NEW" --region "$REGION" \
+  --query 'DBInstances[0].Endpoint.Address' --output text)
+# Update config.yml db_host to $NEW_ENDPOINT, restart application.
+```
+
+### Scenario 3: Complete server failure
+
+Symptoms: server unreachable, hardware failure, cloud
+instance termination.
+
+Procedure (Docker-based deployment, AWS example):
+
+1. Launch a replacement EC2 instance from the trial's
+   golden AMI or a fresh base image.
+2. Install Docker, docker-compose, and AWS CLI.
+3. Pull the latest backup from the off-site bucket
+   (`aws s3 cp s3://zzedc-backups/MEMORY-001/daily/ ./
+   --recursive`).
+4. Restore the database (`gunzip -c latest.db.gz | sqlite3
+   data/zzedc.db` for SQLite, or the RDS-restore flow
+   above for PostgreSQL).
+5. Bring up the compose stack (`docker compose up -d`).
+6. Update DNS or load-balancer target to the new host.
+7. Run `verify_audit_log_integrity()` and confirm the
+   application's `/health` endpoint.
+8. Communicate the new URL to sites if it changed.
+
+Capture the elapsed time as the realised RTO and record it
+in the trial DMP.
+
+### Scenario 4: Accidental or malicious data deletion
+
+Symptoms: missing records, unexpected data changes, audit
+log entries indicating DELETE actions outside expected
+workflow.
+
+Recover deleted rows from the audit log itself; the audit
+trail captures the `old_values` JSON for every DELETE:
+
+```{r}
+recover_deleted_records <- function(config, table_name,
+                                    deletion_time) {
+  adapter <- create_db_adapter(config)
+  conn <- adapter$connect()
+  on.exit(adapter$disconnect(conn))
+
+  sql <- "
+    SELECT record_id, old_values, changed_at, changed_by
+      FROM audit_log
+     WHERE table_name = ?
+       AND action = 'DELETE'
+       AND changed_at >= ?
+     ORDER BY changed_at
+  "
+  deleted <- DBI::dbGetQuery(
+    conn, sql,
+    params = list(table_name, as.character(deletion_time))
+  )
+  if (nrow(deleted) == 0) {
+    message("No deleted records found in the time range")
+    return(invisible(NULL))
+  }
+  deleted
+}
+
+restore_from_audit <- function(config, audit_records,
+                               table_name) {
+  adapter <- create_db_adapter(config)
+  conn <- adapter$connect()
+  on.exit(adapter$disconnect(conn))
+
+  restored <- 0L
+  for (i in seq_len(nrow(audit_records))) {
+    old <- jsonlite::fromJSON(audit_records$old_values[i])
+    cols <- names(old)
+    sql <- sprintf(
+      "INSERT INTO %s (%s) VALUES (%s)",
+      table_name,
+      paste(cols, collapse = ", "),
+      paste(rep("?", length(cols)), collapse = ", ")
+    )
+    tryCatch({
+      DBI::dbExecute(conn, sql, params = as.list(old))
+      restored <- restored + 1L
+    }, error = function(e) {
+      warning(sprintf(
+        "Failed to restore record %s: %s",
+        audit_records$record_id[i], e$message
+      ))
+    })
+  }
+  message(sprintf(
+    "Restored %d of %d records", restored, nrow(audit_records)
+  ))
+}
+```
+
+Always restore into a staging database, review with the
+content author, and only then promote into production.
+Each insertion is itself an audit event; the chain
+remains intact.
+
+## 9.6 Recovery checklist
+
+```
+Immediate (0-15 min)
+- [ ] Confirm incident and assess scope
+- [ ] Notify content author and PI
+- [ ] Preserve evidence (corrupted file, logs, error output)
+- [ ] Identify the most recent valid backup
+
+Recovery (15-60 min)
+- [ ] Stop affected services
+- [ ] Restore from backup
+- [ ] Verify data integrity (verify_audit_log_integrity)
+- [ ] Test core application flows
+
+Post-recovery (1-4 h)
+- [ ] Monitor for follow-on errors
+- [ ] Document the timeline
+- [ ] Identify the root cause
+- [ ] Update the runbook if a procedure failed
+- [ ] Schedule a post-mortem
+```
+
+## 9.7 Regulatory expectations for backups
+
+- *21 CFR Part 11.* Maintain backup logs as part of the
+  audit trail; secure and access-control backup media;
+  document verification in validation records; test
+  recovery at least annually; retain backups for the
+  trial's full retention period (typically study duration
+  plus 2 years).
+- *HIPAA.* Encrypt backups at rest (AES-256); encrypt
+  transfers in transit (TLS 1.2+); access-control the
+  backup storage; log all backup access and restoration;
+  cover backup procedures in any Business Associate
+  Agreement.
+
+Document at minimum: backup schedule and retention,
+recovery runbooks per scenario, DR test results,
+incident reports, and the change log of the procedures
+themselves. The encryption-key rotation procedure
+(§5.9) belongs in the same document set.
+
+---
+
+# Chapter 10. Audit-log verification
+
+The audit log is the trial's regulatory backbone. Verify it
+weekly and after every restore.
+
+## 10.1 Run the integrity check
+
+```{r}
+library(zzedc)
+res <- verify_audit_log_integrity(
+  db_path = "/srv/zzedc/MEMORY-001/study.db",
+  key     = Sys.getenv("DB_ENCRYPTION_KEY")
+)
+
+res$valid                  # TRUE if chain validates end-to-end
+res$first_audit_id         # earliest audit_id in the chain
+res$last_audit_id          # latest
+res$chain_length           # total entries
+res$tampered_entries       # empty if chain valid
+```
+
+If `valid` is `TRUE`, every row in `audit_log` chains to its
+predecessor and no entry has been tampered with since it was
+written. If `valid` is `FALSE`, `tampered_entries` lists the
+rows where the chain breaks. Treat any chain break as a
+serious incident: stop new writes, capture the database state,
+and contact your compliance lead before continuing.
+
+## 10.2 The MIGRATION_AUDIT_GAP marker
+
+If you ran a REDCap migration via
+`import_redcap_to_zzedc_db(source = "api")` and the source
+REDCap instance returned a partial or empty audit log
+(because the API token lacked the `Logging` right), the
+importer prepends a `MIGRATION_AUDIT_GAP` marker to the
+chain. This marker is intentional: the chain still validates
+end-to-end, but continuity-of-record is preserved only from
+the marker forward. Inspect:
+
+```{r}
+library(DBI)
+conn <- connect_encrypted_db(
+  db_path = "/srv/zzedc/MEMORY-001/study.db",
+  key     = Sys.getenv("DB_ENCRYPTION_KEY")
+)
+DBI::dbGetQuery(conn,
+  "SELECT timestamp, details FROM audit_log
+     WHERE event_type = 'MIGRATION_AUDIT_GAP'")
+DBI::dbDisconnect(conn)
+```
+
+If the marker is present, document it in the DMP: the trial's
+21 CFR Part 11 continuity argument is anchored at the marker,
+not at the source-side genesis.
+
+---
+
+# Chapter 11. Pre-go-live checklist
+
+Use this checklist 7 to 14 days before the planned go-live
+date.
+
+## Infrastructure
+
+- [ ] Server provisioned with the chosen backend (Chapter 2)
+- [ ] R 4.4+ installed
+- [ ] zzedc installed from CRAN (or a pinned tarball)
+- [ ] renv.lock committed to the trial's config repository
+- [ ] config.yml configured for the trial (Chapter 4)
+- [ ] Environment variables set (`DB_ENCRYPTION_KEY`,
+      `DB_PASSWORD` if applicable, `ZZEDC_SALT`)
+- [ ] TLS certificate in place; HTTPS redirects HTTP
+
+## Database
+
+- [ ] Encrypted database initialised
+- [ ] `verify_database_encryption()` returns `encrypted =
+      TRUE` on the production host
+- [ ] Audit log initialised
+- [ ] Core tables created via `create_wizard_database()` or the
+      web wizard
+- [ ] Admin user created; admin password changed at first
+      login
+- [ ] Encryption key stored in the agreed custodian (§4.3)
+
+## Content
+
+- [ ] Workbook (or CSV folder) imported via
+      `setup_zzedc_from_gsheets()` /
+      `setup_zzedc_from_csv()`
+- [ ] No skipped rules outstanding (or each skipped rule
+      manually addressed)
+- [ ] Site list verified (Chapter 7)
+- [ ] Site-based access manually verified per site
+
+## Operations
+
+- [ ] Daily backup cron scheduled and running
+- [ ] Restore drill executed successfully
+- [ ] Audit-log integrity check returns `valid = TRUE`
+- [ ] Monitoring / alerting in place (disk space, container
+      health, backup success/failure)
+- [ ] Trial DMP updated with: server location, custodian,
+      RPO/RTO, encryption-key custody, escalation path
+
+## People
+
+- [ ] Content author has run the dry-run protocol (their
+      Chapter 4)
+- [ ] Each site has been trained
+- [ ] Each coordinator has logged in and changed their
+      password
+- [ ] Escalation path documented and shared with sites
+      (coordinator -> content author -> you -> PI)
+
+## Trial-specific
+
+- [ ] IRB approval references the deployed CRF version
+- [ ] Sponsor / DCC sign-off recorded
+
+When every box is checked, schedule a 30-minute go-live call
+with the content author and the site PIs. On the call:
+confirm the URL works for everyone, confirm the credentials,
+ask each site PI for go/no-go, and switch the trial banner to
+*Live*.
+
+---
+
+# Chapter 12. Day-2 operations
+
+The first two weeks after go-live are the highest-risk window.
+After that, the operational rhythm settles.
+
+## Daily (week 1)
+
+- Morning: check container health (`docker compose ps`).
+- Morning: check overnight backup (`ls -la backups/ | head`).
+- Throughout the day: respond to escalations from the content
+  author within 1 hour.
+- Evening: spot-check the application URL is reachable.
+
+## Weekly (week 2 onward)
+
+- Run `verify_audit_log_integrity()` (§10.1). Log result.
+- Check disk space on the VM (`df -h`).
+- Check backup retention (most recent 30 days present).
+- Review application logs for errors (`docker compose logs zzedc`).
+
+## Monthly
+
+- Review user roster with content author for stale accounts.
+- Review the validation-rule list for additions / removals
+  the trial has accumulated.
+- Sample-export one subject's data and confirm it round-trips
+  through the *Export* tab cleanly.
+- Run a full DR test (the four-test routine of file
+  integrity, restore, consistency, and recovery-time
+  measurement) and append the result to the DR log.
+
+## Quarterly
+
+- Restore drill (§9.4).
+- Key rotation review (rotate annually, but check quarterly
+  for compromise indicators).
+- Update R and zzedc to the latest patch versions; re-run the
+  full test suite (`Rscript -e 'tinytest::run_test_dir(...)'`)
+  before pushing to production.
+
+## When to call the project maintainer
+
+Open a GitHub issue at the project's bug tracker for: chain
+breaks, application crashes, data corruption, security
+findings. Include the redacted log output and the package
+version. Do not include subject data.
+
+---
+
+# Appendix A. Migrating from REDCap
+
+If your trial is moving from REDCap, ZZedc has a one-call
+importer. The full guide is at
+[`vignette('mysql-redcap-migration-roadmap')`](mysql-redcap-migration-roadmap.html).
+The short version:
+
+```{r}
+# REST API path (no MySQL access needed):
+result <- import_redcap_to_zzedc_db(
+  source    = "api",
+  api_url   = "https://redcap.example.org/api/",
+  api_token = Sys.getenv("REDCAP_API_TOKEN"),
+  db_path   = "/srv/zzedc/MEMORY-001/study.db",
+  overwrite = TRUE
+)
+
+result$success                              # TRUE
+result$audit_replay$completeness            # full / partial / empty
+result$audit_replay$marker_inserted         # TRUE if not full
+result$audit_replay$chain_validates         # TRUE
+length(result$skipped_rules)                # rules to manually port
+```
+
+```{r}
+# Live MySQL path (faster, audit log always full):
+library(RMariaDB)
+conn <- DBI::dbConnect(
+  MariaDB(),
+  host     = "redcap.example.org",
+  dbname   = "redcap",
+  user     = "redcap_reader",
+  password = Sys.getenv("REDCAP_DB_PASSWORD"))
+
+result <- import_redcap_to_zzedc_db(
+  source    = "db",
+  conn      = conn,
+  pid       = 42L,
+  db_path   = "/srv/zzedc/MEMORY-001/study.db",
+  overwrite = TRUE
+)
+DBI::dbDisconnect(conn)
+```
+
+After migration, share the resulting database with the content
+author and run their Chapter 4 dry-run protocol against the
+imported study.
+
+---
+
+# Appendix B. Per-backend cheat sheets
+
+Per-backend setup mechanics live in
+[`vignette('backend-quickstart')`](backend-quickstart.html);
+this appendix is the one-line `config.yml` snippet for each
+plus a pointer to the relevant appendix in that vignette.
+
+| Backend | One-line config | Setup details |
+|---|---|---|
+| SQLite | `db_backend: sqlite` + `db_path: ...` | `backend-quickstart` Appendix A |
+| DuckDB | `db_backend: duckdb` + `db_path: ...` | `backend-quickstart` Appendix B |
+| MySQL/MariaDB | `db_backend: mysql` + host/port/name/user | `backend-quickstart` Appendix C |
+| PostgreSQL | `db_backend: postgresql` + host/port/name/user | `backend-quickstart` Appendix D |
+| ClickHouse | `db_backend: clickhouse` + host/port/name/user | `backend-quickstart` Appendix E |
+
+---
+
+# Appendix C. Where the regulatory claims live in the code
+
+If you are responding to an audit, here is a map from claim to
+file:
+
+| Claim | Implemented in |
+|---|---|
+| Encryption at rest (AES-256) | `R/encryption_utils.R`, `R/db_connection.R` |
+| Hash-chained audit log | `R/audit_logging.R`, `R/cfr_part11_extensions.R` |
+| Audit-log integrity validation | `R/audit_logging.R::verify_audit_log_integrity()` |
+| Electronic signatures (21 CFR Part 11) | `R/electronic_signatures.R` |
+| GDPR data-subject rights | `R/dsar.R`, `R/erasure.R`, `R/portability.R`, `R/rectification.R` |
+| GDPR consent management | `R/consent.R` |
+| Data retention enforcement | `R/retention.R` |
+| Breach notification | `R/breach_notification.R` |
+| Privacy impact assessment | `R/privacy_impact.R` |
+| REDCap migration with audit replay | `R/redcap_import.R` |
+| Multi-backend portability | `R/portability.R`, `R/db_adapter_*.R` |
+
+## Mapping regulatory clauses to ZZedc behaviour
+
+The two clauses most often cited in DMP and IRB submissions
+are GDPR Article 32 and FDA 21 CFR Part 11. ZZedc's
+contribution to each:
+
+- *GDPR Article 32 (security of processing).* Encryption of
+  personal data at rest (when SQLCipher-enabled RSQLite or
+  TDE is in effect; see Chapter 5); access control via
+  role-based authentication and per-site scoping; audit
+  trail for accountability; documented operational
+  procedures. The 'partial' caveat applies because
+  encryption-at-rest depends on the deployed driver.
+- *FDA 21 CFR Part 11 (electronic records and electronic
+  signatures).* Hash-chained audit trail (immutable by
+  construction; verifiable end-to-end with
+  `verify_audit_log_integrity()`); electronic-signature
+  framework (`R/electronic_signatures.R`); user
+  accountability through audit logging tied to the
+  authenticated user; data-integrity verification on
+  exports (`export_encrypted_data()` produces a
+  companion `.sha256` file consumed by
+  `verify_exported_data()`).
+
+Neither claim is self-attesting. The audit chain is correct
+by construction but a per-database integrity claim requires
+running the verifier; encryption-at-rest is correct by
+construction but a per-host claim requires running
+`verify_database_encryption()` against the production
+binary.
+
+The canonical compliance write-up is
+`docs/compliance/gdpr-and-cfr-part11.md`. That document is
+the authoritative source for the partial vs. full
+classification of each control.
+
+---
+
+# Companion guides and references
+
+- [Content-Author Guide](content-author-guide.html): the
+  parallel guide for the non-technical team member
+- [REDCap Migration Roadmap](mysql-redcap-migration-roadmap.html)
+- [Demonstration Trial Setup](demonstration-trial-setup.html):
+  a worked example with synthetic data
+- [Advanced Features](advanced-features.html): custom
+  modules, REST API, integration examples

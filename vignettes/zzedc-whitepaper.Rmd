@@ -1,0 +1,417 @@
+---
+title: 'ZZedc: An Executive Overview'
+subtitle: 'Architecture, Regulatory Posture, and Package Boundary'
+author: 'ZZedc Development Team'
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{ZZedc: An Executive Overview}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = '#>',
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Abstract
+
+ZZedc is an open-source Electronic Data Capture (EDC) package for R,
+intended for clinical and observational research conducted by academic
+groups, investigator-initiated trials, and small-to-mid pharmaceutical
+sponsors. It is implemented as an R package built on Shiny and a
+pluggable database layer that supports SQLite, PostgreSQL, MySQL,
+DuckDB, and ClickHouse. This vignette is a positioning document. It
+states what ZZedc is, why the architecture takes the form it does, and
+which regulatory obligations are addressed by the package versus those
+that remain operational responsibilities of the deploying organisation.
+Comprehensive technical detail and the full citation set are deferred
+to the long-form whitepaper at
+`docs/whitepaper/whitepaper.Rmd` and to the canonical compliance
+reference at `docs/compliance/gdpr-and-cfr-part11.md`.
+
+## The problem ZZedc addresses
+
+Clinical data capture in small and mid-sized research programmes is
+served poorly by the existing toolset. Commercial EDC platforms such
+as Medidata Rave or Oracle Clinical impose per-study licensing fees
+and procurement timelines that are incompatible with grant-funded and
+investigator-initiated work. REDCap, the dominant academic
+alternative, is widely deployed but presents three constraints that
+matter at the regulatory margin: its consortium licence restricts
+redistribution; its compliance posture is institutionally framed
+rather than codified in inspectable functions; and its extension model
+relies on PHP modules rather than a programming environment that
+researchers already use for analysis.
+
+ZZedc takes a different position. It is distributed under an
+open-source licence; its compliance claims are tied to specific
+exported R functions with cited file and line locations; and its
+runtime is the same R environment in which downstream statistical
+work is performed, allowing the audit trail, the validation framework,
+and the export pipeline to be exercised from a single language.
+
+The design assumption is that a research group with one or two
+biostatisticians and a data manager should be able to stand up a
+GDPR-aware, 21 CFR Part 11-aware data capture system without engaging
+a commercial vendor, while retaining the ability to read and modify
+every line of the code that handles personal data. The package does
+not eliminate operational obligations such as Data Processing
+Agreements, signed validation reports, or breach notification
+dispatch, but it provides the technical substrate against which those
+obligations can be discharged.
+
+A second design assumption shapes the package: that researchers
+already write R for analysis, that they will continue to do so for the
+foreseeable future, and that a data capture system written in the
+same language reduces the surface area where regulated and analytical
+code must be reconciled. This is a different position from the
+prevailing pattern in which data capture is a vendor-managed black
+box and analysis is an after-the-fact extract from that box. ZZedc
+does not preclude a downstream extract; it does mean that the audit
+trail, the validation rules, and the export itself are inspectable in
+the language the analyst is already using.
+
+## Architecture in one diagram and three guarantees
+
+ZZedc is organised in five layers. The application layer is a Shiny
+front-end composed of feature modules (subject management, form
+rendering, query workflow, signature dialogues, privacy dashboard).
+The domain layer holds the package's exported R functions, grouped by
+concern: audit logging, electronic signatures, version control, the
+data subject rights modules, retention, breach intake, validation, and
+the rest. The persistence layer is a database adapter that translates
+domain calls into backend-specific SQL. The storage layer is one of
+five supported relational backends. A cross-cutting configuration and
+secret-management layer governs encryption keys, study configuration,
+and environment variables.
+
+```
++----------------------------------------------------+
+|  Shiny modules: forms, queries, signatures, audit  |
++----------------------------------------------------+
+|  Domain functions: audit, signatures, DSAR,        |
+|  erasure, retention, validation, breach intake     |
++----------------------------------------------------+
+|  Database adapter: SQLite | Postgres | MySQL |     |
+|                    DuckDB | ClickHouse             |
++----------------------------------------------------+
+|  Configuration, key custody, environment           |
++----------------------------------------------------+
+```
+
+Three guarantees are load-bearing for the architecture and warrant
+explicit naming.
+
+The first is the hash-chained audit trail. Every audited write
+through the package produces an audit row whose hash incorporates the
+hash of the previous row, with a GENESIS sentinel at the head of the
+chain. The function `verify_audit_integrity()` walks the chain
+end-to-end and reports any break. This is the mechanism that
+substantiates the 21 CFR Part 11 §11.10(e) claim of 'continuity of
+record'.
+
+The second is referential separation between subject identifiers and
+clinical data. The schema treats subject directory tables and clinical
+form tables as referentially linked but logically distinct, so that
+GDPR Article 17 erasure can operate on the directory while leaving
+de-identified clinical observations available for legally retained
+research uses, subject to a legal-hold check.
+
+The third is configuration-as-code. Trial configuration, validation
+rules, and form metadata are stored either in versioned files or in
+versioned database rows; ad-hoc administrative changes are routed
+through audited workflows rather than direct database edits. This
+constraint makes the audit trail a complete description of system
+state changes rather than a partial one. It is also the property that
+allows a deployment to be re-created from version-controlled artefacts
+plus a database backup, a property that matters for both disaster
+recovery and inspection-readiness.
+
+These three guarantees are mutually reinforcing. The audit chain
+records what happened; configuration-as-code ensures that the audit
+chain captures all material changes rather than being bypassed by
+direct edits; and referential separation gives the chain a stable
+target structure on which erasure and rectification can act without
+breaking record continuity.
+
+## The five-backend database adapter
+
+ZZedc supports five database backends through a single adapter
+interface: SQLite (with optional SQLCipher encryption), PostgreSQL,
+MySQL, DuckDB, and ClickHouse. The motivation for supporting multiple
+backends is not performance abstraction in the usual sense; it is
+deployment-context match. SQLite suits single-investigator and
+solo-site studies where filesystem-level backup is adequate.
+PostgreSQL and MySQL suit institutional deployments that already
+provide a managed relational service. DuckDB suits offline analytical
+workflows where the EDC database is treated as a columnar source for
+exploratory analysis. ClickHouse suits high-volume sensor or device
+trials where row counts approach billions.
+
+The adapter exposes the same domain function surface to all backends.
+Schema differences (for example, autoincrement semantics, text type
+limits, JSON column handling) are reconciled inside the adapter
+rather than leaking into the domain layer. The trade-off is explicit:
+the adapter does not expose backend-specific SQL features; deployments
+that need such features must extend the adapter rather than bypass it.
+
+A unified backend-quickstart vignette
+(`backend-quickstart`) covers installation, connection pooling,
+and migration steps for each of the five backends, with a
+decision tree at the front and per-backend appendices.
+
+## Audit chain and electronic signatures
+
+The audit chain and the electronic signature mechanism together
+constitute the package's posture toward 21 CFR Part 11. Both are
+implemented as exported R functions with substantive tinytest
+coverage.
+
+The canonical signature path is in `R/electronic_signatures.R`.
+`apply_electronic_signature()` records a signature event with
+signature meaning (authorship, review, approval, responsibility),
+signature statement text, signer identity, and a hash that incorporates
+the signed record state. `verify_electronic_signature()` confirms a
+single signature; `verify_signature_chain()` confirms a sequence of
+signatures across a record's lifecycle.
+
+A second signature implementation exists at
+`R/cfr_part11_extensions.R::create_electronic_signature` and
+`verify_cfr_signature`. It is a parallel orphaned implementation
+without dedicated test coverage. The canonical path governs Part 11
+§11.50, §11.70, §11.100, and §11.200 claims; the orphan path will be
+deprecated. This is documented openly rather than papered over.
+
+System validation through the IQ/OQ/PQ framework
+(`run_iq_tests`, `run_oq_tests`, `run_pq_tests`,
+`run_validation_suite`) executes the technical portion of §11.10(a).
+The organisational portion of a Part 11 validation package, which
+includes a Validation Master Plan, signed validation report, and
+traceability matrix to user requirements, remains an operational
+deliverable produced by the deploying organisation.
+
+Record-level controls under §11.10(c) and §11.10(j) are implemented
+through `R/version_control.R` (record versioning, comparison,
+restoration, integrity verification, and lock or unlock) and
+`R/data_correction.R` (correction request, approval, rejection,
+application, override workflow, and integrity verification). Change
+control under §11.10(k) is implemented through `R/change_control.R`,
+covering change request, impact assessment, approval, implementation,
+and verification.
+
+## GDPR data subject rights, condensed
+
+The data-subject-rights modules are the strongest implementation area
+in the package. Each right is served by a dedicated R module with a
+substantive function surface and tinytest coverage.
+
+The right of access (Article 15) is served by `R/dsar.R`, which
+covers request intake, identity verification, response generation,
+and deadline tracking. Rectification (Article 16) is served by
+`R/rectification.R`. Erasure (Article 17) is served by `R/erasure.R`,
+including a legal-hold mechanism that reconciles the GDPR erasure
+obligation with 21 CFR Part 11 §11.10(c) record-retention obligations
+when both apply to the same subject. Restriction (Article 18) is
+served by `R/restriction.R`, which implements both restriction-state
+storage and a processing-attempt log so that subsequent processing
+can be blocked with a record. Portability (Article 20) is served by
+`R/portability.R`, which generates the machine-readable export
+required by Article 20(1) and supports controller-to-controller
+transfer where technically feasible per Article 20(2). Objection
+(Article 21) is served by `R/objection.R`.
+
+Consent (Articles 6, 7, 9) is served by `R/consent.R`. Granular
+purposes are recorded; consent withdrawal under Article 7(3) is
+distinct from erasure and produces its own audit trail.
+
+Retention (Article 5(1)(e)) is served by `R/retention.R`, with policy
+definition, registration of records under policy, expiry detection,
+hold and extension workflows, and either deletion or anonymisation at
+expiry.
+
+Privacy impact assessment (Article 35) is served by
+`R/privacy_impact.R`, supporting risk assessment, overall risk
+calculation, submission for review, and approval.
+
+Breach intake under Articles 33 and 34 is served by
+`R/breach_notification.R`. Incident reporting, status updates, risk
+assessment, the 72-hour deadline check, and the timeline log are all
+implemented. The functions that name themselves as notifications
+(`notify_dpo`, `notify_supervisory_authority`, `notify_data_subjects`)
+persist notification intent rather than transmitting it; the
+operational obligation to actually communicate with the DPO,
+supervisory authority, and affected subjects is described in the
+'Where the package boundary ends' section below.
+
+## Validation framework and CRF best practices
+
+The package ships an IQ/OQ/PQ validation framework that runs as R
+code (`run_iq_tests` for installation qualification, `run_oq_tests`
+for operational qualification, `run_pq_tests` for performance
+qualification, `run_validation_suite` for the bundled run). These
+functions exercise the package's compliance-relevant code paths and
+produce a structured validation result that can be archived as a
+deployment artefact.
+
+Case Report Form authoring is supported through a Google Sheets
+workbook ingestion pipeline and a CSV authoring path. Validation rules
+are expressed in a constrained domain-specific language that compiles
+to R, with a permission and approval workflow for rule changes and
+versioned history of every rule modification. Form definitions are
+versioned as records, so a CRF revision creates a new version rather
+than mutating the prior version.
+
+The `content-author-guide` vignette is the working reference for
+content authors; this overview omits the syntax of the validation DSL
+and the authoring workbook structure.
+
+## Deployment patterns: solo, multi-site, AWS
+
+ZZedc supports three deployment patterns. The solo deployment is a
+local installation against an SQLite backend, intended for
+single-investigator studies or for development. The multi-site
+deployment is a Docker image running against PostgreSQL or MySQL,
+deployed to an institutional virtual machine with site-based access
+control configured at the application layer. The AWS deployment runs
+the same Docker image on an EC2 host with the database on RDS,
+encryption keys managed by AWS KMS, and TLS terminated at an
+application load balancer.
+
+Operational details for each pattern are in the
+`technical-lead-guide` vignette: AWS / Docker deployment in
+Chapter 8, encryption mechanics in Chapter 5, and disaster
+recovery (backup verification and audit-integrity check on
+restore) in Chapter 9.
+
+A few cross-cutting operational concerns are worth naming. Encryption
+key custody is bound to the deployment pattern: solo deployments
+typically use environment-variable key storage with filesystem
+permissions on the key file; institutional deployments typically use
+the operating system's secret store; AWS deployments use KMS. The
+package's encryption utilities accept any of these key sources but do
+not impose one. TLS termination is the responsibility of the
+deployment's reverse proxy or load balancer; the Shiny application is
+not expected to terminate TLS itself. Backups are the responsibility
+of the database operator; the package provides verification helpers
+that confirm audit-chain integrity on a restored copy, but does not
+perform the backup itself.
+
+## Where the package boundary ends
+
+A regulatory-compliance package is judged in part by the honesty of
+its scope statement. ZZedc does not, on its own, satisfy the
+following obligations. They are listed here so that prospective
+adopters can estimate the operational work required around the
+package.
+
+Encryption at rest requires a SQLCipher-enabled build of RSQLite.
+The package provides `connect_encrypted()` and key-management
+utilities, and the test suite skips encryption tests on unsupported
+RSQLite builds. The default RSQLite distribution from CRAN does not
+include SQLCipher; deployments must explicitly link RSQLite against
+SQLCipher (for example via the SQLite3MultipleCiphers fork) to obtain
+at-rest encryption. Encryption support is therefore best described as
+'available but deployment-conditional', not 'bundled'. The same
+caveat applies to AWS KMS integration: the code is callable when AWS
+credentials are configured, but no integration test runs against a
+live KMS endpoint.
+
+Outbound notification transport is out of scope. GDPR Articles 33,
+34, and 19 each require an outbound communication: to the
+supervisory authority within 72 hours of a personal-data breach, to
+data subjects when a breach is high-risk, and to recipients to whom
+personal data has been disclosed when erasure or rectification has
+occurred. The package implements intake, classification, timeline
+tracking, and persistence of notification intent for all three. It
+does not send email, post to an HTTP endpoint, or interface with any
+postal service. The functions `notify_dpo()`,
+`notify_supervisory_authority()`, `notify_data_subjects()`, and
+`notify_erasure_third_party()` insert rows; the controller must
+satisfy the transport requirement by other means and record the
+dispatch back into the system, after which timeliness can be verified
+via `check_72_hour_deadline()`. This is a deliberate scope decision:
+the package does not own the messaging stack.
+
+The Article 30 register and the data minimisation log have schema
+present but no exported functions to write to or query them. The
+international-transfer mechanisms required by Chapter V (transfer
+impact assessment, Standard Contractual Clauses tracking, adequacy
+lookup) are not implemented; a boolean flag and a UI label are
+present but do not constitute a transfer-governance mechanism.
+
+User training records under §11.10(i) have a schema-only presence;
+there is no exported function to record training events or block
+sign-off based on training status.
+
+Multi-factor authentication is documented in `R/auth_module.R`; this
+module was outside the scope of the most recent compliance audit and
+its claims are unverified at the present revision.
+
+Across 50 audited features mapped to GDPR articles or 21 CFR Part 11
+sections, the canonical compliance reference classifies 35 as
+implemented, 8 as partial (most often because of an absent transport
+layer or a deployment-conditional prerequisite), 6 as documented only
+(schema present without code), and 1 as not implemented. We do not
+report a single 'compliance percentage'; the per-feature table in the
+canonical reference is the authoritative substitute. Earlier internal
+summary documents quoted figures of 35%, 65%, 75%, and 90% with no
+shared denominator; those figures are superseded.
+
+The dual-compliance interaction between regulatory hold and legal
+hold is also worth flagging. The Shiny privacy module checks a
+configuration flag and halts erasure as a 'regulatory hold'; the
+legal-hold mechanism in `R/erasure.R` operates on a separate table.
+There are therefore two answers to 'is this record on a regulatory
+hold?' and they are not unit-tested together. A future revision will
+unify them.
+
+## Comparison with REDCap, condensed
+
+REDCap is the natural reference point. The two systems address a
+similar problem space and have substantially overlapping feature sets
+in routine data capture. Differences worth naming:
+
+REDCap is licensed by the Vanderbilt consortium and redistribution is
+restricted to consortium members; ZZedc is released under an
+open-source licence. REDCap's compliance posture is presented at the
+institutional level (the institution running REDCap is the
+controller); ZZedc's compliance posture is tied to specific exported
+functions in inspectable R code. REDCap extends through PHP modules;
+ZZedc extends through R packages. REDCap has been deployed at
+institutional scale for over a decade and has correspondingly mature
+operations tooling; ZZedc is a newer system and its operational
+maturity is less battle-tested. REDCap's implementation of GDPR data
+subject rights is module-level; ZZedc implements each right as a
+dedicated function set with cited line numbers and tinytests.
+
+The choice between the two is largely an institutional one. ZZedc is
+a defensible choice when source-level inspection of compliance code
+matters, when integration with R-based downstream analysis is the
+dominant workflow, when consortium licensing is unavailable, or when
+the deploying organisation needs to extend or modify compliance
+behaviour rather than configure it within fixed parameters. REDCap
+is the conservative default at institutions that already license it
+and have an established operational practice around it; switching to
+ZZedc has a justified case but is not a default recommendation.
+
+## Pointers to canonical references
+
+For the full long-form treatment, see `docs/whitepaper/whitepaper.Rmd`,
+which retains the original 49-section structure and complete
+bibliography. For regulatory claims, the authoritative reference is
+`docs/compliance/gdpr-and-cfr-part11.md`; that document supersedes any
+compliance language in older summaries. For architecture and
+deployment (including encryption, AWS, and disaster recovery),
+see the `technical-lead-guide` vignette. For content
+authoring, see `content-author-guide`. For backend-specific
+setup, see `backend-quickstart`.

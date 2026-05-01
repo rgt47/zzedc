@@ -1,0 +1,5 @@
+role,description,permissions
+Admin,Full system access,all
+PI,Principal Investigator - can view all data and reports,read_write
+Coordinator,Research Coordinator - data entry and patient management,read_write
+Analyst,Data analyst - reports only,read_only

@@ -1,0 +1,195 @@
+# ZZedc Profile Bundles
+# EDC-specific system libraries and R packages
+#
+# This file defines reusable package and library bundles for Docker image
+# building and development environment configuration, enabling profile-based
+# reproducible environments.
+
+library_bundles:
+  edc_minimal:
+    description: "Minimal EDC system libraries - lightweight footprint"
+    deps:
+      - git
+      - curl
+      - sqlite3
+      - postgresql-client
+    compatible_bases: ["rocker/r-ver"]
+
+  edc_standard:
+    description: "Standard EDC with Shiny and visualization - production ready"
+    deps:
+      - git
+      - curl
+      - sqlite3
+      - postgresql-client
+      - libssl-dev
+      - libcurl4-openssl-dev
+      - libxml2-dev
+      - libfontconfig1-dev
+      - libharfbuzz-dev
+      - libfribidi-dev
+      - libfreetype6-dev
+      - libpng-dev
+      - libtiff5-dev
+      - libjpeg-dev
+      - libgit2-dev
+      - pandoc
+    compatible_bases: ["rocker/verse", "rocker/r-ver"]
+
+  edc_analysis:
+    description: "EDC with statistical analysis tools - data manager focused"
+    deps:
+      # Includes all edc_standard dependencies
+      - git
+      - curl
+      - sqlite3
+      - postgresql-client
+      - libssl-dev
+      - libcurl4-openssl-dev
+      - libxml2-dev
+      - libfontconfig1-dev
+      - libharfbuzz-dev
+      - libfribidi-dev
+      - libfreetype6-dev
+      - libpng-dev
+      - libtiff5-dev
+      - libjpeg-dev
+      - libgit2-dev
+      - pandoc
+      # Additional analysis dependencies
+      - python3
+      - python3-pip
+    compatible_bases: ["rocker/verse"]
+
+  edc_development:
+    description: "Development environment with testing and documentation tools"
+    deps:
+      - git
+      - curl
+      - sqlite3
+      - postgresql-client
+      - libssl-dev
+      - libcurl4-openssl-dev
+      - libxml2-dev
+      - libfontconfig1-dev
+      - libharfbuzz-dev
+      - libfribidi-dev
+      - libfreetype6-dev
+      - libpng-dev
+      - libtiff5-dev
+      - libjpeg-dev
+      - libgit2-dev
+      - pandoc
+      - vim
+      - tmux
+      - zsh
+      - build-essential
+      - man-db
+      - tree
+      - ripgrep
+      - nodejs
+    compatible_bases: ["rocker/verse"]
+
+package_bundles:
+  edc_core:
+    description: "Core EDC and Shiny packages"
+    packages:
+      - shiny
+      - bslib
+      - bsicons
+      - RSQLite
+      - DT
+      - digest
+      - yaml
+      - config
+
+  edc_validation:
+    description: "Validation and QC packages"
+    packages:
+      - testthat
+      - config
+      - yaml
+      - digest
+      - lubridate
+      - dplyr
+
+  edc_visualization:
+    description: "Data visualization packages"
+    packages:
+      - ggplot2
+      - plotly
+      - bslib
+      - DT
+
+  edc_analysis:
+    description: "Statistical analysis packages"
+    packages:
+      - ggplot2
+      - plotly
+      - dplyr
+      - lubridate
+      - tidyr
+      - purrr
+      - stringr
+
+  edc_documentation:
+    description: "Documentation generation packages"
+    packages:
+      - knitr
+      - rmarkdown
+      - devtools
+      - roxygen2
+
+  edc_compliance:
+    description: "Regulatory compliance packages"
+    packages:
+      - digest
+      - openssl
+      - RSQLite
+      - config
+      - yaml
+
+# Profile combinations for different deployment scenarios
+profiles:
+  minimal:
+    description: "Minimal EDC - lightweight installation"
+    libraries: [edc_minimal]
+    packages: [edc_core]
+    base_image: "rocker/r-ver:latest"
+    use_case: "Single researcher, test deployments"
+
+  standard:
+    description: "Standard EDC - production deployment"
+    libraries: [edc_standard]
+    packages: [edc_core, edc_validation, edc_compliance]
+    base_image: "rocker/verse:latest"
+    use_case: "Clinical research studies (10-500 subjects)"
+
+  enhanced:
+    description: "Enhanced EDC with analysis tools"
+    libraries: [edc_standard]
+    packages: [edc_core, edc_validation, edc_visualization, edc_analysis, edc_compliance]
+    base_image: "rocker/verse:latest"
+    use_case: "Multi-site trials with data managers"
+
+  development:
+    description: "Development environment with all tools"
+    libraries: [edc_development]
+    packages: [edc_core, edc_validation, edc_visualization, edc_analysis, edc_documentation, edc_compliance]
+    base_image: "rocker/verse:latest"
+    use_case: "Package development and extension"
+
+# Bundle versioning and compatibility
+versioning:
+  bundle_version: "1.0.0"
+  zzcollab_version: "1.0.0"
+  r_version: "4.0+"
+  last_updated: "2024-12-06"
+
+# Build configuration
+build_config:
+  default_profile: "standard"
+  cache_layers: true
+  parallel_builds: true
+  security_scanning: true
+  image_registry: null  # Set to Docker registry for automated builds

@@ -1,0 +1,13 @@
+field,prompt,type,layout,req,values,cond,valid,validmsg
+subject_id,Subject ID,C,text,1,,,length(subject_id) == 7,Subject ID must be 7 characters
+visit_code,Visit,L,select,1,baseline:week4:week8:week12,,
+assessment_date,Assessment Date,D,date,1,,,
+height_cm,Height (cm),N,numeric,1,,,height_cm >= 120 && height_cm <= 220,Height must be 120-220 cm
+weight_kg,Weight (kg),N,numeric,1,,,weight_kg >= 35 && weight_kg <= 200,Weight must be 35-200 kg
+bmi,BMI (calculated),N,numeric,0,,,bmi >= 15 && bmi <= 50,BMI must be 15-50
+systolic_bp,Systolic Blood Pressure,N,numeric,1,,,systolic_bp >= 70 && systolic_bp <= 200,Systolic BP must be 70-200 mmHg
+diastolic_bp,Diastolic Blood Pressure,N,numeric,1,,,diastolic_bp >= 40 && diastolic_bp <= 120,Diastolic BP must be 40-120 mmHg
+heart_rate,Heart Rate (bpm),N,numeric,1,,,heart_rate >= 40 && heart_rate <= 150,Heart rate must be 40-150 bpm
+temperature,Temperature (°C),N,numeric,0,,,temperature >= 35 && temperature <= 42,Temperature must be 35-42°C
+respiratory_rate,Respiratory Rate,N,numeric,0,,,respiratory_rate >= 8 && respiratory_rate <= 30,Respiratory rate must be 8-30 per minute
+notes,Vital Signs Notes,C,textarea,0,,

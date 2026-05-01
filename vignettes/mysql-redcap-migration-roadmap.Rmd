@@ -1,0 +1,682 @@
+---
+title: "MySQL Backend and the REDCap Migration Roadmap"
+subtitle: "What is shipped today, and what remains for direct REDCap-to-ZZedc import"
+author: "ZZedc Team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{MySQL Backend and the REDCap Migration Roadmap}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  eval     = FALSE
+)
+```
+
+## Purpose of this vignette
+
+This vignette documents two things together:
+
+1. The **current MySQL / MariaDB capability** in ZZedc: what is
+   shipped, what works, and what its limitations are.
+2. The **roadmap to direct REDCap migration**: a planned
+   one-call helper that ingests a REDCap MySQL export (or live
+   REDCap database) and produces a populated ZZedc study,
+   without an intermediate CSV step.
+
+The first is a feature description for adopters making a
+backend choice today. The second is a transparent statement of
+work for prospective contributors and for reviewers reading the
+manuscript: a feature claimed for the future is named, scoped,
+and risk-noted, rather than implied.
+
+---
+
+## Part 1: Current MySQL capability
+
+### What ships
+
+As of this release, ZZedc supports MySQL and MariaDB as a
+peer backend alongside SQLite, DuckDB, PostgreSQL, and
+ClickHouse. The integration consists of:
+
+- A `MySQLAdapter` R6 class (`R/db_adapter_mysql.R`) implementing
+  the standard `DatabaseAdapter` interface (connect, query,
+  execute, transaction, dialect, pool, list_tables,
+  backend_name).
+- Backend dispatch in `create_db_adapter()` accepting both
+  `"mysql"` and `"mariadb"` as the `db_backend` value.
+- Configuration validation in `validate_db_config()` for the
+  `mysql` config section.
+- A `default_db_config("mysql", ...)` constructor for
+  programmatic use.
+- The MySQL appendix in
+  [`vignette('backend-quickstart')`](backend-quickstart.html)
+  (Appendix C) walks through server setup, R installation, and
+  the end-to-end study-creation flow.
+
+The R driver is `RMariaDB`. The same driver connects to both
+MySQL and MariaDB servers.
+
+### What works
+
+Everything ZZedc does on the SQLite, PostgreSQL, or DuckDB
+backend works on MySQL / MariaDB:
+
+- CRF authoring through `create_crf_definition()`,
+  `add_form_field()`, and the data-dictionary CSV path
+- Validation rules through the DSL and through
+  `setup_zzedc_from_gsheets()`
+- User management, role-based access control, audit trail with
+  hash-chained integrity, and electronic signatures
+- Cross-backend migration via `migrate_between_backends()` (a
+  study can be moved between any two of the five backends)
+- The full Shiny application, including the form designer,
+  data-correction module, audit viewer, and GDPR data-subject
+  modules
+
+### Recommended server versions
+
+| Server | Versions | Reason for floor |
+|---|---|---|
+| MariaDB 11.4 LTS | June 2024 -- June 2029 | Current LTS; headline target |
+| MariaDB 10.11 LTS | February 2023 -- February 2028 | Documented compatibility floor |
+| MySQL 8.4 LTS | April 2024 -- April 2032 | Current LTS for MySQL |
+
+The technical floor (CTE, window function, JSON support) is
+MySQL 8.0 / MariaDB 10.5, but those versions are now end-of-
+life and should not be used in clinical settings.
+
+### Known limitations
+
+1. **Encryption at rest is not driven by the adapter.** On
+   SQLite, the package can request SQLCipher encryption per
+   database file. On MySQL / MariaDB, encryption is configured
+   at the server level (InnoDB tablespace encryption); the
+   `key` argument to `connect_encrypted_db()` and
+   `initialize_encrypted_database()` is ignored on the MySQL
+   path. This is a deployment-architecture issue rather than a
+   gap in the adapter.
+
+2. **No `RETURNING` clause.** PostgreSQL's `RETURNING` clause
+   simplifies inserts that need to capture the new primary
+   key. MySQL 8.0 lacks it; MariaDB 10.5+ supports it on
+   `INSERT` only. The dialect helper reports
+   `supports_returning = FALSE` on the MySQL backend, and
+   internal callers fall back to `LAST_INSERT_ID()` /
+   `dbGetQuery("SELECT LAST_INSERT_ID()")` for primary-key
+   capture.
+
+3. **Identifier quoting differs.** MySQL uses backticks
+   (\`identifier\`) where PostgreSQL uses double quotes
+   ("identifier"). The adapter's `dialect()$quote_identifier`
+   handles this; ad-hoc SQL written by users that interpolates
+   identifier names should call the dialect helper rather than
+   hard-coding quote characters.
+
+4. **No native LISTEN/NOTIFY.** PostgreSQL's pub-sub primitive
+   is not available. Code that depends on
+   `PostgreSQLAdapter$listen()` / `notify()` will not run on
+   the MySQL backend; the relevant Shiny modules avoid this
+   dependency.
+
+### What this enables today
+
+For studies that already live on a MySQL or MariaDB server
+(institutional or self-hosted), ZZedc is now installable in
+the same operational environment as the existing data
+infrastructure. For investigators whose institution operates
+REDCap, the indirect REDCap-to-ZZedc path through CSV export
+is the supported route today, as documented in
+[`vignette('backend-quickstart')`](backend-quickstart.html)
+Appendix C.
+
+---
+
+## Part 2: REDCap migration roadmap
+
+### Phase C1: shipped in this release
+
+The Phase C1 connector is `import_redcap_to_zzedc()`. Given a
+DBI connection to a REDCap-shaped database and a project ID, it
+emits a directory of CSV files in ZZedc data-dictionary shape:
+
+```{r c1-example}
+library(RMariaDB)
+conn <- DBI::dbConnect(MariaDB(),
+  host     = "redcap.example.org",
+  dbname   = "redcap",
+  user     = "redcap_reader",
+  password = Sys.getenv("REDCAP_DB_PASSWORD"))
+on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+result <- import_redcap_to_zzedc(
+  conn       = conn,
+  pid        = 42L,
+  output_dir = "~/zzedc_migration/redcap_42"
+)
+
+result$counts          # rows per artefact
+length(result$skipped_rules)  # rules needing manual review
+```
+
+The output directory contains:
+
+- `data_dictionary.csv` — REDCap fields translated to ZZedc
+  CRF-field shape (one row per field; ready for the data-
+  dictionary import path)
+- `validation_rules.csv` — REDCap range validations translated
+  to ZZedc DSL (e.g., `age between 50 and 90`)
+- `users.csv` — REDCap user accounts with REDCap rights
+  translated to ZZedc roles (Admin, Researcher, Coordinator,
+  Monitor)
+- `subjects.csv` — distinct record IDs from
+  `redcap_data.record`
+- `subject_data.csv` — subject responses in long form
+  (subject_id, field_name, value, event_id)
+- `audit_log.csv` — REDCap audit-log rows for human inspection
+- `manifest.json` — provenance record (REDCap project ID,
+  imported-at timestamp, counts, importer phase)
+
+### What Phase C1 covers
+
+- **Field-type translation**: REDCap `text` + `integer`-validation
+  becomes ZZedc `numeric`; `radio`, `checkbox`, `dropdown`,
+  `yesno`, `date`, `datetime` map directly. Unknown types fall
+  back to `text` (recorded in the manifest).
+- **Range validations**: `text_validation_min` /
+  `text_validation_max` on `integer` / `number` / `float`
+  validations translate to ZZedc DSL `between … and …`.
+- **User-role coercion**: REDCap's per-field permission flags
+  collapse to ZZedc's coarser role set
+  (`design` → Admin; `data_export_tool` → Researcher;
+  general entry → Coordinator; otherwise Monitor). Expired
+  REDCap accounts (`expiration < today`) map to
+  `active = FALSE`.
+- **EAV record extraction**: `redcap_data` rows are emitted in
+  long form. Wide-form pivot is deferred to Phase C2 because it
+  requires repeating-instrument and longitudinal-event
+  semantics that Phase C1 does not yet handle.
+
+### What Phase C1 does not cover
+
+These are the explicit limitations of the C1 release:
+
+- **No direct database creation.** The caller must run a second
+  step: stage the CSVs into a Google Sheet and call
+  `setup_zzedc_from_gsheets()`, or use the data-dictionary
+  CSV authoring path.
+- **No audit-trail hash-chain replay.** The audit CSV is
+  emitted for human inspection. ZZedc's `audit_trail` table is
+  not populated by C1; that is Phase C2's job.
+- **No branching-logic translation.** Fields with REDCap
+  branching logic appear in the data dictionary, but the
+  branching rule is recorded in `result$skipped_rules` rather
+  than translated to ZZedc DSL. The branching parser is
+  Phase C2.
+- **Long-form data only.** Repeating instruments and
+  longitudinal events are not pivoted to ZZedc form-submission
+  rows. The downstream stage (Phase C2 or manual CSV authoring)
+  resolves this.
+- **DBI connection only.** Source modes other than a live DBI
+  connection (`.sql`-dump file hydration, REDCap REST API)
+  are deferred to Phase C3.
+
+### C1 recipe (CSV emission)
+
+When a CSV intermediate is wanted (for human review of the
+extracted artefacts before populating the ZZedc database), use
+the C1 entry point:
+
+```{r recipe-c1}
+# 1. Connect to your REDCap source database (institutional
+#    MySQL, SQLite hydrated from a dump, or any DBI connection
+#    whose schema matches REDCap's relational layout).
+conn <- DBI::dbConnect(RMariaDB::MariaDB(),
+  host = "redcap.example.org", dbname = "redcap",
+  user = "redcap_reader",
+  password = Sys.getenv("REDCAP_DB_PASSWORD"))
+
+# 2. Run the C1 importer.
+out <- "~/zzedc_migration/redcap_42"
+result <- import_redcap_to_zzedc(conn, pid = 42L,
+                                  output_dir = out)
+
+# 3. Review the manifest and `skipped_rules`. Translate any
+#    branching-logic rules manually into the
+#    validation_rules.csv following the patterns in
+#    vignette('content-author-guide').
+
+# 4. Stage data_dictionary.csv, validation_rules.csv, and
+#    users.csv into a Google Sheets workbook and run
+#    setup_zzedc_from_gsheets() against it; or use the CSV
+#    authoring path documented in
+#    vignette('demonstration-trial-setup').
+DBI::dbDisconnect(conn)
+```
+
+### Phase C2: shipped in this release
+
+Phase C2 is the one-call direct-to-database orchestrator
+`import_redcap_to_zzedc_db()`. It runs the C1 extraction
+internally, then provisions the ZZedc database, populates it
+with users, CRFs, subjects, and form data, and replays the
+REDCap audit log into ZZedc's hash-chained `audit_log` table.
+
+```{r recipe-c2}
+library(RMariaDB)
+conn <- DBI::dbConnect(MariaDB(),
+  host     = "redcap.example.org",
+  dbname   = "redcap",
+  user     = "redcap_reader",
+  password = Sys.getenv("REDCAP_DB_PASSWORD"))
+on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+result <- import_redcap_to_zzedc_db(
+  conn       = conn,
+  pid        = 42L,
+  db_path    = "/srv/zzedc/MIGRATED-001/study.db",
+  overwrite  = FALSE,
+  dry_run    = FALSE
+)
+
+# Required for any subsequent operation in this R session.
+Sys.setenv(DB_ENCRYPTION_KEY = result$key)
+
+# Per-stage diagnostics
+result$success                       # overall pass/fail
+result$users$imported                # users created
+result$forms$imported_forms          # CRFs created
+result$forms$imported_fields         # fields across all CRFs
+result$subjects$imported             # subject records seeded
+result$subject_data$imported         # subject form_data rows
+result$audit_replay$imported         # REDCap audit rows replayed
+result$audit_replay$chain_validates  # hash chain valid end-to-end
+length(result$skipped_rules)         # rules deferred to manual review
+result$branching_translated          # branching rules translated
+```
+
+### What Phase C2 covers
+
+- **One-call orchestration.** Database creation, schema
+  provisioning, user import, CRF authoring, subject seeding,
+  form-data load, and audit replay run end-to-end.
+- **Hash-chained audit replay.** REDCap `redcap_log_event` rows
+  are replayed into ZZedc's `audit_log` and `audit_chain` in
+  chronological order. Each replayed row's `audit_hash` chains
+  to the prior row; the first row chains to `GENESIS`. After
+  replay, the chain is validated end-to-end and reported in
+  `result$audit_replay$chain_validates`. Imported rows have
+  `details` JSON marked
+  `{"source":"redcap","redcap_log_event_id":...}` so
+  REDCap-origin actions remain attributable post-import; this
+  is the technical control that supports a Part-11
+  continuity-of-record claim.
+- **Branching-logic translation.** A simple grammar handles
+  REDCap's `[field] = value`-style expressions (equality,
+  inequality, `>=`/`<=`/`>`/`<`, `or`/`and`/`not`,
+  parenthesised compounds). Constructs outside that grammar
+  (`datediff()`, event-arm prefixes such as
+  `[event_arm_1][field]`) are conservatively rejected and
+  recorded in `result$skipped_rules` for manual review.
+- **Conflict policy.** `on_conflict = "skip"` (default),
+  `"merge"`, or `"fail"` controls behaviour when imported rows
+  conflict with existing ZZedc rows. Default is `"skip"` with
+  per-user diagnostics in the result list.
+- **Dry-run mode.** `dry_run = TRUE` exercises the full
+  pipeline (including CSV emission and DSL parsing) without
+  creating the target database. Useful to validate a REDCap
+  source against the C2 importer before committing.
+
+### What Phase C2 does not yet cover
+
+These are explicit limitations of the C2 release:
+
+- **Repeating instruments and longitudinal events** are
+  flattened: each `redcap_data.event_id` becomes a single
+  `visit_code` (resolved against `redcap_events_metadata` if
+  available, otherwise `EVENT_<id>`). Studies whose REDCap
+  schema relies on repeating instruments will import but lose
+  the repetition structure. The data dictionary may need
+  manual restructuring after import.
+- **Branching-logic edge cases.** REDCap's
+  `datediff([dob], [today], "y")`, event-arm prefixes, and
+  custom plugins are not translated. The covered grammar
+  matches roughly 60-70% of branching expressions in real
+  REDCap projects; the rest land in `skipped_rules` for
+  manual translation following the patterns in
+  `vignette('content-author-guide')` §"Define validation
+  rules".
+- **`.sql`-dump source mode** is deferred to Phase C3b. Today,
+  dumps must be loaded into a transient MySQL or MariaDB
+  instance manually before invoking the importer.
+
+### Phase C3a: shipped in this release (REST API source mode)
+
+In addition to the live DBI connection (`source = "db"`), the
+importer now accepts a REDCap REST API endpoint
+(`source = "api"`). This removes the requirement for direct
+database access -- often unavailable on institutional REDCap
+instances -- and lets investigators migrate using nothing more
+than a project-scoped API token.
+
+```{r, eval = FALSE}
+library(zzedc)
+
+result <- import_redcap_to_zzedc_db(
+  source    = "api",
+  api_url   = "https://redcap.example.org/api/",
+  api_token = Sys.getenv("REDCAP_API_TOKEN"),
+  db_path   = "/srv/zzedc/MIGRATED-002/study.db",
+  overwrite = TRUE
+)
+
+result$success                              # TRUE
+result$audit_replay$completeness            # full / partial / empty
+result$audit_replay$marker_inserted         # TRUE if not full
+result$audit_replay$chain_validates         # TRUE
+length(result$skipped_rules)                # rules needing manual review
+```
+
+The token's permissions decide whether C3a can claim full
+audit-chain continuity. REDCap's `Logging` right is
+permission-gated: tokens minted by a user without it receive a
+redacted or empty log. The importer detects this and degrades
+the continuity claim explicitly:
+
+- `audit_replay$completeness = "full"` -- the API returned
+  data-modification events; the chain is replayed exactly as in
+  Phase C2.
+- `"partial"` -- the API returned only login/logout/view
+  events, no data modifications. A `MIGRATION_AUDIT_GAP` marker
+  is prepended to the chain documenting the gap.
+- `"empty"` -- the API returned no events at all. A marker is
+  still prepended; the chain validates from the marker forward.
+
+In all three cases the resulting hash chain validates
+end-to-end, but the marker makes the continuity-of-record
+claim honest: continuity is preserved *from the migration
+boundary forward*, not retroactively over a gap that the
+source-side log did not faithfully expose. A Part-11 reviewer
+inspecting the imported study can detect the marker by
+filtering on `event_type = 'MIGRATION_AUDIT_GAP'`.
+
+#### Mocking the API for tests and dry runs
+
+For tests, dry runs against synthetic data, or running the
+importer offline against canned fixtures, build an `api`
+handle directly with the `ops` argument and pass it via
+`api = ...`:
+
+```{r, eval = FALSE}
+fake_api <- redcap_api_connect(
+  api_url   = "ignored",
+  api_token = "ignored",
+  ops = list(
+    version  = function() "14.5",
+    metadata = function() my_metadata_df,
+    users    = function() my_users_df,
+    records  = function(fields = NULL) my_records_df,
+    log      = function() my_log_df
+  )
+)
+result <- import_redcap_to_zzedc_db(
+  source = "api", api = fake_api,
+  db_path = tempfile(fileext = ".db"), overwrite = TRUE
+)
+```
+
+This is the pattern the package's own tests use to exercise the
+API path without depending on a network or a live REDCap
+instance.
+
+### What Phase C3a does not yet cover
+
+These remain limitations of C3a, distinct from those of C2:
+
+- **`.sql`-dump source mode** is Phase C3b, not yet shipped.
+- **Repeating instruments and longitudinal events** are still
+  flattened (same caveat as C2); lifting this is Phase C4 and
+  touches the schema, not the extractor.
+- **Audit-log filtering by date / user.** C3a fetches the full
+  log; large projects on slow API endpoints may benefit from
+  windowed pulls. Deferred.
+- **OAuth / institutional SSO.** C3a is token-only.
+
+### Why this matters for the manuscript
+
+The package's positioning as a *REDCap alternative* is
+substantively stronger when there is a documented migration
+path. *Comparable feature set* is one claim; *can ingest your
+REDCap export and produce an equivalent study* is another. The
+former invites debate about which platform's feature is
+better; the latter is a concrete, testable assertion.
+
+### REDCap data model summary
+
+REDCap stores study data in a relational schema with these
+core tables (REDCap version 14.x, the current LTS as of this
+writing):
+
+| Table | Role |
+|---|---|
+| `redcap_data` | Long-form (entity-attribute-value) table holding subject responses. One row per (subject, instrument-instance, field). |
+| `redcap_metadata` | Field definitions: name, label, type, validation, branching logic. |
+| `redcap_events_metadata` | Visit / event definitions. |
+| `redcap_events_arms` | Arm definitions for longitudinal projects. |
+| `redcap_events_forms` | Which forms appear in which events. |
+| `redcap_user_rights` | Per-user role assignments and permissions. |
+| `redcap_log_event` | Audit log: every data-entry, edit, export action. |
+| `redcap_projects` | Per-project metadata (name, status, etc.). |
+
+REDCap's schema has been roughly stable since version 8.x
+(2018), but column additions happen at most major version
+bumps. The importer's design needs to accommodate this.
+
+### Mapping REDCap to ZZedc
+
+For each ZZedc concept, the corresponding REDCap source:
+
+| ZZedc concept | REDCap source | Mapping notes |
+|---|---|---|
+| `crf_definitions` | `redcap_metadata.form_name` (distinct values) | One ZZedc CRF per REDCap form; CRF name = form label |
+| `designer_fields` | `redcap_metadata` rows | One ZZedc field per REDCap field; field type translated through a small lookup table (REDCap `text` + validation `integer` -> ZZedc `numeric`; REDCap `radio` -> ZZedc `radio`; etc.) |
+| `validation_rules` | `redcap_metadata.text_validation_type_or_show_slider_number` + `redcap_metadata.text_validation_min/max` + `redcap_metadata.branching_logic` | Range validations translate directly; branching logic translates to ZZedc conditional rules through a small parser |
+| `subjects` | distinct `redcap_data.record` for project | Subject ID inherited verbatim |
+| Subject visit data | `redcap_data` rows joined against `redcap_events_metadata` | EAV-to-relational pivot: one ZZedc form-submission row per (subject, event, instrument) |
+| `edc_users` | `redcap_user_rights` joined against the system user table | Roles translated through a fixed mapping (REDCap roles are project-local, ZZedc roles are system-wide) |
+| `audit_trail` | `redcap_log_event` rows for the project | Per-action translation; hash-chain replay computed during import |
+
+### Implementation work
+
+| Module | Lines (estimate) | Risk |
+|---|---|---|
+| `R/redcap_import.R` orchestrator | 200-300 | Low |
+| Field-type translation table | 50-100 | Low |
+| Branching-logic parser (REDCap syntax to ZZedc DSL) | 200-400 | Medium: REDCap uses a custom syntax with infix operators, conditionals, and field-name references. A small recursive-descent parser is the right tool. |
+| EAV-to-relational pivot | 100-200 | Medium: longitudinal projects with repeating instruments require careful join semantics |
+| User and role translation | 50-100 | Low |
+| Audit-trail replay (with hash-chain construction) | 150-250 | Medium: each ZZedc audit row has a hash that depends on the previous row; importing requires re-computing the chain |
+| Dry-run validator | 100 | Low |
+| Tests against fixture databases | 300-500 | Medium: need a sanitised REDCap fixture; cannot ship with real PHI |
+| Vignette and documentation | 200 | Low |
+
+**Total estimate: 1,300 -- 2,150 lines plus fixtures.**
+**Time estimate: 2 -- 3 weeks of focused work.**
+
+### Open design decisions
+
+1. **Source format.** Three sources are plausible:
+   - REDCap MySQL `.sql` dump file (loaded into a temporary
+     MySQL or transient SQLite via the dump's CREATE TABLE
+     statements; SQLite cannot replay arbitrary MySQL dumps so
+     a temporary MySQL server is the cleaner option)
+   - Live REDCap MySQL database (the importer connects with a
+     read-only account)
+   - REDCap REST API (the importer pulls metadata and data via
+     authenticated HTTP)
+
+   Recommend supporting **all three** with a single `source`
+   argument and dispatch on type. The CSV path is already
+   covered by `setup_zzedc_from_gsheets()` and the
+   data-dictionary CSV authoring flow.
+
+2. **REDCap version range.** Recommend targeting
+   **REDCap 14.x LTS** (current as of this writing) as the
+   primary tested version, with **13.x** documented as
+   compatible-but-untested. Older versions need fixture
+   testing before they can be claimed.
+
+3. **Conflict policy.** What if the REDCap project has user
+   accounts that conflict with existing ZZedc accounts? Three
+   policies, configurable through an argument:
+
+   - `on_conflict = "skip"`: leave the existing ZZedc account
+     alone, log a warning
+   - `on_conflict = "merge"`: merge attributes (the more
+     permissive role wins)
+   - `on_conflict = "fail"`: abort the import
+
+   Recommend `"skip"` as default with explicit logging.
+
+4. **Audit-trail provenance.** REDCap's audit log records
+   actions performed in REDCap. After import, those actions
+   should remain attributable to REDCap, not back-dated as if
+   they happened in ZZedc. Recommend a new field
+   `audit_trail.source = "redcap"` on imported rows, and
+   `audit_trail.source = "zzedc"` on native rows. Existing
+   ZZedc deployments will see only `zzedc` rows.
+
+5. **PHI exposure during dry-run.** A dry-run validator that
+   reads the real REDCap database produces logs that should
+   not contain PHI. Recommend redacting subject IDs and free-
+   text fields in the result object's diagnostics; full data
+   only flows when `dry_run = FALSE`.
+
+### Validation strategy
+
+1. **Round-trip equivalence.** Build a fixture REDCap database
+   (synthetic data only, no PHI), import it into ZZedc, export
+   the ZZedc study back to a REDCap-compatible CSV, and verify
+   the round-trip preserves every field value. Disagreement is
+   a translation bug.
+
+2. **Spot-check against a real REDCap export.** Once the
+   round-trip test passes on synthetic data, run the importer
+   against a real REDCap export (with an investigator who
+   owns the data) and have a domain expert confirm a sample
+   of subjects is faithfully reproduced.
+
+3. **Audit-chain integrity.** After import, verify the ZZedc
+   audit log's hash chain validates from the first synthetic
+   row through to the last imported row. Break-detection on
+   the chain is the existing `verify_audit_integrity()`
+   function; this is a regression test rather than new code.
+
+### Risks
+
+1. **Schema drift.** REDCap has shipped 14 major versions. A
+   schema feature added in 14.3 may not exist in 14.0. The
+   importer should declare a tested version range and reject
+   schemas it does not recognise rather than silently
+   producing partial imports.
+
+2. **Branching-logic edge cases.** REDCap's syntax for
+   branching logic accumulated incrementally; some real-world
+   expressions are hard to parse correctly. The importer
+   should fall back to a "manual review required" diagnostic
+   when it encounters a construct it cannot translate, rather
+   than guess.
+
+3. **Repeating-instrument semantics.** REDCap's repeating
+   forms and repeating events do not map one-to-one to ZZedc's
+   single-instance form model. A study using repeating
+   instruments may need its data dictionary restructured
+   during import; the importer should detect and refuse rather
+   than silently flatten.
+
+4. **Custom field types.** REDCap supports user-defined field
+   types through plugins; ZZedc has a fixed type set. Custom
+   fields will need to be mapped to the closest ZZedc type
+   and flagged in the import diagnostics for human review.
+
+5. **Regulatory framing.** A migration that destroys the
+   audit chain (rather than preserving it) cannot claim
+   continuity for 21 CFR Part 11 purposes. The
+   `audit_trail.source = "redcap"` marking and the hash-chain
+   replay are how the importer preserves continuity; both
+   need explicit verification before the importer is claimed
+   as Part-11-compatible.
+
+### Phasing
+
+If the full importer is too much work for one sprint, three
+phased deliveries make sense:
+
+- **Phase C1: Read-only REDCap MySQL connector.** A minimal
+  importer that reads REDCap metadata + records via an
+  RMariaDB connection and emits a ZZedc-format CSV. Does not
+  produce a database directly; users still call
+  `setup_zzedc_from_gsheets()` (or its CSV equivalent) to
+  finish. ~400 lines, 1 week. Lower-risk and ships value
+  fast.
+
+- **Phase C2: Direct database creation + audit replay.** Adds
+  the database-creation orchestration and the hash-chain
+  replay, completing the one-call experience. ~600 additional
+  lines, 1-2 weeks.
+
+- **Phase C3a (shipped): REST API source mode.** Adds
+  `source = "api"` to `import_redcap_to_zzedc_db()`,
+  including audit-completeness gating with a
+  `MIGRATION_AUDIT_GAP` marker for partial / empty logs.
+  ~400 lines including tests.
+
+- **Phase C3b (planned): `.sql`-dump source mode.** Will
+  hydrate a transient MariaDB instance from a REDCap dump and
+  run the existing C2 pipeline against it. Mostly orchestration;
+  ~200 lines.
+
+Total across phases: roughly the original 2-3 week estimate,
+delivered in four releasable increments.
+
+---
+
+## What investigators can do today
+
+Without waiting for the importer:
+
+1. Use REDCap's built-in **Data Exports** to obtain a CSV plus
+   the data dictionary, both in REDCap's standard formats.
+2. Use the
+   [Demonstration Trial Setup](demonstration-trial-setup.html)
+   vignette's CSV-driven flow to author equivalent ZZedc CRFs.
+   The data-dictionary column shape is similar enough that
+   minor manual adjustment is the only friction.
+3. Bulk-load the subject CSV into ZZedc through the
+   secure-export module's *Import* tab.
+4. For studies using Google Sheets as the source of truth,
+   use [Demonstration Clinical Trial via Google Sheets](demonstration-trial-via-gsheets.html)
+   instead.
+
+This indirect path works today on every supported backend
+(SQLite, DuckDB, PostgreSQL, ClickHouse, MySQL / MariaDB).
+The roadmap above describes the work needed to make the
+direct path comparable in friction.
+
+---
+
+## Resources
+
+- [Backend Quickstart, Appendix C (MySQL/MariaDB)](backend-quickstart.html)
+- [Demonstration Trial Setup](demonstration-trial-setup.html)
+- [Demonstration Clinical Trial via Google Sheets](demonstration-trial-via-gsheets.html)
+- `?MySQLAdapter`, `?create_db_adapter`,
+  `?migrate_between_backends`
+- [REDCap data dictionary documentation](https://projectredcap.org/resources/)
+- [RMariaDB documentation](https://rmariadb.r-dbi.org)
