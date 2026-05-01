@@ -3,6 +3,11 @@
 
 # plotly is checked at runtime in functions that use it
 
+#' @importFrom ggplot2 ggplot aes geom_bar geom_point geom_histogram
+#' @importFrom ggplot2 geom_boxplot coord_flip theme_minimal labs
+#' @noRd
+NULL
+
 #' Data Explorer Module UI
 #'
 #' Create the user interface for the data exploration module. Provides
