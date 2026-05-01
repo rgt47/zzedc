@@ -241,7 +241,7 @@ data_server <- function(id) {
 
       DT::datatable(data,
                     options = list(scrollX = TRUE, pageLength = 25),
-                    class = 'cell-border stripe hover') %>%
+                    class = 'cell-border stripe hover') |>
         DT::formatStyle(columns = names(data),
                        backgroundColor = DT::styleEqual(c(NA, ""), c("lightcoral", "lightcoral")))
     })
@@ -291,7 +291,7 @@ data_server <- function(id) {
     output$missing_data_plot <- renderPlotly({
       data <- current_data()
       if ("Message" %in% names(data) || "Error" %in% names(data)) {
-        return(plotly::plot_ly() %>% plotly::add_text(text = "No data available", showlegend = FALSE))
+        return(plotly::plot_ly() |> plotly::add_text(text = "No data available", showlegend = FALSE))
       }
 
       missing_pct <- sapply(data, function(x) sum(is.na(x))/length(x) * 100)
@@ -337,7 +337,7 @@ data_server <- function(id) {
       data <- current_data()
       if ("Message" %in% names(data) || "Error" %in% names(data) ||
           is.null(input$viz_var_x) || input$viz_var_x == "") {
-        return(plotly::plot_ly() %>% plotly::add_text(text = "Select variables to visualize", showlegend = FALSE))
+        return(plotly::plot_ly() |> plotly::add_text(text = "Select variables to visualize", showlegend = FALSE))
       }
 
       if (input$viz_type == "scatter" && !is.null(input$viz_var_y) && input$viz_var_y != "") {

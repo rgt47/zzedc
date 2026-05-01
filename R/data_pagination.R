@@ -384,5 +384,5 @@ get_page_summary <- function(page_data, numeric_cols = NULL) {
     )
   })
 
-  do.call(rbind, summary_stats) %>% as.data.frame()
+  do.call(rbind, summary_stats) |> as.data.frame()
 }

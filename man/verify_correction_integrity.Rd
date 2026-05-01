@@ -18,7 +18,7 @@ Verifies the hash chain integrity of correction requests.
 \examples{
 \dontrun{
 # CFR-Part-11 features require an initialised database with the
-# extension tables (see `?add_cfr_part11_tables`).
+# data-correction tables created at study-init time.
 # Verify the hash chain on a data-correction record.
 verify_correction_integrity(correction_id = 42)
 }

@@ -453,8 +453,10 @@ cfr_compliance_server <- function(id, user_id = NULL) {
 
       if (exists("db_pool") && !is.null(user_id())) {
         tryCatch({
-          # Here we would call the create_electronic_signature function
+          # In a real wiring, this would delegate to
+          # apply_electronic_signature() in R/electronic_signatures.R.
           # For now, simulate the signature creation
+
           signature_id <- paste0("SIG", format(Sys.time(), "%Y%m%d%H%M%S"), sample(1000:9999, 1))
 
           # In a real implementation, this would validate password and create signature
@@ -505,9 +507,9 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # Signature history table
     output$signature_history <- DT::renderDataTable({
       if (!is.null(compliance_data$signatures)) {
-        display_data <- compliance_data$signatures %>%
+        display_data <- compliance_data$signatures |>
           select(signature_id, signer_name, signature_meaning, table_name,
-                record_id, signing_timestamp, signature_status) %>%
+                record_id, signing_timestamp, signature_status) |>
           mutate(
             signing_timestamp = format(as.POSIXct(signing_timestamp), "%Y-%m-%d %H:%M"),
             signature_status = case_when(
@@ -527,8 +529,8 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # Audit trail table
     output$audit_trail_table <- DT::renderDataTable({
       if (!is.null(compliance_data$audit_trail)) {
-        display_data <- compliance_data$audit_trail %>%
-          select(event_type, table_name, record_id, user_name, timestamp, reason) %>%
+        display_data <- compliance_data$audit_trail |>
+          select(event_type, table_name, record_id, user_name, timestamp, reason) |>
           mutate(timestamp = format(as.POSIXct(timestamp), "%Y-%m-%d %H:%M"))
 
         DT::datatable(display_data,
@@ -541,9 +543,9 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # Validation activities table
     output$validation_activities <- DT::renderDataTable({
       if (!is.null(compliance_data$validations)) {
-        display_data <- compliance_data$validations %>%
+        display_data <- compliance_data$validations |>
           select(validation_type, validation_title, status, execution_date,
-                validator_name, approval_date) %>%
+                validator_name, approval_date) |>
           mutate(
             execution_date = as.character(execution_date),
             approval_date = as.character(approval_date),
@@ -565,8 +567,8 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # Training compliance table
     output$training_compliance_table <- DT::renderDataTable({
       if (!is.null(compliance_data$training)) {
-        summary_data <- compliance_data$training %>%
-          group_by(role, training_type) %>%
+        summary_data <- compliance_data$training |>
+          group_by(role, training_type) |>
           summarise(
             total_trained = sum(completion_status == "completed"),
             current_valid = sum(completion_status == "completed" & expiry_date > Sys.Date()),

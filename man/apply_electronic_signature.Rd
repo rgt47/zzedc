@@ -50,7 +50,7 @@ Applies an FDA-compliant electronic signature to a record.
 \examples{
 \dontrun{
 # CFR-Part-11 features require an initialised database with the
-# extension tables (see `?add_cfr_part11_tables`).
+# signature tables created at study-init time.
 # Apply (commit) a previously created signature, locking the
 # referenced record against further edits.
 apply_electronic_signature(signature_id = 1,

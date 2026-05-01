@@ -276,7 +276,7 @@ quality_dashboard_server <- function(id, db_conn, refresh_interval = 30000) {
     output$completeness_chart <- plotly::renderPlotly({
       data <- quality_data()
       if (is.null(data) || nrow(data$form_completeness) == 0) {
-        plotly::plot_ly(type = "bar") %>%
+        plotly::plot_ly(type = "bar") |>
           plotly::layout(title = "No data available")
       } else {
         df <- data$form_completeness
@@ -288,7 +288,7 @@ quality_dashboard_server <- function(id, db_conn, refresh_interval = 30000) {
             color = ~ifelse(completeness_pct >= 80, "green", "orange")
           ),
           hovertemplate = "%{x}<br>Completeness: %{y}%<extra></extra>"
-        ) %>%
+        ) |>
           plotly::layout(
             title = "Form Completeness (%)",
             xaxis = list(title = "Form"),
@@ -304,7 +304,7 @@ quality_dashboard_server <- function(id, db_conn, refresh_interval = 30000) {
     output$timeline_chart <- plotly::renderPlotly({
       data <- quality_data()
       if (is.null(data) || nrow(data$timeline_data) == 0) {
-        plotly::plot_ly(type = "scatter") %>%
+        plotly::plot_ly(type = "scatter") |>
           plotly::layout(title = "No data available")
       } else {
         df <- data$timeline_data
@@ -316,7 +316,7 @@ quality_dashboard_server <- function(id, db_conn, refresh_interval = 30000) {
           line = list(color = "rgba(0, 100, 200, 0.8)", width = 2),
           marker = list(color = "rgba(0, 100, 200, 1)", size = 6),
           hovertemplate = "%{x|%Y-%m-%d}<br>Entries: %{y}<extra></extra>"
-        ) %>%
+        ) |>
           plotly::layout(
             title = "Data Entry Timeline (Last 30 Days)",
             xaxis = list(title = "Date"),
@@ -361,7 +361,7 @@ quality_dashboard_server <- function(id, db_conn, refresh_interval = 30000) {
           ),
           rownames = FALSE,
           selection = "none"
-        ) %>%
+        ) |>
           DT::formatStyle(
             "Missing_Pct",
             background = DT::styleInterval(

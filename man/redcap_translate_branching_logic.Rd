@@ -31,7 +31,7 @@ nested deeper than one level, REDCap-specific functions like
 Such rows are recorded in the importer's
 \code{result$skipped_rules} list so the user can translate them
 manually following the patterns documented in
-\code{vignette('gsheets-authoring-guide')} §"Define validation
-rules".
+\code{vignette('content-author-guide')} Chapter 3 ('Authoring the
+workbook').
 }
 \keyword{internal}

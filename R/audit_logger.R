@@ -220,7 +220,7 @@ export_audit_log <- function(audit_log, filepath, include_verification = TRUE) {
   is_valid <- verify_audit_log_integrity(log_data)
 
   # Add verification status to export
-  export_data <- log_data %>%
+  export_data <- log_data |>
     dplyr::mutate(
       export_time = Sys.time(),
       integrity_verified = is_valid
@@ -274,23 +274,23 @@ query_audit_log <- function(
   result <- log_data
 
   if (!is.null(user_id)) {
-    result <- result %>% dplyr::filter(user_id == !!user_id)
+    result <- result |> dplyr::filter(user_id == !!user_id)
   }
 
   if (!is.null(action)) {
-    result <- result %>% dplyr::filter(action == !!action)
+    result <- result |> dplyr::filter(action == !!action)
   }
 
   if (!is.null(resource)) {
-    result <- result %>% dplyr::filter(resource == !!resource)
+    result <- result |> dplyr::filter(resource == !!resource)
   }
 
   if (!is.null(start_date)) {
-    result <- result %>% dplyr::filter(timestamp >= !!start_date)
+    result <- result |> dplyr::filter(timestamp >= !!start_date)
   }
 
   if (!is.null(end_date)) {
-    result <- result %>% dplyr::filter(timestamp <= !!end_date)
+    result <- result |> dplyr::filter(timestamp <= !!end_date)
   }
 
   result
