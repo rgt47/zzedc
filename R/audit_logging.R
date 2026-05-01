@@ -30,6 +30,7 @@
 init_audit_logging <- function(db_path = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     # Create main audit log table with enhanced event types
     DBI::dbExecute(conn, "
@@ -95,8 +96,7 @@ init_audit_logging <- function(db_path = NULL) {
     DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_table ON audit_log(table_name)")
     DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_date ON audit_log(timestamp)")
     DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event_type)")
-
-    DBI::dbDisconnect(conn)
+    DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_chain_order ON audit_chain(chain_order)")
 
     return(list(
       success = TRUE,
@@ -189,47 +189,57 @@ log_audit_event <- function(event_type, table_name, record_id = NULL,
     }
 
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    # Get previous hash for chaining
-    prev_hash_query <- DBI::dbGetQuery(conn, "
-      SELECT audit_hash FROM audit_log
-      ORDER BY audit_id DESC LIMIT 1
-    ")
-    previous_hash <- if (nrow(prev_hash_query) > 0) prev_hash_query[1,1] else "GENESIS"
+    DBI::dbWithTransaction(conn, {
+      # Previous hash for chaining
+      prev_hash_query <- DBI::dbGetQuery(conn, "
+        SELECT audit_hash FROM audit_log
+        ORDER BY audit_id DESC LIMIT 1
+      ")
+      previous_hash <- if (nrow(prev_hash_query) > 0) {
+        prev_hash_query[1, 1]
+      } else {
+        "GENESIS"
+      }
 
-    # Generate record hash
-    record_content <- paste(
-      event_type, table_name, record_id, operation, details,
-      user_id, Sys.time(), previous_hash,
-      sep = "|"
-    )
-    audit_hash <- digest::digest(record_content, algo = "sha256")
+      # Record hash
+      record_content <- paste(
+        event_type, table_name, record_id, operation, details,
+        user_id, Sys.time(), previous_hash,
+        sep = "|"
+      )
+      audit_hash <- digest::digest(record_content, algo = "sha256")
 
-    # Insert audit record
-    DBI::dbExecute(conn, "
-      INSERT INTO audit_log
-      (event_type, table_name, record_id, operation, details, user_id, audit_hash, previous_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ", list(
-      event_type, table_name, record_id, operation, details, user_id,
-      audit_hash, previous_hash
-    ))
+      # Insert audit record
+      DBI::dbExecute(conn, "
+        INSERT INTO audit_log
+        (event_type, table_name, record_id, operation, details, user_id, audit_hash, previous_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ", list(
+        event_type, table_name, record_id, operation, details, user_id,
+        audit_hash, previous_hash
+      ))
 
-    # Get inserted audit_id
-    audit_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")[1,1]
+      audit_id <- DBI::dbGetQuery(
+        conn, "SELECT last_insert_rowid() as id"
+      )[1, 1]
 
-    # Insert to hash-chain table
-    chain_order <- DBI::dbGetQuery(conn, "SELECT COUNT(*) as count FROM audit_chain")[1,1] + 1
+      # Chain order: MAX is O(1) with the index; COUNT(*) is a full scan.
+      chain_order <- DBI::dbGetQuery(
+        conn,
+        "SELECT COALESCE(MAX(chain_order), 0) + 1 AS next_order FROM audit_chain"
+      )[1, 1]
 
-    DBI::dbExecute(conn, "
-      INSERT INTO audit_chain
-      (audit_id, record_hash, previous_hash, chain_order, verified)
-      VALUES (?, ?, ?, ?, 1)
-    ", list(
-      audit_id, audit_hash, previous_hash, chain_order
-    ))
+      DBI::dbExecute(conn, "
+        INSERT INTO audit_chain
+        (audit_id, record_hash, previous_hash, chain_order, verified)
+        VALUES (?, ?, ?, ?, 1)
+      ", list(
+        audit_id, audit_hash, previous_hash, chain_order
+      ))
+    })
 
-    DBI::dbDisconnect(conn)
     return(TRUE)
 
   }, error = function(e) {
@@ -267,6 +277,7 @@ log_audit_event <- function(event_type, table_name, record_id = NULL,
 get_audit_trail <- function(filters = list(), include_chain = FALSE, db_path = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     query <- "SELECT * FROM audit_log WHERE 1=1"
 
@@ -307,7 +318,6 @@ get_audit_trail <- function(filters = list(), include_chain = FALSE, db_path = N
       audit_trail <- merge(audit_trail, chain_data, by.x = "audit_id", by.y = "audit_id", all.x = TRUE)
     }
 
-    DBI::dbDisconnect(conn)
     return(audit_trail)
 
   }, error = function(e) {
@@ -340,6 +350,7 @@ get_audit_trail <- function(filters = list(), include_chain = FALSE, db_path = N
 verify_audit_integrity <- function(start_id = NULL, end_id = NULL, db_path = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     # Get chain records
     query <- "SELECT * FROM audit_chain ORDER BY chain_order ASC"
@@ -384,8 +395,6 @@ verify_audit_integrity <- function(start_id = NULL, end_id = NULL, db_path = NUL
         ", list(Sys.time(), records_checked))
       }
     }
-
-    DBI::dbDisconnect(conn)
 
     return(list(
       valid = verification_errors == 0,
@@ -433,6 +442,7 @@ verify_audit_integrity <- function(start_id = NULL, end_id = NULL, db_path = NUL
 create_audit_report <- function(start_date, end_date, report_type = "summary", db_path = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     # Get audit records for period
     audit_data <- DBI::dbGetQuery(conn, "
@@ -488,7 +498,6 @@ create_audit_report <- function(start_date, end_date, report_type = "summary", d
       )
     }
 
-    DBI::dbDisconnect(conn)
     return(report)
 
   }, error = function(e) {

@@ -3,7 +3,10 @@
     "allow": [
       "Bash(git mv *)",
       "Bash(git rm *)",
-      "Bash(xargs -I{} basename {})"
+      "Bash(xargs -I{} basename {})",
+      "Read(//private/tmp/**)",
+      "Bash(rm -rf zzedc_*.tar.gz zzedc.Rcheck)",
+      "Bash(_R_CHECK_FORCE_SUGGESTS_=false R CMD check zzedc_0.5.0.tar.gz --no-manual --ignore-vignettes)"
     ]
   }
 }
