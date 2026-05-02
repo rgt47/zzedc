@@ -1196,23 +1196,24 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
       audit_obj, n_records = nrow(subj_df))
     audit_df     <- audit_obj$events
 
-    rules_df <- data.frame(
+    empty_rules_df <- data.frame(
       rule_id = character(0), field_code = character(0),
       rule_dsl = character(0), form_code = character(0),
       rule_name = character(0), error_message = character(0),
       severity = character(0), rule_category = character(0),
       is_active = logical(0), stringsAsFactors = FALSE
     )
+    rules_df <- empty_rules_df
     skipped <- list()
     if (nrow(api_metadata) > 0L) {
       raw_meta <- tryCatch(api$ops$metadata(),
                             error = function(e) NULL)
       if (!is.null(raw_meta) && nrow(raw_meta) > 0L) {
-        for (i in seq_len(nrow(api_metadata))) {
+        per_field <- lapply(seq_len(nrow(api_metadata)), function(i) {
           fname <- as.character(api_metadata$field_name[i])
           dsl   <- as.character(api_metadata$validation[i])
-          if (nzchar(dsl)) {
-            rules_df <- rbind(rules_df, data.frame(
+          row <- if (nzchar(dsl)) {
+            data.frame(
               rule_id        = paste0(toupper(fname), "_RANGE"),
               field_code     = fname,
               rule_dsl       = dsl,
@@ -1224,18 +1225,29 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
               severity       = "ERROR",
               rule_category  = "FIELD",
               is_active      = TRUE,
-              stringsAsFactors = FALSE))
+              stringsAsFactors = FALSE)
+          } else {
+            NULL
           }
           bl <- raw_meta$branching_logic[
             match(fname, as.character(raw_meta$field_name))]
-          if (!is.null(bl) && !is.na(bl) &&
-                nzchar(as.character(bl))) {
-            skipped[[length(skipped) + 1L]] <- list(
-              field    = fname,
-              reason   = "branching_logic translation deferred",
-              original = as.character(bl))
+          skip <- if (!is.null(bl) && !is.na(bl) &&
+                       nzchar(as.character(bl))) {
+            list(list(field = fname,
+                       reason = "branching_logic translation deferred",
+                       original = as.character(bl)))
+          } else {
+            list()
           }
+          list(row = row, skip = skip)
+        })
+        rule_rows <- Filter(Negate(is.null),
+                              lapply(per_field, `[[`, "row"))
+        if (length(rule_rows) > 0L) {
+          rules_df <- do.call(rbind, c(list(empty_rules_df), rule_rows))
         }
+        skipped <- unlist(lapply(per_field, `[[`, "skip"),
+                           recursive = FALSE)
       }
     }
     result$skipped_rules <- skipped
@@ -1305,28 +1317,31 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
         stringsAsFactors = FALSE)
     }
   }
-  branching_added <- 0L
-  for (i in seq_len(nrow(meta_rows))) {
-    dsl <- redcap_translate_branching_logic(meta_rows$branching_logic[i])
-    if (!is.na(dsl) && nzchar(dsl)) {
-      rules_df <- rbind(rules_df, data.frame(
-        rule_id        = paste0(toupper(meta_rows$field_name[i]),
-                                 "_BRANCH"),
-        field_code     = meta_rows$field_name[i],
-        rule_dsl       = dsl,
-        form_code      = "",
-        rule_name      = paste("Branching:", meta_rows$field_name[i]),
-        error_message  = paste("Branching rule failed for",
-                                meta_rows$field_name[i]),
-        severity       = "WARNING",
-        rule_category  = "CROSS_FIELD",
-        is_active      = TRUE,
-        stringsAsFactors = FALSE
-      ))
-      branching_added <- branching_added + 1L
-    }
+  branching_rows <- lapply(seq_len(nrow(meta_rows)), function(i) {
+    dsl <- redcap_translate_branching_logic(
+      meta_rows$branching_logic[i]
+    )
+    if (is.na(dsl) || !nzchar(dsl)) return(NULL)
+    data.frame(
+      rule_id        = paste0(toupper(meta_rows$field_name[i]),
+                               "_BRANCH"),
+      field_code     = meta_rows$field_name[i],
+      rule_dsl       = dsl,
+      form_code      = "",
+      rule_name      = paste("Branching:", meta_rows$field_name[i]),
+      error_message  = paste("Branching rule failed for",
+                              meta_rows$field_name[i]),
+      severity       = "WARNING",
+      rule_category  = "CROSS_FIELD",
+      is_active      = TRUE,
+      stringsAsFactors = FALSE
+    )
+  })
+  branching_rows <- Filter(Negate(is.null), branching_rows)
+  if (length(branching_rows) > 0L) {
+    rules_df <- do.call(rbind, c(list(rules_df), branching_rows))
   }
-  result$branching_translated <- branching_added
+  result$branching_translated <- length(branching_rows)
 
   # --- 3. Initialise the encrypted database ---------------------
   if (dry_run) {

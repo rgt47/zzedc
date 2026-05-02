@@ -68,32 +68,29 @@ get_db_file_size <- function(db_path = "data/memory001_study.db") {
 #' }
 #' @keywords internal
 get_db_statistics <- function(conn) {
-  # Get list of tables
   tables <- dbListTables(conn)
 
-  stats <- data.frame()
-
-  for (table in tables) {
-    query <- paste0("SELECT COUNT(*) as row_count FROM ", table)
+  rows <- lapply(tables, function(table) {
     tryCatch({
-      row_count <- dbGetQuery(conn, query)[[1]]
-
-      # Get column count
-      col_info <- dbGetQuery(conn, paste0("PRAGMA table_info(", table, ")"))
-      col_count <- nrow(col_info)
-
-      stats <- rbind(stats, data.frame(
+      row_count <- dbGetQuery(
+        conn, paste0("SELECT COUNT(*) as row_count FROM ", table)
+      )[[1]]
+      col_info <- dbGetQuery(
+        conn, paste0("PRAGMA table_info(", table, ")")
+      )
+      data.frame(
         table = table,
         rows = row_count,
-        columns = col_count,
-        estimated_size_kb = round(row_count * col_count * 0.5, 1)  # Rough estimate
-      ))
+        columns = nrow(col_info),
+        estimated_size_kb = round(row_count * nrow(col_info) * 0.5, 1)
+      )
     }, error = function(e) {
       cat("Error reading table:", table, "\n")
+      NULL
     })
-  }
+  })
 
-  return(stats)
+  do.call(rbind, rows)
 }
 
 #' Display database overview
@@ -201,22 +198,25 @@ identify_slow_queries <- function(conn) {
   cat("Query Performance Analysis:\n")
   cat("(Times in milliseconds)\n\n")
 
-  performance <- data.frame()
-
-  for (name in names(queries)) {
+  rows <- lapply(names(queries), function(name) {
     tryCatch({
       perf <- analyze_query_performance(conn, queries[[name]])
-      performance <- rbind(performance, data.frame(
+      cat(sprintf(
+        "%-30s : %8.2f ms  (%d rows)\n",
+        name, perf$execution_time_ms, perf$rows_returned
+      ))
+      data.frame(
         query_name = name,
         rows = perf$rows_returned,
         time_ms = perf$execution_time_ms,
         stringsAsFactors = FALSE
-      ))
-      cat(sprintf("%-30s : %8.2f ms  (%d rows)\n", name, perf$execution_time_ms, perf$rows_returned))
+      )
     }, error = function(e) {
       cat(sprintf("%-30s : ERROR - %s\n", name, e$message))
+      NULL
     })
-  }
+  })
+  performance <- do.call(rbind, rows)
 
   # Recommendations
   cat("\n===== OPTIMIZATION RECOMMENDATIONS =====\n\n")

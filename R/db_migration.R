@@ -373,29 +373,32 @@ compare_databases <- function(config1, config2, tables = NULL) {
     tables <- intersect(tables1, tables2)
   }
 
-  results <- data.frame(
-    table = character(),
-    rows_db1 = integer(),
-    rows_db2 = integer(),
-    match = logical(),
-    stringsAsFactors = FALSE
-  )
-
-  for (table_name in tables) {
+  rows <- lapply(tables, function(table_name) {
     count1 <- DBI::dbGetQuery(
       conn1, sprintf("SELECT COUNT(*) as n FROM %s", table_name)
     )$n
     count2 <- DBI::dbGetQuery(
       conn2, sprintf("SELECT COUNT(*) as n FROM %s", table_name)
     )$n
-
-    results <- rbind(results, data.frame(
+    data.frame(
       table = table_name,
       rows_db1 = count1,
       rows_db2 = count2,
       match = count1 == count2,
       stringsAsFactors = FALSE
-    ))
+    )
+  })
+
+  results <- if (length(rows) == 0) {
+    data.frame(
+      table = character(),
+      rows_db1 = integer(),
+      rows_db2 = integer(),
+      match = logical(),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    do.call(rbind, rows)
   }
 
   attr(results, "db1") <- config1$db_backend
@@ -869,51 +872,51 @@ migrate_multiple_databases <- function(db_paths, output_dir = "./data_encrypted"
       dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
     }
 
-    # Migrate each database
-    results <- data.frame(
-      old_path = character(),
-      new_path = character(),
-      status = character(),
-      records = integer(),
-      time_ms = integer(),
-      verified = logical(),
-      message = character(),
-      stringsAsFactors = FALSE
-    )
+    rows <- lapply(db_paths, function(db_path) {
+      if (!file.exists(db_path)) return(NULL)
 
-    for (db_path in db_paths) {
-      if (file.exists(db_path)) {
-        # Generate new path
-        new_name <- basename(db_path)
-        new_name <- sub("\\.db$", "_encrypted.db", new_name)
-        new_path <- file.path(output_dir, new_name)
+      new_name <- sub("\\.db$", "_encrypted.db", basename(db_path))
+      new_path <- file.path(output_dir, new_name)
 
-        # Migrate
-        migration_result <- migrate_to_encrypted(
-          old_db_path = db_path,
-          new_db_path = new_path,
-          backup_dir = backup_dir
-        )
+      migration_result <- migrate_to_encrypted(
+        old_db_path = db_path,
+        new_db_path = new_path,
+        backup_dir = backup_dir
+      )
 
-        # Verify if successful
-        verified <- FALSE
-        if (migration_result$success) {
-          verification <- verify_migration(db_path, new_path)
-          verified <- verification$valid
-        }
-
-        # Add to results
-        results <- rbind(results, data.frame(
-          old_path = db_path,
-          new_path = new_path,
-          status = ifelse(migration_result$success, "success", "failed"),
-          records = ifelse(migration_result$success, migration_result$records_migrated, 0),
-          time_ms = ifelse(migration_result$success, migration_result$migration_time_ms, 0),
-          verified = verified,
-          message = migration_result$message,
-          stringsAsFactors = FALSE
-        ))
+      verified <- FALSE
+      if (migration_result$success) {
+        verification <- verify_migration(db_path, new_path)
+        verified <- verification$valid
       }
+
+      data.frame(
+        old_path = db_path,
+        new_path = new_path,
+        status = ifelse(migration_result$success, "success", "failed"),
+        records = ifelse(migration_result$success,
+                          migration_result$records_migrated, 0),
+        time_ms = ifelse(migration_result$success,
+                          migration_result$migration_time_ms, 0),
+        verified = verified,
+        message = migration_result$message,
+        stringsAsFactors = FALSE
+      )
+    })
+
+    results <- if (length(rows) == 0 || all(vapply(rows, is.null, logical(1)))) {
+      data.frame(
+        old_path = character(),
+        new_path = character(),
+        status = character(),
+        records = integer(),
+        time_ms = integer(),
+        verified = logical(),
+        message = character(),
+        stringsAsFactors = FALSE
+      )
+    } else {
+      do.call(rbind, rows)
     }
 
     return(results)
