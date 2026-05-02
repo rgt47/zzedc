@@ -45,10 +45,9 @@ privacy_ui <- function(id) {
     ),
 
     # Data Subject Rights Portal
-    fluidPage(
-      titlePanel("Privacy & Data Management"),
+    h2("Privacy & Data Management"),
 
-      fluidRow(
+    fluidRow(
         column(4,
           bslib::card(
             bslib::card_header(
@@ -111,11 +110,10 @@ privacy_ui <- function(id) {
         )
       ),
 
-      # Data Subject Request Forms
-      fluidRow(
-        column(12,
-          uiOutput(ns("request_forms"))
-        )
+    # Data Subject Request Forms
+    fluidRow(
+      column(12,
+        uiOutput(ns("request_forms"))
       )
     )
   )

@@ -27,16 +27,14 @@ cfr_compliance_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
-    # Compliance Dashboard
-    fluidPage(
-      titlePanel(
-        tagList(
-          bsicons::bs_icon("shield-check", class = "text-primary"),
-          " 21 CFR Part 11 Compliance Dashboard"
-        )
-      ),
+    h2(
+      tagList(
+        bsicons::bs_icon("shield-check", class = "text-primary"),
+        " 21 CFR Part 11 Compliance Dashboard"
+      )
+    ),
 
-      fluidRow(
+    fluidRow(
         # Compliance Overview Cards
         column(3,
           bslib::value_box(
@@ -303,7 +301,6 @@ cfr_compliance_ui <- function(id) {
         )
       )
     )
-  )
 }
 
 #' CFR Part 11 Compliance Module Server

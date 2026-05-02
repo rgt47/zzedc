@@ -321,9 +321,11 @@ show_message <- function(session, ns, message, type = "info") {
 
   shinyjs::show(ns("import_message"))
 
-  # Auto-hide after 5 seconds if success
+  # Auto-hide after 5 seconds if success.
+  # `invalidateLater()` is a reactive-context call; outside one it is a
+  # no-op, so the previous form hid the message immediately. Use
+  # `shinyjs::delay()` to actually defer the hide.
   if (type == "success") {
-    invalidateLater(5000, session)
-    shinyjs::hide(ns("import_message"))
+    shinyjs::delay(5000, shinyjs::hide(ns("import_message")))
   }
 }

@@ -1,19 +1,25 @@
 
 server <- function(input, output, session) {
 
-  # Check if enhanced server integration is available
+  # If enhanced server integration is present and loads successfully,
+  # use it and short-circuit. The previous `return(NULL)` was inside
+  # a `tryCatch` body and so returned only from the tryCatch, not
+  # from this function; both paths then ran. Capture the success of
+  # the enhanced load and return from `server` explicitly.
+  enhanced_loaded <- FALSE
   if (file.exists("gsheets_server_integration.R")) {
-    # Use enhanced server if available
-    tryCatch({
+    enhanced_loaded <- tryCatch({
       source("gsheets_server_integration.R", local = TRUE)
       create_enhanced_server(input, output, session)
-      return(NULL)  # Early return for enhanced mode
+      TRUE
     }, error = function(e) {
-      message("Enhanced server failed, falling back to traditional: ", e$message)
+      message("Enhanced server failed, falling back to traditional: ",
+              e$message)
+      FALSE
     })
   }
+  if (enhanced_loaded) return(invisible(NULL))
 
-  # Traditional server implementation
   message("Using traditional server implementation")
 
   # Module functions are provided by the zzedc package namespace

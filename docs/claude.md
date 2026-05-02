@@ -1,5 +1,5 @@
 # ZZedc — Claude Code Working Notes
-*2026-04-29 08:40 PDT*
+*2026-05-02 11:30 PDT*
 
 This file orients Claude Code (and any other AI assistant
 working in this repository) to the current state of the
@@ -51,6 +51,34 @@ continuity-of-record claim.
 - **Existing helper layer in `R/db_users.R`** for
   `edc_users`-table operations; do not open-code another
   CREATE TABLE / INSERT for that table.
+- **Defensive `tryCatch` is the established convention.**
+  The codebase has ~600 `tryCatch` sites. Almost all serve a
+  real purpose: wrapping I/O (database, file, network), giving
+  callers better error messages, providing sensible defaults
+  for Shiny UI rendering, or letting per-item failures not
+  abort a multi-item loop. The standard return shape on the
+  error path is `list(success = FALSE, message = e$message)`
+  or `list(success = FALSE, error = ...)`; callers depend on
+  this contract. **Do not preemptively remove `tryCatch`
+  blocks.** New code wrapping I/O (DB, file, network, AWS)
+  or improving error messages should follow the surrounding
+  pattern. Pure-R operations (paste, nrow, list construction,
+  arithmetic) do not need wrapping; if you encounter such a
+  wrap during other refactoring you may remove it, but only
+  after confirming no caller relies on the success/failure
+  list shape.
+- **`on.exit(DBI::dbDisconnect(conn), add = TRUE)` immediately
+  after every `connect_encrypted_db()` or `DBI::dbConnect()`.**
+  This is the established teardown pattern; it is in place
+  in `R/audit_logging.R`, `R/audit_enhanced.R`,
+  `R/secure_export.R`, `R/db_migration.R`, `R/db_connection.R`,
+  and `R/database_monitoring.R`. Do not rely on explicit
+  late `dbDisconnect()` calls; they leak the connection on
+  the error path. The exception is `R/validation_framework.R`
+  test-runner code, where each test is wrapped in its own
+  `tryCatch` and the connection scope is intentionally
+  test-local; refactoring those into the IIFE pattern is on
+  the deferred list.
 
 ## Recent work the assistant should be aware of
 

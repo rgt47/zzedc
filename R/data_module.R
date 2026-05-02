@@ -39,8 +39,8 @@ NULL
 data_ui <- function(id) {
   ns <- NS(id)
 
-  fluidPage(
-    titlePanel("Data Explorer"),
+  tagList(
+    h2("Data Explorer"),
 
     fluidRow(
       column(3,

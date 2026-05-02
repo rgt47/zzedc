@@ -12,7 +12,7 @@
 validation_rules_ui <- function(id) {
   ns <- shiny::NS(id)
 
-  bslib::page_fluid(
+  shiny::tagList(
     shiny::tags$h3("Validation Rules Management"),
     shiny::tags$p(
       class = "text-muted",
