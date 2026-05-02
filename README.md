@@ -1,4 +1,4 @@
-# ZZedc - Electronic Data Capture System
+# ZZedc - Electronic Data Capture System <a href="https://github.com/rgt47/zzedc"><img src="man/figures/logo.png" align="right" height="138" alt="zzedc hex sticker" /></a>
 
 <!-- badges: start -->
 <!-- badges: end -->
