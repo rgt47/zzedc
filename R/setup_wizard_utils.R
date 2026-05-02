@@ -122,7 +122,7 @@ create_wizard_database <- function(config_list, db_path = NULL,
 
     # Add team members if provided
     if (!is.null(config_list$team_members) && nrow(config_list$team_members) > 0) {
-      for (i in 1:nrow(config_list$team_members)) {
+      for (i in seq_len(nrow(config_list$team_members))) {
         member <- config_list$team_members[i, ]
         member_id <- paste0("USER_", as.integer(Sys.time()) + i)
 

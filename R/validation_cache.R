@@ -101,7 +101,7 @@ load_validation_rules_from_db <- function(con) {
     message("Loading ", nrow(fields_with_rules), " validation rules from database")
 
     # Compile each rule
-    for (i in 1:nrow(fields_with_rules)) {
+    for (i in seq_len(nrow(fields_with_rules))) {
       field_name <- fields_with_rules$field[i]
       form_name <- fields_with_rules$form_name[i]
       rule_text <- fields_with_rules$validation_rule[i]

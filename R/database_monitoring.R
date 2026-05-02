@@ -224,7 +224,7 @@ identify_slow_queries <- function(conn) {
   slow_queries <- performance[performance$time_ms > 1000, ]
   if (nrow(slow_queries) > 0) {
     cat("SLOW QUERIES DETECTED:\n")
-    for (i in 1:nrow(slow_queries)) {
+    for (i in seq_len(nrow(slow_queries))) {
       cat("  -", slow_queries$query_name[i], "\n")
     }
     cat("  -> Consider adding indexes to frequently queried columns\n\n")
@@ -329,7 +329,7 @@ analyze_indexes <- function(conn) {
     }
 
     cat("Found", nrow(indexes), "indexes:\n")
-    for (i in 1:nrow(indexes)) {
+    for (i in seq_len(nrow(indexes))) {
       cat(" -", indexes$name[i], "\n")
     }
 
@@ -526,7 +526,7 @@ monitor_data_entry_rate <- function(conn, days = 30) {
     # Show last 7 days
     recent <- data[1:min(7, nrow(data)), ]
     cat("Last 7 days:\n")
-    for (i in 1:nrow(recent)) {
+    for (i in seq_len(nrow(recent))) {
       bar <- strrep("#", ceiling(recent$entries[i] / 10))
       cat(sprintf("%s : %3d entries %s\n", recent$date[i], recent$entries[i], bar))
     }

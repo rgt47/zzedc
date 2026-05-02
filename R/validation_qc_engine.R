@@ -134,7 +134,7 @@ execute_all_qc_rules <- function(con, rules = NULL) {
 
   message("Executing ", nrow(rules), " QC rules...")
 
-  for (i in 1:nrow(rules)) {
+  for (i in seq_len(nrow(rules))) {
     rule_id <- rules$rule_id[i]
     rule_name <- rules$rule_name[i]
     sql_query <- rules$compiled_sql[i]
