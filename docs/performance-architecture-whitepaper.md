@@ -8,6 +8,19 @@ Version 1.0 | January 2026
 
 ---
 
+> **Status note (2026-05-02):** This document references a
+> `profiling_*` instrumentation subsystem (functions
+> `profiling_enable()`, `profile_function()`, etc.) which was
+> never wired into the production code paths. The subsystem
+> has been retired during the 2026-04-30 to 2026-05-02
+> code-review pass. The architectural argument of this
+> document still holds; the specific code examples invoking
+> the retired functions should be re-evaluated against the
+> current package surface before being treated as
+> implementation guidance.
+
+---
+
 ## Executive Summary
 
 This document provides a technical analysis of performance considerations for

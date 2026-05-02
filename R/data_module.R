@@ -254,22 +254,21 @@ data_server <- function(id) {
     output$data_summary <- renderText({
       data <- current_data()
       if ("Message" %in% names(data) || "Error" %in% names(data)) {
-        return(paste(data[1,1]))
+        return(paste(data[1, 1]))
       }
-
-      summary_text <- paste(
+      stats <- data_stats()
+      paste(
         "Dataset Overview:",
         "================",
-        paste("Rows:", nrow(data)),
-        paste("Columns:", ncol(data)),
-        paste("Missing Values:", sum(is.na(data))),
-        paste("Complete Cases:", sum(complete.cases(data))),
+        paste("Rows:", stats$nrows),
+        paste("Columns:", stats$ncols),
+        paste("Missing Values:", stats$missing_total),
+        paste("Complete Cases:", stats$complete_cases),
         "",
         "Column Types:",
         paste(capture.output(utils::str(data)), collapse = "\n"),
         sep = "\n"
       )
-      summary_text
     })
 
     output$variable_info_table <- DT::renderDataTable({
@@ -277,32 +276,29 @@ data_server <- function(id) {
       if ("Message" %in% names(data) || "Error" %in% names(data)) {
         return(DT::datatable(data.frame(Info = "No data available")))
       }
-
+      stats <- data_stats()
       var_info <- data.frame(
         Variable = names(data),
-        Type = sapply(data, class),
-        Missing = sapply(data, function(x) sum(is.na(x))),
-        Missing_Percent = round(sapply(data, function(x) sum(is.na(x))/length(x) * 100), 2),
-        Unique_Values = sapply(data, function(x) length(unique(x[!is.na(x)]))),
-        Example_Values = sapply(data, function(x) {
-          vals <- unique(x[!is.na(x)])[1:3]
-          paste(vals[!is.na(vals)], collapse = ", ")
-        })
+        Type = stats$col_types,
+        Missing = stats$missing_by_col,
+        Missing_Percent = stats$missing_pct_by_col,
+        Unique_Values = stats$unique_values,
+        Example_Values = stats$example_values
       )
-
       DT::datatable(var_info, options = list(pageLength = 15))
     })
 
     output$missing_data_plot <- renderPlotly({
       data <- current_data()
       if ("Message" %in% names(data) || "Error" %in% names(data)) {
-        return(plotly::plot_ly() |> plotly::add_text(text = "No data available", showlegend = FALSE))
+        return(plotly::plot_ly() |>
+                  plotly::add_text(text = "No data available",
+                                    showlegend = FALSE))
       }
-
-      missing_pct <- sapply(data, function(x) sum(is.na(x))/length(x) * 100)
+      stats <- data_stats()
       missing_df <- data.frame(
-        Variable = names(missing_pct),
-        Missing_Percent = as.numeric(missing_pct)
+        Variable = names(stats$missing_pct_by_col),
+        Missing_Percent = as.numeric(stats$missing_pct_by_col)
       )
 
       p <- ggplot(missing_df, aes(x = reorder(Variable, Missing_Percent), y = Missing_Percent)) +

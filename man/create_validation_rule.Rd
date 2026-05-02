@@ -51,7 +51,8 @@ Create Validation Rule
 \dontrun{
 # Cross-field consistency rule: date of birth must precede the
 # consent date. Compiled to both an in-memory R validator and a
-# SQL CHECK constraint via `compile_validation_rule()`.
+# SQL CHECK constraint via the validation cache subsystem
+# (see `R/validation_cache.R`).
 rule <- create_validation_rule(
   rule_code            = "dob_before_consent",
   rule_name            = "DOB precedes consent",

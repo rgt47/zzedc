@@ -85,16 +85,11 @@ DatabaseAdapter <- R6::R6Class(
     #' @param params Optional named list or vector of parameters
     #' @return Data frame with query results
     query = function(conn, sql, params = NULL) {
-      # Extract operation name from SQL for profiling
-      op_name <- extract_sql_operation(sql)
-
-      with_profiling("db", op_name, {
-        if (is.null(params)) {
-          DBI::dbGetQuery(conn, sql)
-        } else {
-          DBI::dbGetQuery(conn, sql, params = params)
-        }
-      }, metadata = list(sql_preview = substr(sql, 1, 100)))
+      if (is.null(params)) {
+        DBI::dbGetQuery(conn, sql)
+      } else {
+        DBI::dbGetQuery(conn, sql, params = params)
+      }
     },
 
     #' @description
@@ -104,15 +99,11 @@ DatabaseAdapter <- R6::R6Class(
     #' @param params Optional named list or vector of parameters
     #' @return Number of rows affected
     execute = function(conn, sql, params = NULL) {
-      op_name <- extract_sql_operation(sql)
-
-      with_profiling("db", op_name, {
-        if (is.null(params)) {
-          DBI::dbExecute(conn, sql)
-        } else {
-          DBI::dbExecute(conn, sql, params = params)
-        }
-      }, metadata = list(sql_preview = substr(sql, 1, 100)))
+      if (is.null(params)) {
+        DBI::dbExecute(conn, sql)
+      } else {
+        DBI::dbExecute(conn, sql, params = params)
+      }
     },
 
     #' @description

@@ -6,7 +6,12 @@
       "Bash(xargs -I{} basename {})",
       "Read(//private/tmp/**)",
       "Bash(rm -rf zzedc_*.tar.gz zzedc.Rcheck)",
-      "Bash(_R_CHECK_FORCE_SUGGESTS_=false R CMD check zzedc_0.5.0.tar.gz --no-manual --ignore-vignettes)"
+      "Bash(_R_CHECK_FORCE_SUGGESTS_=false R CMD check zzedc_0.5.0.tar.gz --no-manual --ignore-vignettes)",
+      "Bash(git checkout *)",
+      "Bash(cp R/validation_dsl_parser.R /tmp/validation_dsl_parser.bak)",
+      "Bash(sed -i '' 's/tokens <- c\\(tokens, list\\(Token\\(/tokens[[length\\(tokens\\) + 1L]] <- Token\\(/g' R/validation_dsl_parser.R)",
+      "Bash(sed -E -i '' 's/\\(Token\\\\\\([^\\)]*\\\\\\)\\)\\\\\\)\\\\\\)/\\\\1/' R/validation_dsl_parser.R)",
+      "Read(//tmp/**)"
     ]
   }
 }

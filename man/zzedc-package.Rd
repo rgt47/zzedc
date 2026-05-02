@@ -6,6 +6,8 @@
 \alias{zzedc-package}
 \title{zzedc: Electronic Data Capture System for Clinical Trials}
 \description{
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
+
 A comprehensive 'Shiny' application for electronic data capture (EDC) in clinical trials. Features include secure user authentication, data entry forms, quality control reports, data visualization, and flexible export capabilities. Built with modern 'bslib' components for responsive design and professional appearance. Supports the zzcollab framework for clinical research workflows.
 }
 \seealso{

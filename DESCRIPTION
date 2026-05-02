@@ -57,9 +57,7 @@ Suggests:
     pool,
     withr,
     paws,
-    data.table,
     arrow,
-    httr,
     REDCapR (>= 1.0.0)
 URL: https://github.com/rgt47/zzedc
 BugReports: https://github.com/rgt47/zzedc/issues

@@ -88,23 +88,16 @@ log_audit_event_reactive <- function(
     error_message = error_message
   )
 
-  # Calculate hash: SHA256(previous_hash || timestamp || user_id || action || resource || status)
-  # This chains each record to the previous one cryptographically
-  hash_input <- paste0(
+  # Hash chain: SHA256 over a pipe-delimited record digest.
+  hash_input <- sprintf(
+    "%s|%s|%s|%s|%s|%s|%s|%s",
     prev_hash,
-    "|",
     format(record_data$timestamp, "%Y-%m-%d %H:%M:%S"),
-    "|",
     record_data$user_id,
-    "|",
     record_data$action,
-    "|",
     record_data$resource,
-    "|",
     record_data$status,
-    "|",
     record_data$old_value,
-    "|",
     record_data$new_value
   )
 
