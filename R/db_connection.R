@@ -535,17 +535,14 @@ verify_database_encryption <- function(db_path = NULL) {
       results$file_is_binary <- non_ascii_ratio > 0.8
     }
 
-    # Test connection and data
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
     results$connection_works <- TRUE
 
-    # Try query
     test_query <- DBI::dbGetQuery(conn, "SELECT COUNT(*) FROM subjects")
     if (!is.null(test_query)) {
       results$data_intact <- TRUE
     }
-
-    DBI::dbDisconnect(conn)
 
     # Overall encryption status
     results$encrypted <- results$file_is_binary &&

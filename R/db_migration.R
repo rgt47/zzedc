@@ -459,33 +459,31 @@ prepare_migration <- function(old_db_path, backup_dir = "./backups") {
       dir.create(backup_dir, recursive = TRUE, showWarnings = FALSE)
     }
 
-    # Connect to database
     conn <- DBI::dbConnect(RSQLite::SQLite(), old_db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    # Get list of tables
     tables <- DBI::dbListTables(conn)
 
-    # Count records per table
     table_counts <- list()
     total_records <- 0
     for (table in tables) {
-      count <- DBI::dbGetQuery(conn, paste0("SELECT COUNT(*) FROM ", table))[1,1]
+      count <- DBI::dbGetQuery(
+        conn, paste0("SELECT COUNT(*) FROM ", table)
+      )[1, 1]
       table_counts[[table]] <- count
       total_records <- total_records + count
     }
 
-    # Calculate checksum
     file_content <- readBin(old_db_path, "raw", file.size(old_db_path))
     original_checksum <- digest::digest(file_content, algo = "sha256")
 
-    # Create backup
     timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
     backup_filename <- basename(old_db_path)
-    backup_filename <- sub("\\.db$", paste0("_", timestamp, ".db"), backup_filename)
+    backup_filename <- sub(
+      "\\.db$", paste0("_", timestamp, ".db"), backup_filename
+    )
     backup_path <- file.path(backup_dir, backup_filename)
     file.copy(old_db_path, backup_path, overwrite = FALSE)
-
-    DBI::dbDisconnect(conn)
 
     # Estimate migration time (rough estimate)
     estimated_seconds <- max(1, as.integer(total_records / 1000 * 1.5))
@@ -572,8 +570,8 @@ migrate_to_encrypted <- function(old_db_path, new_db_path = NULL,
       verify_db_key(new_key)
     }
 
-    # Connect to old (unencrypted) database
     old_conn <- DBI::dbConnect(RSQLite::SQLite(), old_db_path)
+    on.exit(DBI::dbDisconnect(old_conn), add = TRUE)
 
     # Initialize new encrypted database with the chosen key (passed
     # explicitly rather than via the process environment).
@@ -581,14 +579,12 @@ migrate_to_encrypted <- function(old_db_path, new_db_path = NULL,
       db_path = new_db_path, overwrite = FALSE, key = new_key
     )
     if (!init_result$success) {
-      DBI::dbDisconnect(old_conn)
-      return(list(success = FALSE, error = "Failed to initialize encrypted database"))
+      return(list(success = FALSE,
+                   error = "Failed to initialize encrypted database"))
     }
 
-    # Connect to new encrypted database with the same key. Threading
-    # the key through arguments keeps the caller's environment
-    # untouched.
     new_conn <- connect_encrypted_db(db_path = new_db_path, key = new_key)
+    on.exit(DBI::dbDisconnect(new_conn), add = TRUE)
 
     # Copy schema and data for each table
     tables <- DBI::dbListTables(old_conn)
@@ -642,11 +638,10 @@ migrate_to_encrypted <- function(old_db_path, new_db_path = NULL,
       }
     }
 
-    DBI::dbDisconnect(old_conn)
-    DBI::dbDisconnect(new_conn)
-
     # Calculate migration time
-    migration_time_ms <- as.integer(difftime(Sys.time(), start_time, units = "secs") * 1000)
+    migration_time_ms <- as.integer(
+      difftime(Sys.time(), start_time, units = "secs") * 1000
+    )
 
     return(list(
       success = TRUE,
@@ -701,23 +696,24 @@ verify_migration <- function(old_db_path, new_db_path, detailed = FALSE) {
       data_integrity = "0%"
     )
 
-    # Connect to both databases
     old_conn <- DBI::dbConnect(RSQLite::SQLite(), old_db_path)
+    on.exit(DBI::dbDisconnect(old_conn), add = TRUE)
     new_conn <- connect_encrypted_db(db_path = new_db_path)
+    on.exit(DBI::dbDisconnect(new_conn), add = TRUE)
 
-    # Get tables from both
     old_tables <- sort(DBI::dbListTables(old_conn))
     new_tables <- sort(DBI::dbListTables(new_conn))
 
-    # Check that all original tables exist in new database
-    # (new database may have additional base schema tables from initialization)
+    # New database may carry additional base schema tables from
+    # initialization; require only the original set to be present.
     results$tables_match <- all(old_tables %in% new_tables)
 
     if (!results$tables_match) {
       missing <- setdiff(old_tables, new_tables)
-      results$message <- paste("Missing tables in encrypted database:", paste(missing, collapse = ", "))
-      DBI::dbDisconnect(old_conn)
-      DBI::dbDisconnect(new_conn)
+      results$message <- paste(
+        "Missing tables in encrypted database:",
+        paste(missing, collapse = ", ")
+      )
       return(results)
     }
 
@@ -774,9 +770,6 @@ verify_migration <- function(old_db_path, new_db_path, detailed = FALSE) {
       "Migration verified: all data intact and accurate",
       "Migration verification failed: data integrity issues detected"
     )
-
-    DBI::dbDisconnect(old_conn)
-    DBI::dbDisconnect(new_conn)
 
     return(results)
 

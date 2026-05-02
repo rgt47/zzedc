@@ -604,6 +604,7 @@ detect_audit_anomalies <- function(lookback_hours = 24, thresholds = NULL,
 
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     cutoff_time <- Sys.time() - (lookback_hours * 3600)
 
@@ -612,8 +613,6 @@ detect_audit_anomalies <- function(lookback_hours = 24, thresholds = NULL,
       WHERE timestamp >= ?
       ORDER BY timestamp DESC
     ", list(as.character(cutoff_time)))
-
-    DBI::dbDisconnect(conn)
 
     alerts <- list()
     risk_score <- 0
@@ -770,6 +769,7 @@ search_audit_trail <- function(search_term = NULL, event_types = NULL,
                                 limit = 1000, db_path = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     query <- "
       SELECT
@@ -840,7 +840,6 @@ search_audit_trail <- function(search_term = NULL, event_types = NULL,
       results <- DBI::dbGetQuery(conn, query)
     }
 
-    DBI::dbDisconnect(conn)
     results
 
   }, error = function(e) {
@@ -879,6 +878,7 @@ get_audit_statistics <- function(period = "week", db_path = NULL) {
 
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     cutoff <- Sys.Date() - days
 
@@ -926,8 +926,6 @@ get_audit_statistics <- function(period = "week", db_path = NULL) {
       WHERE DATE(timestamp) >= ?
       AND event_type IN ('LOGIN_FAILED', 'LOCKOUT', 'PASSWORD_CHANGE', 'ROLE_CHANGE')
     ", list(as.character(cutoff)))[1, 1]
-
-    DBI::dbDisconnect(conn)
 
     list(
       period = period,

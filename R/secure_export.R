@@ -68,10 +68,9 @@ export_encrypted_data <- function(query, format = "csv", password = NULL,
 
     export_file <- file.path(export_dir, paste0(base_filename, ".", ext))
 
-    # Connect and execute query
     conn <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
     data <- DBI::dbGetQuery(conn, query)
-    DBI::dbDisconnect(conn)
 
     # Export based on format
     if (format == "csv") {
@@ -230,6 +229,7 @@ verify_exported_data <- function(file_path, hash_file = NULL) {
 get_export_history <- function(filters = list()) {
   tryCatch({
     conn <- connect_encrypted_db()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     # Build query with filters
     query <- "SELECT * FROM export_audit WHERE 1=1"
@@ -264,8 +264,6 @@ get_export_history <- function(filters = list()) {
     }, error = function(e) {
       history <- data.frame()
     })
-
-    DBI::dbDisconnect(conn)
 
     return(history)
 
@@ -465,6 +463,7 @@ create_export_manifest <- function(export_file_path, metadata = list()) {
 log_export_activity <- function(file_path, query, format, hash_verified) {
   tryCatch({
     conn <- connect_encrypted_db()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     # Create export_audit table if doesn't exist
     DBI::dbExecute(conn, "
@@ -493,8 +492,6 @@ log_export_activity <- function(file_path, query, format, hash_verified) {
       format,
       hash_verified
     ))
-
-    DBI::dbDisconnect(conn)
 
   }, error = function(e) {
     warning("Failed to log export activity: ", e$message)

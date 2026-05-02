@@ -664,11 +664,10 @@ run_complete_monitoring <- function(db_path = "data/memory001_study.db") {
   cat("Generated:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")
   cat("===================================================\n")
 
-  # Connect to database
   tryCatch({
     conn <- dbConnect(SQLite(), db_path)
+    on.exit(dbDisconnect(conn), add = TRUE)
 
-    # Run all monitoring functions
     show_db_overview(conn)
     check_database_health(conn)
     identify_slow_queries(conn)
@@ -678,9 +677,6 @@ run_complete_monitoring <- function(db_path = "data/memory001_study.db") {
     cat("\n===================================================\n")
     cat("MONITORING COMPLETE\n")
     cat("===================================================\n\n")
-
-    # Cleanup
-    dbDisconnect(conn)
 
   }, error = function(e) {
     cat("FATAL ERROR:", e$message, "\n")
