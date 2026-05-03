@@ -11,7 +11,17 @@
       "Bash(cp R/validation_dsl_parser.R /tmp/validation_dsl_parser.bak)",
       "Bash(sed -i '' 's/tokens <- c\\(tokens, list\\(Token\\(/tokens[[length\\(tokens\\) + 1L]] <- Token\\(/g' R/validation_dsl_parser.R)",
       "Bash(sed -E -i '' 's/\\(Token\\\\\\([^\\)]*\\\\\\)\\)\\\\\\)\\\\\\)/\\\\1/' R/validation_dsl_parser.R)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(R_PROFILE_USER='' R_LIBS_USER=/Users/zenn/Library/R/arm64/4.5/library Rscript -e 'devtools::document\\(\\)')",
+      "Bash(rm -rf zzpower.Rcheck zzpower_*.tar.gz)",
+      "Bash(R_PROFILE_USER='' R_LIBS_USER=/Users/zenn/Library/R/arm64/4.5/library R CMD build /Users/zenn/prj/sfw/03-zzpower/zzpower)",
+      "Bash(_R_CHECK_FORCE_SUGGESTS_=false R_PROFILE_USER='' R_LIBS_USER=/Users/zenn/Library/R/arm64/4.5/library R CMD check zzpower_0.3.0.tar.gz --no-manual --ignore-vignettes)",
+      "Bash(_R_CHECK_FORCE_SUGGESTS_=false R_PROFILE_USER='' R_LIBS_USER=/Users/zenn/Library/R/arm64/4.5/library R CMD check zzpower_0.4.0.tar.gz --no-manual --ignore-vignettes)",
+      "Bash(perl -i -pe 's/\\\\xc2\\\\xa0/ /g' /Users/zenn/prj/sfw/03-zzpower/zzpower/R/generic_server_factory.R)",
+      "Bash(R_PROFILE_USER='' R_LIBS_USER=/Users/zenn/Library/R/arm64/4.5/library Rscript -e 'tools::showNonASCIIfile\\(\"/Users/zenn/prj/sfw/03-zzpower/zzpower/R/generic_server_factory.R\"\\)')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git tag *)"
     ]
   }
 }
