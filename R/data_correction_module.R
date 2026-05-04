@@ -181,19 +181,12 @@ data_correction_ui <- function(id) {
           condition = sprintf("input['%s'] == 'stats'", ns("view_mode")),
           shiny::wellPanel(
             shiny::h4("Correction Statistics"),
-            shiny::fluidRow(
-              shiny::column(3,
-                shinydashboard::valueBoxOutput(ns("stat_total"), width = 12)
-              ),
-              shiny::column(3,
-                shinydashboard::valueBoxOutput(ns("stat_pending"), width = 12)
-              ),
-              shiny::column(3,
-                shinydashboard::valueBoxOutput(ns("stat_approved"), width = 12)
-              ),
-              shiny::column(3,
-                shinydashboard::valueBoxOutput(ns("stat_rejected"), width = 12)
-              )
+            bslib::layout_columns(
+              col_widths = c(3, 3, 3, 3),
+              shiny::uiOutput(ns("stat_total")),
+              shiny::uiOutput(ns("stat_pending")),
+              shiny::uiOutput(ns("stat_approved")),
+              shiny::uiOutput(ns("stat_rejected"))
             ),
             shiny::hr(),
             shiny::fluidRow(
@@ -551,43 +544,43 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
       })
     })
 
-    output$stat_total <- shinydashboard::renderValueBox({
+    output$stat_total <- shiny::renderUI({
       stats <- stats_data()
-      shinydashboard::valueBox(
-        stats$summary$total_requests,
-        "Total Requests",
-        icon = shiny::icon("file-alt"),
-        color = "blue"
+      bslib::value_box(
+        title    = "Total Requests",
+        value    = stats$summary$total_requests,
+        showcase = bsicons::bs_icon("file-earmark-text"),
+        theme    = "primary"
       )
     })
 
-    output$stat_pending <- shinydashboard::renderValueBox({
+    output$stat_pending <- shiny::renderUI({
       stats <- stats_data()
-      shinydashboard::valueBox(
-        stats$summary$pending,
-        "Pending",
-        icon = shiny::icon("clock"),
-        color = "yellow"
+      bslib::value_box(
+        title    = "Pending",
+        value    = stats$summary$pending,
+        showcase = bsicons::bs_icon("clock"),
+        theme    = "warning"
       )
     })
 
-    output$stat_approved <- shinydashboard::renderValueBox({
+    output$stat_approved <- shiny::renderUI({
       stats <- stats_data()
-      shinydashboard::valueBox(
-        stats$summary$approved + stats$summary$applied,
-        "Approved/Applied",
-        icon = shiny::icon("check"),
-        color = "green"
+      bslib::value_box(
+        title    = "Approved/Applied",
+        value    = stats$summary$approved + stats$summary$applied,
+        showcase = bsicons::bs_icon("check-circle-fill"),
+        theme    = "success"
       )
     })
 
-    output$stat_rejected <- shinydashboard::renderValueBox({
+    output$stat_rejected <- shiny::renderUI({
       stats <- stats_data()
-      shinydashboard::valueBox(
-        stats$summary$rejected,
-        "Rejected",
-        icon = shiny::icon("times"),
-        color = "red"
+      bslib::value_box(
+        title    = "Rejected",
+        value    = stats$summary$rejected,
+        showcase = bsicons::bs_icon("x-circle-fill"),
+        theme    = "danger"
       )
     })
 

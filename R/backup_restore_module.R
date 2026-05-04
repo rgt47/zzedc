@@ -36,11 +36,10 @@ backup_restore_ui <- function(id) {
     div(class = "row",
       # Left: Backup Controls
       div(class = "col-md-6",
-        div(class = "card mb-3",
-          div(class = "card-header bg-primary text-white",
-            h5(class = "card-title mb-0", "Create Backup")
-          ),
-          div(class = "card-body",
+        bslib::card(
+          class = "mb-3",
+          bslib::card_header(class = "bg-primary text-white", "Create Backup"),
+          bslib::card_body(
             p("Back up your database immediately to prevent data loss."),
 
             div(class = "mb-3",
@@ -73,11 +72,9 @@ backup_restore_ui <- function(id) {
         ),
 
         # Automatic Backup Settings
-        div(class = "card",
-          div(class = "card-header",
-            h5(class = "card-title mb-0", "Automatic Backups")
-          ),
-          div(class = "card-body",
+        bslib::card(
+          bslib::card_header("Automatic Backups"),
+          bslib::card_body(
             div(class = "form-check mb-2",
               input(id = ns("auto_backup_enable"), type = "checkbox", class = "form-check-input", checked = TRUE),
               label("Enable automatic daily backups", `for` = ns("auto_backup_enable"), class = "form-check-label")
@@ -105,22 +102,19 @@ backup_restore_ui <- function(id) {
 
       # Right: Restore Controls and Backup List
       div(class = "col-md-6",
-        div(class = "card mb-3",
-          div(class = "card-header bg-warning text-dark",
-            h5(class = "card-title mb-0", "Recent Backups")
-          ),
-          div(class = "card-body",
+        bslib::card(
+          class = "mb-3",
+          bslib::card_header(class = "bg-warning text-dark", "Recent Backups"),
+          bslib::card_body(
             p("Select a backup to restore from."),
 
-            DT::dataTableOutput(ns("backups_table"))
+            DT::DTOutput(ns("backups_table"))
           )
         ),
 
-        div(class = "card",
-          div(class = "card-header bg-danger text-white",
-            h5(class = "card-title mb-0", "Restore from Backup")
-          ),
-          div(class = "card-body",
+        bslib::card(
+          bslib::card_header(class = "bg-danger text-white", "Restore from Backup"),
+          bslib::card_body(
             div(class = "alert alert-warning",
               strong("Warning: "),
               "Restoring will replace all current data with the backup version. ",
@@ -241,7 +235,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
     backup_state$backups <- load_backups()
 
     # Display backups table
-    output$backups_table <- DT::renderDataTable({
+    output$backups_table <- DT::renderDT({
       backups <- backup_state$backups
 
       if (nrow(backups) == 0) {
@@ -352,9 +346,12 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
                   type = "success",
                   timer = 3000)
 
-        # Hide progress
-        Sys.sleep(1)
-        shinyjs::hide("backup_progress")
+        # Hide progress after a brief pause so the user sees the
+        # 100% bar. `shinyjs::delay()` schedules the callback
+        # through the browser, which leaves the R session
+        # responsive (unlike `Sys.sleep()`, which blocks the
+        # event loop).
+        shinyjs::delay(1000, shinyjs::hide("backup_progress"))
 
       }, error = function(e) {
         shinyalert("Backup Error", paste("Failed to create backup:", e$message), type = "error")
@@ -470,8 +467,9 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
           ns("restore_progress_bar"), ns("restore_status")
         ))
 
-        Sys.sleep(1)
-        shinyjs::hide("restore_progress")
+        # Non-blocking pause before hiding the progress bar; see
+        # the matching note in the backup observer above.
+        shinyjs::delay(1000, shinyjs::hide("restore_progress"))
 
         shinyalert("Restoration Complete",
                   paste("Database restored successfully.\n",

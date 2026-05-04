@@ -21,7 +21,7 @@ output$htable <- renderUI({
       column(8,
         wellPanel(
           h4("Data Summary"),
-          DT::dataTableOutput("summary_table_rep3")
+          DT::DTOutput("summary_table_rep3")
         )
       )
     ),
@@ -61,7 +61,7 @@ output$htable <- renderUI({
   )
 })
 
-output$summary_table_rep3 <- DT::renderDataTable({
+output$summary_table_rep3 <- DT::renderDT({
   # Generate sample data for the table
   sample_data <- data.frame(
     ID = 1:20,

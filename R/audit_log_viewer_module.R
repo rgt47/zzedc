@@ -14,11 +14,10 @@ audit_log_viewer_ui <- function(id) {
     h3("Audit Trail & System Activity", class = "mb-4 text-primary"),
 
     # Filter controls
-    div(class = "card mb-3",
-      div(class = "card-header",
-        h5(class = "card-title mb-0", "Filter & Search")
-      ),
-      div(class = "card-body",
+    bslib::card(
+      class = "mb-3",
+      bslib::card_header("Filter & Search"),
+      bslib::card_body(
         div(class = "row",
           # Username filter
           div(class = "col-md-3",
@@ -85,46 +84,40 @@ audit_log_viewer_ui <- function(id) {
     ),
 
     # Summary statistics
-    div(class = "row mb-3",
-      div(class = "col-md-3",
-        div(class = "card bg-info text-white",
-          div(class = "card-body",
-            p(class = "card-text", "Total Actions"),
-            h5(id = ns("stat_total"), "Loading...", class = "mb-0")
-          )
-        )
+    bslib::layout_columns(
+      class = "mb-3",
+      col_widths = c(3, 3, 3, 3),
+      bslib::value_box(
+        title    = "Total Actions",
+        value    = shiny::textOutput(ns("stat_total")),
+        showcase = bsicons::bs_icon("activity"),
+        theme    = "info"
       ),
-      div(class = "col-md-3",
-        div(class = "card bg-success text-white",
-          div(class = "card-body",
-            p(class = "card-text", "Data Entries"),
-            h5(id = ns("stat_entries"), "Loading...", class = "mb-0")
-          )
-        )
+      bslib::value_box(
+        title    = "Data Entries",
+        value    = shiny::textOutput(ns("stat_entries")),
+        showcase = bsicons::bs_icon("file-earmark-text"),
+        theme    = "success"
       ),
-      div(class = "col-md-3",
-        div(class = "card bg-warning text-dark",
-          div(class = "card-body",
-            p(class = "card-text", "User Actions"),
-            h5(id = ns("stat_users"), "Loading...", class = "mb-0")
-          )
-        )
+      bslib::value_box(
+        title    = "User Actions",
+        value    = shiny::textOutput(ns("stat_users")),
+        showcase = bsicons::bs_icon("person-fill"),
+        theme    = "warning"
       ),
-      div(class = "col-md-3",
-        div(class = "card bg-danger text-white",
-          div(class = "card-body",
-            p(class = "card-text", "System Events"),
-            h5(id = ns("stat_system"), "Loading...", class = "mb-0")
-          )
-        )
+      bslib::value_box(
+        title    = "System Events",
+        value    = shiny::textOutput(ns("stat_system")),
+        showcase = bsicons::bs_icon("gear-fill"),
+        theme    = "danger"
       )
     ),
 
     # Audit log table
-    div(class = "card",
-      div(class = "card-header",
+    bslib::card(
+      bslib::card_header(
         div(class = "d-flex justify-content-between align-items-center",
-          h5(class = "card-title mb-0", "Activity Log"),
+          span("Activity Log"),
           div(
             actionButton(ns("export_csv"), "Export CSV", class = "btn btn-sm btn-info",
                         icon = icon("download")),
@@ -133,20 +126,10 @@ audit_log_viewer_ui <- function(id) {
           )
         )
       ),
-      div(class = "card-body",
-        DT::dataTableOutput(ns("audit_table")),
+      bslib::card_body(
+        DT::DTOutput(ns("audit_table")),
         div(id = ns("table_info"), class = "mt-2 text-muted small")
       )
-    ),
-
-    # Details modal
-    shiny::modalDialog(
-      id = ns("details_modal"),
-      title = "Action Details",
-      size = "lg",
-      easyClose = TRUE,
-
-      div(id = ns("modal_content"), class = "modal-content")
     )
   )
 }
@@ -258,6 +241,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
         names(choices)[length(choices)] <- user
       }
 
+      shiny::freezeReactiveValue(input, "filter_user")
       updateSelectInput(session, "filter_user", choices = choices)
     }
 
@@ -324,7 +308,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
     })
 
     # Display audit table
-    output$audit_table <- DT::renderDataTable({
+    output$audit_table <- DT::renderDT({
       logs <- apply_filters()
 
       if (nrow(logs) == 0) {
@@ -366,28 +350,26 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
       )
     })
 
-    # Update summary statistics
-    observe({
+    # Summary statistics. Reactive expression provides a single
+    # source of truth for the four value_box outputs and avoids
+    # running apply_filters() four times.
+    stat_counts <- reactive({
       logs <- apply_filters()
-
       if (nrow(logs) == 0) {
-        shinyjs::html(ns("stat_total"), "0")
-        shinyjs::html(ns("stat_entries"), "0")
-        shinyjs::html(ns("stat_users"), "0")
-        shinyjs::html(ns("stat_system"), "0")
-        return()
+        return(list(total = 0, entries = 0, users = 0, system = 0))
       }
-
-      total <- nrow(logs)
-      entries <- sum(logs$entity_type == "data", na.rm = TRUE)
-      users <- sum(logs$entity_type == "user", na.rm = TRUE)
-      system <- sum(logs$entity_type == "system", na.rm = TRUE)
-
-      shinyjs::html(ns("stat_total"), total)
-      shinyjs::html(ns("stat_entries"), entries)
-      shinyjs::html(ns("stat_users"), users)
-      shinyjs::html(ns("stat_system"), system)
+      list(
+        total   = nrow(logs),
+        entries = sum(logs$entity_type == "data",   na.rm = TRUE),
+        users   = sum(logs$entity_type == "user",   na.rm = TRUE),
+        system  = sum(logs$entity_type == "system", na.rm = TRUE)
+      )
     })
+
+    output$stat_total   <- renderText(as.character(stat_counts()$total))
+    output$stat_entries <- renderText(as.character(stat_counts()$entries))
+    output$stat_users   <- renderText(as.character(stat_counts()$users))
+    output$stat_system  <- renderText(as.character(stat_counts()$system))
 
     # View details
     observeEvent(input$view_details, {
@@ -441,8 +423,13 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
         log_entry$ip_address[1]
       )
 
-      shinyjs::html(ns("modal_content"), details_html)
-      shinyjs::show("details_modal")
+      shiny::showModal(shiny::modalDialog(
+        title = "Action Details",
+        size = "l",
+        easyClose = TRUE,
+        shiny::HTML(details_html),
+        footer = shiny::modalButton("Close")
+      ))
     })
 
     # Export CSV

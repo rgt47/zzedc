@@ -4,7 +4,6 @@
 #' @importFrom bsicons bs_icon
 #' @importFrom DT datatable DTOutput
 #' @importFrom plotly plotlyOutput renderPlotly plot_ly
-#' @importFrom shinydashboard valueBox
 #' @importFrom R.utils withTimeout
 #' @importFrom graphics plot.new text
 #' @importFrom stats aggregate complete.cases median reorder rnorm runif sd

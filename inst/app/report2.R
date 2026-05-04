@@ -72,7 +72,7 @@ output$rep2 <- renderUI({
             tagList(bsicons::bs_icon("list-check", class = "text-success"), " Validation Summary")
           ),
           bslib::card_body(
-            DT::dataTableOutput("validation_summary_rep2")
+            DT::DTOutput("validation_summary_rep2")
           )
         )
       )
@@ -142,7 +142,7 @@ output$data_status_rep2 <- renderText({
   }
 })
 
-output$validation_summary_rep2 <- DT::renderDataTable({
+output$validation_summary_rep2 <- DT::renderDT({
   # Create a simple validation summary
   data.frame(
     Metric = c("Complete Records", "Missing Values", "Validation Errors", "Total Entries"),

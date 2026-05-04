@@ -70,6 +70,13 @@ if (!exists("ui_content") || is.null(ui_content)) {
   } else {
     tags$script("console.log('shinyjs not available');")
   },
+
+  # Busy indicators: keep the global progress pulse, suppress
+  # per-output spinners. Spinner overlays redraw cards on every
+  # input change and produce a layout jump on tile-based pages
+  # (e.g. quality dashboard). The pulse alone is enough.
+  shiny::useBusyIndicators(spinners = FALSE),
+
   tags$head(
     tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
     tags$link(rel = "icon", href = "logo.png", type = "image/png")

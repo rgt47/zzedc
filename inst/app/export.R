@@ -61,7 +61,7 @@ output$export <- renderUI({
               h4("Export Preview"),
               verbatimTextOutput("export_preview_info"),
               br(),
-              DT::dataTableOutput("export_preview_table")
+              DT::DTOutput("export_preview_table")
             )
           ),
           
@@ -69,7 +69,7 @@ output$export <- renderUI({
             br(),
             wellPanel(
               h4("Recent Exports"),
-              DT::dataTableOutput("export_history_table"),
+              DT::DTOutput("export_history_table"),
               br(),
               actionButton("clear_export_history", "Clear History", class = "btn-warning")
             )
@@ -234,7 +234,7 @@ output$export_preview_info <- renderText({
   info_text
 })
 
-output$export_preview_table <- DT::renderDataTable({
+output$export_preview_table <- DT::renderDT({
   data <- export_data()
   
   # Show first 100 rows for preview
@@ -255,7 +255,7 @@ export_history <- reactiveVal(data.frame(
   Status = character(0)
 ))
 
-output$export_history_table <- DT::renderDataTable({
+output$export_history_table <- DT::renderDT({
   history <- export_history()
   if(nrow(history) == 0) {
     history <- data.frame(Message = "No exports performed yet")

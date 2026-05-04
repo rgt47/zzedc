@@ -38,7 +38,7 @@ validation_rules_ui <- function(id) {
             class = "btn-outline-primary btn-sm"
           )
         ),
-        DT::dataTableOutput(ns("active_rules_table"))
+        DT::DTOutput(ns("active_rules_table"))
       ),
 
       bslib::nav_panel(
@@ -298,7 +298,7 @@ validation_rules_server <- function(id, user_info) {
       shiny::showNotification("Rules refreshed", type = "message")
     })
 
-    output$active_rules_table <- DT::renderDataTable({
+    output$active_rules_table <- DT::renderDT({
       rules <- rules_data()
       if (is.null(rules) || nrow(rules) == 0) {
         return(DT::datatable(

@@ -170,7 +170,7 @@ setup_wizard_ui <- function(id) {
 
       div(id = ns("team_members_list"), class = "mt-3",
         h5("Team Members Added:"),
-        DT::dataTableOutput(ns("team_table"))
+        DT::DTOutput(ns("team_table"))
       ),
 
       div(class = "mt-4",
@@ -475,7 +475,7 @@ setup_wizard_server <- function(id, db_path = reactive("/tmp/zzedc.db")) {
     })
 
     # Display team members table
-    output$team_table <- DT::renderDataTable({
+    output$team_table <- DT::renderDT({
       DT::datatable(
         wizard_state$team_members,
         options = list(

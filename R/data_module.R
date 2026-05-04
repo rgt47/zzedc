@@ -86,14 +86,14 @@ data_ui <- function(id) {
                 verbatimTextOutput(ns("data_summary"))
               )
             ),
-            DT::dataTableOutput(ns("data_table"))
+            DT::DTOutput(ns("data_table"))
           ),
 
           tabPanel("Variable Info",
             br(),
             wellPanel(
               h4("Variable Information"),
-              DT::dataTableOutput(ns("variable_info_table"))
+              DT::DTOutput(ns("variable_info_table"))
             )
           ),
 
@@ -235,7 +235,7 @@ data_server <- function(id) {
       )
     })
 
-    output$data_table <- DT::renderDataTable({
+    output$data_table <- DT::renderDT({
       data <- current_data()
       req(data, nrow(data) > 0)
 
@@ -271,7 +271,7 @@ data_server <- function(id) {
       )
     })
 
-    output$variable_info_table <- DT::renderDataTable({
+    output$variable_info_table <- DT::renderDT({
       data <- current_data()
       if ("Message" %in% names(data) || "Error" %in% names(data)) {
         return(DT::datatable(data.frame(Info = "No data available")))
@@ -323,12 +323,19 @@ data_server <- function(id) {
       )
     })
 
-    # Update variable choices for visualization
+    # Update variable choices for visualization. Freeze the
+    # downstream input values before pushing new choices so that
+    # `output$data_visualization` does not render once with a
+    # stale `input$viz_var_x` (referring to a column that no
+    # longer exists in the new data source) before the client
+    # acknowledges the choice list change.
     observe({
       data <- current_data()
       if (!("Message" %in% names(data) || "Error" %in% names(data))) {
         all_vars <- names(data)
 
+        shiny::freezeReactiveValue(input, "viz_var_x")
+        shiny::freezeReactiveValue(input, "viz_var_y")
         updateSelectInput(session, "viz_var_x", choices = all_vars)
         updateSelectInput(session, "viz_var_y", choices = all_vars)
       }

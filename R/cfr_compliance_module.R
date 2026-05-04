@@ -149,7 +149,7 @@ cfr_compliance_ui <- function(id) {
           bslib::card(
             bslib::card_header("Electronic Signature History"),
             bslib::card_body(
-              DT::dataTableOutput(ns("signature_history"))
+              DT::DTOutput(ns("signature_history"))
             )
           )
         ),
@@ -193,7 +193,7 @@ cfr_compliance_ui <- function(id) {
                   )
                 ),
                 bslib::card_body(
-                  DT::dataTableOutput(ns("audit_trail_table"))
+                  DT::DTOutput(ns("audit_trail_table"))
                 )
               )
             )
@@ -208,7 +208,7 @@ cfr_compliance_ui <- function(id) {
               bslib::card(
                 bslib::card_header("Validation Activities"),
                 bslib::card_body(
-                  DT::dataTableOutput(ns("validation_activities"))
+                  DT::DTOutput(ns("validation_activities"))
                 )
               )
             ),
@@ -248,7 +248,7 @@ cfr_compliance_ui <- function(id) {
               bslib::card(
                 bslib::card_header("Training Compliance by Role"),
                 bslib::card_body(
-                  DT::dataTableOutput(ns("training_compliance_table"))
+                  DT::DTOutput(ns("training_compliance_table"))
                 )
               )
             ),
@@ -502,7 +502,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     })
 
     # Signature history table
-    output$signature_history <- DT::renderDataTable({
+    output$signature_history <- DT::renderDT({
       if (!is.null(compliance_data$signatures)) {
         display_data <- compliance_data$signatures |>
           select(signature_id, signer_name, signature_meaning, table_name,
@@ -524,7 +524,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     })
 
     # Audit trail table
-    output$audit_trail_table <- DT::renderDataTable({
+    output$audit_trail_table <- DT::renderDT({
       if (!is.null(compliance_data$audit_trail)) {
         display_data <- compliance_data$audit_trail |>
           select(event_type, table_name, record_id, user_name, timestamp, reason) |>
@@ -538,7 +538,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     })
 
     # Validation activities table
-    output$validation_activities <- DT::renderDataTable({
+    output$validation_activities <- DT::renderDT({
       if (!is.null(compliance_data$validations)) {
         display_data <- compliance_data$validations |>
           select(validation_type, validation_title, status, execution_date,
@@ -562,7 +562,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     })
 
     # Training compliance table
-    output$training_compliance_table <- DT::renderDataTable({
+    output$training_compliance_table <- DT::renderDT({
       if (!is.null(compliance_data$training)) {
         summary_data <- compliance_data$training |>
           group_by(role, training_type) |>

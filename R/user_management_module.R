@@ -41,114 +41,131 @@ user_management_ui <- function(id) {
     ),
 
     # Users table
-    div(class = "card",
-      div(class = "card-body",
-        DT::dataTableOutput(ns("users_table")),
+    bslib::card(
+      bslib::card_body(
+        DT::DTOutput(ns("users_table")),
         div(id = ns("table_info"), class = "mt-2 text-muted small")
       )
+    )
+  )
+}
+
+
+#' Build the Add/Edit user modal body
+#'
+#' @keywords internal
+.user_modal_dialog <- function(ns, title, username = "", fullname = "",
+                               email = "", role = "Coordinator",
+                               active = TRUE) {
+  shiny::modalDialog(
+    title = title,
+    size = "l",
+    easyClose = FALSE,
+    footer = tagList(
+      actionButton(ns("modal_cancel"), "Cancel", class = "btn btn-secondary"),
+      actionButton(ns("modal_save"), "Save", class = "btn btn-primary")
     ),
 
-    # Add/Edit User Modal
-    shiny::modalDialog(
-      id = ns("user_modal"),
-      title = "Add/Edit User",
-      easyClose = FALSE,
-      size = "lg",
-
-      div(class = "form-group",
-        label("Username *", `for` = ns("modal_username")),
-        textInput(ns("modal_username"), NULL,
-                 placeholder = "Username (no spaces)"),
-        div(class = "form-text", "Unique login identifier")
-      ),
-
-      div(class = "form-group",
-        label("Full Name *", `for` = ns("modal_fullname")),
-        textInput(ns("modal_fullname"), NULL,
-                 placeholder = "User's full name")
-      ),
-
-      div(class = "form-group",
-        label("Email *", `for` = ns("modal_email")),
-        textInput(ns("modal_email"), NULL,
-                 placeholder = "user@institution.edu")
-      ),
-
-      div(class = "form-group",
-        label("Role *", `for` = ns("modal_role")),
-        selectInput(ns("modal_role"), NULL,
-                   choices = c("Admin", "PI", "Coordinator", "Data Manager", "Monitor"))
-      ),
-
-      div(class = "form-group",
-        label("Password *", `for` = ns("modal_password")),
-        passwordInput(ns("modal_password"), NULL,
-                     placeholder = "Password"),
-        div(class = "form-text",
-          "Leave blank to keep existing password (for edits)")
-      ),
-
-      div(class = "form-group",
-        label("Confirm Password *", `for` = ns("modal_password_confirm")),
-        passwordInput(ns("modal_password_confirm"), NULL,
-                     placeholder = "Confirm password")
-      ),
-
-      div(class = "form-check mb-3",
-        input(id = ns("modal_active"), type = "checkbox", class = "form-check-input", checked = TRUE),
-        label("Active", `for` = ns("modal_active"), class = "form-check-label")
-      ),
-
-      # Modal footer
-      div(class = "modal-footer",
-        actionButton(ns("modal_cancel"), "Cancel", class = "btn btn-secondary"),
-        actionButton(ns("modal_save"), "Save", class = "btn btn-primary")
-      )
+    div(class = "form-group",
+      tags$label("Username *", `for` = ns("modal_username")),
+      textInput(ns("modal_username"), NULL,
+               value = username,
+               placeholder = "Username (no spaces)"),
+      div(class = "form-text", "Unique login identifier")
     ),
 
-    # Reset Password Modal
-    shiny::modalDialog(
-      id = ns("reset_password_modal"),
-      title = "Reset Password",
-      easyClose = FALSE,
-
-      p("Generate a temporary password for this user?"),
-
-      div(class = "alert alert-info",
-        strong("User will receive:"),
-        tags$ul(
-          tags$li("A temporary password via email"),
-          tags$li("Instructions to change it on first login")
-        )
-      ),
-
-      div(class = "modal-footer",
-        actionButton(ns("reset_cancel"), "Cancel", class = "btn btn-secondary"),
-        actionButton(ns("reset_confirm"), "Reset Password", class = "btn btn-warning")
-      )
+    div(class = "form-group",
+      tags$label("Full Name *", `for` = ns("modal_fullname")),
+      textInput(ns("modal_fullname"), NULL,
+               value = fullname,
+               placeholder = "User's full name")
     ),
 
-    # Deactivate User Modal
-    shiny::modalDialog(
-      id = ns("deactivate_modal"),
-      title = "Deactivate User",
-      easyClose = FALSE,
+    div(class = "form-group",
+      tags$label("Email *", `for` = ns("modal_email")),
+      textInput(ns("modal_email"), NULL,
+               value = email,
+               placeholder = "user@institution.edu")
+    ),
 
-      div(class = "alert alert-warning",
-        strong("Warning: "),
-        "This user will no longer be able to login. This action can be reversed by editing the user later."
-      ),
+    div(class = "form-group",
+      tags$label("Role *", `for` = ns("modal_role")),
+      selectInput(ns("modal_role"), NULL,
+                 choices = c("Admin", "PI", "Coordinator",
+                             "Data Manager", "Monitor"),
+                 selected = role)
+    ),
 
-      p("Reason for deactivation:"),
-      textAreaInput(ns("deactivate_reason"), NULL,
-                   placeholder = "Optional: reason for deactivation",
-                   rows = 3),
+    div(class = "form-group",
+      tags$label("Password *", `for` = ns("modal_password")),
+      passwordInput(ns("modal_password"), NULL,
+                   placeholder = "Password"),
+      div(class = "form-text",
+        "Leave blank to keep existing password (for edits)")
+    ),
 
-      div(class = "modal-footer",
-        actionButton(ns("deactivate_cancel"), "Cancel", class = "btn btn-secondary"),
-        actionButton(ns("deactivate_confirm"), "Deactivate", class = "btn btn-danger")
+    div(class = "form-group",
+      tags$label("Confirm Password *",
+                 `for` = ns("modal_password_confirm")),
+      passwordInput(ns("modal_password_confirm"), NULL,
+                   placeholder = "Confirm password")
+    ),
+
+    checkboxInput(ns("modal_active"), "Active", value = active)
+  )
+}
+
+
+#' Build the Reset-password modal body
+#'
+#' @keywords internal
+.reset_password_modal_dialog <- function(ns) {
+  shiny::modalDialog(
+    title = "Reset Password",
+    easyClose = FALSE,
+    footer = tagList(
+      actionButton(ns("reset_cancel"), "Cancel",
+                   class = "btn btn-secondary"),
+      actionButton(ns("reset_confirm"), "Reset Password",
+                   class = "btn btn-warning")
+    ),
+
+    p("Generate a temporary password for this user?"),
+
+    div(class = "alert alert-info",
+      strong("User will receive:"),
+      tags$ul(
+        tags$li("A temporary password via email"),
+        tags$li("Instructions to change it on first login")
       )
     )
+  )
+}
+
+
+#' Build the Deactivate-user modal body
+#'
+#' @keywords internal
+.deactivate_modal_dialog <- function(ns) {
+  shiny::modalDialog(
+    title = "Deactivate User",
+    easyClose = FALSE,
+    footer = tagList(
+      actionButton(ns("deactivate_cancel"), "Cancel",
+                   class = "btn btn-secondary"),
+      actionButton(ns("deactivate_confirm"), "Deactivate",
+                   class = "btn btn-danger")
+    ),
+
+    div(class = "alert alert-warning",
+      strong("Warning: "),
+      "This user will no longer be able to login. This action can be reversed by editing the user later."
+    ),
+
+    p("Reason for deactivation:"),
+    textAreaInput(ns("deactivate_reason"), NULL,
+                 placeholder = "Optional: reason for deactivation",
+                 rows = 3)
   )
 }
 
@@ -235,7 +252,7 @@ user_management_server <- function(id, db_pool = NULL) {
     user_state$users <- load_users()
 
     # Display users table
-    output$users_table <- DT::renderDataTable({
+    output$users_table <- DT::renderDT({
       users <- user_state$users
 
       if (nrow(users) == 0) {
@@ -289,16 +306,7 @@ user_management_server <- function(id, db_pool = NULL) {
       user_state$modal_mode <- "add"
       user_state$edit_user_id <- NULL
 
-      # Clear form
-      updateTextInput(session, "modal_username", value = "")
-      updateTextInput(session, "modal_fullname", value = "")
-      updateTextInput(session, "modal_email", value = "")
-      updateSelectInput(session, "modal_role", selected = "Coordinator")
-      updatePasswordInput(session, "modal_password", value = "")
-      updatePasswordInput(session, "modal_password_confirm", value = "")
-      updateCheckboxInput(session, "modal_active", value = TRUE)
-
-      shinyjs::show("user_modal")
+      shiny::showModal(.user_modal_dialog(ns, title = "Add User"))
     })
 
     # Edit user button
@@ -314,16 +322,15 @@ user_management_server <- function(id, db_pool = NULL) {
       user_state$modal_mode <- "edit"
       user_state$edit_user_id <- user_id
 
-      # Populate form
-      updateTextInput(session, "modal_username", value = user_row$username[1])
-      updateTextInput(session, "modal_fullname", value = user_row$full_name[1])
-      updateTextInput(session, "modal_email", value = user_row$email[1])
-      updateSelectInput(session, "modal_role", selected = user_row$role[1])
-      updatePasswordInput(session, "modal_password", value = "")
-      updatePasswordInput(session, "modal_password_confirm", value = "")
-      updateCheckboxInput(session, "modal_active", value = as.logical(user_row$active[1]))
-
-      shinyjs::show("user_modal")
+      shiny::showModal(.user_modal_dialog(
+        ns,
+        title    = "Edit User",
+        username = user_row$username[1],
+        fullname = user_row$full_name[1],
+        email    = user_row$email[1],
+        role     = user_row$role[1],
+        active   = as.logical(user_row$active[1])
+      ))
     })
 
     # Save user
@@ -383,7 +390,7 @@ user_management_server <- function(id, db_pool = NULL) {
 
       # Reload users and close modal
       user_state$users <- load_users()
-      shinyjs::hide("user_modal")
+      shiny::removeModal()
 
       message_type <- if (user_state$modal_mode == "add") "User added" else "User updated"
       shinyalert("Success", message_type, type = "success", timer = 2000)
@@ -391,7 +398,7 @@ user_management_server <- function(id, db_pool = NULL) {
 
     # Cancel modal
     observeEvent(input$modal_cancel, {
-      shinyjs::hide("user_modal")
+      shiny::removeModal()
     })
 
     # Reset password button
@@ -399,8 +406,9 @@ user_management_server <- function(id, db_pool = NULL) {
       user_id <- input$reset_password
       user_row <- user_state$users[user_state$users$user_id == user_id, ]
       user_state$selected_username <- user_row$username[1]
+      user_state$edit_user_id <- user_id
 
-      shinyjs::show("reset_password_modal")
+      shiny::showModal(.reset_password_modal_dialog(ns))
     })
 
     # Confirm reset password
@@ -428,12 +436,12 @@ user_management_server <- function(id, db_pool = NULL) {
         shinyalert("Error", paste("Failed to reset password:", e$message), type = "error")
       })
 
-      shinyjs::hide("reset_password_modal")
+      shiny::removeModal()
     })
 
     # Cancel reset
     observeEvent(input$reset_cancel, {
-      shinyjs::hide("reset_password_modal")
+      shiny::removeModal()
     })
 
     # Deactivate button
@@ -441,7 +449,7 @@ user_management_server <- function(id, db_pool = NULL) {
       user_id <- input$deactivate_user
       user_state$edit_user_id <- user_id
 
-      shinyjs::show("deactivate_modal")
+      shiny::showModal(.deactivate_modal_dialog(ns))
     })
 
     # Confirm deactivate
@@ -456,7 +464,7 @@ user_management_server <- function(id, db_pool = NULL) {
 
         # Reload users
         user_state$users <- load_users()
-        shinyjs::hide("deactivate_modal")
+        shiny::removeModal()
 
         shinyalert("Success", "User deactivated", type = "success", timer = 2000)
       }, error = function(e) {
@@ -466,7 +474,7 @@ user_management_server <- function(id, db_pool = NULL) {
 
     # Cancel deactivate
     observeEvent(input$deactivate_cancel, {
-      shinyjs::hide("deactivate_modal")
+      shiny::removeModal()
     })
 
     # Refresh button

@@ -22,82 +22,36 @@ quality_dashboard_ui <- function(id) {
         class = "text-muted")
     ),
 
-    # Key Metrics Cards
-    fluidRow(
-      column(3,
-        bslib::card(
-          bslib::card_header(
-            tagList(bsicons::bs_icon("file-earmark-check"), " Total Records")
-          ),
-          bslib::card_body(
-            div(
-              class = "text-center",
-              div(
-                id = ns("metric_total"),
-                class = "display-4 text-primary fw-bold",
-                "0"
-              ),
-              p("records in database", class = "text-muted small")
-            )
-          )
-        )
+    # Key Metrics value boxes
+    bslib::layout_columns(
+      col_widths = c(3, 3, 3, 3),
+      bslib::value_box(
+        title    = "Total Records",
+        value    = shiny::textOutput(ns("metric_total")),
+        showcase = bsicons::bs_icon("file-earmark-check"),
+        theme    = "primary",
+        p("records in database")
       ),
-
-      column(3,
-        bslib::card(
-          bslib::card_header(
-            tagList(bsicons::bs_icon("check-circle-fill"), " Complete Records")
-          ),
-          bslib::card_body(
-            div(
-              class = "text-center",
-              div(
-                id = ns("metric_complete"),
-                class = "display-4 text-success fw-bold",
-                "0"
-              ),
-              p("100% complete forms", class = "text-muted small")
-            )
-          )
-        )
+      bslib::value_box(
+        title    = "Complete Records",
+        value    = shiny::textOutput(ns("metric_complete")),
+        showcase = bsicons::bs_icon("check-circle-fill"),
+        theme    = "success",
+        p("100% complete forms")
       ),
-
-      column(3,
-        bslib::card(
-          bslib::card_header(
-            tagList(bsicons::bs_icon("exclamation-circle"), " % Incomplete")
-          ),
-          bslib::card_body(
-            div(
-              class = "text-center",
-              div(
-                id = ns("metric_incomplete_pct"),
-                class = "display-4 text-warning fw-bold",
-                "0%"
-              ),
-              p("with missing data", class = "text-muted small")
-            )
-          )
-        )
+      bslib::value_box(
+        title    = "% Incomplete",
+        value    = shiny::textOutput(ns("metric_incomplete_pct")),
+        showcase = bsicons::bs_icon("exclamation-circle"),
+        theme    = "warning",
+        p("with missing data")
       ),
-
-      column(3,
-        bslib::card(
-          bslib::card_header(
-            tagList(bsicons::bs_icon("flag-fill"), " Flagged Issues")
-          ),
-          bslib::card_body(
-            div(
-              class = "text-center",
-              div(
-                id = ns("metric_flagged"),
-                class = "display-4 text-danger fw-bold",
-                "0"
-              ),
-              p("requiring review", class = "text-muted small")
-            )
-          )
-        )
+      bslib::value_box(
+        title    = "Flagged Issues",
+        value    = shiny::textOutput(ns("metric_flagged")),
+        showcase = bsicons::bs_icon("flag-fill"),
+        theme    = "danger",
+        p("requiring review")
       )
     ),
 
@@ -130,7 +84,7 @@ quality_dashboard_ui <- function(id) {
           bslib::card_body(
             div(
               class = "table-responsive",
-              DT::dataTableOutput(ns("missing_data_table"))
+              DT::DTOutput(ns("missing_data_table"))
             )
           )
         )
@@ -252,24 +206,31 @@ quality_dashboard_server <- function(id, db_conn, refresh_interval = 30000) {
       })
     })
 
-    # Update key metrics
-    observe({
+    # Key metric outputs. Hoisted out of an observe() so they are
+    # registered up-front and re-render in the value_box tiles
+    # automatically whenever quality_data() invalidates.
+    output$metric_total <- renderText({
       data <- quality_data()
-      if (!is.null(data)) {
-        # Update metric cards
-        output$metric_total <- renderText(
-          formatC(data$total_records, big.mark = ",", format = "d")
-        )
-        output$metric_complete <- renderText(
-          formatC(data$complete_records, big.mark = ",", format = "d")
-        )
-        output$metric_incomplete_pct <- renderText(
-          paste0(data$incomplete_pct, "%")
-        )
-        output$metric_flagged <- renderText(
-          formatC(data$flagged_records, big.mark = ",", format = "d")
-        )
-      }
+      req(data)
+      formatC(data$total_records, big.mark = ",", format = "d")
+    })
+
+    output$metric_complete <- renderText({
+      data <- quality_data()
+      req(data)
+      formatC(data$complete_records, big.mark = ",", format = "d")
+    })
+
+    output$metric_incomplete_pct <- renderText({
+      data <- quality_data()
+      req(data)
+      paste0(data$incomplete_pct, "%")
+    })
+
+    output$metric_flagged <- renderText({
+      data <- quality_data()
+      req(data)
+      formatC(data$flagged_records, big.mark = ",", format = "d")
     })
 
     # Completeness by form chart
@@ -328,7 +289,7 @@ quality_dashboard_server <- function(id, db_conn, refresh_interval = 30000) {
     })
 
     # Missing data table
-    output$missing_data_table <- DT::renderDataTable({
+    output$missing_data_table <- DT::renderDT({
       data <- quality_data()
       if (is.null(data) || nrow(data$missing_summary) == 0) {
         data.frame(

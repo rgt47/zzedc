@@ -1,0 +1,24 @@
+local({
+  pkg_ver <- tryCatch(utils::packageVersion("zzedc"),
+                      error = function(e) "")
+  bibentry(
+    bibtype  = "Manual",
+    title    = "{zzedc}: Electronic Data Capture System for Clinical Trials",
+    author   = person(given = "Ronald G.",
+                      family = "Thomas",
+                      email = "rgthomas@ucsd.edu",
+                      comment = c(ORCID = "0000-0003-1686-4965")),
+    year     = "2026",
+    note     = if (nzchar(pkg_ver))
+                 paste0("R package version ", pkg_ver)
+               else
+                 "R package",
+    url      = "https://github.com/rgt47/zzedc",
+    textVersion = paste0(
+      "Thomas, R.G. (2026). ",
+      "zzedc: Electronic Data Capture System for Clinical Trials. ",
+      if (nzchar(pkg_ver)) paste0("R package version ", pkg_ver, ". "),
+      "https://github.com/rgt47/zzedc"
+    )
+  )
+})

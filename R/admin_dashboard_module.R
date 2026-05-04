@@ -175,11 +175,10 @@ system_config_ui <- function(id) {
     div(class = "row",
       # Database Settings
       div(class = "col-md-6",
-        div(class = "card mb-3",
-          div(class = "card-header bg-info text-white",
-            h5(class = "card-title mb-0", "Database")
-          ),
-          div(class = "card-body",
+        bslib::card(
+          class = "mb-3",
+          bslib::card_header(class = "bg-info text-white", "Database"),
+          bslib::card_body(
             div(class = "mb-2",
               strong("Database Type: "),
               span("SQLite")
@@ -203,11 +202,10 @@ system_config_ui <- function(id) {
 
       # Security Settings
       div(class = "col-md-6",
-        div(class = "card mb-3",
-          div(class = "card-header bg-danger text-white",
-            h5(class = "card-title mb-0", "Security")
-          ),
-          div(class = "card-body",
+        bslib::card(
+          class = "mb-3",
+          bslib::card_header(class = "bg-danger text-white", "Security"),
+          bslib::card_body(
             div(class = "mb-3",
               label("Session Timeout (minutes)"),
               numericInput(ns("session_timeout"), NULL, value = 30, min = 5, max = 1440)
@@ -232,11 +230,9 @@ system_config_ui <- function(id) {
     # Features & Compliance
     div(class = "row",
       div(class = "col-md-12",
-        div(class = "card",
-          div(class = "card-header",
-            h5(class = "card-title mb-0", "Features & Compliance")
-          ),
-          div(class = "card-body",
+        bslib::card(
+          bslib::card_header("Features & Compliance"),
+          bslib::card_body(
             div(class = "row",
               div(class = "col-md-4",
                 div(class = "form-check",
@@ -416,11 +412,9 @@ help_documentation_ui <- function(id) {
     ),
 
     # Documentation Sections
-    div(class = "card",
-      div(class = "card-header",
-        h5(class = "card-title mb-0", "Documentation Sections")
-      ),
-      div(class = "card-body",
+    bslib::card(
+      bslib::card_header("Documentation Sections"),
+      bslib::card_body(
         div(class = "row",
           div(class = "col-md-6",
             h6("Getting Started"),

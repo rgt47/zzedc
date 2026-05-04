@@ -113,7 +113,7 @@ audit_viewer_ui <- function(id) {
           shiny::tabPanel(
             "Audit Log",
             shiny::br(),
-            DT::dataTableOutput(ns("audit_table"))
+            DT::DTOutput(ns("audit_table"))
           ),
 
           shiny::tabPanel(
@@ -196,7 +196,7 @@ audit_viewer_ui <- function(id) {
             ),
             shiny::hr(),
             shiny::h5("Alert Details"),
-            DT::dataTableOutput(ns("alerts_table"))
+            DT::DTOutput(ns("alerts_table"))
           ),
 
           shiny::tabPanel(
@@ -267,6 +267,7 @@ audit_viewer_server <- function(id, db_path = shiny::reactive(NULL)) {
         choices <- c("All" = "")
       }
 
+      shiny::freezeReactiveValue(input, "event_type")
       shiny::updateSelectInput(session, "event_type", choices = choices)
     })
 
@@ -332,7 +333,7 @@ audit_viewer_server <- function(id, db_path = shiny::reactive(NULL)) {
       stats_data(stats)
     })
 
-    output$audit_table <- DT::renderDataTable({
+    output$audit_table <- DT::renderDT({
       data <- audit_data()
 
       if (nrow(data) == 0) {
@@ -447,7 +448,7 @@ audit_viewer_server <- function(id, db_path = shiny::reactive(NULL)) {
       if (length(data) == 0) "---" else length(data$alerts)
     })
 
-    output$alerts_table <- DT::renderDataTable({
+    output$alerts_table <- DT::renderDT({
       data <- anomaly_data()
 
       if (length(data) == 0 || length(data$alerts) == 0) {

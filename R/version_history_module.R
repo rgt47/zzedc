@@ -104,7 +104,7 @@ version_history_ui <- function(id) {
           shiny::tabPanel(
             "Version History",
             shiny::br(),
-            DT::dataTableOutput(ns("history_table"))
+            DT::DTOutput(ns("history_table"))
           ),
 
           shiny::tabPanel(
@@ -203,6 +203,7 @@ version_history_server <- function(id, db_path = shiny::reactive(NULL),
           choices <- c("Select table..." = "", stats::setNames(
             tables$table_name, tables$table_name
           ))
+          shiny::freezeReactiveValue(input, "table_name")
           shiny::updateSelectInput(session, "table_name", choices = choices)
         }
       }, error = function(e) {
@@ -228,6 +229,9 @@ version_history_server <- function(id, db_path = shiny::reactive(NULL),
                           paste("v", history$version_number, "-",
                                 history$change_type)))
 
+        shiny::freezeReactiveValue(input, "version_a")
+        shiny::freezeReactiveValue(input, "version_b")
+        shiny::freezeReactiveValue(input, "restore_version")
         shiny::updateSelectInput(session, "version_a", choices = version_choices)
         shiny::updateSelectInput(session, "version_b", choices = version_choices)
         shiny::updateSelectInput(session, "restore_version",
@@ -242,7 +246,7 @@ version_history_server <- function(id, db_path = shiny::reactive(NULL),
       }
     })
 
-    output$history_table <- DT::renderDataTable({
+    output$history_table <- DT::renderDT({
       data <- history_data()
 
       if (nrow(data) == 0) {

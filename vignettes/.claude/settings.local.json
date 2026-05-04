@@ -21,7 +21,20 @@
       "Bash(R_PROFILE_USER='' R_LIBS_USER=/Users/zenn/Library/R/arm64/4.5/library Rscript -e 'tools::showNonASCIIfile\\(\"/Users/zenn/prj/sfw/03-zzpower/zzpower/R/generic_server_factory.R\"\\)')",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git tag *)"
+      "Bash(git tag *)",
+      "Bash(curl -sL -A \"Mozilla/5.0\" \"https://www.niaid.nih.gov/sites/default/files/r01ai181321-01-liu-application.pdf\" -o niaid_liu.pdf)",
+      "Bash(pdftotext niaid_liu.pdf niaid_liu.txt)",
+      "Bash(pdftotext -layout nci_mohile.pdf nci_mohile_layout.txt)",
+      "WebSearch",
+      "Bash(curl -sL -A \"Mozilla/5.0\" \"https://epi.grants.cancer.gov/funding/sun-sample.pdf\" -o nci_sun.pdf)",
+      "Bash(pdftotext -layout nci_sun.pdf nci_sun.txt)",
+      "WebFetch(domain:grants.nih.gov)",
+      "WebFetch(domain:pmc.ncbi.nlm.nih.gov)",
+      "Bash(curl -sL \"https://database.ich.org/sites/default/files/E9_Guideline.pdf\" -o ich_e9.pdf)",
+      "Bash(pdftotext ich_e9.pdf ich_e9.txt)",
+      "WebFetch(domain:trialsjournal.biomedcentral.com)",
+      "Bash(curl -sL -A \"Mozilla/5.0\" \"https://www.marquette.edu/orsp/documents/NIHStatisticalDesignandPowerGuidance_December2017.pdf\" -o nih_marquette.pdf)",
+      "Bash(pdftotext nih_marquette.pdf nih_marquette.txt)"
     ]
   }
 }
