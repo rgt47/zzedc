@@ -37,7 +37,8 @@
       "Bash(pdftotext nih_marquette.pdf nih_marquette.txt)",
       "Bash(R --vanilla --quiet -f /tmp/zzpower_calc_context_test.R)",
       "Bash(R --vanilla --quiet -f /tmp/zzpower_run_tests.R)",
-      "Bash(R --vanilla --quiet -e ' *)"
+      "Bash(R --vanilla --quiet -e ' *)",
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_cluster_test.R)"
     ]
   }
 }
