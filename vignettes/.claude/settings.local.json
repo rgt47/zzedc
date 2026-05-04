@@ -38,7 +38,9 @@
       "Bash(R --vanilla --quiet -f /tmp/zzpower_calc_context_test.R)",
       "Bash(R --vanilla --quiet -f /tmp/zzpower_run_tests.R)",
       "Bash(R --vanilla --quiet -e ' *)",
-      "Bash(R --vanilla --quiet -f /tmp/zzpower_cluster_test.R)"
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_cluster_test.R)",
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_ni_test.R)",
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_multiaim_test.R)"
     ]
   }
 }
