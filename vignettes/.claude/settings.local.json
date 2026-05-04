@@ -36,7 +36,8 @@
       "Bash(curl -sL -A \"Mozilla/5.0\" \"https://www.marquette.edu/orsp/documents/NIHStatisticalDesignandPowerGuidance_December2017.pdf\" -o nih_marquette.pdf)",
       "Bash(pdftotext nih_marquette.pdf nih_marquette.txt)",
       "Bash(R --vanilla --quiet -f /tmp/zzpower_calc_context_test.R)",
-      "Bash(R --vanilla --quiet -f /tmp/zzpower_run_tests.R)"
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_run_tests.R)",
+      "Bash(R --vanilla --quiet -e ' *)"
     ]
   }
 }
