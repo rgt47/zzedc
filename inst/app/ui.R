@@ -148,6 +148,31 @@ if (!exists("ui_content") || is.null(ui_content)) {
       ".btn { border-radius: 8px; font-weight: 500; }",
       ".btn-sm { font-size: 0.82rem; padding: 0.3rem 0.65rem; }",
       ".navbar-brand { font-weight: 600; letter-spacing: -0.01em; }",
+      # Re-skin shiny::wellPanel (Bootstrap .well) which several
+      # legacy tabs (Export, Report 3) still use. Default well is a
+      # grey 1990s box; we render it as a clean white card to match
+      # bslib::card and avoid a visual style clash.
+      ".well {",
+      "  background: #ffffff !important;",
+      "  border: 1px solid #e2e8f0 !important;",
+      "  border-radius: 12px !important;",
+      "  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);",
+      "  padding: 1.25rem !important;",
+      "  margin-bottom: 1rem;",
+      "}",
+      ".well h3, .well h4, .well h5 {",
+      "  font-weight: 600;",
+      "  color: #0f172a;",
+      "}",
+      # Title-panel headers (legacy fluidPage(titlePanel(...))):
+      # tighten spacing and weight so they sit visually closer to
+      # bslib::card_header titles.
+      ".navbar + .container-fluid > h2, ",
+      ".navbar + .container-fluid > h3 { ",
+      "  font-weight: 700; ",
+      "  letter-spacing: -0.01em; ",
+      "  margin-top: 1rem; ",
+      "}",
       # Section labels (used in cards/panels for small caps headers)
       ".zzedc-section-label {",
       "  font-size: 0.78rem;",
