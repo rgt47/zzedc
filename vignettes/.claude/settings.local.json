@@ -44,7 +44,11 @@
       "Bash(R --vanilla --quiet -f /tmp/zzpower_document.R)",
       "Bash(R --vanilla --quiet -f /tmp/zzpower_check.R)",
       "Bash(perl -i -pe 's/card_colors\\\\[\\\\[\\(.*?\\)\\\\]\\\\]/card_colors[$1]/g' R/launch_zzpower.R)",
-      "Bash(R --vanilla --quiet -f /tmp/zzpower_launch.R)"
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_launch.R)",
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_show_fails.R)",
+      "Bash(xargs -r kill)",
+      "Bash(R --vanilla --quiet -e 'options\\(renv.config.activate = FALSE\\); Sys.setenv\\(RENV_CONFIG_AUTOLOADER_ENABLED = \"FALSE\"\\); install.packages\\(\"/Users/zenn/prj/sfw/03-zzpower/zzpower\", repos = NULL, type = \"source\", quiet = TRUE\\)')",
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_launch2.R)"
     ]
   }
 }
