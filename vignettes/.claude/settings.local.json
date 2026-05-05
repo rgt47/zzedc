@@ -42,7 +42,9 @@
       "Bash(R --vanilla --quiet -f /tmp/zzpower_ni_test.R)",
       "Bash(R --vanilla --quiet -f /tmp/zzpower_multiaim_test.R)",
       "Bash(R --vanilla --quiet -f /tmp/zzpower_document.R)",
-      "Bash(R --vanilla --quiet -f /tmp/zzpower_check.R)"
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_check.R)",
+      "Bash(perl -i -pe 's/card_colors\\\\[\\\\[\\(.*?\\)\\\\]\\\\]/card_colors[$1]/g' R/launch_zzpower.R)",
+      "Bash(R --vanilla --quiet -f /tmp/zzpower_launch.R)"
     ]
   }
 }
