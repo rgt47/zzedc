@@ -36,3 +36,5 @@
 ^Meta$
 ^manuscript$
 ^CRAN-readiness-report\.md$
+^LICENSE$
+^\.zzcollab$

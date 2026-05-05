@@ -68,8 +68,8 @@ home_ui <- function(id) {
           "letter-spacing: 0.04em; margin-bottom: 1.25rem;"
         ),
         "21 CFR Part 11 + GDPR compliant",
-        "· Multi-backend (SQLite, PostgreSQL, DuckDB, ClickHouse)",
-        "· Audit-trailed"
+        "- Multi-backend (SQLite, PostgreSQL, DuckDB, ClickHouse)",
+        "- Audit-trailed"
       ),
       actionButton(
         ns("intro_video"),
