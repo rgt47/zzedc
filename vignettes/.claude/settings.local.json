@@ -51,7 +51,8 @@
       "Bash(R --vanilla --quiet -f /tmp/zzpower_launch2.R)",
       "Bash(head -40 inst/app/report1.R)",
       "Bash(head -40 inst/app/report2.R)",
-      "Bash(head -40 inst/app/report3.R)"
+      "Bash(head -40 inst/app/report3.R)",
+      "Bash(tar tzf *)"
     ]
   }
 }
