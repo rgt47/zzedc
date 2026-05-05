@@ -27,19 +27,58 @@ home_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
-    # Hero section
-    bslib::card(
-      class = "bg-primary text-white mb-4",
-      bslib::card_body(
-        div(class = "text-center py-4",
-          h1(class = "display-4",
-             tagList(bsicons::bs_icon("clipboard2-data-fill", size = "2em"),
-                    " Welcome to ZZedc Portal")),
-          h4(class = "lead", "Electronic Data Capture for Clinical Trials"),
-          p("FPFV is planned for 11/2018 - Secure, compliant, and user-friendly"),
-          actionButton(ns("intro_video"), "Watch Introductory Video",
-                      class = "btn btn-light btn-lg mt-3",
-                      icon = icon("play-circle"))
+    # Hero strip: contemporary slate gradient (mirrors zzpower's
+    # hero) replacing the flat bg-primary block. Negative margin
+    # lets it bleed to the page edges; corner-radius on the inner
+    # content keeps the visual polish.
+    div(
+      style = paste0(
+        "background: linear-gradient(135deg, #1e293b 0%, ",
+        "#334155 60%, #475569 100%);",
+        "padding: 2.5rem 1.5rem 3rem 1.5rem; ",
+        "text-align: center; ",
+        "margin: -1rem -1rem 1.5rem -1rem; ",
+        "border-bottom: 1px solid #e2e8f0;"
+      ),
+      div(
+        style = "color: #FFCD00; margin-bottom: 0.75rem;",
+        bsicons::bs_icon("clipboard2-data-fill", size = "2.25em")
+      ),
+      h1(
+        style = paste0(
+          "color: #FFCD00; font-weight: 700; ",
+          "margin-bottom: 0.5rem; font-size: 2.4rem; ",
+          "letter-spacing: -0.02em;"
+        ),
+        "ZZedc Portal"
+      ),
+      p(
+        style = paste0(
+          "color: #f1f5f9; font-size: 1.05rem; ",
+          "margin-bottom: 0.5rem; max-width: 720px; ",
+          "margin-left: auto; margin-right: auto; ",
+          "line-height: 1.5;"
+        ),
+        "Electronic data capture for clinical trials --",
+        "secure, compliant, and user-friendly."
+      ),
+      p(
+        style = paste0(
+          "color: #cbd5e1; font-size: 0.85rem; ",
+          "letter-spacing: 0.04em; margin-bottom: 1.25rem;"
+        ),
+        "21 CFR Part 11 + GDPR compliant",
+        "· Multi-backend (SQLite, PostgreSQL, DuckDB, ClickHouse)",
+        "· Audit-trailed"
+      ),
+      actionButton(
+        ns("intro_video"),
+        "Watch Introductory Video",
+        class = "btn btn-warning btn-lg",
+        icon = icon("play-circle"),
+        style = paste0(
+          "background: #FFCD00; border-color: #FFCD00; ",
+          "color: #1e293b; font-weight: 600;"
         )
       )
     ),

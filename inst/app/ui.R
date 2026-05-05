@@ -51,19 +51,32 @@ if (!exists("ui_content") || is.null(ui_content)) {
     img(src="brain2.png", height="30px", style="margin-right: 10px;"),
     "ZZedc - Electronic Data Capture"
   ),
+  # Contemporary slate palette (replaces the heavy bootswatch
+  # "flatly" navy). Inter for body and headings; warm off-white
+  # background; rounded corners on cards.
   theme = bslib::bs_theme(
     version = 5,
-    bootswatch = "flatly",
-    primary = "#2c3e50",
-    secondary = "#95a5a6",
-    success = "#27ae60",
-    info = "#3498db",
-    warning = "#f39c12",
-    danger = "#e74c3c"
+    primary   = "#334155",
+    secondary = "#64748b",
+    success   = "#15803d",
+    info      = "#0891b2",
+    warning   = "#b45309",
+    danger    = "#b91c1c",
+    bg        = "#fafaf9",
+    fg        = "#1e293b",
+    base_font    = bslib::font_google("Inter"),
+    heading_font = bslib::font_google("Inter"),
+    "navbar-bg" = "#1e293b",
+    "card-border-color"  = "#e2e8f0",
+    "card-cap-bg"        = "#ffffff",
+    "card-bg"            = "#ffffff",
+    "border-radius"      = "10px",
+    "border-radius-sm"   = "8px",
+    "border-radius-lg"   = "14px"
   ),
   window_title = "ZZedc Portal",
   id = "main_nav",
-  
+
   # ShinyJS initialization (if available)
   if (requireNamespace("shinyjs", quietly = TRUE)) {
     shinyjs::useShinyjs()
@@ -78,8 +91,75 @@ if (!exists("ui_content") || is.null(ui_content)) {
   shiny::useBusyIndicators(spinners = FALSE),
 
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
-    tags$link(rel = "icon", href = "logo.png", type = "image/png")
+    tags$link(rel = "icon", href = "logo.png", type = "image/png"),
+    # Inline UX polish: cards, headers, value boxes, DT tables,
+    # accordion typography. Mirrors the zzpower aesthetic so the
+    # two apps feel like siblings.
+    tags$style(HTML(paste(
+      "body { background: #fafaf9; color: #1e293b; }",
+      ".card {",
+      "  border: 1px solid #e2e8f0 !important;",
+      "  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);",
+      "  border-radius: 12px;",
+      "}",
+      ".card-header {",
+      "  background: #ffffff !important;",
+      "  border-bottom: 1px solid #f1f5f9 !important;",
+      "  font-weight: 600;",
+      "  letter-spacing: 0.01em;",
+      "}",
+      ".bslib-value-box {",
+      "  border-radius: 12px !important;",
+      "}",
+      ".bslib-value-box .value-box-title {",
+      "  font-weight: 500;",
+      "  font-size: 0.85rem;",
+      "  letter-spacing: 0.02em;",
+      "  opacity: 0.95;",
+      "}",
+      ".bslib-value-box .value-box-value {",
+      "  font-weight: 700;",
+      "  font-size: 1.7rem;",
+      "  letter-spacing: -0.01em;",
+      "}",
+      "table.dataTable { font-size: 0.92rem; border-spacing: 0 !important; }",
+      "table.dataTable thead th {",
+      "  background: #f8fafc;",
+      "  border-bottom: 2px solid #cbd5e1 !important;",
+      "  font-weight: 600;",
+      "  font-size: 0.82rem;",
+      "  letter-spacing: 0.03em;",
+      "  text-transform: uppercase;",
+      "  color: #475569;",
+      "}",
+      "table.dataTable tbody td {",
+      "  border-top: 1px solid #f1f5f9 !important;",
+      "  padding: 0.6rem 0.75rem !important;",
+      "}",
+      "table.dataTable tbody td.dt-right {",
+      "  font-variant-numeric: tabular-nums;",
+      "  color: #334155;",
+      "}",
+      ".accordion-button {",
+      "  font-weight: 600;",
+      "  font-size: 0.95rem;",
+      "  letter-spacing: 0.01em;",
+      "}",
+      ".btn { border-radius: 8px; font-weight: 500; }",
+      ".btn-sm { font-size: 0.82rem; padding: 0.3rem 0.65rem; }",
+      ".navbar-brand { font-weight: 600; letter-spacing: -0.01em; }",
+      # Section labels (used in cards/panels for small caps headers)
+      ".zzedc-section-label {",
+      "  font-size: 0.78rem;",
+      "  font-weight: 600;",
+      "  text-transform: uppercase;",
+      "  letter-spacing: 0.07em;",
+      "  color: #64748b;",
+      "  margin: 1.25rem 0 0.5rem 0;",
+      "}",
+      "",
+      sep = "\n"
+    )))
   ),
 
   # Home Tab
