@@ -5,7 +5,7 @@ author: "ZZedc Team"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Content-Author Guide for Study Coordinators}
+  %\VignetteIndexEntry{Content-Author Guide: Setting Up a Clinical Trial in ZZedc}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
