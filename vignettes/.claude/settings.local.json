@@ -55,7 +55,8 @@
       "Bash(tar tzf *)",
       "Bash(perl -i -pe 's/\\(?<![:.]\\)digest\\\\\\(/digest::digest\\(/g' inst/tinytest/test_auth-module.R)",
       "Bash(R --vanilla --quiet -e 'options\\(renv.config.activate = FALSE\\); Sys.setenv\\(RENV_CONFIG_AUTOLOADER_ENABLED = \"FALSE\"\\); install.packages\\(\"/Users/zenn/Dropbox/prj/sfw/05-zzedc/zzedc\", repos = NULL, type = \"source\", quiet = TRUE\\)')",
-      "Bash(R --vanilla --quiet -f /tmp/zzedc_run_tests.R)"
+      "Bash(R --vanilla --quiet -f /tmp/zzedc_run_tests.R)",
+      "Bash(R --vanilla --quiet -f /tmp/zzedc_vignette_test.R)"
     ]
   }
 }

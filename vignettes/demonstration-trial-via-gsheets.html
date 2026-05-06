@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="ZZedc Team" />
+
+<meta name="date" content="2026-05-05" />
+
+<title>Demonstration Clinical Trial via Google Sheets</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Demonstration Clinical Trial via Google
+Sheets</h1>
+<h3 class="subtitle">Active vs. Placebo Memory Enhancement Study,
+authored in Sheets and imported into ZZedc</h3>
+<h4 class="author">ZZedc Team</h4>
+<h4 class="date">2026-05-05</h4>
+
+
+
+<div id="overview" class="section level2">
+<h2>Overview</h2>
+<p>This vignette is the Google-Sheets-driven companion to the CSV-based
+<a href="demonstration-trial-setup.html">Demonstration Clinical Trial
+Setup</a> walk- through. The study is the same — <em>Active vs. Placebo
+Memory Enhancement Study with 20 subjects</em> — but the data
+dictionary, validation rules, and user roster are authored in Google
+Sheets rather than in CSV files. A single import call materialises them
+into the ZZedc database.</p>
+<p>This path is intended for clinical teams that prefer a familiar
+spreadsheet interface for ongoing CRF and validation-rule
+maintenance:</p>
+<ul>
+<li>Study coordinators without R fluency can edit forms and rules
+directly in a browser</li>
+<li>Multi-author edits and revision history are handled by Google Sheets
+natively</li>
+<li>Bidirectional sync allows Sheets and the ZZedc database to stay
+aligned through the life of the trial</li>
+</ul>
+<p>The CSV path remains available and is preferred for studies that will
+live entirely on a single laptop, in air-gapped environments, or
+anywhere Google Workspace is not an option.</p>
+<hr />
+</div>
+<div id="prerequisites" class="section level2">
+<h2>Prerequisites</h2>
+<p>ZZedc must be installed and at least the SQLite backend configured.
+Follow <a href="getting-started.html">Getting Started</a> first if you
+have not done so.</p>
+<div id="install-the-optional-google-sheets-dependency" class="section level3">
+<h3>Install the optional Google Sheets dependency</h3>
+<p><code>googlesheets4</code> is in <code>Suggests</code>, not
+<code>Imports</code>. Install it explicitly the first time you take this
+path:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="st">&quot;googlesheets4&quot;</span>)</span></code></pre></div>
+</div>
+<div id="choose-an-authentication-mode" class="section level3">
+<h3>Choose an authentication mode</h3>
+<p>ZZedc supports both authentication modes that
+<code>googlesheets4</code> provides:</p>
+<ul>
+<li><strong>Interactive OAuth</strong> — recommended for development and
+small teams. The first call opens a browser, prompts for consent, and
+caches a refresh token at <code>~/.cache/gargle/</code>.</li>
+<li><strong>Service account</strong> — required for unattended jobs (CI,
+cron, containerised deployments). Create a service-account key in Google
+Cloud Console, share the target Sheet with the service account’s email
+address, then point <code>googlesheets4</code> at the JSON key.</li>
+</ul>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">library</span>(googlesheets4)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co"># Interactive mode (one-time browser consent):</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="fu">gs4_auth</span>(<span class="at">email =</span> <span class="st">&quot;your-google-account@example.org&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Service-account mode (unattended):</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">gs4_auth</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="at">path =</span> <span class="st">&quot;/path/to/zzedc-service-account.json&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">scopes =</span> <span class="st">&quot;https://www.googleapis.com/auth/spreadsheets&quot;</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>)</span></code></pre></div>
+<hr />
+</div>
+</div>
+<div id="trial-structure-recap" class="section level2">
+<h2>Trial structure (recap)</h2>
+<p>Identical to the CSV vignette:</p>
+<pre><code>Timeline:
+  Visit 1 (Baseline) -&gt; Randomization -&gt; Visit 2 (Week 4) -&gt; Visit 3 (Week 8)
+
+Forms:
+  1. Enrollment    (subject_id, enrollment_date, age, gender,
+                    education_years, medical_history)
+  2. Randomization (subject_id, randomization_date,
+                    treatment_assignment, study_coordinator)
+  3. MMSE          (subject_id, visit_label, assessment_date,
+                    7 component scores, mmse_total,
+                    adverse_events, ae_description)
+
+Population:
+  - 20 subjects, 1:1 randomization (10 active / 10 placebo)</code></pre>
+<hr />
+</div>
+<div id="sheet-structure" class="section level2">
+<h2>Sheet structure</h2>
+<p>A single Google Workbook with five tabs holds everything the
+demonstration trial needs. The tab names and column schemas below match
+what ZZedc’s importers expect.</p>
+<div id="tab-1-study_users" class="section level3">
+<h3>Tab 1: <code>Study_Users</code></h3>
+<p>Authentication / role roster. Plain-text passwords are hashed by
+ZZedc on import; never store production credentials in a Sheet intended
+to be shared.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Column</th>
+<th>Required</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>username</td>
+<td>yes</td>
+<td><code>jane_smith</code></td>
+</tr>
+<tr class="even">
+<td>full_name</td>
+<td>yes</td>
+<td>Jane Smith</td>
+</tr>
+<tr class="odd">
+<td>email</td>
+<td>yes</td>
+<td><a href="mailto:jane@example.org" class="email">jane@example.org</a></td>
+</tr>
+<tr class="even">
+<td>role</td>
+<td>yes</td>
+<td>Coordinator</td>
+</tr>
+<tr class="odd">
+<td>password_initial</td>
+<td>yes</td>
+<td>jane123</td>
+</tr>
+<tr class="even">
+<td>site_id</td>
+<td>no</td>
+<td>001</td>
+</tr>
+<tr class="odd">
+<td>active</td>
+<td>no</td>
+<td>TRUE</td>
+</tr>
+</tbody>
+</table>
+<p>Roles must match values returned by
+<code>zzedc::list_user_roles()</code> (<code>Admin</code>,
+<code>PI</code>, <code>Coordinator</code>, <code>Researcher</code>,
+<code>DataManager</code>, <code>Monitor</code> in the default
+schema).</p>
+</div>
+<div id="tab-2-data_dictionary" class="section level3">
+<h3>Tab 2: <code>Data_Dictionary</code></h3>
+<p>CRF field definitions, one row per field across all forms. The column
+shape mirrors the CSV templates in the <a href="demonstration-trial-setup.html#part-3-data-dictionary-csv-files">CSV
+vignette</a>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Column</th>
+<th>Required</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>form_code</td>
+<td>yes</td>
+<td><code>mmse</code></td>
+</tr>
+<tr class="even">
+<td>field_name</td>
+<td>yes</td>
+<td><code>attention</code></td>
+</tr>
+<tr class="odd">
+<td>field_label</td>
+<td>yes</td>
+<td>Attention and Calculation</td>
+</tr>
+<tr class="even">
+<td>field_type</td>
+<td>yes</td>
+<td>numeric</td>
+</tr>
+<tr class="odd">
+<td>required</td>
+<td>yes</td>
+<td>TRUE</td>
+</tr>
+<tr class="even">
+<td>validation</td>
+<td>no</td>
+<td><code>between 0 and 5</code></td>
+</tr>
+<tr class="odd">
+<td>description</td>
+<td>no</td>
+<td>Score 0-5 points</td>
+</tr>
+<tr class="even">
+<td>field_order</td>
+<td>no</td>
+<td>4</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="tab-3-validation_rules" class="section level3">
+<h3>Tab 3: <code>validation_rules</code></h3>
+<p>DSL rules in plain-English syntax. The schema matches what
+<code>import_validation_rules_from_gsheets()</code> expects (see
+<code>?import_validation_rules_from_gsheets</code> for the full column
+list).</p>
+<table>
+<thead>
+<tr class="header">
+<th>Column</th>
+<th>Required</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>rule_id</td>
+<td>yes</td>
+<td><code>MMSE_TOTAL_RANGE</code></td>
+</tr>
+<tr class="even">
+<td>field_code</td>
+<td>yes</td>
+<td><code>mmse_total</code></td>
+</tr>
+<tr class="odd">
+<td>rule_dsl</td>
+<td>yes</td>
+<td><code>mmse_total between 0 and 30</code></td>
+</tr>
+<tr class="even">
+<td>form_code</td>
+<td>no</td>
+<td><code>mmse</code></td>
+</tr>
+<tr class="odd">
+<td>rule_name</td>
+<td>no</td>
+<td>MMSE total in valid range</td>
+</tr>
+<tr class="even">
+<td>error_message</td>
+<td>no</td>
+<td>MMSE total must be 0-30</td>
+</tr>
+<tr class="odd">
+<td>severity</td>
+<td>no</td>
+<td>ERROR (default)</td>
+</tr>
+<tr class="even">
+<td>rule_category</td>
+<td>no</td>
+<td>FIELD (default)</td>
+</tr>
+<tr class="odd">
+<td>is_active</td>
+<td>no</td>
+<td>TRUE (default)</td>
+</tr>
+</tbody>
+</table>
+<p>A small starter set for the demonstration trial:</p>
+<table>
+<colgroup>
+<col width="21%" />
+<col width="21%" />
+<col width="56%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>rule_id</th>
+<th>field_code</th>
+<th>rule_dsl</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>AGE_RANGE</td>
+<td>age</td>
+<td><code>age between 50 and 90</code></td>
+</tr>
+<tr class="even">
+<td>MMSE_TOTAL</td>
+<td>mmse_total</td>
+<td><code>mmse_total between 0 and 30</code></td>
+</tr>
+<tr class="odd">
+<td>MMSE_SUM_CONSISTENT</td>
+<td>mmse_total</td>
+<td><code>mmse_total = orientation_time + orientation_place + registration + attention + recall + language + visual_spatial</code></td>
+</tr>
+<tr class="even">
+<td>RAND_AFTER_ENROL</td>
+<td>randomization_date</td>
+<td><code>randomization_date &gt;= enrollment_date</code></td>
+</tr>
+<tr class="odd">
+<td>VISIT_WINDOW</td>
+<td>assessment_date</td>
+<td><code>assessment_date - randomization_date between -1 and 70</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="tab-4-visit_schedule-optional" class="section level3">
+<h3>Tab 4: <code>Visit_Schedule</code> (optional)</h3>
+<p>Visit windows and form assignments per visit. ZZedc derives defaults
+if absent.</p>
+<table>
+<colgroup>
+<col width="15%" />
+<col width="14%" />
+<col width="15%" />
+<col width="16%" />
+<col width="15%" />
+<col width="23%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>visit_code</th>
+<th>visit_name</th>
+<th>nominal_day</th>
+<th>window_minus</th>
+<th>window_plus</th>
+<th>forms</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>BASELINE</td>
+<td>Baseline</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>enrollment,mmse</td>
+</tr>
+<tr class="even">
+<td>WK4</td>
+<td>Week 4</td>
+<td>28</td>
+<td>3</td>
+<td>3</td>
+<td>mmse</td>
+</tr>
+<tr class="odd">
+<td>WK8</td>
+<td>Week 8</td>
+<td>56</td>
+<td>3</td>
+<td>7</td>
+<td>mmse</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="tab-5-subjects-optional-for-seeded-data" class="section level3">
+<h3>Tab 5: <code>Subjects</code> (optional, for seeded data)</h3>
+<p>Used only if you want to pre-populate subject records, as the
+demonstration trial does. In a real study this tab is omitted; subjects
+are entered through the EDC interface as they enrol.</p>
+<p>Identical schema to <code>subjects.csv</code> in the CSV
+vignette.</p>
+<hr />
+</div>
+</div>
+<div id="generating-a-template" class="section level2">
+<h2>Generating a template</h2>
+<p>ZZedc provides a helper that creates a Google Sheet pre-populated
+with the validation-rules schema and example rows:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>template <span class="ot">&lt;-</span> <span class="fu">create_validation_rules_template</span>(</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="at">sheet_name       =</span> <span class="st">&quot;ToyTrial_ValidationRules&quot;</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  <span class="at">include_examples =</span> <span class="cn">TRUE</span></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>)</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>template<span class="sc">$</span>sheet_url</span></code></pre></div>
+<p>The helper covers the <code>validation_rules</code> tab specifically.
+For the <code>Study_Users</code> and <code>Data_Dictionary</code> tabs,
+use the column lists in the section above as a manual template, or copy
+from the CSV files in
+<code>vignettes/demonstration-trial/csv_templates/</code> and paste into
+your Sheet.</p>
+<hr />
+</div>
+<div id="importing-a-populated-workbook" class="section level2">
+<h2>Importing a populated workbook</h2>
+<p>Once the workbook has the four required tabs filled in
+(<code>Study_Users</code>, <code>Data_Dictionary</code>,
+<code>validation_rules</code>, optionally <code>Visit_Schedule</code>
+and <code>Subjects</code>), import it into a fresh ZZedc database with a
+single call:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>db_path <span class="ot">&lt;-</span> <span class="st">&quot;~/zzedc_demonstration_trial_gsheets/data/demonstration_trial.db&quot;</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="fu">dir.create</span>(<span class="fu">dirname</span>(db_path), <span class="at">recursive =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>           <span class="at">showWarnings =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>sheet_id <span class="ot">&lt;-</span> <span class="st">&quot;1AbC...your-sheet-id...&quot;</span>  <span class="co"># from the Sheet URL</span></span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">setup_zzedc_from_gsheets</span>(</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>  <span class="at">sheet_id     =</span> sheet_id,</span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>  <span class="at">db_path      =</span> db_path,</span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>  <span class="at">imported_by  =</span> <span class="st">&quot;data_manager&quot;</span>,</span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a>  <span class="at">overwrite    =</span> <span class="cn">TRUE</span></span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>)</span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a><span class="co"># Per-stage status</span></span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a>result<span class="sc">$</span>success                   <span class="co"># overall pass/fail</span></span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a>result<span class="sc">$</span>users<span class="sc">$</span>imported            <span class="co"># number of users imported</span></span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a>result<span class="sc">$</span>forms<span class="sc">$</span>imported_forms      <span class="co"># number of CRFs created</span></span>
+<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a>result<span class="sc">$</span>forms<span class="sc">$</span>imported_fields     <span class="co"># number of fields across all CRFs</span></span>
+<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a>result<span class="sc">$</span>validation_rules<span class="sc">$</span>imported <span class="co"># number of validation rules imported</span></span>
+<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a><span class="co"># The encryption key is needed for any subsequent operations in</span></span>
+<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a><span class="co"># this R session.</span></span>
+<span id="cb6-25"><a href="#cb6-25" tabindex="-1"></a><span class="fu">Sys.setenv</span>(<span class="at">DB_ENCRYPTION_KEY =</span> result<span class="sc">$</span>key)</span></code></pre></div>
+<p><code>setup_zzedc_from_gsheets()</code> runs four stages in
+order:</p>
+<ol style="list-style-type: decimal">
+<li>Initialise the encrypted SQLite database at
+<code>db_path</code>.</li>
+<li>Read <code>Study_Users</code> and create user accounts.</li>
+<li>Read <code>Data_Dictionary</code>, create one CRF per
+<code>form_code</code> value, and add each field as defined.</li>
+<li>Read <code>validation_rules</code> and import the DSL rules through
+[import_validation_rules_from_gsheets()] (which itself validates DSL
+syntax row-by-row).</li>
+</ol>
+<p>If any stage fails, the others still run and the failures are
+collected in stage-specific <code>errors</code> lists; the top-level
+<code>success</code> flag is <code>TRUE</code> only if every stage
+passed cleanly.</p>
+<div id="validating-before-importing" class="section level3">
+<h3>Validating before importing</h3>
+<p>Use <code>dry_run = TRUE</code> to parse and validate the workbook
+without writing to the database. The dry-run pass exercises the DSL
+parser on every validation rule and reports counts the same way:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>preview <span class="ot">&lt;-</span> <span class="fu">setup_zzedc_from_gsheets</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="at">sheet_id  =</span> sheet_id,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="at">db_path   =</span> db_path,</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  <span class="at">dry_run   =</span> <span class="cn">TRUE</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>)</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>preview<span class="sc">$</span>validation_rules<span class="sc">$</span>skipped  <span class="co"># rule rows with syntax errors</span></span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>preview<span class="sc">$</span>validation_rules<span class="sc">$</span>errors   <span class="co"># named list of error messages</span></span></code></pre></div>
+</div>
+<div id="importing-only-the-validation-rules" class="section level3">
+<h3>Importing only the validation rules</h3>
+<p>If you already have an initialised database and only need to refresh
+the validation-rule tab, call the lower-level importer directly:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">import_validation_rules_from_gsheets</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="at">sheet_id        =</span> sheet_id,</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  <span class="at">sheet_name      =</span> <span class="st">&quot;validation_rules&quot;</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="at">imported_by     =</span> <span class="st">&quot;data_manager&quot;</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="at">validate_syntax =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>  <span class="at">dry_run         =</span> <span class="cn">FALSE</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>)</span></code></pre></div>
+<p>This is the underlying call <code>setup_zzedc_from_gsheets()</code>
+makes in its fourth stage.</p>
+<hr />
+</div>
+</div>
+<div id="bidirectional-sync" class="section level2">
+<h2>Bidirectional sync</h2>
+<p>For studies that maintain CRFs and validation rules in Google Sheets
+as the source of truth, ZZedc supports periodic re-import:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>sync_result <span class="ot">&lt;-</span> <span class="fu">sync_dsl_rules_from_gsheets</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="at">sheet_id     =</span> sheet_id,</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">imported_by  =</span> <span class="st">&quot;data_manager&quot;</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="at">delete_missing =</span> <span class="cn">FALSE</span></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>)</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>sync_result<span class="sc">$</span>added</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>sync_result<span class="sc">$</span>updated</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>sync_result<span class="sc">$</span>deleted</span></code></pre></div>
+<p><code>delete_missing = FALSE</code> (default) treats Sheet rows as
+additive: rules absent from the Sheet are left alone in the database.
+Set to <code>TRUE</code> when the Sheet is the canonical authority and
+missing rules should be retired.</p>
+<p>For audit purposes, every sync run writes a record to the
+<code>audit_trail</code> table tagged with the <code>sheet_id</code>,
+the timestamp, and the user who ran it.</p>
+<hr />
+</div>
+<div id="verification" class="section level2">
+<h2>Verification</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>conn <span class="ot">&lt;-</span> <span class="fu">connect_encrypted_db</span>(<span class="at">db_path =</span> db_path,</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>                              <span class="at">key =</span> init_result<span class="sc">$</span>key)</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="fu">on.exit</span>(DBI<span class="sc">::</span><span class="fu">dbDisconnect</span>(conn), <span class="at">add =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a><span class="co"># Roster</span></span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>DBI<span class="sc">::</span><span class="fu">dbGetQuery</span>(conn, <span class="st">&quot;SELECT username, role FROM edc_users&quot;</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a><span class="co"># Form / field counts</span></span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>DBI<span class="sc">::</span><span class="fu">dbGetQuery</span>(conn, <span class="st">&quot;</span></span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a><span class="st">  SELECT crf_code, COUNT(*) AS n_fields</span></span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a><span class="st">  FROM crf_definitions cd</span></span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a><span class="st">  JOIN designer_fields df ON df.design_id = cd.crf_id</span></span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a><span class="st">  GROUP BY crf_code</span></span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a><span class="st">&quot;</span>)</span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a><span class="co"># Validation rules</span></span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a>DBI<span class="sc">::</span><span class="fu">dbGetQuery</span>(conn, <span class="st">&quot;</span></span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a><span class="st">  SELECT rule_id, field_code, severity FROM validation_rules</span></span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a><span class="st">&quot;</span>)</span></code></pre></div>
+<hr />
+</div>
+<div id="launching-the-application" class="section level2">
+<h2>Launching the application</h2>
+<p>Once the database is populated, the launch path is identical to the
+CSV vignette:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">library</span>(zzedc)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="fu">Sys.setenv</span>(<span class="at">ZZEDC_DB_PATH =</span> db_path)</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="fu">launch_zzedc</span>()</span></code></pre></div>
+<p>The Shiny session opens in your default browser. Authenticate as one
+of the users you imported and proceed to data entry. The audit log
+records every action, the validation rules fire as defined in the Sheet,
+and exports are available through the secure-export module.</p>
+<hr />
+</div>
+<div id="operating-model" class="section level2">
+<h2>Operating model</h2>
+<p>In practice, the Google-Sheets path is most useful when:</p>
+<ul>
+<li>The data manager and study coordinator share the Sheet; the data
+manager owns validation rules and the coordinator owns CRF text and the
+user roster.</li>
+<li>A non-trivial CRF revision is anticipated mid-study; the Sheet
+provides the revision history and conflict-resolution surface Google
+Workspace already maintains.</li>
+<li>The deployment is multi-site and at least one site cannot run R
+locally; that site can still author CRFs in the Sheet, and the central
+data manager imports.</li>
+</ul>
+<p>For a strictly single-PI laptop deployment, the CSV path
+(<code>vignette(&#39;demonstration-trial-setup&#39;)</code>) is simpler.</p>
+<hr />
+</div>
+<div id="limitations" class="section level2">
+<h2>Limitations</h2>
+<p>The Google-Sheets path has reached parity with the CSV path for study
+setup, but a few constraints remain:</p>
+<ul>
+<li>Bidirectional sync currently handles the validation-rules tab only;
+users and form definitions are import-only. To revise CRFs or the user
+roster after initial setup, edit the database directly through the ZZedc
+admin interface or rerun <code>setup_zzedc_from_gsheets()</code> against
+a fresh <code>db_path</code>.</li>
+<li>Service-account quotas apply: at the time of writing,
+<code>googlesheets4</code> defaults to the standard Google Sheets API
+rate limits (300 read requests per minute per user). Large deployments
+should batch reads via <code>range_read()</code> rather than per-tab
+calls.</li>
+<li>Stage-level errors surface in the result object’s per-stage
+<code>errors</code> lists rather than aborting the import. Inspect
+<code>result$success</code> and the per-stage objects before assuming a
+successful import.</li>
+</ul>
+<hr />
+</div>
+<div id="troubleshooting" class="section level2">
+<h2>Troubleshooting</h2>
+<p><strong>Authentication fails with <code>gs4_auth()</code></strong>:
+clear the cached token (<code>gargle::gargle_oauth_cache()</code> shows
+the location) and re-authenticate. If running unattended, switch to a
+service account.</p>
+<p><strong><code>Missing required columns</code></strong>: the importer
+requires <code>rule_id</code>, <code>field_code</code>,
+<code>rule_dsl</code> for the validation tab. Match column names exactly
+(case-sensitive).</p>
+<p><strong><code>Syntax error</code> in DSL</strong>: rerun the import
+with <code>dry_run = TRUE</code> and inspect <code>result$errors</code>
+to identify the offending row. The DSL parser accepts plain-English
+forms like <code>age between 18 and 120</code>,
+<code>enrollment_date &lt;= randomization_date</code>,
+<code>mmse_total = orientation_time + ...</code>. See the
+validation-rules chapter of the <a href="content-author-guide.html">Content-Author Guide</a> (Chapter 3)
+for the full grammar.</p>
+<p><strong>Sheet not found</strong>: verify the Sheet has been shared
+with the service account email (when using a service account) or with
+the user account that authenticated (when using interactive OAuth).</p>
+<hr />
+</div>
+<div id="resources" class="section level2">
+<h2>Resources</h2>
+<ul>
+<li><a href="demonstration-trial-setup.html">Demonstration Clinical
+Trial Setup (CSV path)</a></li>
+<li><a href="content-author-guide.html">Content-Author Guide, Chapter 3
+(Authoring the workbook)</a></li>
+<li><code>?setup_zzedc_from_gsheets</code></li>
+<li><code>?import_validation_rules_from_gsheets</code></li>
+<li><code>?sync_dsl_rules_from_gsheets</code></li>
+<li><code>?create_validation_rules_template</code></li>
+<li><a href="https://googlesheets4.tidyverse.org">googlesheets4
+documentation</a></li>
+</ul>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
