@@ -58,7 +58,8 @@
       "Bash(R --vanilla --quiet -f /tmp/zzedc_run_tests.R)",
       "Bash(R --vanilla --quiet -f /tmp/zzedc_vignette_test.R)",
       "Bash(R --vanilla --quiet -f /tmp/zzedc_test_one.R)",
-      "Bash(perl -i -pe 's/if \\\\\\(!exists\\\\\\(\"\\([a-z_]+\\)\"\\\\\\)\\\\\\) return\\\\\\(invisible\\\\\\(\\\\\\)\\\\\\)/if \\(!exists\\(\"$1\", envir = asNamespace\\(\"zzedc\"\\)\\)\\) return\\(invisible\\(\\)\\)/g' inst/tinytest/test_module_server_refactored.R)"
+      "Bash(perl -i -pe 's/if \\\\\\(!exists\\\\\\(\"\\([a-z_]+\\)\"\\\\\\)\\\\\\) return\\\\\\(invisible\\\\\\(\\\\\\)\\\\\\)/if \\(!exists\\(\"$1\", envir = asNamespace\\(\"zzedc\"\\)\\)\\) return\\(invisible\\(\\)\\)/g' inst/tinytest/test_module_server_refactored.R)",
+      "Bash(R --vanilla --quiet -f /tmp/zzedc_test_step.R)"
     ]
   }
 }
