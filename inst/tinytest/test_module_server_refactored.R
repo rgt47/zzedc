@@ -55,7 +55,7 @@ if (file.exists("_setup.R")) source("_setup.R")
 # integer strings via the post-T2.4 stat_counts() reactive.
 # ============================================================
 local({
-  if (!exists("audit_log_viewer_server")) return(invisible())
+  if (!exists("audit_log_viewer_server", envir = asNamespace("zzedc"))) return(invisible())
 
   shiny::testServer(
     zzedc:::audit_log_viewer_server,
@@ -93,7 +93,7 @@ local({
 # add-user observer triggers the showModal call without errors.
 # ============================================================
 local({
-  if (!exists("user_management_server")) return(invisible())
+  if (!exists("user_management_server", envir = asNamespace("zzedc"))) return(invisible())
 
   shiny::testServer(
     zzedc:::user_management_server,
@@ -122,7 +122,7 @@ local({
 # outputs (T2.6) instantiate without throwing.
 # ============================================================
 local({
-  if (!exists("data_correction_server")) return(invisible())
+  if (!exists("data_correction_server", envir = asNamespace("zzedc"))) return(invisible())
 
   shiny::testServer(
     zzedc:::data_correction_server,
@@ -159,7 +159,7 @@ local({
 # rendering path when no record is selected).
 # ============================================================
 local({
-  if (!exists("version_history_server")) return(invisible())
+  if (!exists("version_history_server", envir = asNamespace("zzedc"))) return(invisible())
 
   shiny::testServer(
     zzedc:::version_history_server,
@@ -185,7 +185,7 @@ local({
 # backup_dir does not exist; module instantiates without error.
 # ============================================================
 local({
-  if (!exists("backup_restore_server")) return(invisible())
+  if (!exists("backup_restore_server", envir = asNamespace("zzedc"))) return(invisible())
 
   tmp_dir <- tempfile("zzedc_backup_test_")
   shiny::testServer(
@@ -210,7 +210,7 @@ local({
 # display the placeholder).
 # ============================================================
 local({
-  if (!exists("admin_dashboard_server")) return(invisible())
+  if (!exists("admin_dashboard_server", envir = asNamespace("zzedc"))) return(invisible())
 
   user_session <- shiny::reactiveValues(
     authenticated = TRUE, role = "Admin", username = "testadmin"
