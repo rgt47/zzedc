@@ -81,15 +81,15 @@ local({
     salt <- cfg$auth$default_salt
 
     # Test hash consistency
-    hash1 <- digest(paste0(password, salt), algo = "sha256")
-    hash2 <- digest(paste0(password, salt), algo = "sha256")
+    hash1 <- digest::digest(paste0(password, salt), algo = "sha256")
+    hash2 <- digest::digest(paste0(password, salt), algo = "sha256")
 
     expect_equal(hash1, hash2)
     expect_equal(typeof(hash1), "character")
     expect_true(nchar(hash1) == 64)  # SHA256 produces 64-character hex string
 
     # Test different passwords produce different hashes
-    hash_different <- digest(paste0("different_password", salt), algo = "sha256")
+    hash_different <- digest::digest(paste0("different_password", salt), algo = "sha256")
     expect_false(hash1 == hash_different)
 
     # Cleanup
@@ -187,7 +187,7 @@ local({
 
     # Add inactive user
     test_salt <- cfg$auth$default_salt
-    inactive_hash <- digest(paste0("inactivepass", test_salt), algo = "sha256")
+    inactive_hash <- digest::digest(paste0("inactivepass", test_salt), algo = "sha256")
 
     dbExecute(test_con, "
       INSERT INTO edc_users (username, password_hash, full_name, role, active)
