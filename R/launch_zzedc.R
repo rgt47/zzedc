@@ -51,6 +51,30 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     message("Created 'credentials/' directory")
   }
 
+  # Scaffold the EDC `forms/` directory on first run. The three
+  # files (blfieldlist.R, renderpanels.R, save.R) are study-
+  # specific and live in the working directory rather than the
+  # package. Ship demonstration stubs in inst/extdata/forms/ so a
+  # bare `launch_zzedc()` call lands a working EDC tab; users
+  # then replace the stubs with their study's actual scaffolding.
+  if (!dir.exists("forms")) {
+    forms_src <- system.file("extdata", "forms", package = "zzedc")
+    if (nzchar(forms_src) && dir.exists(forms_src)) {
+      dir.create("forms", showWarnings = FALSE)
+      file.copy(
+        from = list.files(forms_src, full.names = TRUE),
+        to   = "forms",
+        overwrite = FALSE
+      )
+      message(
+        "Created 'forms/' directory with demonstration stubs.\n",
+        "  Replace forms/blfieldlist.R, forms/renderpanels.R, ",
+        "and forms/save.R\n  with your study's case-report-form ",
+        "scaffolding."
+      )
+    }
+  }
+
  # Check for config.yml and create default if missing
   if (!file.exists("config.yml")) {
     message("\n")
