@@ -1130,6 +1130,36 @@ pg_dump \
 WAL archiving is the mechanism that brings PostgreSQL's RPO
 below an hour.
 
+### Ad-hoc admin-initiated backups (in-app)
+
+The running Shiny app exposes a *Backup & Restore* card on
+the Admin tab for one-off snapshots a project administrator
+can take from a browser without shell access — useful before
+schema migrations, before bulk data corrections, or as the
+"safety backup" the restore flow makes automatically before
+overwriting the live database. Behaviour notes:
+
+- The backup runs synchronously on the R session that hosts
+  the Shiny app. SQLite copy + gzip on a clinical-trial-sized
+  database is sub-second; nothing in the UI freezes long
+  enough to matter for typical study sizes.
+- Progress feedback (the gold progress bar advancing to 100%)
+  uses `shinyjs::delay()` to schedule the post-completion
+  hide through the browser; the R event loop is *not*
+  blocked while the bar settles. (Earlier revisions used
+  `Sys.sleep(1)` here, which froze the whole session for the
+  display-only pause; that has been replaced.)
+- The card is no longer the right place for *scheduled*
+  daily backups. Use the cron recipes in §9.2 for those —
+  the in-app tool exists strictly for admin-initiated
+  snapshots tied to a specific operational event.
+
+If your trial expects a backup volume large enough that the
+synchronous I/O pause becomes noticeable (gigabyte-scale
+SQLite or remote-mounted storage), the open follow-up is to
+move the file copy into an `ExtendedTask` so the rest of the
+session stays responsive; that change is not yet in place.
+
 ## 9.3 Backup verification
 
 An untested backup is not a backup. Verify daily via a

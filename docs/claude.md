@@ -79,6 +79,52 @@ continuity-of-record claim.
   `tryCatch` and the connection scope is intentionally
   test-local; refactoring those into the IIFE pattern is on
   the deferred list.
+- **Shiny modal pattern.** Modals are constructed and shown
+  from the server via `shiny::showModal(modalDialog(...))`
+  and dismissed with `shiny::removeModal()`. Do *not* place
+  inline `modalDialog(id = ns(...))` in the UI tagList and
+  toggle visibility with `shinyjs::show()` / `shinyjs::hide()` —
+  that pattern (replaced in the audit-log viewer and user-
+  management modules) is not the documented Shiny modal API.
+- **One-shot timers use `shinyjs::delay(ms, expr)`,** not
+  `Sys.sleep()` or `invalidateLater()`. `Sys.sleep()` blocks
+  the R event loop; `invalidateLater()` is for repeated
+  refresh schedules, not single deferred callbacks. The
+  backup/restore module uses `shinyjs::delay()` for the
+  100% → hide animation; the instrument-import module uses it
+  for a single deferred completion callback.
+- **`bslib::value_box` for headline KPIs**, not hand-rolled
+  `div(class = "card") > div(class = "display-4")` text
+  blocks. The Quality Dashboard, audit-log viewer summary
+  tiles, and data-correction stats use `bslib::value_box`
+  inside `bslib::layout_columns()`. Render via
+  `shiny::textOutput()` for simple values or `renderUI()`
+  for tile-level dynamic theming.
+- **`bslib::card` + `bslib::card_header` + `bslib::card_body`,**
+  not `div(class = "card")` raw HTML. Background-color
+  modifiers (e.g. `"bg-primary text-white"`) pass via
+  `class =` on `card_header`. The Tier 2 / T2.4 sweep
+  migrated all surviving raw cards across
+  `audit_log_viewer_module.R`, `user_management_module.R`,
+  `backup_restore_module.R`, and `admin_dashboard_module.R`.
+- **`shiny::freezeReactiveValue(input, "x")` before pushing
+  new choices to a select input** that downstream reactives
+  depend on. Without the freeze, reactives fire once with
+  the *stale* value before the client acknowledges the new
+  choice list. Five sites were freezed in the Tier 2 / T2.5
+  sweep (`data_module.R`, `version_history_module.R` x3,
+  `audit_log_viewer_module.R`, `audit_viewer_module.R`).
+- **Hoist `output$` assignments out of `observe()` blocks**
+  unless the observer side-effects depend on the value.
+  Outputs declared inside an `observe()` are not registered
+  until the observer first fires, which leaves
+  `testServer()` reading them as "not defined yet" and
+  `output_options(suspendWhenHidden = …)` ineffective. The
+  quality-dashboard metric tiles were hoisted in T2.7.
+- **`shinydashboard` is no longer an Imports dependency.**
+  The data-correction module's `valueBox`/`valueBoxOutput`
+  pairs migrated to `bslib::value_box` via `renderUI`. Don't
+  re-add it; reach for `bslib` for layout primitives.
 
 ## Recent work the assistant should be aware of
 
@@ -121,6 +167,46 @@ Substantive changes in the most recent work cycles
 6. **'toy' → 'demonstration' rename.** Throughout user-facing
    docs and example trials, 'toy' has been replaced with
    'demonstration'. Any new docs should use 'demonstration'.
+
+7. **Shiny modernization (Tier 1 + Tier 2).** A two-pass
+   sweep brought every Shiny module up to current `bslib` /
+   `shiny>=1.9` conventions. Tier 1 was bug fixes and a
+   testServer safety net; Tier 2 was the modernization wins.
+   Concrete artifacts:
+   - Modal pattern moved from inline `modalDialog(id = ns(...))`
+     + `shinyjs::show/hide` to `shiny::showModal(modalDialog(...))`
+     + `shiny::removeModal()` (T1.5; audit-log viewer and
+     user-management modules).
+   - `shinyjs::delay()` replaces `invalidateLater()` for one-
+     shot timers (T1.4; instrument-import module) and replaces
+     `Sys.sleep()` for cosmetic post-progress pauses (T2.2;
+     backup/restore module).
+   - `shinydashboard` dropped (T2.3; data-correction module's
+     `valueBox`/`valueBoxOutput` migrated to `bslib::value_box`
+     via `renderUI`). `shinydashboard` is no longer in Imports.
+   - All `div(class = "card")` raw HTML migrated to
+     `bslib::card` + `bslib::card_header` + `bslib::card_body`
+     (T2.4; admin-dashboard, audit-log viewer, backup-restore,
+     user-management modules).
+   - `shiny::freezeReactiveValue(input, "x")` now precedes
+     every cascading `updateSelectInput` (T2.5; five sites
+     across four modules).
+   - Quality-dashboard headline tiles migrated from hand-rolled
+     `display-4` text divs to `bslib::value_box` inside
+     `bslib::layout_columns()` (T2.6); the four `output$metric_*`
+     assignments were hoisted out of an `observe()` block to
+     top-level `renderText({req(quality_data()); ...})` so
+     they register up-front (T2.7).
+   - UX uplift across the whole app: warm-slate palette
+     (`#334155` primary, `#fafaf9` background, Inter font from
+     Google Fonts), card shadows + 12px corners, DT table
+     polish (small-caps headers, tabular-nums numerics),
+     `wellPanel` re-skinned to match the modern card aesthetic,
+     home hero replaced with a slate gradient strip.
+   - EDC tab now shows a friendly setup-card explaining the
+     missing `forms/*.R` files instead of "Error: cannot open
+     the connection" when the working directory lacks the
+     study-specific form scaffolding.
 
 ## Where things live
 
