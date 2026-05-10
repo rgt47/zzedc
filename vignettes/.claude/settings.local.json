@@ -59,7 +59,22 @@
       "Bash(R --vanilla --quiet -f /tmp/zzedc_vignette_test.R)",
       "Bash(R --vanilla --quiet -f /tmp/zzedc_test_one.R)",
       "Bash(perl -i -pe 's/if \\\\\\(!exists\\\\\\(\"\\([a-z_]+\\)\"\\\\\\)\\\\\\) return\\\\\\(invisible\\\\\\(\\\\\\)\\\\\\)/if \\(!exists\\(\"$1\", envir = asNamespace\\(\"zzedc\"\\)\\)\\) return\\(invisible\\(\\)\\)/g' inst/tinytest/test_module_server_refactored.R)",
-      "Bash(R --vanilla --quiet -f /tmp/zzedc_test_step.R)"
+      "Bash(R --vanilla --quiet -f /tmp/zzedc_test_step.R)",
+      "Bash(rm vignettes/quickstart.pdf)",
+      "Bash(grep -E \"vignettes/.*\\\\.\\(pdf|html\\)\" .gitignore)",
+      "Bash(rm -rf zzpower.Rcheck)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE _R_CHECK_FORCE_SUGGESTS_=false R CMD check --as-cran --no-manual zzpower_*.tar.gz)",
+      "Bash(tee /tmp/zzpower_check_stream.log)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE R CMD INSTALL --no-html --no-help --no-test-load --no-docs --no-byte-compile --no-data .)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE Rscript /tmp/probe_zzpower_ns.R)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE Rscript /tmp/probe_zzpower_ns2.R)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE Rscript -e 'options\\(renv.config.activate=FALSE\\); suppressPackageStartupMessages\\(devtools::document\\(quiet=TRUE\\)\\)')",
+      "Bash(rm -rf zzlongplot.Rcheck zzlongplot_*.tar.gz)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE R CMD build /Users/zenn/prj/sfw/01-zzlongplot/zzlongplot)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE _R_CHECK_FORCE_SUGGESTS_=false R CMD check --no-manual zzlongplot_*.tar.gz)",
+      "Bash(rm -rf zzcollab.Rcheck zzcollab_*.tar.gz)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE R CMD build /Users/zenn/prj/sfw/07-zzcollab/zzcollab)",
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE _R_CHECK_FORCE_SUGGESTS_=false R CMD check --no-manual zzcollab_0.9.0.tar.gz)"
     ]
   }
 }

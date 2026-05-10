@@ -122,6 +122,46 @@
   covering the reactive flow rather than just helper
   functions and UI structure.
 
+* **`testServer()` coverage for refactored modules.** New
+  `inst/tinytest/test_module_server_refactored.R` exercises
+  six additional module servers (`audit_log_viewer`,
+  `user_management`, `data_correction`, `version_history`,
+  `backup_restore`, `admin_dashboard`) at depth-of-1 reactive
+  flow. Adds 13 assertions, bringing the full tinytest suite
+  to **3112 assertions, 0 failures**.
+
+## Build & CRAN-readiness
+
+* **EDC-tab sample-data scaffolding.** `launch_zzedc()` now
+  copies a default `forms/blfieldlist.R`, `forms/renderpanels.R`,
+  and `forms/save.R` from `inst/extdata/forms/` into the
+  working directory on first run when no `forms/` directory
+  exists. A bare `launch_zzedc()` call lands a working
+  demonstration EDC tab; users replace the stubs with their
+  study's actual case-report-form scaffolding. The friendly
+  setup-card panel in `inst/app/edc.R` remains as a safety
+  net for users who delete the files manually.
+
+* **Vignette build mystery resolved.** Three vignettes
+  (`content-author-guide`, `demonstration-trial-via-gsheets`,
+  `technical-lead-guide`) had been silently failing to land
+  HTML in `inst/doc/` of the built tarball even though
+  `R CMD build` reported `creating vignettes ... OK`. Root
+  cause: pre-rendered `.pdf` companions for those three
+  vignettes had been committed to `vignettes/`.
+  `tools:::find_vignette_product()` selects a single canonical
+  output per vignette source and, when both `.pdf` and
+  `.html` exist for the same stem, deterministically prefers
+  `.pdf` (first ext in `c("pdf", "html", "tex")`). The
+  `.pdf` was then stripped by `.Rbuildignore`'s `^.*\.pdf$`
+  rule, leaving no canonical output and silently dropping
+  the corresponding HTML. Build artifacts removed,
+  `.gitignore` rules added, and the recipe in `docs/claude.md`
+  updated to instruct ad-hoc PDF renders to write outside
+  `vignettes/`. **`R CMD check --no-tests` now reports
+  Status: OK (0 errors, 0 warnings, 0 notes)** with all 9
+  vignettes landing in `inst/doc/`.
+
 # zzedc v0.5.0
 
 * Initial public release.

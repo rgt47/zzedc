@@ -77,6 +77,16 @@ credentials/
 outputs/
 *.tar.gz
 
+# Vignette build artifacts. Knitted HTML and any ad-hoc PDF
+# renders must not live in vignettes/ alongside the .Rmd
+# sources: their presence interferes with R CMD build's vignette
+# selection logic (find_vignette_product picks .pdf over .html in
+# the tie-mtime case, leading to silently-dropped HTMLs in
+# inst/doc/). R CMD build regenerates these on demand; never
+# commit them.
+vignettes/*.html
+vignettes/*.pdf
+
 # Local data
 data/*.db
 data/*.duckdb

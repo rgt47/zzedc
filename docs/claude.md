@@ -266,16 +266,28 @@ pandoc doc.md -o doc.pdf \
   -V monofont="DejaVu Sans Mono"
 ```
 
-When rendering Rmd vignettes to PDF, use `rmarkdown::render`:
+When rendering Rmd vignettes to PDF, use `rmarkdown::render`,
+and write the output to a directory OUTSIDE `vignettes/`:
 
 ```r
 rmarkdown::render(
   'vignettes/content-author-guide.Rmd',
   output_format = rmarkdown::pdf_document(
     toc = TRUE, toc_depth = 2, latex_engine = 'xelatex'),
-  output_file = 'content-author-guide.pdf'
+  output_file = '~/Desktop/content-author-guide.pdf'
 )
 ```
+
+Important: never leave a rendered `.pdf` (or `.html`) inside
+`vignettes/` alongside the `.Rmd` source. `R CMD build` calls
+`tools:::find_vignette_product()` to pick the canonical output
+per source, and when both `.pdf` and `.html` exist for the same
+vignette stem the tie-mtime case selects `.pdf`. The PDF is then
+stripped by `.Rbuildignore` and the corresponding HTML is
+silently dropped from `inst/doc/` of the built tarball, so the
+vignette appears to "build OK" yet ships without a viewable
+output. The `.gitignore` already excludes `vignettes/*.pdf` and
+`vignettes/*.html` for this reason.
 
 ## What NOT to do
 
