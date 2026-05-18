@@ -22,6 +22,9 @@ keywords: |
   keyword 1; keyword 2; keyword 3
 highlights: |
   These are the highlights.
+header-includes:
+  - \usepackage{setspace}
+  - \setstretch{1.1}
 ---
 
 ```{r setup, include=FALSE}
