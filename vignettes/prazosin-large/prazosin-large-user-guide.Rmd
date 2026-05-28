@@ -474,11 +474,25 @@ during the next import.
 
 Edits to the workbook do not appear in ZZedc immediately.
 The workbook is a configuration source, not a live interface
-to the database. After you make a change to the
-`validation_rules` tab, notify your data scientist. They
-will run a synchronisation step that reads your edits and
-updates the database. Your changes will take effect in the
-next data entry session after that synchronisation.
+to the database. A monitoring script on the study server
+checks the workbook at regular intervals. When it detects a
+change, it places your edit in a review queue and sends an
+email notification to the coordinating centre study manager.
+
+The manager reviews the proposed change and either approves
+or rejects it:
+
+- **Approved**: the validation rule is rebuilt in the
+  database from your proposed version and takes effect at
+  the next data entry session. No action is required from
+  you.
+- **Rejected**: the existing rule remains in place. The
+  manager's rejection reason is recorded in the audit log.
+  Your data scientist will contact you with details.
+
+If you have not received any response within one working day
+of making a change, contact the study manager or your data
+scientist to confirm the notification was received.
 
 ### What the workbook does not contain
 

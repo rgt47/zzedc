@@ -421,6 +421,180 @@ Review the import output before proceeding. Common issues:
 
 ---
 
+## 7a. Change Monitor: Alerting and Approval Workflow
+
+When coordinators have editor access to the `validation_rules` tab
+(Section 7.3), their changes must pass through a review gate before
+they take effect in ZZedc. The change monitor:
+
+1. Detects edits by diffing the live sheet against the database.
+2. Stages proposals in a dedicated `dsl_rule_proposals` table without
+   touching the live rules.
+3. Notifies the study manager.
+4. Rebuilds the affected rule atomically when the manager approves.
+
+### 7a.1 How the staging table works
+
+The staging table (`dsl_rule_proposals`) is separate from the live
+`dsl_validation_rules` table. A coordinator's edit is stored as a
+proposal with `status = 'PENDING'` alongside a copy of the rule's
+current DSL. The live rule remains active and unchanged until the
+manager calls `approve_proposals()`. On approval:
+
+- The live `dsl_validation_rules` row is updated with the proposed
+  DSL.
+- The compiled R and SQL expressions are recompiled from the new DSL.
+- `is_active` is set to `1` and `approval_status` to `'APPROVED'`.
+- The audit log records the change, the reviewer, and the timestamp.
+
+On rejection, the proposal is marked `'REJECTED'` and the live rule
+is not modified.
+
+### 7a.2 Polling cron job
+
+Add a cron entry on the server that calls the poll function every
+15 minutes (adjust the interval to match your trial's operational
+tempo):
+
+```
+*/15 * * * * Rscript ~/prj/praz-large/poll_rules.R \
+  >> ~/prj/praz-large/logs/monitor.log 2>&1
+```
+
+Create `~/prj/praz-large/poll_rules.R`:
+
+```{r}
+library(zzedc)
+
+poll_gsheets_and_stage(
+  sheet_id  = Sys.getenv('PRAZ_SHEET_ID'),
+  db_path   = '~/prj/praz-large/data/praz-large.db',
+  staged_by = 'system_monitor'
+)
+```
+
+Set `PRAZ_SHEET_ID` in the server environment (e.g., in
+`/etc/environment` or the user's `.Renviron`). Never hard-code
+sheet IDs in scripts under version control.
+
+By default the monitor writes a plain-text summary to
+`~/zzedc_pending_proposals.log`. This is sufficient for
+development; replace the notifier for production (see Section 7a.3).
+
+### 7a.3 Email notification (production)
+
+Supply a custom notifier function to `poll_gsheets_and_stage()`.
+The function receives a data frame of pending proposals and is
+responsible for delivery. A minimal example using `blastula`
+(add to project `Suggests` or install separately):
+
+```{r}
+library(zzedc)
+library(blastula)
+
+email_notifier <- function(proposals) {
+  body <- paste0(
+    '**', nrow(proposals), ' validation rule proposal(s) ',
+    'require your review.**\n\n',
+    paste(apply(proposals, 1, function(r) {
+      paste0(
+        '- **[', r['change_type'], ']** `', r['rule_id'], '`  \n',
+        '  Field: `', r['field_code'], '`  \n',
+        '  Current: `', r['current_dsl'], '`  \n',
+        '  Proposed: `', r['proposed_dsl'], '`  \n',
+        '  Staged: ', r['staged_at']
+      )
+    }), collapse = '\n\n'),
+    '\n\nLog in to ZZedc as `psmith` and call ',
+    '`approve_proposals()` or `reject_proposals()` to action.'
+  )
+
+  email <- compose_email(body = md(body))
+
+  smtp_send(
+    email,
+    from    = Sys.getenv('ZZEDC_FROM_EMAIL'),
+    to      = Sys.getenv('ZZEDC_MANAGER_EMAIL'),
+    subject = paste0('[PRAZ-L-2026] ', nrow(proposals),
+                     ' rule proposal(s) pending review'),
+    credentials = creds_envvar(
+      user     = 'ZZEDC_SMTP_USER',
+      pass_envvar = 'ZZEDC_SMTP_PASS',
+      host     = Sys.getenv('ZZEDC_SMTP_HOST'),
+      port     = as.integer(Sys.getenv('ZZEDC_SMTP_PORT', '587')),
+      use_ssl  = FALSE
+    )
+  )
+}
+
+poll_gsheets_and_stage(
+  sheet_id  = Sys.getenv('PRAZ_SHEET_ID'),
+  db_path   = '~/prj/praz-large/data/praz-large.db',
+  staged_by = 'system_monitor',
+  notifier  = email_notifier
+)
+```
+
+Set the five SMTP environment variables in `.Renviron` or the
+server environment before the first poll run. Do not store
+credentials in the script file.
+
+### 7a.4 Manager approval
+
+When notified, the manager reviews pending proposals:
+
+```{r}
+library(zzedc)
+
+pending <- get_pending_proposals(
+  db_path = '~/prj/praz-large/data/praz-large.db'
+)
+print(pending[, c('proposal_id', 'rule_id', 'change_type',
+                  'current_dsl', 'proposed_dsl', 'staged_at')])
+```
+
+To approve one or more proposals:
+
+```{r}
+approve_proposals(
+  ids         = c('MMSE_TOTAL_RANGE_20260601120000',
+                  'AGE_RANGE_20260601120000'),
+  reviewer_id = 'psmith',
+  db_path     = '~/prj/praz-large/data/praz-large.db',
+  comments    = 'Reviewed; consistent with protocol amendment 3'
+)
+```
+
+To reject:
+
+```{r}
+reject_proposals(
+  ids         = 'VISIT_WINDOW_20260601120001',
+  reviewer_id = 'psmith',
+  db_path     = '~/prj/praz-large/data/praz-large.db',
+  comments    = 'Window tightened incorrectly; reverted to protocol spec'
+)
+```
+
+Each call writes to the audit log with the reviewer's identity,
+timestamp, and comments. Approved rules become active immediately;
+rejected rules are flagged for the coordinator to revise in the sheet.
+
+### 7a.5 Environment variables reference
+
+| Variable | Purpose |
+|---|---|
+| `PRAZ_SHEET_ID` | Google Sheet ID for the study workbook |
+| `ZZEDC_PROPOSAL_LOG` | Path for the default file-based notifier |
+| `ZZEDC_MANAGER_EMAIL` | Recipient address for email notifications |
+| `ZZEDC_FROM_EMAIL` | Sender address |
+| `ZZEDC_SMTP_USER` | SMTP username |
+| `ZZEDC_SMTP_PASS` | SMTP password |
+| `ZZEDC_SMTP_HOST` | SMTP server hostname |
+| `ZZEDC_SMTP_PORT` | SMTP port (default 587) |
+
+---
+
 ## 8. Verification
 
 ### 8.1 Launch and inspect
@@ -622,6 +796,26 @@ to any repository; it contains identifiable subject data.
 **Import fails with `googlesheets4` authentication error.**
 Run `googlesheets4::gs4_auth()` interactively to authorise
 access to your Google account, then re-run the import.
+
+**The poll cron job runs but no proposals appear in
+`get_pending_proposals()`.** Confirm that `PRAZ_SHEET_ID` is
+set in the cron environment (cron jobs do not inherit the
+user's shell environment). Add an explicit
+`Sys.setenv(PRAZ_SHEET_ID = '...')` at the top of
+`poll_rules.R` temporarily to isolate the issue. Also
+confirm `googlesheets4::gs4_auth()` has been run
+interactively at least once so the cached token is
+available to the non-interactive cron process.
+
+**`approve_proposals()` returns an error for a `proposal_id`
+that appears in `get_pending_proposals()`.** The most common
+cause is that the `dsl_rule_proposals` table does not yet
+exist because `init_proposals_table()` has not been called.
+`poll_gsheets_and_stage()` calls it automatically, but if
+`stage_gsheets_proposals()` was invoked directly without
+first calling `poll_gsheets_and_stage()`, run
+`init_proposals_table(db_path = 'data/praz-large.db')`
+once and retry.
 
 **A coordinator reports a "Request access" prompt when
 opening their workbook link.** Their Google account was not
