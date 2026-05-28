@@ -284,7 +284,105 @@ setup_zzedc_from_gsheets(
 Run `googlesheets4::gs4_auth()` interactively before the
 first import if you have not previously authenticated.
 
-### 7.3 Data dictionary summary
+### 7.3 Granting coordinators write access to the workbook
+
+After the initial import, each coordinator requires editor
+access to their site's `validation_rules` tab so they can
+review and propose rule changes without routing every
+correction through you. The `Study_Users` and
+`Data_Dictionary` tabs are import-only and should remain
+under your control exclusively.
+
+#### Per-site workbook (recommended)
+
+Create one Google Sheets workbook per site, each containing
+that site's `Study_Users`, `Data_Dictionary`, and
+`validation_rules` tabs. This is the correct approach for
+this trial: it constrains each coordinator's write access to
+their own site's rows and prevents accidental cross-site
+edits. It also keeps the `Study_Users` tab (which may carry
+plain-text initial passwords) out of other coordinators'
+view.
+
+Share each workbook with the corresponding coordinator:
+
+1. Open the site workbook in Google Sheets.
+2. Click **Share**.
+3. Enter the coordinator's institutional Google account
+   email address.
+4. Set the permission level to **Editor**.
+5. Communicate the link by the same out-of-band channel
+   used for initial credentials (Section 6.3). Do not
+   embed the link in the ZZedc application itself.
+
+Import each workbook individually into the shared database:
+
+```{r}
+setup_zzedc_from_gsheets(
+  sheet_url = 'https://docs.google.com/spreadsheets/d/UCSD_SHEET_ID',
+  db_path   = 'data/praz-large.db'
+)
+setup_zzedc_from_gsheets(
+  sheet_url = 'https://docs.google.com/spreadsheets/d/UCLA_SHEET_ID',
+  db_path   = 'data/praz-large.db'
+)
+# repeat for UCSF and Stanford
+```
+
+#### Single shared workbook (simpler, fewer access controls)
+
+A single workbook containing all four sites' rows in each
+tab is acceptable if the configuration content is not
+sensitive. Do not use this arrangement when `Study_Users`
+contains plain-text initial passwords.
+
+If you use a shared workbook, protect the `Study_Users` and
+`Data_Dictionary` tabs to prevent coordinator edits: in
+Google Sheets, choose **Data > Protect sheets and ranges**,
+select the tab, and restrict editing to your account only.
+Leave `validation_rules` unprotected so coordinators can
+edit it.
+
+#### Which tabs coordinators may edit
+
+| Tab | Coordinator access | Notes |
+|---|---|---|
+| `Study_Users` | None | Contains credentials; data scientist only |
+| `Data_Dictionary` | None | Schema changes require data scientist review |
+| `validation_rules` | Editor | Coordinators may propose or update rules |
+
+#### Synchronising coordinator edits into the database
+
+The `validation_rules` tab supports bidirectional sync.
+After a coordinator notifies you of an edit, pull the
+changes:
+
+```{r}
+library(zzedc)
+setwd('~/prj/praz-large')
+
+sync_dsl_rules_from_gsheets(
+  sheet_id       = 'YOUR_SHEET_ID',
+  db_path        = 'data/praz-large.db',
+  imported_by    = 'psmith',
+  delete_missing = FALSE
+)
+```
+
+Set `delete_missing = TRUE` only if the sheet is the
+canonical authority and rows absent from the sheet should
+be removed from the database. For this trial, leave it
+`FALSE` to avoid inadvertently deleting rules that a
+coordinator has not yet re-entered.
+
+`Study_Users` and `Data_Dictionary` are import-only.
+Coordinator edits to those tabs (if any slip through
+despite tab protection) require a full re-import via
+`setup_zzedc_from_gsheets()`.
+
+---
+
+### 7.4 Data dictionary summary
 
 The data dictionary defines seven forms across 79 field
 definitions. Every form includes `site_id` as a required
@@ -292,7 +390,7 @@ select field with allowed values `UCSD`, `UCLA`, `UCSF`,
 `Stanford`. This field is the linchpin of the multi-site
 isolation mechanism and must not be removed or made optional.
 
-### 7.4 Validation rules summary
+### 7.5 Validation rules summary
 
 Nineteen validation rules are defined:
 
@@ -310,7 +408,7 @@ enforcement described in Section 6.2, but provide a second
 layer of protection against data entry errors and any
 client-side bypass.
 
-### 7.5 Checking the import log
+### 7.6 Checking the import log
 
 Review the import output before proceeding. Common issues:
 
@@ -524,6 +622,20 @@ to any repository; it contains identifiable subject data.
 **Import fails with `googlesheets4` authentication error.**
 Run `googlesheets4::gs4_auth()` interactively to authorise
 access to your Google account, then re-run the import.
+
+**A coordinator reports a "Request access" prompt when
+opening their workbook link.** Their Google account was not
+added as an editor, or they opened the link while signed
+into a different Google account. Verify the email address
+they provided, re-share from the workbook's **Share**
+dialog with editor access, and confirm they are using the
+registered account in their browser.
+
+**A coordinator edited the `validation_rules` tab but the
+ZZedc database still enforces the old rule.** The sheet and
+the database are decoupled; edits do not propagate
+automatically. Run `sync_dsl_rules_from_gsheets()` (see
+Section 7.3) to pull the update into the database.
 
 **Port 3838 already in use.** Pass an alternate port:
 `launch_zzedc(port = 3939)`. Update the bookmarked URL for

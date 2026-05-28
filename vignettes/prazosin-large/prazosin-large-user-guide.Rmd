@@ -418,7 +418,78 @@ log records every export.
 
 ---
 
-## 9. Recommended Data Entry Cadence
+## 9. Site Configuration Sheet
+
+Before the study opened, your data scientist used a Google
+Sheets workbook to define the study's configuration: the
+**data dictionary** (one row per field, specifying each
+field's name, label, and allowed values across all seven
+forms) and the **validation rules** (the business rules that
+ZZedc enforces when you save a record -- for example, that
+a randomization date cannot precede the consent date). This
+workbook is the authoritative seed source from which the
+ZZedc database was initially populated.
+
+Your data scientist has shared a copy of this workbook with
+your Google account and granted you editor access. This
+allows you to review and propose changes to your site's
+validation rules without needing to contact the data
+scientist for every small correction.
+
+### Accessing the workbook
+
+1. Locate the workbook link your data scientist sent. It is a
+   Google Sheets URL of the form
+   `https://docs.google.com/spreadsheets/d/...`.
+2. Open the link in a browser and sign in with the Google
+   account your data scientist registered.
+3. If the browser shows a "Request access" prompt, your
+   Google account has not yet been added as an editor.
+   Contact your data scientist and confirm they have the
+   correct address for your Google account.
+
+### What you can edit
+
+You have editor access to the `validation_rules` tab only.
+Each row in this tab defines one business rule: the field it
+applies to, the condition that must be satisfied, and the
+error message shown to you if the condition is violated.
+You may review these rows and, if you identify a rule that
+is incorrect or missing, edit the relevant row or add a new
+row at the bottom.
+
+The workbook also contains two other tabs:
+
+- `Data_Dictionary`: the field definitions that control which
+  fields appear on each form. **Do not edit this tab.**
+- `Study_Users`: the user account roster (usernames, roles,
+  site assignments). **Do not edit this tab.** It may contain
+  initial passwords in plain text and must remain private.
+
+Both of those tabs are managed exclusively by the data
+scientist. Any edits you make there will be overwritten
+during the next import.
+
+### When your changes take effect
+
+Edits to the workbook do not appear in ZZedc immediately.
+The workbook is a configuration source, not a live interface
+to the database. After you make a change to the
+`validation_rules` tab, notify your data scientist. They
+will run a synchronisation step that reads your edits and
+updates the database. Your changes will take effect in the
+next data entry session after that synchronisation.
+
+### What the workbook does not contain
+
+The workbook holds configuration only. Do not enter subject
+records, visit data, PSQI scores, or any other clinical data
+in the sheet. All clinical data entry occurs exclusively
+through the ZZedc application (Sections 1--5).
+
+---
+
+## 10. Recommended Data Entry Cadence
 
 Entering data at the time of the activity is strongly preferred.
 Batch reconstruction from paper notes is error-prone and
@@ -443,7 +514,7 @@ to identify any entries missed during the week.
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 **The application will not launch.** Close the browser and
 re-run `launch_zzedc()` in a fresh R session. If port 3838
@@ -470,13 +541,24 @@ deleted from the database; if a record was saved, it will appear
 in the Data Explorer. Confirm that the form-code filter is not
 hiding the relevant form.
 
+**The site configuration sheet shows "Request access" when you
+open the link.** Your Google account has not been added as an
+editor. Send your data scientist the exact email address of
+your Google account and ask them to re-share the workbook.
+
+**You edited a validation rule in the sheet but ZZedc still
+rejects (or accepts) the same data as before.** Edits to the
+sheet take effect only after the data scientist runs a
+synchronisation step against the database. Notify them and
+allow one working day for the update to propagate.
+
 **You forgot your password.** Contact the lab data scientist.
 Passwords are hashed and cannot be recovered, but an
 administrator can reset the account.
 
 ---
 
-## 11. Glossary
+## 12. Glossary
 
 - **Subject ID**: the unique identifier for a study participant,
   carrying a site prefix (see Section 4).
@@ -495,3 +577,16 @@ administrator can reset the account.
   or `lost_to_followup`).
 - **Audit log**: a system-maintained record of every change to
   the database. Runs automatically; no coordinator action required.
+- **Configuration workbook**: the Google Sheets workbook that
+  served as the seed source when the ZZedc database was
+  initialised. It holds the data dictionary and validation rules.
+  You have editor access to the `validation_rules` tab; the
+  other tabs are read-only for coordinators.
+- **Data dictionary**: the master list of every field in the
+  study, one row per field. It specifies each field's name, label,
+  type, and allowed values. Managed by the data scientist;
+  visible but not editable in your configuration workbook.
+- **Validation rules**: the business rules that ZZedc evaluates
+  when you save a record (for example, date ordering and range
+  checks). You may propose changes to these rules by editing the
+  `validation_rules` tab of your configuration workbook.
