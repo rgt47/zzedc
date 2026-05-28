@@ -1,0 +1,745 @@
+---
+title: 'Promotion Review Tracker: Technical Setup Guide'
+subtitle: 'Installation, configuration, and maintenance for the lab data scientist'
+date: '`r Sys.Date()`'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Promotion Review Tracker: Technical Setup Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+This guide is written for the lab data scientist who is
+responsible for installing, configuring, and maintaining the
+Promotion Review Tracker on behalf of the faculty member. The
+system is a ZZedc installation configured to track academic
+progress across research, teaching, and service domains for
+an upcoming promotion review. The guide covers installation,
+configuration, data dictionary authoring, import,
+verification, and backup. Moderate R familiarity and
+basic command-line comfort are sufficient.
+
+The companion document for the faculty member's assistant,
+who handles day-to-day data entry, is
+`vignette('promotion-tracker-user-guide')`. After completing
+setup, hand the assistant that guide along with the application
+URL (or local access instructions) and their login credentials.
+
+The recommended setup path is the initialisation script
+(Section 4), which writes all configuration and data-dictionary
+files automatically. Sections 5 and 6 describe the manual
+alternative for reference and troubleshooting.
+
+---
+
+## 1. Prerequisites
+
+- R 4.4 or later
+- RStudio (recommended) or any terminal with R on `PATH`
+- The `pak` package: `install.packages('pak')`
+- A local working directory for the project, hereafter
+  called `~/prj/promotion-tracker/`
+
+No server, cloud account, or Google account is required for
+a local SQLite deployment.
+
+---
+
+## 2. Installation
+
+```{r}
+pak::pak('zzedc')
+```
+
+Verify the installation:
+
+```{r}
+library(zzedc)
+packageVersion('zzedc')
+```
+
+---
+
+## 3. Project Directory
+
+Create the project directory and change into it:
+
+```{r}
+dir.create('~/prj/promotion-tracker', recursive = TRUE)
+setwd('~/prj/promotion-tracker')
+```
+
+ZZedc will write the SQLite database, credentials, and logs
+into this directory. Keep it backed up; it is the single
+source of truth.
+
+---
+
+## 4. Initialisation Script
+
+The script `inst/scripts/edc-init.R` collects study and user
+information, writes `zzedc_config.yml` and `Study_Users.csv`,
+and optionally copies a pre-existing `Data_Dictionary.csv` and
+`validation_rules.csv` from caller-supplied source paths. It
+supports three interface modes suited to different levels of
+technical comfort.
+
+### 4.1 Choosing a mode
+
+Run the script with no arguments to be prompted interactively:
+
+```{bash}
+Rscript inst/scripts/edc-init.R
+```
+
+If `gum` is installed (`brew install gum`), the script presents
+a styled menu. Without `gum` it falls back to a plain text
+prompt:
+
+```
+zzedc Project Initialisation
+
+  1  TUI    -- guided prompts
+  2  Config -- plain-text file
+  3  Sheets -- Google Sheets
+
+Enter 1, 2, or 3 [1]:
+```
+
+Enter a number, or press Enter to accept the default (TUI).
+You may also specify the mode directly on the command line to
+skip the selection prompt (see §4.2--4.4).
+
+### 4.2 Mode 1: TUI
+
+*Lowest technical barrier. No files to prepare.*
+
+The TUI walks through a sequence of prompts. Each prompt shows
+the field name, a brief description, and a default value in
+brackets. Press Enter to accept the default or type a new value.
+
+```
+── Study information ──────────────────────────────────────
+Study name [Promotion Review Tracker]:
+Protocol ID [PROMO-2026]:
+
+── Principal investigator ─────────────────────────────────
+PI full name: Professor Smith
+PI email: psmith@university.edu
+
+── Admin account ──────────────────────────────────────────
+Admin username (no spaces) [psmith]:
+Admin full name [Professor Smith]:
+Admin email [psmith@university.edu]:
+Admin password (min 8 chars, 1 upper, 1 digit, 1 symbol):
+
+── Assistant account ──────────────────────────────────────
+Assistant username (blank to skip):
+...
+
+── Security settings ──────────────────────────────────────
+Session timeout in minutes [60]:
+
+── Output location ────────────────────────────────────────
+Output directory [.]:
+```
+
+The script validates every field before writing any files.
+Weak passwords and malformed email addresses are rejected
+with a descriptive error.
+
+To invoke TUI mode explicitly:
+
+```{bash}
+Rscript inst/scripts/edc-init.R --mode tui
+```
+
+### 4.3 Mode 2: Config file
+
+*Mid-level. Edit a plain-text file; no code required.*
+
+On first run without a `--file` argument, the script writes
+a commented template called `study.conf` and exits:
+
+```{bash}
+Rscript inst/scripts/edc-init.R --mode config
+```
+
+Open `study.conf` in any text editor. It looks like this:
+
+```
+# zzedc Project Configuration
+# Edit the values below. Lines starting with # are comments.
+
+study_name         = Promotion Review Tracker
+protocol_id        = PROMO-2026
+target_enrollment  = 500
+phase              = Observational
+db_name            = promotion.db
+
+pi_name            = Professor Smith           # REQUIRED
+pi_email           = psmith@university.edu     # REQUIRED
+
+admin_username     = psmith                    # REQUIRED
+admin_fullname     = Professor Smith           # REQUIRED
+admin_email        = psmith@university.edu     # REQUIRED
+admin_password     = ChangeMeNow!2026          # REQUIRED
+admin_site_id      = UCSD
+
+coord_1_username   = assistant
+coord_1_fullname   = Lab Assistant
+coord_1_email      = assistant@university.edu
+coord_1_password   = TempPass!2026
+coord_1_site_id    = UCSD
+
+session_timeout_minutes = 60
+out_dir = .
+```
+
+Fill in the values, save the file, then re-run and supply the
+data dictionary and validation rules:
+
+```{bash}
+Rscript inst/scripts/edc-init.R \
+  --mode config --file study.conf \
+  --dd-csv vignettes/promotion-tracker/Data_Dictionary.csv \
+  --rules-csv vignettes/promotion-tracker/validation_rules.csv
+```
+
+The file format is `key = value`. Lines beginning with `#`
+and inline comments after `#` are ignored. No YAML syntax,
+no quoting, no indentation rules.
+
+### 4.4 Mode 3: Google Sheets
+
+*Highest technical barrier. Requires a Google account and
+OAuth authentication in the browser.*
+
+**First run -- create the workbook:**
+
+```{bash}
+Rscript inst/scripts/edc-init.R --mode sheets
+```
+
+The script opens a browser window for Google authentication,
+creates a new Google Sheet in your Drive with a `Study_Info`
+tab (study metadata key-value pairs) and a `Study_Users` tab
+(one row per user). Both tabs are pre-populated with placeholder
+values.
+
+The script prints the new sheet URL and exits. Open the sheet,
+edit both tabs with the correct values and any additional
+coordinators, then re-run with the URL and supply the
+data dictionary and validation rules:
+
+```{bash}
+Rscript inst/scripts/edc-init.R \
+  --mode sheets --url 'https://docs.google.com/spreadsheets/d/...' \
+  --dd-csv vignettes/promotion-tracker/Data_Dictionary.csv \
+  --rules-csv vignettes/promotion-tracker/validation_rules.csv
+```
+
+**Second run -- read the workbook:**
+
+The script reads `Study_Info` for study metadata and all
+Coordinator rows from `Study_Users`, writes `zzedc_config.yml`
+and `Study_Users.csv`, copies the supplied CSV files, and
+prints the next-steps import commands.
+
+### 4.5 Outputs (all modes)
+
+Regardless of mode, the script produces:
+
+```
+<out_dir>/
+  zzedc_config.yml      -- ZZedc study configuration
+  Study_Users.csv       -- user roster with hashed initial passwords
+  Data_Dictionary.csv   -- copied from --dd-csv (if supplied)
+  validation_rules.csv  -- copied from --rules-csv (if supplied)
+```
+
+Set `out_dir` (TUI prompt or config-file key) to your project
+directory (`~/prj/promotion-tracker`) so the files land
+alongside the database. The script closes with a printed block
+of copy-paste R commands for the import step (see Section 7).
+
+---
+
+## 5. Configuration File (Manual Alternative)
+
+Create `~/prj/promotion-tracker/zzedc_config.yml` with the
+following content. Replace the password before first use.
+
+```yaml
+study:
+  name: "Promotion Review Tracker"
+  protocol_id: "PROMO-2026"
+  pi_name: "Professor Smith"
+  pi_email: "psmith@university.edu"
+  target_enrollment: 500
+  phase: "Observational"
+
+admin:
+  username: "psmith"
+  fullname: "Professor Smith"
+  email: "psmith@university.edu"
+  password: "ChangeMeToSecurePassword123!"
+
+security:
+  session_timeout_minutes: 60
+  enforce_https: false
+  max_failed_login_attempts: 10
+
+compliance:
+  gdpr_enabled: false
+  cfr_part11_enabled: false
+  audit_logging_enabled: true
+
+database:
+  type: "sqlite"
+  pool_size: 2
+```
+
+Notes on these settings:
+
+- `target_enrollment: 500` is a generous ceiling for tracking
+  items; it does not constrain the number of records.
+- `enforce_https: false` is appropriate for a local-only
+  installation. If the application is ever deployed to a
+  shared server, set this to `true`.
+- GDPR and 21 CFR Part 11 modules are disabled. The audit log
+  remains active regardless.
+
+Initialise the database from this file:
+
+```{r}
+library(zzedc)
+setwd('~/prj/promotion-tracker')
+zzedc::init(mode = 'config', config_file = 'zzedc_config.yml')
+```
+
+---
+
+## 6. Data Dictionary (Manual Alternative)
+
+The data dictionary defines the seven tracking forms. You may
+author it in Google Sheets (preferred) or as a local CSV file.
+Both paths are described below.
+
+### 6.1 Google Sheets path
+
+Create a new Google Sheet. Rename the default tab and add
+two additional tabs, named exactly as shown:
+
+- `Study_Users`
+- `Data_Dictionary`
+- `validation_rules`
+
+Capitalisation and spelling are exact; the importer performs
+a literal string match.
+
+#### Study_Users tab
+
+| username | full_name | email | role | password_initial | site_id | active |
+|---|---|---|---|---|---|---|
+| psmith | Professor Smith | psmith@university.edu | Admin | TempPass!2026 | UCSD | TRUE |
+
+Add the faculty member's assistant as `Coordinator` role at
+site `UCSD` so they can enter and update records. Add yourself
+(the lab data scientist) as `DataManager` or `Admin` to retain
+administrative access.
+
+#### Data_Dictionary tab
+
+The table below documents all fields across the seven forms.
+The `form_code` column groups fields by form. When authoring
+manually in Google Sheets, enter one row per field with the
+column headers shown. The init script (Section 4) generates
+these files automatically; this table is provided for review
+and reference.
+
+**`manuscripts` -- Research publications**
+
+| field_name | Label | Type | Req | Validation |
+|---|---|---|:---:|---|
+| tracking_id | Tracking ID | text | yes | PUB-YYYY-NNN |
+| title | Manuscript Title | text | yes | |
+| target_journal | Target Journal | text | | |
+| co_authors | Co-authors | text | | |
+| status | Status | select | yes | ideation / drafting / submitted / under_review / revision / accepted / in_press / published |
+| submission_date | Submission Date | date | | |
+| acceptance_date | Acceptance Date | date | | |
+| publication_date | Publication Date | date | | |
+| doi | DOI | text | | |
+| notes | Notes | text | | |
+
+**`courses` -- Teaching activity**
+
+| field_name | Label | Type | Req | Validation |
+|---|---|---|:---:|---|
+| tracking_id | Tracking ID | text | yes | CRS-YYYY-NNN |
+| course_code | Course Code | text | yes | |
+| course_title | Course Title | text | yes | |
+| academic_year | Academic Year | text | yes | |
+| term | Term | radio | yes | Fall / Winter / Spring / Summer |
+| role | Role | radio | yes | developed / taught / developed_and_taught |
+| student_count | Student Count | numeric | yes | between 1 and 500 |
+| contact_hours | Contact Hours | numeric | yes | between 1 and 500 |
+| notes | Notes | text | | |
+
+**`mentoring` -- One-on-one tutorials**
+
+| field_name | Label | Type | Req | Validation |
+|---|---|---|:---:|---|
+| tracking_id | Tracking ID | text | yes | MNT-YYYY-NNN |
+| student_initials | Student Initials | text | yes | |
+| student_level | Student Level | radio | yes | undergraduate / graduate / postdoc / other |
+| start_date | Start Date | date | yes | |
+| end_date | End Date | date | | >= start_date |
+| hours_per_week | Hours per Week | numeric | | between 0 and 40 |
+| topic_area | Topic Area | text | | |
+| outcome | Outcome | text | | |
+| notes | Notes | text | | |
+
+**`grant_reviews` -- External grant panels**
+
+| field_name | Label | Type | Req | Validation |
+|---|---|---|:---:|---|
+| tracking_id | Tracking ID | text | yes | GNT-YYYY-NNN |
+| agency | Agency | text | yes | |
+| program_name | Program Name | text | | |
+| panel_name | Panel Name | text | | |
+| review_date | Review Date | date | yes | |
+| role | Role | radio | yes | reviewer / chair / observer |
+| notes | Notes | text | | |
+
+**`committees` -- Committee memberships**
+
+| field_name | Label | Type | Req | Validation |
+|---|---|---|:---:|---|
+| tracking_id | Tracking ID | text | yes | COM-YYYY-NNN |
+| committee_name | Committee Name | text | yes | |
+| organization | Organization | text | yes | |
+| scope | Scope | radio | | departmental / institutional / national / international |
+| role | Role | text | yes | |
+| start_date | Start Date | date | yes | |
+| end_date | End Date | date | | >= start_date |
+| meeting_frequency | Meeting Frequency | radio | | weekly / monthly / quarterly / semi_annual / annual / ad_hoc |
+| active | Active | radio | yes | yes / no |
+| notes | Notes | text | | |
+
+**`journal_reviews` -- Peer review assignments**
+
+| field_name | Label | Type | Req | Validation |
+|---|---|---|:---:|---|
+| tracking_id | Tracking ID | text | yes | JRV-YYYY-NNN |
+| journal_name | Journal Name | text | yes | |
+| manuscript_id | Manuscript ID | text | | |
+| review_date | Review Date | date | yes | |
+| recommendation | Recommendation | radio | | accept / minor_revision / major_revision / reject / not_reviewed |
+| notes | Notes | text | | |
+
+**`dsmb` -- Data safety monitoring boards**
+
+| field_name | Label | Type | Req | Validation |
+|---|---|---|:---:|---|
+| tracking_id | Tracking ID | text | yes | DSB-YYYY-NNN |
+| trial_name | Trial Name | text | yes | |
+| sponsor | Sponsor | text | | |
+| role | Role | radio | yes | member / chair / statistician / other |
+| start_date | Start Date | date | yes | |
+| end_date | End Date | date | | >= start_date |
+| meeting_frequency | Meeting Frequency | radio | | semi_annual / annual / ad_hoc / other |
+| active | Active | radio | yes | yes / no |
+| notes | Notes | text | | |
+
+#### validation_rules tab
+
+Eight rules enforce basic data integrity across the forms.
+
+| Rule ID | Form | Field | Condition | Severity |
+|---|---|---|---|:---:|
+| ACCEPT_AFTER_SUBMIT | manuscripts | acceptance_date | >= submission_date | ERROR |
+| PUB_AFTER_ACCEPT | manuscripts | publication_date | >= acceptance_date | ERROR |
+| ENROLL_RANGE | courses | student_count | between 1 and 500 | ERROR |
+| HOURS_RANGE | courses | contact_hours | between 1 and 500 | ERROR |
+| MENTOR_END_AFTER_START | mentoring | end_date | >= start_date | ERROR |
+| COMM_END_AFTER_START | committees | end_date | >= start_date | ERROR |
+| DSMB_END_AFTER_START | dsmb | end_date | >= start_date | ERROR |
+| MENTOR_HOURS | mentoring | hours_per_week | between 0 and 40 | ERROR |
+
+All rules are conditional: they fire only when the relevant
+field is non-empty, so optional date and numeric fields do
+not block saves on incomplete records.
+
+### 6.2 CSV path (alternative to Google Sheets)
+
+Pre-built template CSV files ship with the package in the
+same directory as this guide:
+
+```
+vignettes/promotion-tracker/
+  Study_Users.csv
+  Data_Dictionary.csv
+  validation_rules.csv
+```
+
+Copy them to your project directory, edit `Study_Users.csv`
+to replace the placeholder credentials, and leave the other
+two files unchanged unless you need to customise the field
+set:
+
+```{r}
+pkg_dir <- system.file(
+  'vignettes/promotion-tracker',
+  package = 'zzedc'
+)
+file.copy(
+  list.files(pkg_dir, pattern = '\\.csv$', full.names = TRUE),
+  '~/prj/promotion-tracker/'
+)
+```
+
+The CSV import path in ZZedc reads these files directly
+once they are in the project directory.
+
+---
+
+## 7. Importing the Data Dictionary
+
+### From Google Sheets
+
+Share the workbook with Editor permission and copy the URL.
+Then run:
+
+```{r}
+library(zzedc)
+setwd('~/prj/promotion-tracker')
+
+setup_zzedc_from_gsheets(
+  sheet_url = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID',
+  db_path   = 'data/promotion.db'
+)
+```
+
+Expected output: one confirmation line per tab successfully
+read, then a summary of forms, fields, validation rules, and
+users imported. Elapsed time is typically under five seconds
+for this data dictionary.
+
+### From CSV
+
+The three CSV files must be in your project directory
+(`~/prj/promotion-tracker/`) before running this command.
+They are placed there either by the init script (Section 4)
+or by copying the package templates (Section 6.2).
+
+```{r}
+library(zzedc)
+setwd('~/prj/promotion-tracker')
+
+setup_zzedc_from_csv(
+  users_csv      = 'Study_Users.csv',
+  dictionary_csv = 'Data_Dictionary.csv',
+  rules_csv      = 'validation_rules.csv',
+  db_path        = 'data/promotion.db'
+)
+```
+
+### Checking the import log
+
+The import prints any skipped rules or unrecognised field
+types. Review this output before proceeding. Common issues:
+
+| Message | Cause | Fix |
+|---|---|---|
+| `Skipped rule: <rule_id>` | DSL syntax error | Re-check the `rule_dsl` cell against the patterns in the Content-Author Guide |
+| `Unknown field type: <type>` | Typo in `field_type` | Allowed types: `text`, `numeric`, `date`, `select`, `radio`, `checkbox` |
+| `Tab not found: Study_Users` | Tab name mismatch | Rename to exactly `Study_Users` |
+| `No rows in Data_Dictionary` | Empty row before end of data | Delete the empty row; re-import |
+
+---
+
+## 8. Verification
+
+### Launch and inspect
+
+```{r}
+launch_zzedc()
+```
+
+Log in with the `psmith` admin account and the initial
+password set in `zzedc_config.yml`. You will be forced to
+change it on first login.
+
+Navigate to **Admin > Forms** and confirm that all seven
+forms appear: `manuscripts`, `courses`, `mentoring`,
+`grant_reviews`, `committees`, `journal_reviews`, `dsmb`.
+
+Click into each form and verify:
+
+- Field labels match the `field_label` column in the
+  data dictionary.
+- Required fields show a red asterisk.
+- Select and radio fields show the correct options.
+
+### Dry run
+
+Create one synthetic record in each form using the
+appropriate tracking ID prefix. Attempt to save a record
+with a deliberately wrong date (e.g., an acceptance date
+before the submission date) and confirm that the validation
+error fires with the expected message.
+
+Delete all synthetic records after the dry run. Deletions
+are recorded in the audit log; the records themselves are
+removed from the data tables.
+
+### Audit log integrity check
+
+```{r}
+library(zzedc)
+setwd('~/prj/promotion-tracker')
+
+verify_audit_log_integrity(db_path = 'data/promotion.db')
+```
+
+Expected output: `Audit chain intact. N entries verified.`
+Run this check after the dry run and again after any bulk
+data migration.
+
+---
+
+## 9. Backup
+
+For a local SQLite installation, backup is straightforward.
+
+### Manual backup
+
+```{r}
+file.copy(
+  'data/promotion.db',
+  paste0('backups/promotion_', format(Sys.time(), '%Y%m%d'), '.db')
+)
+```
+
+Create a `backups/` subdirectory in the project folder and
+add it to your cloud sync (Dropbox, iCloud, etc.) if the
+project directory is not already synced.
+
+### Automated daily backup via cron (macOS)
+
+Add a line to your crontab (`crontab -e`):
+
+```
+0 22 * * * Rscript -e "file.copy('~/prj/promotion-tracker/data/promotion.db', paste0('~/prj/promotion-tracker/backups/promotion_', format(Sys.time(), '%Y%m%d'), '.db'))"
+```
+
+This runs at 22:00 each night. Adjust the path and time
+as needed.
+
+### Restore from backup
+
+```{r}
+file.copy(
+  'backups/promotion_20260515.db',
+  'data/promotion.db',
+  overwrite = TRUE
+)
+```
+
+Stop the Shiny session before restoring, then restart
+`launch_zzedc()` afterward.
+
+---
+
+## 10. Updating the Data Dictionary After Go-Live
+
+**Adding or changing validation rules:** edit the
+`validation_rules` tab and re-run the import command. The
+import is safe to re-run; it merges new rules and updates
+changed rules without deleting existing subject data.
+
+**Adding a new field to an existing form:** add the row to
+`Data_Dictionary` and re-run the import. New fields appear
+as optional by default; existing records will show them as
+blank until updated.
+
+**Changing a field type** after data have been entered is not
+supported by the importer. Contact the ZZedc maintainer for
+a migration path.
+
+**Adding a new form:** add the rows to `Data_Dictionary` and
+re-run the import. The new form tab appears in the
+application on the next launch.
+
+---
+
+## 11. Directory Structure (Final State)
+
+After setup, the project directory should contain:
+
+```
+~/prj/promotion-tracker/
+  zzedc_config.yml        # Study configuration
+  Study_Users.csv         # (if using CSV path)
+  Data_Dictionary.csv     # (if using CSV path)
+  validation_rules.csv    # (if using CSV path)
+  data/
+    promotion.db          # Live SQLite database
+  backups/
+    promotion_YYYYMMDD.db # Rolling daily backups
+  logs/                   # Application logs (if enabled)
+```
+
+Keep `zzedc_config.yml` in version control with the password
+field replaced by a placeholder. Do not commit the `.db`
+file to a public repository; it contains your academic
+activity records.
+
+---
+
+## 12. Troubleshooting
+
+**Import fails with `googlesheets4` authentication error.**
+Run `googlesheets4::gs4_auth()` interactively to authorise
+access to your Google account, then re-run the import.
+
+**Port 3838 already in use.** Pass an alternate port:
+`launch_zzedc(port = 3939)`. The user will access the
+application at `http://localhost:3939`.
+
+**The database is locked.** A previous R session did not
+close cleanly and left a write lock. Restart R, then check
+whether any other R process is running against the same
+database file before relaunching.
+
+**A validation rule fires on every save, even correct
+data.** The most common cause is a typo in `field_code`
+that causes the rule to reference a field that does not
+exist. Re-check the `field_code` column against the
+`field_name` values in `Data_Dictionary`.
+
+**User cannot log in.** Confirm the `active` column is
+`TRUE` for that user in `Study_Users`. If the account is
+locked after repeated failed attempts, reset it in the
+application under **Admin > Users**.
+
+---
+
+## 13. Reference
+
+For deeper detail on any of the following, consult the
+corresponding vignette:
+
+| Topic | Vignette |
+|---|---|
+| Google Sheets authoring in full | `vignette('content-author-guide')` |
+| Server deployment, TLS, AWS | `vignette('technical-lead-guide')` |
+| Database backend selection | `vignette('backend-quickstart')` |
+| Setup wizard (GUI alternative to config YAML) | `vignette('setup-wizard-guide')` |
+| Regulatory compliance modules | `vignette('zzedc-whitepaper')` |

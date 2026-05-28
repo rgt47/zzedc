@@ -1,0 +1,522 @@
+---
+title: 'Prazosin Sleep Study (Small): Technical Setup Guide'
+subtitle: 'Installation, configuration, and maintenance for the lab data scientist'
+date: '`r Sys.Date()`'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Prazosin Sleep Study (Small): Technical Setup Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+*2026-05-26 16:46 PDT*
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+This guide is written for the lab data scientist responsible for
+installing, configuring, and maintaining the ZZedc instance for
+the Prazosin Sleep Study (Small), protocol PRAZ-S-2026. The
+study is a single-site, single-instance deployment: one SQLite
+database at UCSD, one application process, two user accounts.
+Setup is straightforward. The guide covers prerequisites,
+installation, project directory structure, the initialisation
+script, the manual CSV alternative, import, verification, backup,
+and troubleshooting.
+
+The companion document for the site coordinator, who handles
+day-to-day data entry, is
+`vignette('prazosin-small-user-guide')`. After completing setup,
+hand the coordinator that guide, the application URL (or local
+access instructions), and their initial credentials.
+
+---
+
+## 1. Prerequisites
+
+- R 4.4 or later
+- RStudio (recommended) or any terminal with R on `PATH`
+- The `pak` package: `install.packages('pak')`
+- A local project directory, hereafter
+  `~/prj/praz-s-2026/`
+
+No server, cloud account, or Google account is required for
+a local SQLite deployment.
+
+---
+
+## 2. Installation
+
+```{r}
+pak::pak('zzedc')
+```
+
+Verify the installation:
+
+```{r}
+library(zzedc)
+packageVersion('zzedc')
+```
+
+---
+
+## 3. Project Directory
+
+Create the project directory:
+
+```{r}
+dir.create('~/prj/praz-s-2026', recursive = TRUE)
+setwd('~/prj/praz-s-2026')
+```
+
+ZZedc will write the SQLite database, credentials, and log files
+into this directory. It is the single source of truth for the
+trial; keep it backed up (see Section 9).
+
+---
+
+## 4. Initialisation Script
+
+The package ships with a generalised init script at
+`inst/scripts/edc-init.R`. It collects study and user
+information, writes `zzedc_config.yml` and `Study_Users.csv`,
+and optionally copies a pre-existing `Data_Dictionary.csv` and
+`validation_rules.csv` from caller-supplied source paths.
+
+The recommended path for a single-site clinical trial is
+Mode 2 (config file), described in Section 4.1 below, because
+it produces a plain-text audit trail of the configuration
+decisions.
+
+### 4.1 Mode 2: Config file (recommended)
+
+On first run without a `--file` argument, the script writes a
+commented template called `study.conf` and exits:
+
+```{bash}
+Rscript inst/scripts/edc-init.R --mode config
+```
+
+Open `study.conf` and edit the study-specific values:
+
+```
+study_name         = Prazosin Sleep Study (Small)
+protocol_id        = PRAZ-S-2026
+target_enrollment  = 50
+phase              = Phase II
+db_name            = praz-s-2026.db
+
+pi_name            = Professor Smith
+pi_email           = psmith@ucsd.edu
+
+admin_username     = psmith                    # REQUIRED
+admin_fullname     = Professor Smith           # REQUIRED
+admin_email        = psmith@ucsd.edu           # REQUIRED
+admin_password     = ChangeMeNow!2026          # REQUIRED
+admin_site_id      = UCSD
+
+coord_1_username   = assistant
+coord_1_fullname   = Site Coordinator
+coord_1_email      = assistant@ucsd.edu
+coord_1_password   = TempPass!2026
+coord_1_site_id    = UCSD
+
+session_timeout_minutes = 60
+out_dir = ~/prj/praz-s-2026
+```
+
+Save the file, then re-run with the `--file` flag and supply
+the pre-existing data dictionary and validation rules:
+
+```{bash}
+Rscript inst/scripts/edc-init.R \
+  --mode config --file study.conf \
+  --dd-csv vignettes/prazosin-small/Data_Dictionary.csv \
+  --rules-csv vignettes/prazosin-small/validation_rules.csv
+```
+
+The script validates every field before writing any files.
+Weak passwords and malformed email addresses are rejected
+with a descriptive error.
+
+### 4.2 Script outputs
+
+Regardless of mode, the script produces:
+
+```
+~/prj/praz-s-2026/
+  zzedc_config.yml      -- ZZedc study configuration
+  Study_Users.csv       -- user roster with hashed initial passwords
+  Data_Dictionary.csv   -- field definitions across 7 forms
+  validation_rules.csv  -- cross-field and range validation rules
+```
+
+The script closes with a printed block of copy-paste R commands
+for the import step (see Section 7).
+
+---
+
+## 5. Configuration File (Manual Alternative)
+
+If you prefer to skip the init script, create
+`~/prj/praz-s-2026/zzedc_config.yml` directly. Replace the
+password before first use.
+
+```yaml
+study:
+  name: "Prazosin Sleep Study (Small)"
+  protocol_id: "PRAZ-S-2026"
+  pi_name: "Professor Smith"
+  pi_email: "psmith@ucsd.edu"
+  target_enrollment: 50
+  phase: "Phase II"
+
+admin:
+  username: "psmith"
+  fullname: "Professor Smith"
+  email: "psmith@ucsd.edu"
+  password: "ChangeMeToSecurePassword123!"
+
+security:
+  session_timeout_minutes: 60
+  enforce_https: false
+  max_failed_login_attempts: 10
+
+compliance:
+  gdpr_enabled: false
+  cfr_part11_enabled: false
+  audit_logging_enabled: true
+
+database:
+  type: "sqlite"
+  pool_size: 2
+```
+
+Notes on these settings:
+
+- `target_enrollment: 50` matches the protocol-specified
+  enrollment ceiling. This value informs summary reports but
+  does not prevent additional records from being created.
+- `enforce_https: false` is appropriate for a local-only
+  installation at a single workstation. If the application is
+  ever accessed over a network, set this to `true` and consult
+  the ZZedc technical-lead guide for TLS configuration.
+- GDPR and 21 CFR Part 11 modules are disabled. The audit log
+  remains active regardless of these settings.
+- `pool_size: 2` is sufficient for a two-user installation with
+  no concurrent heavy queries.
+
+Initialise the database from this file:
+
+```{r}
+library(zzedc)
+setwd('~/prj/praz-s-2026')
+zzedc::init(mode = 'config', config_file = 'zzedc_config.yml')
+```
+
+---
+
+## 6. CSV Configuration Files (Manual Alternative)
+
+The three CSV files define users, the data dictionary, and
+validation rules. Pre-built templates for this trial ship with
+the package in the same directory as this guide:
+
+```
+vignettes/prazosin-small/
+  Study_Users.csv
+  Data_Dictionary.csv
+  validation_rules.csv
+```
+
+Copy them to your project directory:
+
+```{r}
+pkg_dir <- system.file(
+  'vignettes/prazosin-small',
+  package = 'zzedc'
+)
+file.copy(
+  list.files(pkg_dir, pattern = '\\.csv$', full.names = TRUE),
+  '~/prj/praz-s-2026/'
+)
+```
+
+**Study_Users.csv** contains placeholder credentials for
+`psmith` and `assistant`. Edit the `password_initial` column
+before importing; do not leave the default `TempPass!2026` in
+production unless you instruct both users to change it on first
+login (the application enforces a password-change prompt on first
+login when using initial credentials).
+
+**Data_Dictionary.csv** defines all fields for the seven forms:
+`enrollment`, `randomization`, `study_drug`, `sleep_psqi`,
+`adverse_events`, `concomitant_meds`, and `visits`. The column
+structure is:
+
+| Column | Description |
+|---|---|
+| `form_code` | Internal form identifier; must match exactly in all files |
+| `field_name` | Internal field identifier; used in validation rule expressions |
+| `field_label` | Human-readable label shown in the application UI |
+| `field_type` | One of `text`, `numeric`, `date`, `select`, `radio`, `checkbox` |
+| `required` | `TRUE` if the field blocks save when empty; `FALSE` otherwise |
+| `validation` | Field-level constraint expression (e.g., `between 0 and 21`) |
+| `description` | Tooltip text shown in the application |
+| `field_order` | Numeric sort order within the form |
+
+**validation_rules.csv** defines 12 cross-field and range rules
+covering PSQI component and global score ranges, date ordering
+across forms, and compliance percentage bounds. The column
+structure is:
+
+| Column | Description |
+|---|---|
+| `rule_id` | Unique rule identifier; uppercase, no spaces |
+| `form_code` | Form to which the rule applies |
+| `rule_type` | `FIELD` for single-field range rules; `CROSS_FIELD` for multi-field rules |
+| `expression` | Rule DSL expression evaluated at save time |
+| `error_message` | Message shown to the user when the rule fires |
+| `is_active` | `TRUE` to enable; `FALSE` to disable without deleting |
+
+Do not modify `Data_Dictionary.csv` or `validation_rules.csv`
+unless you need to customise the field set or rules. Any
+structural change (adding or removing fields, altering field
+names) must be made before the first import; changes after
+go-live require a migration path.
+
+---
+
+## 7. Importing with `setup_zzedc_from_csv()`
+
+With the three CSV files in the project directory, run:
+
+```{r}
+library(zzedc)
+setwd('~/prj/praz-s-2026')
+
+setup_zzedc_from_csv(
+  users_csv      = 'Study_Users.csv',
+  dictionary_csv = 'Data_Dictionary.csv',
+  rules_csv      = 'validation_rules.csv',
+  db_path        = 'data/praz-s-2026.db'
+)
+```
+
+Expected output: one confirmation line per tab successfully
+read, then a summary of forms, fields, validation rules, and
+users imported. Elapsed time is typically under five seconds.
+
+### Checking the import log
+
+Review the printed import log before proceeding. Common issues
+and their resolution:
+
+| Message | Cause | Fix |
+|---|---|---|
+| `Skipped rule: <rule_id>` | DSL syntax error in `expression` | Re-check against Content-Author Guide patterns |
+| `Unknown field type: <type>` | Typo in `field_type` column | Allowed: `text`, `numeric`, `date`, `select`, `radio`, `checkbox` |
+| `No rows in Data_Dictionary` | Empty row before end of file | Delete trailing empty row; re-import |
+| `Duplicate field_name in form` | Same `field_name` appears twice in one form | Remove or rename the duplicate row |
+
+---
+
+## 8. Verification
+
+### Launch and inspect
+
+```{r}
+launch_zzedc()
+```
+
+Log in with the `psmith` admin account and the initial password
+set in `zzedc_config.yml`. You will be prompted to change the
+password on first login.
+
+Navigate to **Admin > Forms** and confirm that all seven forms
+appear: `enrollment`, `randomization`, `study_drug`,
+`sleep_psqi`, `adverse_events`, `concomitant_meds`, `visits`.
+
+For each form, verify:
+
+- Field labels match the `field_label` column in
+  `Data_Dictionary.csv`.
+- Required fields display a red asterisk.
+- Radio and select fields display the correct option lists.
+
+### Dry run
+
+Create one synthetic record in each form. Use subject ID
+`PRAZ-S-000` to distinguish test data from real records.
+Attempt at least the following validation checks:
+
+- Enter a randomization date before the consent date; confirm
+  the rule `RAND_AFTER_CONSENT` fires.
+- Enter a PSQI component score of 4; confirm the relevant
+  component range rule fires.
+- Enter a PSQI global score of 22; confirm `PSQI_GLOBAL_RANGE`
+  fires.
+- Enter an AE resolution date before the onset date; confirm
+  `AE_RESOLUTION_AFTER_ONSET` fires.
+- Enter a concomitant medication stop date before the start
+  date; confirm `MED_STOP_AFTER_START` fires.
+- Enter a compliance percentage of 110; confirm
+  `COMPLIANCE_RANGE` fires.
+
+Delete all synthetic records after the dry run. Deletions are
+recorded in the audit log; the records themselves are removed
+from the data tables.
+
+### Audit log integrity check
+
+```{r}
+library(zzedc)
+setwd('~/prj/praz-s-2026')
+
+verify_audit_log_integrity(db_path = 'data/praz-s-2026.db')
+```
+
+Expected output: `Audit chain intact. N entries verified.`
+Run this after the dry run and again after any bulk data
+migration.
+
+---
+
+## 9. Backup
+
+For a local SQLite installation, backup is a file copy.
+
+### Manual backup
+
+```{r}
+dir.create('~/prj/praz-s-2026/backups', showWarnings = FALSE)
+file.copy(
+  'data/praz-s-2026.db',
+  paste0(
+    'backups/praz-s-2026_',
+    format(Sys.time(), '%Y%m%d'),
+    '.db'
+  )
+)
+```
+
+### Automated daily backup via cron (macOS)
+
+Add a line to your crontab (`crontab -e`):
+
+```
+0 22 * * * Rscript -e "file.copy('~/prj/praz-s-2026/data/praz-s-2026.db', paste0('~/prj/praz-s-2026/backups/praz-s-2026_', format(Sys.time(), '%Y%m%d'), '.db'))"
+```
+
+This runs at 22:00 nightly. If the project directory is inside
+a Dropbox or cloud-synced folder, the backup files are
+additionally covered by the cloud provider's version history.
+
+### Restore from backup
+
+```{r}
+file.copy(
+  'backups/praz-s-2026_20260601.db',
+  'data/praz-s-2026.db',
+  overwrite = TRUE
+)
+```
+
+Stop the Shiny session before restoring, then restart
+`launch_zzedc()` afterward.
+
+---
+
+## 10. Directory Structure (Final State)
+
+After setup, the project directory should contain:
+
+```
+~/prj/praz-s-2026/
+  zzedc_config.yml          # Study configuration
+  study.conf              # Init-script config (keep for audit)
+  Study_Users.csv           # User roster (if using CSV path)
+  Data_Dictionary.csv       # Field definitions (if using CSV path)
+  validation_rules.csv      # Validation rules (if using CSV path)
+  data/
+    praz-s-2026.db          # Live SQLite database
+  backups/
+    praz-s-2026_YYYYMMDD.db # Rolling daily backups
+  logs/                     # Application logs (if enabled)
+```
+
+Keep `zzedc_config.yml` and `study.conf` in version control
+with the password fields replaced by placeholders. Do not commit
+the `.db` file to any repository; it contains subject data.
+
+---
+
+## 11. Updating the Configuration After Go-Live
+
+**Adding or modifying a validation rule:** edit
+`validation_rules.csv` and re-run `setup_zzedc_from_csv()`.
+The import merges new and updated rules without deleting
+subject data.
+
+**Adding a new optional field:** add the row to
+`Data_Dictionary.csv` and re-run the import. The new field
+appears in the form as optional; existing records show it
+as blank.
+
+**Changing a field type** after data have been entered is not
+supported by the importer. Contact the ZZedc maintainer for
+a migration path if this is necessary.
+
+**Adding a new form:** add all rows for the new form to
+`Data_Dictionary.csv` and re-run the import. The new form tab
+appears on the next application launch.
+
+---
+
+## 12. Troubleshooting
+
+**Port 3838 already in use.** Pass an alternate port:
+`launch_zzedc(port = 3939)`. Update the coordinator's access
+instructions accordingly.
+
+**The database is locked.** A previous R session did not close
+cleanly. Restart R, verify that no other R process is running
+against the same file, then relaunch.
+
+**Import fails with duplicate key error.** A re-run of the
+import is usually safe, but if the `rule_id` or `field_name`
+values were edited between runs, conflicts can arise. Drop the
+database and re-import from the CSV files: rename the existing
+`.db` file to `.db.bak`, then re-run `setup_zzedc_from_csv()`.
+
+**A validation rule fires on every save, even correct data.**
+The most common cause is a `field_name` mismatch between
+`Data_Dictionary.csv` and the `expression` column in
+`validation_rules.csv`. Confirm the names match exactly,
+including case.
+
+**User cannot log in.** Check that the `active` column is
+`TRUE` for that user in `Study_Users.csv` and that the value
+was imported correctly via **Admin > Users** in the application.
+An administrator can reset the account password from that panel.
+
+**Session timeouts are too aggressive.** Increase
+`session_timeout_minutes` in `zzedc_config.yml` and restart
+the application. The default is 60 minutes; 120 is reasonable
+for a coordinator who enters data during a clinic session.
+
+---
+
+## 13. Reference
+
+For deeper detail on any of the following, consult the
+corresponding vignette:
+
+| Topic | Vignette |
+|---|---|
+| Server deployment, TLS, AWS | `vignette('technical-lead-guide')` |
+| Database backend selection | `vignette('backend-quickstart')` |
+| Regulatory compliance modules | `vignette('zzedc-whitepaper')` |
+| Full content-author DSL reference | `vignette('content-author-guide')` |
+| Setup wizard (GUI alternative to config YAML) | `vignette('setup-wizard-guide')` |
