@@ -1,0 +1,6 @@
+username,full_name,email,role,password_initial,site_id,active
+psmith,Professor Smith,psmith@university.edu,Admin,TempPass!2026,ALL,TRUE
+ucsd_coord,UCSD Coordinator,ucsd_coord@ucsd.edu,Coordinator,TempPass!2026,UCSD,TRUE
+ucla_coord,UCLA Coordinator,ucla_coord@ucla.edu,Coordinator,TempPass!2026,UCLA,TRUE
+ucsf_coord,UCSF Coordinator,ucsf_coord@ucsf.edu,Coordinator,TempPass!2026,UCSF,TRUE
+stanford_coord,Stanford Coordinator,stanford_coord@stanford.edu,Coordinator,TempPass!2026,Stanford,TRUE

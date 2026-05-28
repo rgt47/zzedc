@@ -1,0 +1,3 @@
+username,full_name,email,role,password_initial,site_id,active
+psmith,Professor Smith,psmith@university.edu,Admin,TempPass!2026,UCSD,TRUE
+assistant,Lab Assistant,assistant@university.edu,Coordinator,TempPass!2026,UCSD,TRUE

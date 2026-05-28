@@ -1,0 +1,460 @@
+---
+title: 'Prazosin Sleep Study (Small): User Guide'
+subtitle: 'Day-to-day data entry reference for the site coordinator'
+date: '`r Sys.Date()`'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Prazosin Sleep Study (Small): User Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+*2026-05-26 16:46 PDT*
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+This guide is written for the site coordinator at UCSD, who is
+responsible for day-to-day data entry in the Prazosin Sleep Study
+(Small), protocol PRAZ-S-2026. The study is a randomised
+double-blind placebo-controlled parallel-group trial comparing
+prazosin to placebo for sleep quality in up to 50 subjects. The
+ZZedc application captures all study data across seven forms
+corresponding to the study schedule and data collection
+instruments. No knowledge of R, databases, or ZZedc internals is
+required to use the system. This guide covers everything you will
+do day to day.
+
+---
+
+## 1. Launching the Application
+
+Open a terminal or RStudio console and run:
+
+```{r}
+library(zzedc)
+launch_zzedc()
+```
+
+The application opens in your default browser at
+`http://localhost:3838`. Keep the console open while you work;
+closing it stops the server.
+
+If the port is already in use (error message: 'port 3838 is in
+use'), contact the lab data scientist to configure an alternate
+port or to identify the conflicting process.
+
+---
+
+## 2. Logging In
+
+Enter your username (`assistant`) and your current password on
+the login screen. On first login you will be prompted to set a
+new password. Choose a password you will remember; it cannot be
+recovered without the lab data scientist's assistance.
+
+If the application shows a session-timeout warning, save your
+current entry before clicking away. Unsaved field values are
+lost on timeout.
+
+---
+
+## 3. Application Layout
+
+The left sidebar contains seven tabs, one per data collection
+form:
+
+| Tab | What it captures |
+|---|---|
+| Enrollment | Screening, eligibility, and consent |
+| Randomization | Treatment allocation and randomization code |
+| Study Drug | Dose dispensing, returns, and compliance |
+| Sleep PSQI | Pittsburgh Sleep Quality Index assessments |
+| Adverse Events | Adverse event onset, characterisation, and outcome |
+| Concomitant Meds | Concurrent medications during study participation |
+| Visits | Visit schedule, completion, and study status |
+
+The top navigation bar also provides access to the Data Explorer
+(for browsing all records at once), the Reports tab, and the
+Export Center.
+
+---
+
+## 4. Tracking ID Conventions
+
+Consistent tracking IDs are essential for linking records across
+forms and for generating clean data exports. Apply the following
+conventions without exception.
+
+**Subjects:** `PRAZ-S-NNN`
+
+Assign the next available three-digit number at each new
+enrolment. The counter resets at the start of each calendar year.
+Examples: `PRAZ-S-001`, `PRAZ-S-002`, ... `PRAZ-S-050`.
+
+**Adverse event records:** `AE-NNN`
+
+Each AE record receives its own sequential identifier,
+independent of subject ID. The counter does not reset by year
+within a study. Examples: `AE-001`, `AE-002`, `AE-003`.
+
+**Concomitant medication records:** `MED-NNN`
+
+Each medication record receives its own sequential identifier.
+Examples: `MED-001`, `MED-002`, `MED-003`.
+
+---
+
+## 5. Entering Data
+
+### 5.1 How to create a new record
+
+1. Click the relevant tab in the left sidebar.
+2. Click the **New Record** button (top right of the form panel).
+3. Enter the subject ID or record ID following the conventions
+   in Section 4.
+4. Fill in the fields. Required fields are marked with a red
+   asterisk and will block the save if left empty.
+5. Click **Save**. A green confirmation banner appears if the
+   save succeeded. A red banner identifies any validation errors
+   and the field that caused them.
+
+### 5.2 How to edit an existing record
+
+Click the record in the table at the top of the tab to load it
+into the edit panel. Change the relevant fields and click
+**Save**. Every save is recorded in the audit log with your
+username and a timestamp.
+
+---
+
+### 5.3 Enrollment Form (`PRAZ-S-NNN`)
+
+Create one enrollment record per screened subject, including
+subjects who do not ultimately enrol.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | `PRAZ-S-NNN` per the convention in Section 4 |
+| Site ID | `UCSD` (pre-filled; do not change) |
+| Consent Date | Date the subject signed the informed consent document |
+| Date of Birth | Subject date of birth |
+| Sex | Select `male`, `female`, or `other_or_prefer_not` |
+| Diagnosis | Primary sleep complaint diagnosis as stated in the medical record |
+| IC1: Age 18 or Older | `yes` if subject is 18 years of age or older |
+| IC2: Sleep Complaint | `yes` if subject reports a clinically significant sleep complaint |
+| IC3: Stable Medications | `yes` if all medications have been stable for at least 30 days |
+| EC1: Alpha-Blocker Use | `yes` if subject is currently taking any alpha-blocker medication |
+| EC2: Pregnancy | `yes` if subject is currently pregnant or intends to become pregnant |
+| Eligibility Determination | `yes` if all ICs are met and no ECs are triggered; `no` if the subject fails on clinical grounds but is not a formal screen failure; `screen_failure` if ICs or ECs result in formal screen failure |
+| Screen Failure Reason | Required if Eligibility is `screen_failure`; describe the specific criterion not met |
+| Notes | Any additional clinical notes |
+
+**Tip:** create the enrollment record at first contact, before
+consent, if you need to track pre-consent screening. Update the
+consent date field once consent is obtained.
+
+---
+
+### 5.4 Randomization Form
+
+Create one randomization record per subject after eligibility is
+confirmed and the randomization code is retrieved from the
+pharmacy.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Matching `PRAZ-S-NNN` from the enrollment record |
+| Site ID | `UCSD` |
+| Randomization Date | Date the subject was randomized |
+| Treatment Arm | `prazosin` or `placebo` as assigned by the code |
+| Randomization Code | The sealed code provided by the pharmacy or IWRS |
+| Randomized By | Your username or the username of the staff member who completed randomization |
+| Notes | Any notes relevant to the randomization event |
+
+**Validation:** the randomization date must fall on or after the
+consent date. The system will flag a mismatch if these dates are
+out of order.
+
+Do not enter a randomization record for subjects who screen fail
+before reaching the eligibility determination step.
+
+---
+
+### 5.5 Study Drug Form
+
+Create one study drug record per visit at which drug is
+dispensed or a compliance review is conducted. A subject will
+typically have records at baseline, week 4, week 8, and week 12.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Matching `PRAZ-S-NNN` |
+| Visit Date | Date of this dispensing or review visit |
+| Dose (mg) | Prescribed dose in milligrams: `1`, `2`, `4`, or `6` |
+| Doses Dispensed | Number of doses dispensed to the subject at this visit |
+| Doses Returned | Number of doses returned by the subject at this visit |
+| Compliance Percentage | Calculated compliance: ((dispensed - returned) / expected) x 100; enter as a whole number between 0 and 100 |
+| Dose Change | `yes` if the dose was adjusted at this visit; `no` otherwise |
+| Dose Change Reason | Required if Dose Change is `yes`; describe the clinical reason |
+| Notes | Any additional notes |
+
+**Validation:** the compliance percentage must be between 0 and
+100. The system will flag values outside this range.
+
+---
+
+### 5.6 Sleep PSQI Form
+
+Create one PSQI record per visit at which the Pittsburgh Sleep
+Quality Index is administered. For this protocol the PSQI is
+collected at baseline, week 4, week 8, week 12, and end of study.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Matching `PRAZ-S-NNN` |
+| Visit Date | Date the PSQI was administered |
+| Visit Number | Study visit number: 1 through 6 |
+| PSQI 1 through 7 | Each component score: 0 (best) through 3 (worst) |
+| PSQI Global Score | Sum of the seven component scores: 0 through 21 |
+| Notes | Any clinically relevant notes |
+
+**Scoring reminder:** the PSQI global score is the arithmetic
+sum of the seven component scores. A global score above 5
+indicates poor sleep quality. Verify that the global score you
+enter matches the sum of the seven components before saving.
+
+**Validation:** each component score must be between 0 and 3;
+the global score must be between 0 and 21. The system enforces
+these constraints.
+
+---
+
+### 5.7 Adverse Events Form (`AE-NNN`)
+
+Create one record per adverse event. If the same event recurs
+after full resolution, create a second record.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Matching `PRAZ-S-NNN` |
+| AE Record ID | `AE-NNN` per the convention in Section 4 |
+| Onset Date | Date the adverse event began |
+| Resolution Date | Date the adverse event resolved; leave blank if ongoing |
+| AE Term | Standardised adverse event term (use MedDRA preferred term if available) |
+| Severity | `mild`, `moderate`, `severe`, or `life_threatening` |
+| Serious AE | `yes` if the event meets protocol-defined SAE criteria; `no` otherwise |
+| Relatedness | `yes`, `no`, `possibly`, or `probably` per investigator assessment |
+| Action Taken | `none`, `dose_reduced`, `dose_interrupted`, `drug_discontinued`, or `other` |
+| Outcome | `resolved`, `ongoing`, `resolved_with_sequelae`, or `fatal` |
+| Notes | Additional clinical detail |
+
+**Validation:** the resolution date, if entered, must fall on or
+after the onset date.
+
+**SAE reporting:** if Serious AE is `yes`, immediately notify
+Professor Smith and complete the institutional SAE reporting form
+per the study protocol. The ZZedc record documents the event but
+does not substitute for regulatory SAE notification.
+
+---
+
+### 5.8 Concomitant Meds Form (`MED-NNN`)
+
+Create one record per concomitant medication per subject. Update
+the stop date when a medication is discontinued.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Matching `PRAZ-S-NNN` |
+| Medication Record ID | `MED-NNN` per the convention in Section 4 |
+| Medication Name | Generic or brand name |
+| Indication | Clinical reason the subject is taking this medication |
+| Start Date | Date the medication was initiated |
+| Stop Date | Date the medication was discontinued; leave blank if ongoing |
+| Dose | Dose and unit, e.g., `10 mg` |
+| Route | `oral`, `topical`, `iv`, `im`, or `other` |
+| Ongoing | `yes` if the medication is currently being taken; `no` if discontinued |
+| Notes | Additional notes |
+
+**Validation:** the stop date, if entered, must fall on or after
+the start date.
+
+Collect a complete concomitant medication list at screening and
+update it at each visit. Pay particular attention to any
+alpha-blocker medications, as these represent an exclusion
+criterion and should have been captured at enrollment.
+
+---
+
+### 5.9 Visits Form
+
+Create one visit record per scheduled study contact. Update the
+record at the time of the visit or within 24 hours.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Matching `PRAZ-S-NNN` |
+| Visit Number | 1 through 6 per the study schedule |
+| Visit Date | Date the visit occurred or was attempted |
+| Visit Type | `screening`, `baseline`, `week4`, `week8`, `week12`, `end_of_study`, or `early_termination` |
+| Completed | `yes` if the visit was completed as planned; `no` if not |
+| Reason Not Completed | Required if Completed is `no`; describe why |
+| Study Status | `ongoing`, `completed`, `withdrawn`, or `lost_to_followup` |
+| Withdrawal Reason | Required if Study Status is `withdrawn`; describe the reason |
+| Notes | Additional notes |
+
+**Study schedule summary:**
+
+| Visit Number | Visit Type | Approximate Timing |
+|---|---|---|
+| 1 | screening | Day -14 to Day -1 |
+| 2 | baseline | Day 0 (randomization) |
+| 3 | week4 | Week 4 |
+| 4 | week8 | Week 8 |
+| 5 | week12 | Week 12 |
+| 6 | end_of_study | Week 12 or at early termination |
+
+---
+
+## 6. Recommended Data Entry Cadence
+
+Entering data at the time of the activity prevents recall errors
+and reduces the burden of batch reconstruction.
+
+| Activity | When to enter or update |
+|---|---|
+| Subject screening contact | Day of screening, before consent if applicable |
+| Informed consent obtained | Same day; update consent date on enrollment form |
+| Eligibility determination | Same day as eligibility review |
+| Randomization | Same day; enter code immediately after pharmacy contact |
+| Drug dispensed | Same day as dispensing visit |
+| PSQI administered | Same day as visit |
+| AE identified | Same day; update outcome and resolution when known |
+| Concomitant med change | Same day as change is identified or reported |
+| Visit completed or missed | Within 24 hours of the visit date |
+| Subject withdrawal | Same day as withdrawal discussion |
+
+A weekly five-minute review of open records (AEs without a
+resolution date, ongoing concomitant meds, visits with
+incomplete status) is sufficient to keep the database current.
+
+---
+
+## 7. Reviewing Data
+
+The **Data Explorer** tab in the top navigation bar provides a
+consolidated view across all seven forms.
+
+Useful features:
+
+- **Filter by subject ID** to review all data for a single
+  subject across forms.
+- **Filter by form** using the form-code selector.
+- **Sort any column** by clicking the column header.
+- **Search** by keyword to locate a specific adverse event term
+  or medication name.
+
+Use the Data Explorer at each visit to review a subject's prior
+records before entering new data. This reduces duplicate entries
+and ensures dates are consistent.
+
+---
+
+## 8. Reports
+
+The **Reports** tab provides summary counts and timelines. The
+following reports are most relevant to study operations:
+
+| Report | Use |
+|---|---|
+| Enrollment Summary | Screened vs enrolled vs screen-failed counts |
+| Compliance Summary | Mean compliance by subject and visit |
+| AE Summary | AE counts by severity and relatedness |
+| Visit Completion | Visit completion rates by visit number |
+
+Run the Enrollment Summary weekly and share with Professor Smith
+during study team meetings.
+
+---
+
+## 9. Exporting Data
+
+When exporting data for a data safety monitoring review, protocol
+deviation report, or sponsor query:
+
+1. Open the **Export Center** tab.
+2. Select the form or forms to export.
+3. Choose your preferred format: Excel for working review,
+   CSV for import into statistical software.
+4. Click **Export**. The file downloads to your browser's
+   default download folder.
+
+The audit log records every export with your username and
+timestamp. Do not share raw exports outside the study team
+without PI approval.
+
+---
+
+## 10. Troubleshooting
+
+**The application will not launch.** Close the browser, stop any
+existing R session, and re-run `launch_zzedc()` in a fresh R
+session. If port 3838 is occupied, contact the lab data
+scientist.
+
+**A save fails with a validation error.** Read the red banner
+message; it identifies the field and the rule that was violated.
+The most common causes are a date out of order (randomization
+before consent, AE resolution before onset) or a required field
+left empty.
+
+**A record appears to be missing.** Use the Data Explorer
+search box. Records are not deleted from the database; if the
+record was saved, it is present.
+
+**The PSQI global score does not match the sum of components.**
+The system stores the value you entered, not a calculated
+total. If you detect a discrepancy during review, edit the
+record to correct either the components or the global score,
+whichever is erroneous, and document the correction in the
+notes field.
+
+**You forgot your password.** Contact the lab data scientist.
+Passwords are hashed and cannot be recovered, but an
+administrator can reset the account credentials.
+
+**An SAE needs to be reported.** Complete the ZZedc record as
+described in Section 5.7. Then follow the institutional SAE
+reporting procedure and notify Professor Smith immediately.
+The ZZedc system is not a regulatory reporting tool.
+
+---
+
+## 11. Glossary
+
+- **Subject ID**: the unique identifier assigned at first
+  contact with format `PRAZ-S-NNN`.
+- **AE Record ID**: the unique identifier for each adverse
+  event record, format `AE-NNN`.
+- **Medication Record ID**: the unique identifier for each
+  concomitant medication record, format `MED-NNN`.
+- **Inclusion criterion (IC)**: a condition the subject must
+  meet to be eligible for enrolment.
+- **Exclusion criterion (EC)**: a condition that disqualifies a
+  subject from enrolment.
+- **Screen failure**: formal determination that a subject does
+  not meet eligibility criteria after screening procedures.
+- **PSQI**: Pittsburgh Sleep Quality Index; a validated
+  19-item self-report questionnaire assessing sleep quality
+  over the past month. Global scores range from 0 to 21;
+  scores above 5 indicate clinically poor sleep.
+- **SAE**: serious adverse event; an AE meeting one or more
+  regulatory criteria for seriousness (hospitalisation, life
+  threat, disability, death, etc.).
+- **Audit log**: a system-maintained record of every change to
+  the database, including user, timestamp, and previous value.
+  You do not need to manage it; it runs automatically.
+- **Compliance percentage**: calculated as
+  ((doses dispensed - doses returned) / doses expected) x 100.

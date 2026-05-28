@@ -1,0 +1,400 @@
+---
+title: 'Promotion Review Tracker: User Guide'
+subtitle: 'Day-to-day data entry reference for the lab assistant'
+date: '`r Sys.Date()`'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Promotion Review Tracker: User Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+This guide is written for the faculty member's administrative
+assistant, who is responsible for day-to-day data entry and
+record maintenance in the Promotion Review Tracker. The tracker
+is a ZZedc application configured to monitor the faculty
+member's academic progress across research, teaching, and
+service domains in preparation for an upcoming promotion review.
+No knowledge of R, databases, or ZZedc internals is required. A
+lab data scientist has installed and configured the system; this
+guide covers everything the assistant will do day to day.
+
+---
+
+## 1. Launching the Application
+
+Open a terminal or RStudio console and run:
+
+```{r}
+library(zzedc)
+launch_zzedc()
+```
+
+The application opens in your default browser at
+`http://localhost:3838`. Keep the console open while you work;
+closing it stops the server.
+
+If you prefer a persistent local installation that starts
+automatically, ask the lab data scientist to configure
+auto-launch on login.
+
+---
+
+## 2. Logging In
+
+Enter your username and password on the login screen. On your
+first login you will be prompted to change the initial password.
+Choose a password you will remember; it is not recoverable
+without the lab data scientist's help.
+
+If the application shows a session-timeout warning, save your
+current entry before clicking away. Unsaved form fields are lost
+on timeout.
+
+---
+
+## 3. Application Layout
+
+The left sidebar contains seven tabs, one per tracking domain:
+
+| Tab | What it tracks |
+|---|---|
+| Publications | Manuscripts from idea to print |
+| Courses | Courses developed or taught |
+| Mentoring | One-on-one student tutorials |
+| Grant Reviews | External grant panels served |
+| Committees | Departmental and national committees |
+| Journal Reviews | Peer review assignments completed |
+| DSMB | Data safety monitoring board memberships |
+
+The top navigation bar also provides access to the Data Explorer
+(for browsing all your records at once), the Reports tab, and the
+Export Center.
+
+---
+
+## 4. Entering Data
+
+### How to create a new entry
+
+1. Click the relevant tab in the left sidebar.
+2. Click the **New Record** button (top right of the form panel).
+3. Assign a tracking ID following the convention for that domain
+   (see each section below).
+4. Fill in the fields. Required fields are marked with a red
+   asterisk and will block the save if left empty.
+5. Click **Save**. A green confirmation banner appears if the
+   save succeeded. A red banner describes any validation errors.
+
+### How to edit an existing entry
+
+Click the record in the table at the top of the tab, then edit
+the fields that have changed and click **Save**.
+
+---
+
+### 4.1 Publications (`PUB-YYYY-NNN`)
+
+Use this form to track every manuscript from initial concept
+through publication. Create one record per manuscript.
+
+**Tracking ID convention:** `PUB-2026-001`, `PUB-2026-002`, ...
+Reset the counter each calendar year.
+
+| Field | What to enter |
+|---|---|
+| Tracking ID | Unique identifier, format `PUB-YYYY-NNN` |
+| Title | Working or final manuscript title |
+| Target Journal | Journal of intended submission |
+| Co-authors | Comma-separated list of co-author surnames |
+| Status | Current stage (see status list below) |
+| Submission Date | Date the manuscript was first submitted |
+| Acceptance Date | Date of formal acceptance notice |
+| Publication Date | Date of online or print publication |
+| DOI | Digital object identifier once assigned |
+| Notes | Any notes relevant to the promotion dossier |
+
+**Status options** (choose one):
+
+- `ideation` -- concept stage, not yet drafted
+- `drafting` -- active writing in progress
+- `submitted` -- submitted to a journal, awaiting desk decision
+- `under_review` -- sent to external reviewers
+- `revision` -- revision requested; manuscript in progress
+- `accepted` -- accepted; in production queue
+- `in_press` -- accepted and assigned a DOI; not yet in an issue
+- `published` -- assigned to a volume and issue
+
+**Validation:** the system will flag you if the acceptance date
+precedes the submission date, or if the publication date precedes
+the acceptance date.
+
+**Tip:** enter a record at ideation stage and update the status
+field as the manuscript progresses. The Data Explorer will show
+you your full pipeline at a glance.
+
+---
+
+### 4.2 Courses (`CRS-YYYY-NNN`)
+
+Use this form to record every course you developed or taught.
+One record per course per term.
+
+**Tracking ID convention:** `CRS-2026-001`, `CRS-2026-002`, ...
+
+| Field | What to enter |
+|---|---|
+| Tracking ID | Unique identifier |
+| Course Code | Department code and number, e.g., `FMPH 101` |
+| Course Title | Full course title |
+| Academic Year | e.g., `2025-2026` |
+| Term | Fall, Winter, Spring, or Summer |
+| Role | `developed`, `taught`, or `developed_and_taught` |
+| Student Count | Total enrolled students |
+| Contact Hours | Total instructor contact hours for the term |
+| Notes | Curriculum innovations, guest lectures, etc. |
+
+**Contact hours** are the total hours you spent in scheduled
+instructional contact with the class, not preparation time.
+A three-credit lecture course meeting three times per week for
+ten weeks is 30 contact hours.
+
+---
+
+### 4.3 Mentoring (`MNT-YYYY-NNN`)
+
+Use this form to record individual tutorial relationships.
+One record per student.
+
+**Tracking ID convention:** `MNT-2026-001`, `MNT-2026-002`, ...
+
+| Field | What to enter |
+|---|---|
+| Tracking ID | Unique identifier |
+| Student Initials | Initials only (e.g., `J.D.`) |
+| Student Level | undergraduate, graduate, postdoc, or other |
+| Start Date | Date the relationship began |
+| End Date | Date the relationship ended (leave blank if ongoing) |
+| Hours per Week | Approximate weekly tutorial hours |
+| Topic Area | Research area or skill being mentored |
+| Outcome | Degree earned, publication, employment, etc. |
+| Notes | Any notes relevant to the dossier |
+
+**Validation:** the end date, if entered, must fall on or after
+the start date.
+
+---
+
+### 4.4 Grant Reviews (`GNT-YYYY-NNN`)
+
+Use this form to record each external grant review service.
+One record per review assignment.
+
+**Tracking ID convention:** `GNT-2026-001`, `GNT-2026-002`, ...
+
+| Field | What to enter |
+|---|---|
+| Tracking ID | Unique identifier |
+| Agency | Funding agency, e.g., `NIH`, `NSF`, `PCORI` |
+| Program Name | Study section or program name |
+| Panel Name | Panel or review group identifier |
+| Review Date | Date of the review panel meeting or deadline |
+| Role | `reviewer`, `chair`, or `observer` |
+| Notes | Notes relevant to the dossier |
+
+---
+
+### 4.5 Committees (`COM-YYYY-NNN`)
+
+Use this form to record standing or ad-hoc committee
+memberships. One record per committee.
+
+**Tracking ID convention:** `COM-2026-001`, `COM-2026-002`, ...
+
+| Field | What to enter |
+|---|---|
+| Tracking ID | Unique identifier |
+| Committee Name | Official name of the committee |
+| Organization | Institution or body, e.g., `UCSD`, `ASA`, `NIH` |
+| Scope | departmental, institutional, national, or international |
+| Role | Your role, e.g., `member`, `chair`, `secretary` |
+| Start Date | Date your membership began |
+| End Date | Date your membership ended (leave blank if current) |
+| Meeting Frequency | Typical meeting cadence |
+| Active | `yes` if membership is current, `no` if completed |
+| Notes | Notes relevant to the dossier |
+
+**Validation:** the end date, if entered, must fall on or after
+the start date.
+
+---
+
+### 4.6 Journal Reviews (`JRV-YYYY-NNN`)
+
+Use this form to record each peer review assignment.
+One record per manuscript reviewed.
+
+**Tracking ID convention:** `JRV-2026-001`, `JRV-2026-002`, ...
+
+| Field | What to enter |
+|---|---|
+| Tracking ID | Unique identifier |
+| Journal Name | Name of the journal |
+| Manuscript ID | Blinded identifier supplied by the journal |
+| Review Date | Date you submitted your review |
+| Recommendation | Your editorial recommendation |
+| Notes | Notes relevant to the dossier (do not include manuscript details) |
+
+**Recommendation options:** `accept`, `minor_revision`,
+`major_revision`, `reject`, `not_reviewed`.
+
+Use `not_reviewed` if you declined after seeing the abstract.
+This maintains a complete record of all review requests.
+
+---
+
+### 4.7 DSMB Memberships (`DSB-YYYY-NNN`)
+
+Use this form to record data safety monitoring board
+memberships. One record per trial.
+
+**Tracking ID convention:** `DSB-2026-001`, `DSB-2026-002`, ...
+
+| Field | What to enter |
+|---|---|
+| Tracking ID | Unique identifier |
+| Trial Name | Abbreviated or full trial name |
+| Sponsor | Funding agency or industry sponsor |
+| Role | `member`, `chair`, `statistician`, or `other` |
+| Start Date | Date your membership began |
+| End Date | Date your membership ended (leave blank if current) |
+| Meeting Frequency | Typical meeting cadence |
+| Active | `yes` if membership is current, `no` if completed |
+| Notes | Notes relevant to the dossier |
+
+---
+
+## 5. Reviewing Your Data
+
+The **Data Explorer** tab (top navigation bar) provides a
+consolidated view of all records across all seven forms.
+
+Useful features:
+
+- **Filter by date range** to isolate the promotion review
+  period (typically the last three to five years; confirm the
+  exact window with your department).
+- **Filter by domain** using the form-code selector.
+- **Sort any column** by clicking the column header.
+- **Search** for a keyword using the search box to locate a
+  specific manuscript, committee, or journal.
+
+For the publications pipeline, use the status filter to count
+how many manuscripts are in each stage.
+
+---
+
+## 6. Reports
+
+The **Reports** tab provides summary counts and timelines for
+each domain. The following reports are most relevant to the
+promotion review:
+
+| Report | Use |
+|---|---|
+| Activity Summary | Counts per domain per academic year |
+| Publications Pipeline | Status breakdown across manuscripts |
+| Teaching Load | Student counts and contact hours by year |
+| Service Profile | Committee and review counts by year |
+
+Run the Activity Summary report at the start of each semester
+and save a copy as confirmation of your progress.
+
+---
+
+## 7. Exporting Data for the Promotion Dossier
+
+When you are ready to compile the formal dossier:
+
+1. Open the **Export Center** tab.
+2. Select the date range that matches your promotion review
+   window.
+3. Choose your preferred format: Excel for a working
+   spreadsheet, CSV for import into other tools.
+4. Click **Export**. The file downloads to your browser's
+   default download folder.
+
+Export each domain separately for the cleanest output, then
+assemble the individual sheets into the dossier tables your
+department requires.
+
+The audit log records every export. If the promotion committee
+asks for confirmation that the data were not altered after
+export, your technical lead can provide a signed audit extract.
+
+---
+
+## 8. Recommended Data Entry Cadence
+
+Keeping the tracker current takes roughly five to ten minutes per
+entry if done at the time the activity occurs. Batch
+reconstruction is error-prone.
+
+| Activity | When to enter or update |
+|---|---|
+| New manuscript | At conception (status: `ideation`) |
+| Manuscript submission | Same day (update status, add submission date) |
+| Manuscript accepted | Same day (update status, add acceptance date) |
+| Manuscript published | Same day (update status, add DOI, publication date) |
+| Course taught | First week of each term |
+| Mentoring relationship | At start and end |
+| Grant review completed | Same day as review deadline or panel meeting |
+| Committee meeting attended | End of each semester |
+| Journal review submitted | Same day |
+| DSMB meeting attended | Day of the meeting |
+
+A monthly five-minute review of open records (manuscripts in
+`under_review` or `revision`, committees with no end date,
+mentoring with no outcome) is sufficient to catch anything
+missed.
+
+---
+
+## 9. Troubleshooting
+
+**The application will not launch.** Close the browser and
+re-run `launch_zzedc()` in a fresh R session. If the port
+3838 is occupied, your lab data scientist can configure an
+alternate port.
+
+**A save fails with a validation error.** Read the red banner
+message; it identifies the field and what is wrong. The most
+common causes are a date out of order (acceptance before
+submission) or a required field left empty.
+
+**A record is missing.** Use the Data Explorer search box.
+Records are not deleted from the database; if it was saved, it
+is there.
+
+**You forgot your password.** Contact the lab data scientist.
+Passwords are hashed and cannot be recovered, but an
+administrator can reset the account.
+
+---
+
+## 10. Glossary
+
+- **Tracking ID**: the unique identifier you assign to each
+  entry. Follow the domain prefix conventions in Section 4.
+- **Status**: the current lifecycle stage of a manuscript.
+- **Contact hours**: total scheduled instructor-student contact
+  time for a course, not including preparation.
+- **Audit log**: a system-maintained record of every change to
+  the database. You do not need to manage it; it runs
+  automatically.
+- **Export Center**: the application tab for downloading your
+  data as Excel or CSV files.

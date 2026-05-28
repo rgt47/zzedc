@@ -1,0 +1,20 @@
+rule_id,form_code,rule_type,expression,error_message,is_active
+RAND_AFTER_CONSENT,randomization,CROSS_FIELD,randomization_date >= consent_date,Randomization date must be on or after consent date,TRUE
+PSQI_GLOBAL_RANGE,sleep_psqi,FIELD,psqi_global between 0 and 21,PSQI global score must be between 0 and 21,TRUE
+PSQI_COMP1_RANGE,sleep_psqi,FIELD,psqi_1_sleep_quality between 0 and 3,PSQI component 1 score must be between 0 and 3,TRUE
+PSQI_COMP2_RANGE,sleep_psqi,FIELD,psqi_2_sleep_latency between 0 and 3,PSQI component 2 score must be between 0 and 3,TRUE
+PSQI_COMP3_RANGE,sleep_psqi,FIELD,psqi_3_sleep_duration between 0 and 3,PSQI component 3 score must be between 0 and 3,TRUE
+PSQI_COMP4_RANGE,sleep_psqi,FIELD,psqi_4_sleep_efficiency between 0 and 3,PSQI component 4 score must be between 0 and 3,TRUE
+PSQI_COMP5_RANGE,sleep_psqi,FIELD,psqi_5_sleep_disturbance between 0 and 3,PSQI component 5 score must be between 0 and 3,TRUE
+PSQI_COMP6_RANGE,sleep_psqi,FIELD,psqi_6_sleep_medication between 0 and 3,PSQI component 6 score must be between 0 and 3,TRUE
+PSQI_COMP7_RANGE,sleep_psqi,FIELD,psqi_7_daytime_dysfunction between 0 and 3,PSQI component 7 score must be between 0 and 3,TRUE
+AE_RESOLUTION_AFTER_ONSET,adverse_events,CROSS_FIELD,"if resolution_date != """" then resolution_date >= onset_date endif",AE resolution date must be on or after onset date,TRUE
+MED_STOP_AFTER_START,concomitant_meds,CROSS_FIELD,"if stop_date != """" then stop_date >= start_date endif",Medication stop date must be on or after start date,TRUE
+COMPLIANCE_RANGE,study_drug,FIELD,"if compliance_pct != """" then compliance_pct between 0 and 100 endif",Compliance percentage must be between 0 and 100,TRUE
+SITE_ID_ENROLLMENT,enrollment,FIELD,"site_id in(UCSD,UCLA,UCSF,Stanford)",Site ID must be one of: UCSD, UCLA, UCSF, Stanford,TRUE
+SITE_ID_RANDOMIZATION,randomization,FIELD,"site_id in(UCSD,UCLA,UCSF,Stanford)",Site ID must be one of: UCSD, UCLA, UCSF, Stanford,TRUE
+SITE_ID_STUDY_DRUG,study_drug,FIELD,"site_id in(UCSD,UCLA,UCSF,Stanford)",Site ID must be one of: UCSD, UCLA, UCSF, Stanford,TRUE
+SITE_ID_SLEEP_PSQI,sleep_psqi,FIELD,"site_id in(UCSD,UCLA,UCSF,Stanford)",Site ID must be one of: UCSD, UCLA, UCSF, Stanford,TRUE
+SITE_ID_AE,adverse_events,FIELD,"site_id in(UCSD,UCLA,UCSF,Stanford)",Site ID must be one of: UCSD, UCLA, UCSF, Stanford,TRUE
+SITE_ID_CONMEDS,concomitant_meds,FIELD,"site_id in(UCSD,UCLA,UCSF,Stanford)",Site ID must be one of: UCSD, UCLA, UCSF, Stanford,TRUE
+SITE_ID_VISITS,visits,FIELD,"site_id in(UCSD,UCLA,UCSF,Stanford)",Site ID must be one of: UCSD, UCLA, UCSF, Stanford,TRUE

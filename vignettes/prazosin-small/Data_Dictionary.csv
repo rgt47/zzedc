@@ -1,0 +1,73 @@
+form_code,field_name,field_label,field_type,required,validation,description,field_order
+enrollment,subject_id,Subject ID,text,TRUE,,Format: PRAZ-S-NNN,10
+enrollment,site_id,Site ID,text,TRUE,,Study site identifier,20
+enrollment,consent_date,Consent Date,date,TRUE,,Date informed consent was obtained,30
+enrollment,dob,Date of Birth,date,TRUE,,Subject date of birth,40
+enrollment,sex,Sex,radio,TRUE,"in(male,female,other_or_prefer_not)",Biological sex or preferred response,50
+enrollment,diagnosis,Diagnosis,text,TRUE,,Primary sleep complaint diagnosis,60
+enrollment,ic1_age_18_plus,IC1: Age 18 or Older,radio,TRUE,"in(yes,no)",Inclusion criterion: subject is 18 years of age or older,70
+enrollment,ic2_sleep_complaint,IC2: Sleep Complaint,radio,TRUE,"in(yes,no)",Inclusion criterion: subject reports clinically significant sleep complaint,80
+enrollment,ic3_stable_meds,IC3: Stable Medications,radio,TRUE,"in(yes,no)",Inclusion criterion: medications stable for at least 30 days prior to enrolment,90
+enrollment,ec1_alpha_blocker,EC1: Alpha-Blocker Use,radio,TRUE,"in(yes,no)",Exclusion criterion: current use of any alpha-blocker medication,100
+enrollment,ec2_pregnancy,EC2: Pregnancy,radio,TRUE,"in(yes,no)",Exclusion criterion: current pregnancy or intent to become pregnant,110
+enrollment,eligible,Eligibility Determination,radio,TRUE,"in(yes,no,screen_failure)",Overall eligibility status following IC/EC review,120
+enrollment,screen_failure_reason,Screen Failure Reason,text,FALSE,,Reason for screen failure if eligible is screen_failure,130
+enrollment,notes,Notes,text,FALSE,,Additional clinical notes,140
+randomization,subject_id,Subject ID,text,TRUE,,Format: PRAZ-S-NNN,10
+randomization,site_id,Site ID,text,TRUE,,Study site identifier,20
+randomization,randomization_date,Randomization Date,date,TRUE,,Date the subject was randomized,30
+randomization,treatment_arm,Treatment Arm,radio,TRUE,"in(prazosin,placebo)",Assigned treatment allocation,40
+randomization,randomization_code,Randomization Code,text,TRUE,,Sealed randomization code assigned by pharmacy,50
+randomization,randomized_by,Randomized By,text,TRUE,,Username of study staff who completed randomization,60
+randomization,notes,Notes,text,FALSE,,Additional notes,70
+study_drug,subject_id,Subject ID,text,TRUE,,Format: PRAZ-S-NNN,10
+study_drug,visit_date,Visit Date,date,TRUE,,Date of drug dispensing or review visit,20
+study_drug,dose_mg,Dose (mg),radio,TRUE,"in(1,2,4,6)",Prescribed dose in milligrams,30
+study_drug,doses_dispensed,Doses Dispensed,numeric,TRUE,between 1 and 200,Number of doses dispensed at this visit,40
+study_drug,doses_returned,Doses Returned,numeric,TRUE,between 0 and 200,Number of doses returned at this visit,50
+study_drug,compliance_pct,Compliance Percentage,numeric,TRUE,between 0 and 100,Calculated medication compliance percentage,60
+study_drug,dose_change,Dose Change,radio,TRUE,"in(yes,no)",Whether a dose change occurred at this visit,70
+study_drug,dose_change_reason,Dose Change Reason,text,FALSE,,Clinical reason for dose change if applicable,80
+study_drug,notes,Notes,text,FALSE,,Additional notes,90
+sleep_psqi,subject_id,Subject ID,text,TRUE,,Format: PRAZ-S-NNN,10
+sleep_psqi,visit_date,Visit Date,date,TRUE,,Date the PSQI was administered,20
+sleep_psqi,visit_number,Visit Number,numeric,TRUE,between 1 and 6,Study visit number at which PSQI was collected,30
+sleep_psqi,psqi_1_sleep_quality,PSQI 1: Subjective Sleep Quality,radio,TRUE,"in(0,1,2,3)",Component 1: subjective overall sleep quality (0=very good; 3=very bad),40
+sleep_psqi,psqi_2_sleep_latency,PSQI 2: Sleep Latency,radio,TRUE,"in(0,1,2,3)",Component 2: time to fall asleep (0=<15 min; 3=>60 min),50
+sleep_psqi,psqi_3_sleep_duration,PSQI 3: Sleep Duration,radio,TRUE,"in(0,1,2,3)",Component 3: hours of actual sleep (0=>7 hrs; 3=<5 hrs),60
+sleep_psqi,psqi_4_sleep_efficiency,PSQI 4: Habitual Sleep Efficiency,radio,TRUE,"in(0,1,2,3)",Component 4: time in bed vs time asleep (0=>85%; 3=<65%),70
+sleep_psqi,psqi_5_sleep_disturbance,PSQI 5: Sleep Disturbances,radio,TRUE,"in(0,1,2,3)",Component 5: frequency of sleep-disturbing events (0=not during past month; 3=3+ times/week),80
+sleep_psqi,psqi_6_sleep_medication,PSQI 6: Use of Sleep Medication,radio,TRUE,"in(0,1,2,3)",Component 6: frequency of sleep medication use (0=not during past month; 3=3+ times/week),90
+sleep_psqi,psqi_7_daytime_dysfunction,PSQI 7: Daytime Dysfunction,radio,TRUE,"in(0,1,2,3)",Component 7: daytime sleepiness and motivation impairment (0=no problem; 3=very big problem),100
+sleep_psqi,psqi_global,PSQI Global Score,numeric,TRUE,between 0 and 21,Sum of the seven component scores; higher scores indicate worse sleep quality,110
+sleep_psqi,notes,Notes,text,FALSE,,Additional clinical notes,120
+adverse_events,subject_id,Subject ID,text,TRUE,,Format: PRAZ-S-NNN,10
+adverse_events,ae_id,AE Record ID,text,TRUE,,Format: AE-NNN,20
+adverse_events,onset_date,Onset Date,date,TRUE,,Date the adverse event began,30
+adverse_events,resolution_date,Resolution Date,date,FALSE,,Date the adverse event resolved; leave blank if ongoing,40
+adverse_events,ae_term,AE Term,text,TRUE,,Standardised adverse event term,50
+adverse_events,severity,Severity,radio,TRUE,"in(mild,moderate,severe,life_threatening)",Severity grade per protocol definitions,60
+adverse_events,serious,Serious AE,radio,TRUE,"in(yes,no)",Whether the event meets serious adverse event criteria,70
+adverse_events,related,Relatedness to Study Drug,radio,TRUE,"in(yes,no,possibly,probably)",Investigator assessment of causal relationship to study drug,80
+adverse_events,action_taken,Action Taken,radio,TRUE,"in(none,dose_reduced,dose_interrupted,drug_discontinued,other)",Clinical action taken in response to the AE,90
+adverse_events,outcome,Outcome,radio,TRUE,"in(resolved,ongoing,resolved_with_sequelae,fatal)",Outcome status of the adverse event,100
+adverse_events,notes,Notes,text,FALSE,,Additional clinical notes,110
+concomitant_meds,subject_id,Subject ID,text,TRUE,,Format: PRAZ-S-NNN,10
+concomitant_meds,med_id,Medication Record ID,text,TRUE,,Format: MED-NNN,20
+concomitant_meds,medication,Medication Name,text,TRUE,,Generic or brand name of the concomitant medication,30
+concomitant_meds,indication,Indication,text,TRUE,,Clinical indication for this medication,40
+concomitant_meds,start_date,Start Date,date,TRUE,,Date the concomitant medication was initiated,50
+concomitant_meds,stop_date,Stop Date,date,FALSE,,Date the concomitant medication was discontinued; leave blank if ongoing,60
+concomitant_meds,dose,Dose,text,FALSE,,Dose and unit (e.g. 10 mg),70
+concomitant_meds,route,Route,radio,FALSE,"in(oral,topical,iv,im,other)",Route of administration,80
+concomitant_meds,ongoing,Ongoing,radio,TRUE,"in(yes,no)",Whether the medication is currently being taken,90
+concomitant_meds,notes,Notes,text,FALSE,,Additional notes,100
+visits,subject_id,Subject ID,text,TRUE,,Format: PRAZ-S-NNN,10
+visits,visit_number,Visit Number,numeric,TRUE,between 1 and 6,Sequential study visit number,20
+visits,visit_date,Visit Date,date,TRUE,,Date the visit occurred,30
+visits,visit_type,Visit Type,radio,TRUE,"in(screening,baseline,week4,week8,week12,end_of_study,early_termination)",Type of visit per the study schedule,40
+visits,completed,Completed,radio,TRUE,"in(yes,no)",Whether the visit was completed as scheduled,50
+visits,reason_not_completed,Reason Not Completed,text,FALSE,,Reason if the visit was not completed,60
+visits,study_status,Study Status,radio,TRUE,"in(ongoing,completed,withdrawn,lost_to_followup)",Subject's current study participation status at this visit,70
+visits,withdrawal_reason,Withdrawal Reason,text,FALSE,,Reason for withdrawal if study_status is withdrawn,80
+visits,notes,Notes,text,FALSE,,Additional notes,90

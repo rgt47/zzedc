@@ -1,0 +1,577 @@
+---
+title: 'Prazosin Sleep Study (Large): Technical Setup Guide'
+subtitle: >
+  Multi-site installation, configuration, and maintenance
+  for the lab data scientist -- Protocol PRAZ-L-2026
+date: '`r Sys.Date()`'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Prazosin Sleep Study (Large): Technical Setup Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+*2026-05-26 16:46 PDT*
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+This guide is written for the lab data scientist responsible for
+installing, configuring, and maintaining the Prazosin Sleep Study
+(Large) EDC system, protocol PRAZ-L-2026. The system is a ZZedc
+installation tracking a 200-subject, four-site, randomised
+double-blind placebo-controlled trial evaluating prazosin versus
+placebo for sleep quality. The primary outcome is change in PSQI
+global score from baseline to week 12.
+
+This deployment differs materially from a single-site
+installation. Four site coordinators require separate accounts
+scoped to their respective sites. The principal investigator
+(Professor Smith) requires cross-site read access. Site-scoped
+access is enforced at the record level through the `site_id` field,
+which is required on all seven forms and is validated against the
+coordinator's account `site_id`. Architectural decisions specific
+to multi-site deployments are discussed throughout.
+
+The companion document for site coordinators is
+`vignette('prazosin-large-user-guide')`. After setup, distribute
+that guide to each coordinator along with their credentials and
+the application URL.
+
+---
+
+## 1. Prerequisites
+
+- R 4.4 or later
+- RStudio (recommended) or any terminal with R on `PATH`
+- The `pak` package: `install.packages('pak')`
+- A local working directory for the project, hereafter called
+  `~/prj/praz-large/`
+- For shared-server deployment (recommended for multi-site
+  trials): a Linux host with R 4.4+, Shiny Server or
+  Posit Connect, and HTTPS configured (see Section 3.2)
+
+---
+
+## 2. Installation
+
+```{r}
+pak::pak('zzedc')
+```
+
+Verify the installation:
+
+```{r}
+library(zzedc)
+packageVersion('zzedc')
+```
+
+---
+
+## 3. Deployment Architecture
+
+### 3.1 Local deployment (single workstation)
+
+A local SQLite deployment on one workstation is viable for
+single-site pilots but is not recommended for a four-site trial.
+Coordinators at remote sites would need either VPN access to the
+workstation or a separately deployed instance per site. Neither
+arrangement is advisable at scale.
+
+Use local deployment only during development and testing before
+the shared server is ready.
+
+### 3.2 Shared server deployment (recommended)
+
+Deploy a single ZZedc instance on a shared server accessible
+to all four sites over HTTPS. This architecture provides:
+
+- A single database with complete cross-site visibility for
+  the PI.
+- Site-scoped views for each coordinator enforced by the
+  application layer.
+- A centralised audit log covering all sites.
+- One backup target rather than four.
+
+Minimum server requirements: 2 CPU cores, 4 GB RAM, 20 GB
+disk. Shiny Server Open Source is sufficient; Posit Connect
+provides additional authentication options if your institution
+has a licence.
+
+Set `enforce_https: true` in `zzedc_config.yml` for any
+deployment accessible over a network. Never transmit credentials
+over HTTP.
+
+**URL convention:** deploy at a path that identifies the
+protocol, for example `https://<hostname>/praz-large/`.
+Communicate this URL to all five users before the first
+data entry session.
+
+---
+
+## 4. Project Directory
+
+Create the project directory:
+
+```{r}
+dir.create('~/prj/praz-large', recursive = TRUE)
+setwd('~/prj/praz-large')
+```
+
+On a shared server, this directory should reside on a volume
+included in your institution's backup infrastructure. Do not
+place it on a user's home directory if that directory is not
+backed up.
+
+---
+
+## 5. Configuration File
+
+Create `~/prj/praz-large/zzedc_config.yml`. Replace all
+placeholder values before first use.
+
+```yaml
+study:
+  name: "Prazosin Sleep Study (Large)"
+  protocol_id: "PRAZ-L-2026"
+  pi_name: "Professor Smith"
+  pi_email: "psmith@university.edu"
+  target_enrollment: 200
+  phase: "Phase II"
+
+admin:
+  username: "psmith"
+  fullname: "Professor Smith"
+  email: "psmith@university.edu"
+  password: "ChangeMeToSecurePassword123!"
+
+security:
+  session_timeout_minutes: 60
+  enforce_https: true
+  max_failed_login_attempts: 10
+
+compliance:
+  gdpr_enabled: false
+  cfr_part11_enabled: false
+  audit_logging_enabled: true
+
+database:
+  type: "sqlite"
+  pool_size: 5
+```
+
+Notes on these settings:
+
+- `pool_size: 5` accommodates five concurrent users
+  (one per account). Increase if additional read-only accounts
+  are added later.
+- `enforce_https: true` is required for any network-accessible
+  deployment. Set to `false` only during local development.
+- `target_enrollment: 200` reflects the protocol-specified
+  ceiling of 50 subjects per site across four sites.
+- GDPR and 21 CFR Part 11 modules are disabled. The audit log
+  remains active regardless.
+
+Initialise the database:
+
+```{r}
+library(zzedc)
+setwd('~/prj/praz-large')
+zzedc::init(mode = 'config', config_file = 'zzedc_config.yml')
+```
+
+---
+
+## 6. User Accounts
+
+The study requires five accounts. Account creation is the
+critical multi-site distinction from a single-site setup:
+each coordinator account must have `site_id` set to its
+assigned site, not `ALL`. The PI account uses `ALL` to
+enable cross-site read access.
+
+### 6.1 Study_Users.csv
+
+The template CSV ships with the package at
+`vignettes/prazosin-large/Study_Users.csv`. Copy it to your
+project directory and replace the placeholder passwords before
+importing:
+
+```{r}
+pkg_dir <- system.file(
+  'vignettes/prazosin-large',
+  package = 'zzedc'
+)
+file.copy(
+  list.files(pkg_dir, pattern = '\\.csv$', full.names = TRUE),
+  '~/prj/praz-large/'
+)
+```
+
+The five accounts and their site scopes are:
+
+| Username | Role | Site | Access scope |
+|---|---|---|---|
+| `psmith` | Admin | ALL | All sites; admin functions |
+| `ucsd_coord` | Coordinator | UCSD | UCSD records only |
+| `ucla_coord` | Coordinator | UCLA | UCLA records only |
+| `ucsf_coord` | Coordinator | UCSF | UCSF records only |
+| `stanford_coord` | Coordinator | Stanford | Stanford records only |
+
+### 6.2 Site-scoped access enforcement
+
+ZZedc enforces site scope as follows:
+
+- On **read**: the Data Explorer and all form tables filter
+  records to those whose `site_id` matches the logged-in
+  user's `site_id`. The PI (`site_id = ALL`) sees all records.
+- On **write**: before saving any record, the application
+  validates that the record's `site_id` matches the user's
+  account `site_id`. Records that fail this check are rejected
+  with a descriptive error message, regardless of whether the
+  validation DSL rules pass.
+
+This dual enforcement means that a coordinator cannot accidentally
+enter data under another site's ID, and cannot view another
+site's data even by direct URL manipulation.
+
+### 6.3 Distributing credentials
+
+Distribute initial passwords to coordinators by a channel
+separate from the application URL (e.g., encrypted email or
+institutional password manager). Coordinators will be forced
+to change their initial password on first login.
+
+Document which coordinator account belongs to which person in
+a local access log maintained outside the database.
+
+---
+
+## 7. Data Dictionary and Validation Rules
+
+### 7.1 CSV import path
+
+With the three CSV files in the project directory, import:
+
+```{r}
+library(zzedc)
+setwd('~/prj/praz-large')
+
+setup_zzedc_from_csv(
+  users_csv      = 'Study_Users.csv',
+  dictionary_csv = 'Data_Dictionary.csv',
+  rules_csv      = 'validation_rules.csv',
+  db_path        = 'data/praz-large.db'
+)
+```
+
+### 7.2 Google Sheets import path
+
+Alternatively, share a Google Sheet with the three tabs
+(`Study_Users`, `Data_Dictionary`, `validation_rules`) and run:
+
+```{r}
+library(zzedc)
+setwd('~/prj/praz-large')
+
+setup_zzedc_from_gsheets(
+  sheet_url = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID',
+  db_path   = 'data/praz-large.db'
+)
+```
+
+Run `googlesheets4::gs4_auth()` interactively before the
+first import if you have not previously authenticated.
+
+### 7.3 Data dictionary summary
+
+The data dictionary defines seven forms across 79 field
+definitions. Every form includes `site_id` as a required
+select field with allowed values `UCSD`, `UCLA`, `UCSF`,
+`Stanford`. This field is the linchpin of the multi-site
+isolation mechanism and must not be removed or made optional.
+
+### 7.4 Validation rules summary
+
+Nineteen validation rules are defined:
+
+- One cross-field rule: randomization date >= consent date.
+- Nine PSQI range rules: global score 0--21; each of the seven
+  components 0--3.
+- Two conditional date-ordering rules: AE resolution >=
+  onset; medication stop >= start.
+- One conditional range rule: compliance percentage 0--100.
+- Seven site_id membership rules: one per form, enforcing
+  `site_id in(UCSD, UCLA, UCSF, Stanford)`.
+
+The site_id rules are redundant with the application-layer
+enforcement described in Section 6.2, but provide a second
+layer of protection against data entry errors and any
+client-side bypass.
+
+### 7.5 Checking the import log
+
+Review the import output before proceeding. Common issues:
+
+| Message | Cause | Fix |
+|---|---|---|
+| `Skipped rule: <rule_id>` | DSL syntax error | Re-check the `expression` cell against DSL patterns in the Content-Author Guide |
+| `Unknown field type: <type>` | Typo in `field_type` | Allowed types: `text`, `numeric`, `date`, `select`, `radio`, `checkbox` |
+| `Tab not found: Study_Users` | Tab name mismatch | Rename to exactly `Study_Users` |
+| `No rows in Data_Dictionary` | Empty row before end of data | Delete the empty row and re-import |
+
+---
+
+## 8. Verification
+
+### 8.1 Launch and inspect
+
+```{r}
+launch_zzedc()
+```
+
+Log in as `psmith` with the initial password from
+`zzedc_config.yml`. You will be prompted to change it on
+first login.
+
+Navigate to **Admin > Forms** and confirm that all seven
+forms appear: `enrollment`, `randomization`, `study_drug`,
+`sleep_psqi`, `adverse_events`, `concomitant_meds`, `visits`.
+
+Click into each form and verify:
+
+- `site_id` is a required select field with exactly four
+  options: `UCSD`, `UCLA`, `UCSF`, `Stanford`.
+- All other required fields display a red asterisk.
+- Select and radio fields show the correct options.
+
+### 8.2 Site-scope dry run
+
+Log out and log back in as each coordinator account in turn.
+For each account:
+
+1. Confirm the Data Explorer shows no records (the database
+   is empty at this point).
+2. Create one synthetic enrollment record with `site_id`
+   set to the correct site for that account. Confirm the
+   save succeeds.
+3. Attempt to create a second synthetic record with
+   `site_id` set to a different site. Confirm the system
+   rejects the save with a site-mismatch error.
+
+Delete all synthetic records after the dry run. Log back in
+as `psmith` to confirm the admin account can see records
+from all sites.
+
+### 8.3 Validation dry run
+
+While logged in as a coordinator, attempt to save:
+
+- A randomization date before the subject's consent date
+  (expect `RAND_AFTER_CONSENT` error).
+- A PSQI global score of 22 (expect `PSQI_GLOBAL_RANGE`
+  error).
+- An AE resolution date before the onset date (expect
+  `AE_RESOLUTION_AFTER_ONSET` error).
+- A compliance percentage of 110 (expect `COMPLIANCE_RANGE`
+  error).
+
+Confirm that each produces the expected error message from
+`validation_rules.csv`.
+
+### 8.4 Audit log integrity check
+
+```{r}
+library(zzedc)
+setwd('~/prj/praz-large')
+
+verify_audit_log_integrity(db_path = 'data/praz-large.db')
+```
+
+Expected output: `Audit chain intact. N entries verified.`
+Run this check after the dry run and again after any bulk
+data migration.
+
+---
+
+## 9. Backup Strategy
+
+A multi-site trial introduces additional backup obligations.
+All five user accounts interact with a single database, so the
+backup strategy is the same as for a single-site deployment
+(one database file), but the consequences of data loss are
+proportionally greater.
+
+### 9.1 Manual backup
+
+```{r}
+file.copy(
+  'data/praz-large.db',
+  paste0(
+    'backups/praz-large_',
+    format(Sys.time(), '%Y%m%d'),
+    '.db'
+  )
+)
+```
+
+### 9.2 Automated daily backup via cron (Linux server)
+
+On the server hosting the application, add a cron entry:
+
+```
+0 2 * * * Rscript -e "
+  file.copy(
+    '~/prj/praz-large/data/praz-large.db',
+    paste0(
+      '~/prj/praz-large/backups/praz-large_',
+      format(Sys.time(), '%Y%m%d'),
+      '.db'
+    )
+  )
+"
+```
+
+This runs at 02:00 server time each night. Adjust the time
+to a low-traffic window for your sites' time zones. With four
+sites potentially across different time zones, 02:00 UTC is
+a reasonable default.
+
+### 9.3 Off-site backup
+
+Copy daily backup files to off-site storage (institutional
+S3 bucket, institution-managed cloud backup service, or
+encrypted Dropbox). A failure on the server must not destroy
+the only copy of the data.
+
+Retain backups for at least the duration of the trial plus
+the regulatory retention period specified in the protocol
+(typically 15 years for clinical trial data under FDA
+regulations). Confirm the retention requirement with your
+institution's regulatory affairs office.
+
+### 9.4 Restore from backup
+
+Stop the Shiny session before restoring:
+
+```{r}
+file.copy(
+  'backups/praz-large_20260515.db',
+  'data/praz-large.db',
+  overwrite = TRUE
+)
+```
+
+Restart `launch_zzedc()` after the restore completes.
+Notify all five users of the restore and the data cutoff
+date so they can re-enter any records lost since the last
+backup.
+
+---
+
+## 10. Updating the Data Dictionary After Go-Live
+
+**Adding or changing validation rules:** edit
+`validation_rules.csv` and re-run the import command. The
+import merges new rules and updates changed rules without
+deleting existing subject data. Inform all coordinators of
+any rule changes that affect their data entry workflow.
+
+**Adding a new field:** add the row to `Data_Dictionary.csv`
+and re-run the import. New fields appear as optional by
+default. Existing records will show the new field as blank
+until updated.
+
+**Changing a field type** after data have been entered is not
+supported by the importer. Contact the ZZedc maintainer for
+a migration path.
+
+**Modifying site_id options:** changing the allowed values in
+the `site_id` validation requires a data migration for any
+records already saved with the old values. Do not add or
+remove sites mid-trial without a formal protocol amendment
+and a documented data migration plan.
+
+---
+
+## 11. Directory Structure (Final State)
+
+After setup and first use, the project directory should
+contain:
+
+```
+~/prj/praz-large/
+  zzedc_config.yml        # Study configuration
+  Study_Users.csv         # User roster (CSV path)
+  Data_Dictionary.csv     # Field definitions (CSV path)
+  validation_rules.csv    # Validation rules (CSV path)
+  data/
+    praz-large.db         # Live SQLite database
+  backups/
+    praz-large_YYYYMMDD.db  # Rolling daily backups
+  logs/                   # Application logs (if enabled)
+```
+
+Keep `zzedc_config.yml` in version control with the password
+field replaced by a placeholder. Do not commit the `.db` file
+to any repository; it contains identifiable subject data.
+
+---
+
+## 12. Troubleshooting
+
+**Import fails with `googlesheets4` authentication error.**
+Run `googlesheets4::gs4_auth()` interactively to authorise
+access to your Google account, then re-run the import.
+
+**Port 3838 already in use.** Pass an alternate port:
+`launch_zzedc(port = 3939)`. Update the bookmarked URL for
+all coordinators.
+
+**The database is locked.** A previous R session did not
+close cleanly and left a write lock. Restart R, then check
+whether any other R process is running against the same
+database file before relaunching.
+
+**A coordinator can see records from another site.** Verify
+that the coordinator's `site_id` in `Study_Users.csv` is
+set to exactly one of `UCSD`, `UCLA`, `UCSF`, or `Stanford`
+(not `ALL`). Re-import the user table and restart the
+application.
+
+**A coordinator cannot save a record with a valid site_id.**
+Confirm that the `site_id` value in the form matches the
+coordinator's account `site_id` exactly, including case.
+The field is case-sensitive.
+
+**A validation rule fires on every save, even correct data.**
+The most common cause is a typo in the `form_code` or
+`expression` column that references a field that does not
+exist. Re-check those columns against `Data_Dictionary.csv`.
+
+**User cannot log in.** Confirm the `active` column is `TRUE`
+in `Study_Users.csv`. If the account is locked after repeated
+failed attempts, reset it under **Admin > Users**.
+
+**A coordinator is replaced mid-trial.** Set the departing
+coordinator's `active` to `FALSE` and create a new account
+for the replacement with the same `site_id`. Do not reuse
+the old username. Re-import the user table. All existing
+records created under the old account remain intact; the
+audit log preserves attribution.
+
+---
+
+## 13. Reference
+
+For deeper detail on any of the following, consult the
+corresponding vignette:
+
+| Topic | Vignette |
+|---|---|
+| Google Sheets authoring in full | `vignette('content-author-guide')` |
+| Server deployment, TLS, reverse proxy | `vignette('technical-lead-guide')` |
+| Database backend selection | `vignette('backend-quickstart')` |
+| Setup wizard (GUI alternative to config YAML) | `vignette('setup-wizard-guide')` |
+| Regulatory compliance modules | `vignette('zzedc-whitepaper')` |

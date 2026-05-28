@@ -1,0 +1,497 @@
+---
+title: 'Prazosin Sleep Study (Large): Site Coordinator User Guide'
+subtitle: 'Day-to-day data entry reference for site coordinators -- Protocol PRAZ-L-2026'
+date: '`r Sys.Date()`'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Prazosin Sleep Study (Large): Site Coordinator User Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+*2026-05-26 16:46 PDT*
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+This guide is written for site coordinators of the Prazosin Sleep
+Study (Large), protocol PRAZ-L-2026. One coordinator is assigned
+per site (UCSD, UCLA, UCSF, Stanford). The study is a randomised
+double-blind placebo-controlled parallel-group trial evaluating
+prazosin versus placebo for sleep quality in 200 participants (50
+per site). The primary outcome is change in Pittsburgh Sleep Quality
+Index (PSQI) global score from baseline to week 12.
+
+Each coordinator can view and enter data only for their assigned
+site. Cross-site data are visible only to the principal investigator
+(Professor Smith, username `psmith`). No knowledge of R,
+databases, or ZZedc internals is required. A lab data scientist
+has installed and configured the system; this guide covers all
+tasks a coordinator will perform day to day.
+
+---
+
+## 1. Launching the Application
+
+Open a terminal or RStudio console and run:
+
+```{r}
+library(zzedc)
+launch_zzedc()
+```
+
+The application opens in your default browser at
+`http://localhost:3838`. Keep the console open while you work;
+closing it stops the server.
+
+If the study is deployed on a shared server, your data scientist
+will provide a URL in the form `https://<hostname>/praz-large/`.
+Bookmark that URL; no R session is required on your local machine.
+
+---
+
+## 2. Logging In
+
+Enter your username and password on the login screen. Usernames
+are assigned by site:
+
+| Site | Username |
+|---|---|
+| UCSD | `ucsd_coord` |
+| UCLA | `ucla_coord` |
+| UCSF | `ucsf_coord` |
+| Stanford | `stanford_coord` |
+
+On your first login you will be prompted to change the initial
+password. Choose a password you will remember; it cannot be
+recovered without the lab data scientist's help.
+
+**Important:** your account is scoped to your site. Records from
+other sites will not appear in your views, and the system will
+reject any attempt to save a record whose `site_id` does not match
+your assigned site.
+
+If the application shows a session-timeout warning, save your
+current entry before clicking away. Unsaved form fields are lost
+on timeout.
+
+---
+
+## 3. Application Layout
+
+The left sidebar contains seven tabs, one per data collection form:
+
+| Tab | What it tracks |
+|---|---|
+| Enrollment | Screening, eligibility, and consent |
+| Randomization | Treatment arm assignment |
+| Study Drug | Dispensing, returns, and compliance |
+| Sleep PSQI | PSQI assessments at each visit |
+| Adverse Events | All AEs reported by your site's subjects |
+| Concomitant Meds | Medications taken alongside study drug |
+| Visits | Visit completion and subject study status |
+
+The top navigation bar provides access to the Data Explorer
+(consolidated view of all records for your site), the Reports
+tab, and the Export Center.
+
+---
+
+## 4. Subject ID and Tracking ID Conventions
+
+All identifiers in this study carry a site prefix to prevent
+confusion across sites. Use the following conventions for your
+site.
+
+**Subject IDs**
+
+| Site | Format | Example |
+|---|---|---|
+| UCSD | `PRAZ-L-S1-NNN` | `PRAZ-L-S1-001` |
+| UCLA | `PRAZ-L-S2-NNN` | `PRAZ-L-S2-001` |
+| UCSF | `PRAZ-L-S3-NNN` | `PRAZ-L-S3-001` |
+| Stanford | `PRAZ-L-S4-NNN` | `PRAZ-L-S4-001` |
+
+Number sequentially within your site starting from `001`. Do not
+reuse numbers, even if a subject screen-fails or withdraws.
+
+**Adverse Event IDs**
+
+| Site | Format | Example |
+|---|---|---|
+| UCSD | `AE-S1-NNN` | `AE-S1-001` |
+| UCLA | `AE-S2-NNN` | `AE-S2-001` |
+| UCSF | `AE-S3-NNN` | `AE-S3-001` |
+| Stanford | `AE-S4-NNN` | `AE-S4-001` |
+
+**Concomitant Medication IDs**
+
+| Site | Format | Example |
+|---|---|---|
+| UCSD | `MED-S1-NNN` | `MED-S1-001` |
+| UCLA | `MED-S2-NNN` | `MED-S2-001` |
+| UCSF | `MED-S3-NNN` | `MED-S3-001` |
+| Stanford | `MED-S4-NNN` | `MED-S4-001` |
+
+Maintain a paper or local log of the next available number for
+each ID series. The system does not auto-generate these values.
+
+---
+
+## 5. Entering Data
+
+### How to create a new record
+
+1. Click the relevant tab in the left sidebar.
+2. Click the **New Record** button (top right of the form panel).
+3. Enter the subject ID and set `site_id` to your site before
+   filling in any other fields.
+4. Fill in the remaining fields. Required fields are marked with
+   a red asterisk and will block the save if left empty.
+5. Click **Save**. A green confirmation banner appears if the
+   save succeeded. A red banner describes any validation errors.
+
+### How to edit an existing record
+
+Click the record in the table at the top of the tab, edit the
+fields that have changed, and click **Save**.
+
+### The site_id field
+
+Every form requires `site_id`. Always select your site from the
+dropdown; the system will reject records where `site_id` does not
+match your account. This is a data integrity safeguard -- it
+prevents cross-site data entry errors that are difficult to
+correct after the fact.
+
+---
+
+### 5.1 Enrollment
+
+Create one enrollment record when a subject signs informed
+consent. Update the eligibility fields as the screening
+assessment proceeds.
+
+**Subject ID convention:** assign the next available number for
+your site (e.g., `PRAZ-L-S1-007` for UCSD's seventh subject).
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Site-prefixed ID (see Section 4) |
+| Site ID | Your assigned site |
+| Consent Date | Date informed consent was signed |
+| Date of Birth | Subject's date of birth |
+| Sex | `male`, `female`, or `other_or_prefer_not` |
+| Diagnosis | Primary sleep-related diagnosis |
+| IC1: Age 18 or Older | `yes` if subject is 18 or older |
+| IC2: Sleep Complaint | `yes` if subject reports a clinically significant sleep complaint |
+| IC3: Stable Medications | `yes` if medications stable for at least 4 weeks |
+| EC1: Alpha Blocker Use | `yes` if subject is currently taking an alpha-blocker |
+| EC2: Pregnancy | `yes` if subject is currently or plans to become pregnant |
+| Eligibility Status | `yes` (eligible), `no` (ineligible), or `screen_failure` |
+| Screen Failure Reason | Required if Eligibility Status = `screen_failure` |
+| Notes | Additional notes |
+
+**Inclusion criteria (IC):** all three must be `yes` for
+eligibility. **Exclusion criteria (EC):** both must be `no` for
+eligibility. If any IC is `no` or any EC is `yes`, set Eligibility
+Status to `screen_failure` and document the reason.
+
+---
+
+### 5.2 Randomization
+
+Create one randomization record per eligible subject on the day
+of randomization. Randomization must not precede consent.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Must match an enrolled subject ID at your site |
+| Site ID | Your assigned site |
+| Randomization Date | Date of randomization (must be >= consent date) |
+| Treatment Arm | `prazosin` or `placebo` (from the sealed allocation list) |
+| Randomization Code | The code on the allocation envelope or IRT system |
+| Randomized By | Your username |
+| Notes | Additional notes |
+
+**Validation:** the system will flag a randomization date that
+precedes the consent date recorded in the enrollment form.
+
+---
+
+### 5.3 Study Drug
+
+Create one study drug record at each dispensing visit. A single
+subject will have multiple records across the study duration.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Must match a randomized subject ID at your site |
+| Site ID | Your assigned site |
+| Visit Date | Date of the dispensing visit |
+| Dose (mg) | `1`, `2`, `4`, or `6` -- the dispensed dose |
+| Doses Dispensed | Number of doses given to the subject at this visit |
+| Doses Returned | Number of unused doses returned (leave blank if none) |
+| Compliance (%) | Calculated compliance; between 0 and 100 |
+| Dose Change | `yes` if the dose was changed at this visit, `no` otherwise |
+| Dose Change Reason | Required if Dose Change = `yes` |
+| Notes | Additional notes |
+
+**Compliance calculation:** `(doses_dispensed - doses_returned) /
+doses_dispensed * 100`, adjusted for the number of days between
+visits. Your data scientist can provide a reference worksheet if
+needed.
+
+---
+
+### 5.4 Sleep PSQI
+
+Create one PSQI record per assessment visit. A subject enrolled in
+the full protocol will have assessments at baseline, week 4, week
+8, and week 12, yielding four PSQI records.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Must match a randomized subject ID at your site |
+| Site ID | Your assigned site |
+| Visit Date | Date the PSQI was administered |
+| Visit Number | 1 (baseline) through 6 |
+| PSQI 1 -- PSQI 7 | Component scores 0--3 per the PSQI scoring guide |
+| PSQI Global Score | Sum of the seven component scores; must be 0--21 |
+| Notes | Additional notes |
+
+**PSQI scoring reminder:** each component is scored 0 (best)
+to 3 (worst). The global score is the sum of all seven components.
+A global score greater than 5 indicates poor sleep quality.
+Confirm the component scores and their sum before saving; the
+system validates the global range but does not recompute the sum.
+
+---
+
+### 5.5 Adverse Events
+
+Create one adverse event record per reported event. The same
+subject may have multiple AE records.
+
+**AE ID convention:** assign the next available number for your
+site's AE series (e.g., `AE-S1-003` for UCSD's third AE).
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Must match an enrolled subject ID at your site |
+| Site ID | Your assigned site |
+| AE ID | Site-prefixed AE ID (see Section 4) |
+| Onset Date | Date the event began |
+| Resolution Date | Date the event resolved; leave blank if ongoing |
+| AE Term | Standardised adverse event term |
+| Severity | `mild`, `moderate`, `severe`, or `life_threatening` |
+| Serious | `yes` if the event meets SAE criteria, `no` otherwise |
+| Relatedness | `yes`, `no`, `possibly`, or `probably` |
+| Action Taken | Action taken in response to the event |
+| Outcome | Current outcome of the event |
+| Notes | Additional notes |
+
+**Serious adverse events (SAEs):** if Serious = `yes`, notify
+the PI (Professor Smith) immediately by telephone and submit the
+required regulatory report within 24 hours. Do not wait for the
+next data entry session.
+
+**Validation:** the resolution date, if entered, must be on or
+after the onset date.
+
+---
+
+### 5.6 Concomitant Medications
+
+Create one record per concomitant medication per subject. A new
+record is required if the dose or indication changes materially.
+
+**Medication ID convention:** assign the next available number
+for your site's medication series (e.g., `MED-S2-005` for UCLA's
+fifth medication record).
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Must match an enrolled subject ID at your site |
+| Site ID | Your assigned site |
+| Medication ID | Site-prefixed medication ID (see Section 4) |
+| Medication | Generic or brand name |
+| Indication | Medical reason for the medication |
+| Start Date | Date the medication was started |
+| Stop Date | Date the medication was stopped; leave blank if ongoing |
+| Dose | Dose and unit (e.g., `10 mg`) |
+| Route | `oral`, `topical`, `iv`, `im`, or `other` |
+| Ongoing | `yes` if still being taken, `no` if discontinued |
+| Notes | Additional notes |
+
+**Validation:** the stop date, if entered, must be on or after
+the start date.
+
+---
+
+### 5.7 Visits
+
+Create one visit record per scheduled visit per subject. Update
+the record if the visit status changes.
+
+| Field | What to enter |
+|---|---|
+| Subject ID | Must match an enrolled subject ID at your site |
+| Site ID | Your assigned site |
+| Visit Number | 1 through 6 |
+| Visit Date | Date the visit occurred or was scheduled |
+| Visit Type | `screening`, `baseline`, `week4`, `week8`, `week12`, `end_of_study`, or `early_termination` |
+| Completed | `yes` if the visit occurred as scheduled, `no` otherwise |
+| Reason Not Completed | Required if Completed = `no` |
+| Study Status | Subject's overall status at the time of this record |
+| Withdrawal Reason | Required if Study Status = `withdrawn` |
+| Notes | Additional notes |
+
+**Study status values:**
+
+- `ongoing` -- subject is actively participating
+- `completed` -- subject has completed all protocol visits
+- `withdrawn` -- subject withdrew consent or was withdrawn by
+  the investigator
+- `lost_to_followup` -- subject cannot be reached and has missed
+  two or more consecutive visits
+
+---
+
+## 6. Reviewing Your Site's Data
+
+The **Data Explorer** tab provides a consolidated view of all
+records for your site across all seven forms.
+
+Useful features:
+
+- **Filter by form** using the form-code selector to focus on a
+  single domain.
+- **Filter by subject** to review a single subject's complete
+  record set.
+- **Sort any column** by clicking the column header.
+- **Search** for a keyword using the search box.
+
+To identify subjects with missing or incomplete records, use
+the Data Explorer to filter by subject ID and review which
+forms have entries. A subject who has been randomized should
+have at least one study drug record and one PSQI record per
+completed visit.
+
+---
+
+## 7. Reports
+
+The **Reports** tab provides summary statistics and listings
+for your site's data. The following reports are most useful
+for ongoing monitoring:
+
+| Report | Use |
+|---|---|
+| Enrollment Summary | Screen-failure rate and eligibility counts |
+| Randomization Balance | Treatment arm assignment counts |
+| Visit Completion | Completed vs. missed visits by visit type |
+| PSQI Profile | Baseline and follow-up score distributions |
+| AE Summary | AE counts by severity and relatedness |
+| Compliance Summary | Mean compliance percentage by visit |
+
+Run the Enrollment Summary and Visit Completion reports at the
+end of each week to confirm your site is on track with the
+enrollment target of 50 subjects.
+
+---
+
+## 8. Exporting Data
+
+When requested by the PI or data manager:
+
+1. Open the **Export Center** tab.
+2. Select the date range and forms to export.
+3. Choose Excel or CSV format.
+4. Click **Export**. The file downloads to your browser's
+   default download folder.
+
+Your export will contain only your site's records. The PI can
+export a cross-site file through the Admin interface. The audit
+log records every export.
+
+---
+
+## 9. Recommended Data Entry Cadence
+
+Entering data at the time of the activity is strongly preferred.
+Batch reconstruction from paper notes is error-prone and
+increases the risk of query generation.
+
+| Activity | When to enter |
+|---|---|
+| New screen | Same day as consent |
+| Eligibility determination | Same day |
+| Randomization | Same day |
+| Each visit | Within 24 hours of the visit |
+| Study drug dispensing | Same day |
+| PSQI administration | Same day |
+| Adverse event reported | Same day; SAEs within 2 hours |
+| Concomitant medication change | Same day |
+| Subject withdrawal | Same day |
+
+A weekly 15-minute review of open records (subjects with
+`study_status = ongoing`, AEs with blank resolution dates,
+concomitant medications with `ongoing = yes`) is sufficient
+to identify any entries missed during the week.
+
+---
+
+## 10. Troubleshooting
+
+**The application will not launch.** Close the browser and
+re-run `launch_zzedc()` in a fresh R session. If port 3838
+is occupied, your data scientist can configure an alternate
+port.
+
+**A save fails with a 'site_id mismatch' error.** Confirm that
+the `site_id` dropdown is set to your assigned site. The system
+rejects records where `site_id` differs from your account's
+site scope.
+
+**A save fails with a validation error.** Read the red banner
+message; it identifies the field and the issue. Common causes
+include a date out of order (randomization before consent, AE
+resolution before onset), a PSQI global score outside 0--21, or
+a required field left empty.
+
+**A subject ID does not appear in a form's subject dropdown.**
+The subject must first have an enrollment record. Create the
+enrollment record before entering data on other forms.
+
+**A record is missing from the Data Explorer.** Records are not
+deleted from the database; if a record was saved, it will appear
+in the Data Explorer. Confirm that the form-code filter is not
+hiding the relevant form.
+
+**You forgot your password.** Contact the lab data scientist.
+Passwords are hashed and cannot be recovered, but an
+administrator can reset the account.
+
+---
+
+## 11. Glossary
+
+- **Subject ID**: the unique identifier for a study participant,
+  carrying a site prefix (see Section 4).
+- **AE ID**: the unique identifier for an adverse event record,
+  carrying a site prefix.
+- **Medication ID**: the unique identifier for a concomitant
+  medication record, carrying a site prefix.
+- **site_id**: the site to which a record belongs. Must match
+  your assigned site on every form.
+- **PSQI global score**: the sum of seven component scores
+  (range 0--21); higher scores indicate worse sleep quality.
+- **SAE**: serious adverse event. Requires immediate notification
+  of the PI and regulatory reporting within 24 hours.
+- **Study status**: the subject's overall participation status
+  at a given point in time (`ongoing`, `completed`, `withdrawn`,
+  or `lost_to_followup`).
+- **Audit log**: a system-maintained record of every change to
+  the database. Runs automatically; no coordinator action required.

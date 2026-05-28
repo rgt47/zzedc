@@ -1,0 +1,13 @@
+rule_id,form_code,rule_type,expression,error_message,is_active
+RAND_AFTER_CONSENT,randomization,CROSS_FIELD,"if randomization_date != """" then randomization_date >= consent_date endif",Randomization date must be on or after consent date,TRUE
+PSQI_GLOBAL_RANGE,sleep_psqi,FIELD,psqi_global between 0 and 21,PSQI global score must be between 0 and 21,TRUE
+PSQI_C1_RANGE,sleep_psqi,FIELD,psqi_1_sleep_quality between 0 and 3,PSQI component 1 must be between 0 and 3,TRUE
+PSQI_C2_RANGE,sleep_psqi,FIELD,psqi_2_sleep_latency between 0 and 3,PSQI component 2 must be between 0 and 3,TRUE
+PSQI_C3_RANGE,sleep_psqi,FIELD,psqi_3_sleep_duration between 0 and 3,PSQI component 3 must be between 0 and 3,TRUE
+PSQI_C4_RANGE,sleep_psqi,FIELD,psqi_4_sleep_efficiency between 0 and 3,PSQI component 4 must be between 0 and 3,TRUE
+PSQI_C5_RANGE,sleep_psqi,FIELD,psqi_5_sleep_disturbance between 0 and 3,PSQI component 5 must be between 0 and 3,TRUE
+PSQI_C6_RANGE,sleep_psqi,FIELD,psqi_6_sleep_medication between 0 and 3,PSQI component 6 must be between 0 and 3,TRUE
+PSQI_C7_RANGE,sleep_psqi,FIELD,psqi_7_daytime_dysfunction between 0 and 3,PSQI component 7 must be between 0 and 3,TRUE
+AE_RESOLUTION_AFTER_ONSET,adverse_events,CROSS_FIELD,"if resolution_date != """" then resolution_date >= onset_date endif",AE resolution date must be on or after onset date,TRUE
+MED_STOP_AFTER_START,concomitant_meds,CROSS_FIELD,"if stop_date != """" then stop_date >= start_date endif",Medication stop date must be on or after start date,TRUE
+COMPLIANCE_RANGE,study_drug,FIELD,compliance_pct between 0 and 100,Compliance percentage must be between 0 and 100,TRUE

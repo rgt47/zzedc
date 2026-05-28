@@ -1,0 +1,9 @@
+rule_id,field_code,rule_dsl,form_code,rule_name,error_message,severity,rule_category,is_active
+ACCEPT_AFTER_SUBMIT,acceptance_date,"if acceptance_date != """" then acceptance_date >= submission_date endif",manuscripts,Acceptance after submission,Acceptance date must be on or after submission date,ERROR,CROSS_FIELD,TRUE
+PUB_AFTER_ACCEPT,publication_date,"if publication_date != """" then publication_date >= acceptance_date endif",manuscripts,Publication after acceptance,Publication date must be on or after acceptance date,ERROR,CROSS_FIELD,TRUE
+ENROLL_RANGE,student_count,student_count between 1 and 500,courses,Student count plausible,Student count must be between 1 and 500,ERROR,FIELD,TRUE
+HOURS_RANGE,contact_hours,contact_hours between 1 and 500,courses,Contact hours plausible,Contact hours must be between 1 and 500,ERROR,FIELD,TRUE
+MENTOR_END_AFTER_START,end_date,"if end_date != """" then end_date >= start_date endif",mentoring,Mentoring end after start,End date must be on or after start date,ERROR,CROSS_FIELD,TRUE
+COMM_END_AFTER_START,end_date,"if end_date != """" then end_date >= start_date endif",committees,Committee end after start,End date must be on or after start date,ERROR,CROSS_FIELD,TRUE
+DSMB_END_AFTER_START,end_date,"if end_date != """" then end_date >= start_date endif",dsmb,DSMB end after start,End date must be on or after start date,ERROR,CROSS_FIELD,TRUE
+MENTOR_HOURS,hours_per_week,"if hours_per_week != """" then hours_per_week between 0 and 40 endif",mentoring,Mentoring hours plausible,Hours per week must be between 0 and 40,ERROR,FIELD,TRUE

@@ -1,0 +1,78 @@
+form_code,field_name,field_label,field_type,required,validation,description,field_order
+enrollment,subject_id,Subject ID,text,TRUE,,Format: PRAZ-L-S1-NNN / PRAZ-L-S2-NNN / PRAZ-L-S3-NNN / PRAZ-L-S4-NNN,10
+enrollment,site_id,Site ID,select,TRUE,"in(UCSD,UCLA,UCSF,Stanford)",Site must match coordinator's assigned site,20
+enrollment,consent_date,Consent Date,date,TRUE,,Date informed consent was obtained,30
+enrollment,dob,Date of Birth,date,TRUE,,Subject date of birth,40
+enrollment,sex,Sex,radio,TRUE,"in(male,female,other_or_prefer_not)",Biological sex or preferred response,50
+enrollment,diagnosis,Diagnosis,text,TRUE,,Primary sleep-related diagnosis,60
+enrollment,ic1_age_18_plus,IC1: Age 18 or Older,radio,TRUE,"in(yes,no)",Inclusion criterion: subject is 18 years of age or older,70
+enrollment,ic2_sleep_complaint,IC2: Sleep Complaint,radio,TRUE,"in(yes,no)",Inclusion criterion: subject reports a clinically significant sleep complaint,80
+enrollment,ic3_stable_meds,IC3: Stable Medications,radio,TRUE,"in(yes,no)",Inclusion criterion: medications stable for at least 4 weeks prior to enrollment,90
+enrollment,ec1_alpha_blocker,EC1: Alpha Blocker Use,radio,TRUE,"in(yes,no)",Exclusion criterion: current use of an alpha-blocker medication,100
+enrollment,ec2_pregnancy,EC2: Pregnancy,radio,TRUE,"in(yes,no)",Exclusion criterion: current or planned pregnancy,110
+enrollment,eligible,Eligibility Status,radio,TRUE,"in(yes,no,screen_failure)",Overall eligibility determination,120
+enrollment,screen_failure_reason,Screen Failure Reason,text,FALSE,,Reason for screen failure if eligible = screen_failure,130
+enrollment,notes,Notes,text,FALSE,,Additional notes relevant to enrollment,140
+randomization,subject_id,Subject ID,text,TRUE,,Must match an enrolled subject ID,10
+randomization,site_id,Site ID,select,TRUE,"in(UCSD,UCLA,UCSF,Stanford)",Site must match coordinator's assigned site,20
+randomization,randomization_date,Randomization Date,date,TRUE,,Date the subject was randomized,30
+randomization,treatment_arm,Treatment Arm,radio,TRUE,"in(prazosin,placebo)",Assigned treatment arm,40
+randomization,randomization_code,Randomization Code,text,TRUE,,Allocation code from the randomization list,50
+randomization,randomized_by,Randomized By,text,TRUE,,Username of the staff member who performed randomization,60
+randomization,notes,Notes,text,FALSE,,Additional notes relevant to randomization,70
+study_drug,subject_id,Subject ID,text,TRUE,,Must match an enrolled subject ID,10
+study_drug,site_id,Site ID,select,TRUE,"in(UCSD,UCLA,UCSF,Stanford)",Site must match coordinator's assigned site,20
+study_drug,visit_date,Visit Date,date,TRUE,,Date of the dispensing visit,30
+study_drug,dose_mg,Dose (mg),radio,TRUE,"in(1,2,4,6)",Prazosin or matching placebo dose in milligrams,40
+study_drug,doses_dispensed,Doses Dispensed,numeric,TRUE,between 1 and 200,Number of doses dispensed at this visit,50
+study_drug,doses_returned,Doses Returned,numeric,FALSE,between 0 and 200,Number of unused doses returned at this visit,60
+study_drug,compliance_pct,Compliance (%),numeric,FALSE,between 0 and 100,Calculated compliance percentage based on dispensed and returned counts,70
+study_drug,dose_change,Dose Change,radio,FALSE,"in(yes,no)",Whether a dose change occurred at this visit,80
+study_drug,dose_change_reason,Dose Change Reason,text,FALSE,,Reason for dose change if dose_change = yes,90
+study_drug,notes,Notes,text,FALSE,,Additional notes relevant to study drug,100
+sleep_psqi,subject_id,Subject ID,text,TRUE,,Must match an enrolled subject ID,10
+sleep_psqi,site_id,Site ID,select,TRUE,"in(UCSD,UCLA,UCSF,Stanford)",Site must match coordinator's assigned site,20
+sleep_psqi,visit_date,Visit Date,date,TRUE,,Date the PSQI assessment was completed,30
+sleep_psqi,visit_number,Visit Number,numeric,TRUE,between 1 and 6,Sequential visit number (1 = baseline),40
+sleep_psqi,psqi_1_sleep_quality,PSQI 1: Subjective Sleep Quality,radio,TRUE,"in(0,1,2,3)",PSQI component 1: subjective sleep quality score (0 = very good; 3 = very bad),50
+sleep_psqi,psqi_2_sleep_latency,PSQI 2: Sleep Latency,radio,TRUE,"in(0,1,2,3)",PSQI component 2: sleep latency score (0 = <= 15 min; 3 = > 60 min),60
+sleep_psqi,psqi_3_sleep_duration,PSQI 3: Sleep Duration,radio,TRUE,"in(0,1,2,3)",PSQI component 3: sleep duration score (0 = > 7 hrs; 3 = < 5 hrs),70
+sleep_psqi,psqi_4_sleep_efficiency,PSQI 4: Habitual Sleep Efficiency,radio,TRUE,"in(0,1,2,3)",PSQI component 4: habitual sleep efficiency score (0 = >= 85%; 3 = < 65%),80
+sleep_psqi,psqi_5_sleep_disturbance,PSQI 5: Sleep Disturbances,radio,TRUE,"in(0,1,2,3)",PSQI component 5: sleep disturbance score,90
+sleep_psqi,psqi_6_sleep_medication,PSQI 6: Use of Sleep Medication,radio,TRUE,"in(0,1,2,3)",PSQI component 6: sleep medication use score,100
+sleep_psqi,psqi_7_daytime_dysfunction,PSQI 7: Daytime Dysfunction,radio,TRUE,"in(0,1,2,3)",PSQI component 7: daytime dysfunction score,110
+sleep_psqi,psqi_global,PSQI Global Score,numeric,TRUE,between 0 and 21,Sum of all seven PSQI component scores,120
+sleep_psqi,notes,Notes,text,FALSE,,Additional notes relevant to the PSQI assessment,130
+adverse_events,subject_id,Subject ID,text,TRUE,,Must match an enrolled subject ID,10
+adverse_events,site_id,Site ID,select,TRUE,"in(UCSD,UCLA,UCSF,Stanford)",Site must match coordinator's assigned site,20
+adverse_events,ae_id,AE ID,text,TRUE,,Format: AE-S1-NNN / AE-S2-NNN / AE-S3-NNN / AE-S4-NNN,30
+adverse_events,onset_date,Onset Date,date,TRUE,,Date the adverse event began,40
+adverse_events,resolution_date,Resolution Date,date,FALSE,,Date the adverse event resolved; leave blank if ongoing,50
+adverse_events,ae_term,AE Term,text,TRUE,,Standardised adverse event term,60
+adverse_events,severity,Severity,radio,TRUE,"in(mild,moderate,severe,life_threatening)",Severity grading of the adverse event,70
+adverse_events,serious,Serious,radio,TRUE,"in(yes,no)",Whether the adverse event meets criteria for a serious adverse event,80
+adverse_events,related,Relatedness,radio,TRUE,"in(yes,no,possibly,probably)",Investigator assessment of relatedness to study drug,90
+adverse_events,action_taken,Action Taken,radio,TRUE,"in(none,dose_reduced,dose_interrupted,drug_discontinued,other)",Action taken in response to the adverse event,100
+adverse_events,outcome,Outcome,radio,TRUE,"in(resolved,ongoing,resolved_with_sequelae,fatal)",Outcome of the adverse event at time of recording,110
+adverse_events,notes,Notes,text,FALSE,,Additional notes relevant to the adverse event,120
+concomitant_meds,subject_id,Subject ID,text,TRUE,,Must match an enrolled subject ID,10
+concomitant_meds,site_id,Site ID,select,TRUE,"in(UCSD,UCLA,UCSF,Stanford)",Site must match coordinator's assigned site,20
+concomitant_meds,med_id,Medication ID,text,TRUE,,Format: MED-S1-NNN / MED-S2-NNN / MED-S3-NNN / MED-S4-NNN,30
+concomitant_meds,medication,Medication,text,TRUE,,Generic or brand name of the concomitant medication,40
+concomitant_meds,indication,Indication,text,FALSE,,Medical indication for the medication,50
+concomitant_meds,start_date,Start Date,date,TRUE,,Date the concomitant medication was started,60
+concomitant_meds,stop_date,Stop Date,date,FALSE,,Date the concomitant medication was stopped; leave blank if ongoing,70
+concomitant_meds,dose,Dose,text,FALSE,,Dose and unit of the concomitant medication,80
+concomitant_meds,route,Route,radio,FALSE,"in(oral,topical,iv,im,other)",Route of administration,90
+concomitant_meds,ongoing,Ongoing,radio,TRUE,"in(yes,no)",Whether the medication is still being taken,100
+concomitant_meds,notes,Notes,text,FALSE,,Additional notes relevant to the concomitant medication,110
+visits,subject_id,Subject ID,text,TRUE,,Must match an enrolled subject ID,10
+visits,site_id,Site ID,select,TRUE,"in(UCSD,UCLA,UCSF,Stanford)",Site must match coordinator's assigned site,20
+visits,visit_number,Visit Number,numeric,TRUE,between 1 and 6,Sequential visit number,30
+visits,visit_date,Visit Date,date,TRUE,,Date the visit occurred,40
+visits,visit_type,Visit Type,radio,TRUE,"in(screening,baseline,week4,week8,week12,end_of_study,early_termination)",Scheduled visit type,50
+visits,completed,Completed,radio,TRUE,"in(yes,no)",Whether the visit was completed as scheduled,60
+visits,reason_not_completed,Reason Not Completed,text,FALSE,,Reason if the visit was not completed,70
+visits,study_status,Study Status,radio,TRUE,"in(ongoing,completed,withdrawn,lost_to_followup)",Subject's overall study status at the time of this visit,80
+visits,withdrawal_reason,Withdrawal Reason,text,FALSE,,Reason for withdrawal if study_status = withdrawn,90
+visits,notes,Notes,text,FALSE,,Additional notes relevant to the visit,100

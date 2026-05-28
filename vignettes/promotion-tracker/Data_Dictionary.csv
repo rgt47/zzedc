@@ -1,0 +1,61 @@
+form_code,field_name,field_label,field_type,required,validation,description,field_order
+manuscripts,tracking_id,Tracking ID,text,TRUE,,Format: PUB-YYYY-NNN,10
+manuscripts,title,Manuscript Title,text,TRUE,,Working or final title,20
+manuscripts,target_journal,Target Journal,text,FALSE,,Journal of intended submission,30
+manuscripts,co_authors,Co-authors,text,FALSE,,Comma-separated surnames,40
+manuscripts,status,Status,select,TRUE,"in(ideation,drafting,submitted,under_review,revision,accepted,in_press,published)",Current lifecycle stage,50
+manuscripts,submission_date,Submission Date,date,FALSE,,Date of first submission to journal,60
+manuscripts,acceptance_date,Acceptance Date,date,FALSE,,Date of formal acceptance notice,70
+manuscripts,publication_date,Publication Date,date,FALSE,,Date of online or print publication,80
+manuscripts,doi,DOI,text,FALSE,,Digital object identifier once assigned,90
+manuscripts,notes,Notes,text,FALSE,,Notes for the promotion dossier,100
+courses,tracking_id,Tracking ID,text,TRUE,,Format: CRS-YYYY-NNN,10
+courses,course_code,Course Code,text,TRUE,,e.g. FMPH 101,20
+courses,course_title,Course Title,text,TRUE,,Full title of the course,30
+courses,academic_year,Academic Year,text,TRUE,,e.g. 2025-2026,40
+courses,term,Term,radio,TRUE,"in(Fall,Winter,Spring,Summer)",Academic term,50
+courses,role,Role,radio,TRUE,"in(developed,taught,developed_and_taught)",Your instructional role,60
+courses,student_count,Student Count,numeric,TRUE,between 1 and 500,Total enrolled students,70
+courses,contact_hours,Contact Hours,numeric,TRUE,between 1 and 500,Total scheduled contact hours for the term,80
+courses,notes,Notes,text,FALSE,,Notes for the promotion dossier,90
+mentoring,tracking_id,Tracking ID,text,TRUE,,Format: MNT-YYYY-NNN,10
+mentoring,student_initials,Student Initials,text,TRUE,,Initials only e.g. J.D.,20
+mentoring,student_level,Student Level,radio,TRUE,"in(undergraduate,graduate,postdoc,other)",Level of study,30
+mentoring,start_date,Start Date,date,TRUE,,Date the tutorial relationship began,40
+mentoring,end_date,End Date,date,FALSE,,Date it ended; leave blank if ongoing,50
+mentoring,hours_per_week,Hours per Week,numeric,FALSE,between 0 and 40,Approximate weekly tutorial hours,60
+mentoring,topic_area,Topic Area,text,FALSE,,Research area or skill being mentored,70
+mentoring,outcome,Outcome,text,FALSE,,Degree earned publication employment etc.,80
+mentoring,notes,Notes,text,FALSE,,Notes for the promotion dossier,90
+grant_reviews,tracking_id,Tracking ID,text,TRUE,,Format: GNT-YYYY-NNN,10
+grant_reviews,agency,Agency,text,TRUE,,Funding agency e.g. NIH NSF PCORI,20
+grant_reviews,program_name,Program Name,text,FALSE,,Study section or program name,30
+grant_reviews,panel_name,Panel Name,text,FALSE,,Panel or review group identifier,40
+grant_reviews,review_date,Review Date,date,TRUE,,Date of panel meeting or submission deadline,50
+grant_reviews,role,Role,radio,TRUE,"in(reviewer,chair,observer)",Your review role,60
+grant_reviews,notes,Notes,text,FALSE,,Notes for the promotion dossier,70
+committees,tracking_id,Tracking ID,text,TRUE,,Format: COM-YYYY-NNN,10
+committees,committee_name,Committee Name,text,TRUE,,Official name of the committee,20
+committees,organization,Organization,text,TRUE,,Institution or body e.g. UCSD ASA NIH,30
+committees,scope,Scope,radio,FALSE,"in(departmental,institutional,national,international)",Geographic or organisational scope,40
+committees,role,Role,text,TRUE,,Your role e.g. member chair secretary,50
+committees,start_date,Start Date,date,TRUE,,Date membership began,60
+committees,end_date,End Date,date,FALSE,,Date membership ended; leave blank if current,70
+committees,meeting_frequency,Meeting Frequency,radio,FALSE,"in(weekly,monthly,quarterly,semi_annual,annual,ad_hoc)",Typical cadence,80
+committees,active,Active,radio,TRUE,"in(yes,no)",Whether membership is current,90
+committees,notes,Notes,text,FALSE,,Notes for the promotion dossier,100
+journal_reviews,tracking_id,Tracking ID,text,TRUE,,Format: JRV-YYYY-NNN,10
+journal_reviews,journal_name,Journal Name,text,TRUE,,Name of the journal,20
+journal_reviews,manuscript_id,Manuscript ID,text,FALSE,,Blinded identifier from the journal,30
+journal_reviews,review_date,Review Date,date,TRUE,,Date the review was submitted,40
+journal_reviews,recommendation,Recommendation,radio,FALSE,"in(accept,minor_revision,major_revision,reject,not_reviewed)",Editorial recommendation,50
+journal_reviews,notes,Notes,text,FALSE,,Notes for the promotion dossier,60
+dsmb,tracking_id,Tracking ID,text,TRUE,,Format: DSB-YYYY-NNN,10
+dsmb,trial_name,Trial Name,text,TRUE,,Abbreviated or full trial name,20
+dsmb,sponsor,Sponsor,text,FALSE,,Funding agency or industry sponsor,30
+dsmb,role,Role,radio,TRUE,"in(member,chair,statistician,other)",Your DSMB role,40
+dsmb,start_date,Start Date,date,TRUE,,Date membership began,50
+dsmb,end_date,End Date,date,FALSE,,Date membership ended; leave blank if current,60
+dsmb,meeting_frequency,Meeting Frequency,radio,FALSE,"in(semi_annual,annual,ad_hoc,other)",Typical meeting cadence,70
+dsmb,active,Active,radio,TRUE,"in(yes,no)",Whether membership is current,80
+dsmb,notes,Notes,text,FALSE,,Notes for the promotion dossier,90
