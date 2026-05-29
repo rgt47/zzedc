@@ -1,4 +1,4 @@
-# zzedc v0.6.0 (in development)
+# zzedc v0.6.0
 
 ## Google Sheets change monitor and approval workflow
 
