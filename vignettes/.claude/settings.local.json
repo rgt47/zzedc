@@ -78,7 +78,9 @@
       "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc add docs/gsheets-monitor-design.md)",
       "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc commit -m \"Expand gsheets-monitor-design.md: permissions hierarchy analysis and construction guide\")",
       "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc add NEWS.md DESCRIPTION docs/gsheets-monitor-design.md docs/gsheets-monitor-design.pdf)",
-      "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc commit -m \"Bump version to 0.6.1; update changelog; render design doc PDF\")"
+      "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc commit -m \"Bump version to 0.6.1; update changelog; render design doc PDF\")",
+      "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc log --oneline -4)",
+      "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc diff --stat HEAD)"
     ]
   }
 }
