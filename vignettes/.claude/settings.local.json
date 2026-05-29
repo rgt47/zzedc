@@ -74,7 +74,9 @@
       "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE _R_CHECK_FORCE_SUGGESTS_=false R CMD check --no-manual zzlongplot_*.tar.gz)",
       "Bash(rm -rf zzcollab.Rcheck zzcollab_*.tar.gz)",
       "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE R CMD build /Users/zenn/prj/sfw/07-zzcollab/zzcollab)",
-      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE _R_CHECK_FORCE_SUGGESTS_=false R CMD check --no-manual zzcollab_0.9.0.tar.gz)"
+      "Bash(RENV_CONFIG_AUTOLOADER_ENABLED=FALSE _R_CHECK_FORCE_SUGGESTS_=false R CMD check --no-manual zzcollab_0.9.0.tar.gz)",
+      "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc add docs/gsheets-monitor-design.md)",
+      "Bash(git -C /Users/zenn/Library/CloudStorage/Dropbox/prj/sfw/05-zzedc/zzedc commit -m \"Expand gsheets-monitor-design.md: permissions hierarchy analysis and construction guide\")"
     ]
   }
 }

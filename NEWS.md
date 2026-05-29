@@ -1,3 +1,32 @@
+# zzedc v0.6.1
+
+## Access model correction and user-roster change monitor
+
+* **Coordinator sheet access corrected.** Site coordinators now hold
+  editor access to the `Study_Users` tab of their per-site workbook
+  only. `Data_Dictionary` and `validation_rules` are viewer-only for
+  coordinators, enforced via Google Sheets tab protection. The previous
+  design had coordinators editing `validation_rules`, which is
+  incorrect: that tab is managed exclusively by the data scientist.
+* **User-roster change detection and approval.** Four new exported
+  functions: `diff_gsheets_users()`, `get_pending_user_proposals()`,
+  `approve_user_proposals()`, `reject_user_proposals()`. A
+  `user_proposals` staging relation holds proposed roster changes
+  without touching the live `edc_users` table until a credentialled
+  reviewer approves.
+* **`poll_gsheets_and_stage()` updated.** Now monitors `Study_Users`
+  across all four per-site workbooks (resolved from per-site
+  environment variables) rather than the `validation_rules` tab.
+* **Permissions hierarchy analysis and construction guide.**
+  `docs/gsheets-monitor-design.md` expanded to cover: the four-tier
+  standard EDC permission hierarchy; REDCap's project-rights model at
+  this trial scale; four identified gaps in the current ZZedc role
+  model (missing `StudyManager` role, absent non-escalation
+  enforcement, PI cannot author rules directly, Tier 0 / application
+  admin conflation); and a step-by-step construction guide for
+  initialising the correct hierarchy via the Google Sheets seed-import
+  pathway.
+
 # zzedc v0.6.0
 
 ## Google Sheets change monitor and approval workflow

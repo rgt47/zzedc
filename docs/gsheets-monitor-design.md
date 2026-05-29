@@ -523,3 +523,8 @@ When the manager receives the notification, they run:
 | `vignettes/prazosin-large/prazosin-large-technical-guide.Rmd` | Sections 7.3 (corrected access table), 7a (5 subsections, updated for Study_Users monitoring), 2 troubleshooting entries |
 | `vignettes/prazosin-large/prazosin-large-user-guide.Rmd` | Section 9 (corrected access model, approval-loop description), 2 troubleshooting entries, 3 glossary entries |
 | `docs/gsheets-monitor-design.md` | This document |
+
+---
+
+*Rendered on 2026-05-28 at 18:37 PDT.*<br>
+*Source: ~/prj/sfw/05-zzedc/zzedc/docs/gsheets-monitor-design.md*
