@@ -1,5 +1,38 @@
 # zzedc v0.6.0 (in development)
 
+## Google Sheets change monitor and approval workflow
+
+* **`R/gsheets_monitor.R` (new file).** Introduces a non-destructive
+  staging layer between coordinator-authored sheet edits and the live
+  validation-rule constraint store. Seven exported functions:
+  `diff_gsheets_rules()`, `stage_gsheets_proposals()`,
+  `get_pending_proposals()`, `default_proposal_notifier()`,
+  `approve_proposals()`, `reject_proposals()`, and the cron-facing
+  orchestrator `poll_gsheets_and_stage()`.
+* **`dsl_rule_proposals` staging table.** Proposed changes from the
+  Google Sheet land in this new relation with `status = 'PENDING'`.
+  The live `dsl_validation_rules` row is not touched until the study
+  manager approves. Approval atomically rewrites and recompiles the
+  live rule; rejection records the decision with no effect on active
+  constraints.
+* **Pluggable notifier.** `poll_gsheets_and_stage()` accepts a
+  `notifier` argument (`function(proposals)`) so the transport
+  mechanism (log file, email, webhook) can be swapped without altering
+  the detection and staging logic. The default notifier writes a
+  plain-text summary to `ZZEDC_PROPOSAL_LOG`.
+* **Audit trail.** All state transitions (staging, approval,
+  rejection) write to the existing `dsl_rule_change_log` relation via
+  `log_dsl_rule_action()`.
+* **Prazosin-large vignettes updated.** Technical guide: new Section
+  7.3 (coordinator sheet access), Section 7a (five-subsection change
+  monitor workflow including cron setup, `blastula` email example,
+  approval commands, environment variable reference). User guide: new
+  Section 9 (site configuration sheet), updated approval-loop
+  description, troubleshooting entries, and glossary terms.
+* **Design document.** `docs/gsheets-monitor-design.md` describes
+  the implementation in both database-expert and data-scientist-
+  accessible registers.
+
 ## Shiny modernization (Tier 1: bug fixes + safety net)
 
 * **`shinyjs::delay()` for one-shot timers.** Replaces an
