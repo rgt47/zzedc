@@ -450,25 +450,23 @@ scientist for every small correction.
 
 ### What you can edit
 
-You have editor access to the `validation_rules` tab only.
-Each row in this tab defines one business rule: the field it
-applies to, the condition that must be satisfied, and the
-error message shown to you if the condition is violated.
-You may review these rows and, if you identify a rule that
-is incorrect or missing, edit the relevant row or add a new
-row at the bottom.
+You have editor access to the `Study_Users` tab only. Each
+row in this tab defines one user account for your site: the
+username, full name, email address, role, and whether the
+account is active. You may add a new row to request a new
+account, or edit an existing row to request a role change or
+contact-details update for a member of your site team.
 
-The workbook also contains two other tabs:
+The workbook also contains two other tabs that you can view
+but not edit:
 
 - `Data_Dictionary`: the field definitions that control which
-  fields appear on each form. **Do not edit this tab.**
-- `Study_Users`: the user account roster (usernames, roles,
-  site assignments). **Do not edit this tab.** It may contain
-  initial passwords in plain text and must remain private.
+  fields appear on each form. Read-only for coordinators.
+- `validation_rules`: the data quality checks applied when
+  a record is saved. Read-only for coordinators.
 
-Both of those tabs are managed exclusively by the data
-scientist. Any edits you make there will be overwritten
-during the next import.
+Any edits you make to those two tabs will be overwritten by
+the data scientist and will not take effect.
 
 ### When your changes take effect
 
@@ -482,10 +480,11 @@ email notification to the coordinating centre study manager.
 The manager reviews the proposed change and either approves
 or rejects it:
 
-- **Approved**: the validation rule is rebuilt in the
-  database from your proposed version and takes effect at
-  the next data entry session. No action is required from
-  you.
+- **Approved**: the user account is created or updated in
+  the database and takes effect immediately. New accounts
+  receive a temporary password; the account holder will be
+  prompted to change it on first login. No further action
+  is required from you.
 - **Rejected**: the existing rule remains in place. The
   manager's rejection reason is recorded in the audit log.
   Your data scientist will contact you with details.

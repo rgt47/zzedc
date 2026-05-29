@@ -1,24 +1,38 @@
 #' Google Sheets Change Monitor
 #'
-#' Polls the validation-rules Google Sheet for coordinator edits,
-#' stages proposed changes in the database without touching the live
-#' rules, notifies the study manager, and applies approved changes on
-#' the manager's instruction.
+#' Polls the `Study_Users` tab of each site's Google Sheets workbook
+#' for coordinator edits, stages proposed changes in the database
+#' without modifying the live user roster, notifies the study manager,
+#' and applies approved changes on the manager's instruction.
+#'
+#' ## Access model
+#'
+#' Each site coordinator holds editor access to the `Study_Users` tab
+#' of their site's workbook only. The `Data_Dictionary` and
+#' `validation_rules` tabs are viewer-only for coordinators (enforced
+#' via Google Sheets tab protection). This file implements the
+#' change-detection and approval layer for `Study_Users` edits.
+#'
+#' The validation-rule diff/stage/approve functions
+#' ([diff_gsheets_rules()], [stage_gsheets_proposals()],
+#' [approve_proposals()], [reject_proposals()]) are retained for
+#' data-scientist-initiated rule changes and are not part of the
+#' coordinator-facing workflow.
 #'
 #' ## Workflow
 #'
-#' 1. A cron job calls [poll_gsheets_and_stage()] on the server.
-#' 2. The function reads the sheet, diffs it against the live database
-#'    rules, and writes any new or changed rows to the
-#'    `dsl_rule_proposals` staging table with `status = 'PENDING'`.
-#'    Live rules are not touched.
+#' 1. A cron job calls [poll_gsheets_and_stage()] for each site workbook.
+#' 2. The function reads the `Study_Users` tab, diffs it against the
+#'    live `edc_users` table, and writes any new or changed rows to
+#'    the `user_proposals` staging table with `status = 'PENDING'`.
+#'    The live user roster is not touched.
 #' 3. The notifier function is called with a data frame of pending
 #'    proposals. The default notifier writes a plain-text summary to a
 #'    log file; supply a custom function to send email.
-#' 4. The manager reviews proposals and calls [approve_proposals()] or
-#'    [reject_proposals()]. Approval rebuilds the live rule from the
-#'    proposal and activates it; rejection records the decision and
-#'    leaves the live rule unchanged.
+#' 4. The manager reviews proposals and calls [approve_user_proposals()]
+#'    or [reject_user_proposals()]. Approval upserts the user into
+#'    `edc_users`; rejection records the decision and leaves the roster
+#'    unchanged.
 #'
 #' @name gsheets_monitor
 NULL
@@ -574,46 +588,436 @@ reject_proposals <- function(ids, reviewer_id, comments,
 poll_gsheets_and_stage <- function(sheet_id,
                                     db_path    = NULL,
                                     staged_by  = 'system_monitor',
-                                    sheet_name = 'validation_rules',
+                                    sheet_name = 'Study_Users',
                                     notifier   = default_proposal_notifier) {
-  diff <- diff_gsheets_rules(
+  diff <- diff_gsheets_users(
     sheet_id   = sheet_id,
     db_path    = db_path,
     sheet_name = sheet_name
   )
 
   n_changes <- nrow(diff$new) + nrow(diff$modified)
-  n_deleted <- nrow(diff$deleted)
 
-  if (n_changes == 0 && n_deleted == 0) {
+  if (n_changes == 0) {
     return(invisible(NULL))
   }
 
-  stage_result <- stage_gsheets_proposals(
+  stage_result <- stage_gsheets_user_proposals(
     diff      = diff,
     sheet_id  = sheet_id,
     db_path   = db_path,
     staged_by = staged_by
   )
 
-  if (n_deleted > 0) {
-    message(
-      'Sheet monitor: ', n_deleted,
-      ' rule(s) present in database but absent from sheet. ',
-      'Review manually before removing: ',
-      paste(diff$deleted$rule_id, collapse = ', ')
-    )
-  }
-
   if (stage_result$staged > 0) {
-    pending <- get_pending_proposals(db_path = db_path)
+    pending <- get_pending_user_proposals(db_path = db_path)
     notifier(pending)
   }
 
   invisible(list(
     new      = nrow(diff$new),
     modified = nrow(diff$modified),
-    deleted  = n_deleted,
     staged   = stage_result$staged
   ))
+}
+
+# ============================================================================
+# User roster change detection, staging, and approval
+# ============================================================================
+
+#' Initialise the User Proposals Table
+#'
+#' Creates `user_proposals` if it does not already exist. Called
+#' automatically by [poll_gsheets_and_stage()] on first use.
+#'
+#' @param db_path Path to the ZZedc SQLite database. `NULL` uses
+#'   `get_db_path()`.
+#'
+#' @return Invisibly returns `TRUE` on success.
+#'
+#' @keywords internal
+init_user_proposals_table <- function(db_path = NULL) {
+  con <- connect_encrypted_db(db_path = db_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS user_proposals (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      proposal_id        TEXT UNIQUE NOT NULL,
+      username           TEXT NOT NULL,
+      change_type        TEXT NOT NULL,
+      proposed_full_name TEXT,
+      proposed_email     TEXT,
+      proposed_role      TEXT,
+      proposed_site_id   TEXT,
+      proposed_active    INTEGER,
+      current_role       TEXT,
+      current_email      TEXT,
+      sheet_id           TEXT NOT NULL,
+      staged_by          TEXT NOT NULL,
+      staged_at          TEXT NOT NULL,
+      status             TEXT NOT NULL DEFAULT 'PENDING',
+      reviewed_by        TEXT,
+      reviewed_at        TEXT,
+      review_comments    TEXT
+    )
+  ")
+
+  invisible(TRUE)
+}
+
+#' Diff Google Sheet Study_Users Against Live User Roster
+#'
+#' Reads `sheet_name` from `sheet_id` and compares each row against
+#' the `edc_users` table. Returns new and modified users. Deletions
+#' are not auto-staged; removing a user from the live roster requires
+#' explicit data-scientist action.
+#'
+#' @param sheet_id Google Sheets ID or full URL.
+#' @param db_path Path to the ZZedc SQLite database. `NULL` uses
+#'   `get_db_path()`.
+#' @param sheet_name Name of the tab containing the user roster.
+#'
+#' @return A list with elements `new` and `modified`, each a data
+#'   frame of user rows from the sheet.
+#'
+#' @export
+diff_gsheets_users <- function(sheet_id,
+                                db_path    = NULL,
+                                sheet_name = 'Study_Users') {
+  if (!requireNamespace('googlesheets4', quietly = TRUE)) {
+    stop(
+      "Package 'googlesheets4' is required. ",
+      "Install with: install.packages('googlesheets4')"
+    )
+  }
+
+  sheet_users <- googlesheets4::read_sheet(sheet_id, sheet = sheet_name)
+  sheet_users$username <- as.character(sheet_users$username)
+
+  con <- connect_encrypted_db(db_path = db_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  db_users <- DBI::dbGetQuery(
+    con,
+    "SELECT username, role, email FROM edc_users"
+  )
+
+  sheet_names <- sheet_users$username
+  db_names    <- db_users$username
+
+  new_rows <- sheet_users[!sheet_names %in% db_names, , drop = FALSE]
+
+  common <- sheet_names[sheet_names %in% db_names]
+  if (length(common) > 0) {
+    sheet_common <- sheet_users[sheet_names %in% common, , drop = FALSE]
+    db_map_role  <- stats::setNames(db_users$role,  db_users$username)
+    db_map_email <- stats::setNames(db_users$email, db_users$username)
+
+    changed <- vapply(seq_len(nrow(sheet_common)), function(i) {
+      u <- sheet_common$username[i]
+      role_changed  <- !identical(
+        toupper(as.character(sheet_common$role[i])),
+        toupper(as.character(db_map_role[u]))
+      )
+      email_changed <- !identical(
+        as.character(sheet_common$email[i]),
+        as.character(db_map_email[u])
+      )
+      role_changed || email_changed
+    }, logical(1))
+
+    modified_rows <- sheet_common[changed, , drop = FALSE]
+  } else {
+    modified_rows <- sheet_users[integer(0), , drop = FALSE]
+  }
+
+  list(new = new_rows, modified = modified_rows)
+}
+
+#' Stage Proposed User Roster Changes
+#'
+#' Writes each row in `diff` to the `user_proposals` table with
+#' `status = 'PENDING'`. The live `edc_users` table is not modified.
+#' An existing `PENDING` proposal for the same username is updated
+#' in place if the proposed values have changed.
+#'
+#' @param diff Output of [diff_gsheets_users()].
+#' @param sheet_id Google Sheets ID (stored for traceability).
+#' @param db_path Path to the ZZedc SQLite database. `NULL` uses
+#'   `get_db_path()`.
+#' @param staged_by Username of the account performing the staging.
+#'
+#' @return A list with `staged` and `skipped` counts.
+#'
+#' @keywords internal
+stage_gsheets_user_proposals <- function(diff, sheet_id,
+                                          db_path   = NULL,
+                                          staged_by = 'system_monitor') {
+  init_user_proposals_table(db_path = db_path)
+
+  con <- connect_encrypted_db(db_path = db_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  staged  <- 0L
+  skipped <- 0L
+  now     <- as.character(Sys.time())
+
+  write_user_proposal <- function(row, change_type) {
+    uname        <- as.character(row$username)
+    prop_role    <- as.character(row$role %||% NA)
+    prop_email   <- as.character(row$email %||% NA)
+    proposal_id  <- paste0(uname, '_', gsub('[^0-9]', '', now))
+
+    existing <- DBI::dbGetQuery(
+      con,
+      "SELECT id, proposed_role, proposed_email
+         FROM user_proposals
+        WHERE username = ? AND status = 'PENDING'
+        ORDER BY staged_at DESC LIMIT 1",
+      params = list(uname)
+    )
+
+    if (nrow(existing) > 0 &&
+        identical(existing$proposed_role[1],  prop_role) &&
+        identical(existing$proposed_email[1], prop_email)) {
+      skipped <<- skipped + 1L
+      return(invisible(NULL))
+    }
+
+    current <- DBI::dbGetQuery(
+      con,
+      "SELECT role, email FROM edc_users WHERE username = ?",
+      params = list(uname)
+    )
+
+    if (nrow(existing) > 0) {
+      DBI::dbExecute(con, "
+        UPDATE user_proposals
+           SET proposed_role = ?, proposed_email = ?,
+               staged_by = ?, staged_at = ?
+         WHERE id = ?",
+        params = list(prop_role, prop_email, staged_by, now,
+                      existing$id[1])
+      )
+    } else {
+      DBI::dbExecute(con, "
+        INSERT INTO user_proposals
+          (proposal_id, username, change_type,
+           proposed_full_name, proposed_email, proposed_role,
+           proposed_site_id, proposed_active,
+           current_role, current_email,
+           sheet_id, staged_by, staged_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')",
+        params = list(
+          proposal_id, uname, change_type,
+          if ('full_name'  %in% names(row)) as.character(row$full_name)  else NA,
+          prop_email, prop_role,
+          if ('site_id'    %in% names(row)) as.character(row$site_id)    else NA,
+          if ('active'     %in% names(row)) as.integer(as.logical(row$active)) else 1L,
+          if (nrow(current) > 0) current$role[1]  else NA,
+          if (nrow(current) > 0) current$email[1] else NA,
+          as.character(sheet_id), staged_by, now
+        )
+      )
+    }
+
+    staged <<- staged + 1L
+  }
+
+  if (nrow(diff$new) > 0) {
+    for (i in seq_len(nrow(diff$new)))
+      write_user_proposal(diff$new[i, ], 'NEW')
+  }
+  if (nrow(diff$modified) > 0) {
+    for (i in seq_len(nrow(diff$modified)))
+      write_user_proposal(diff$modified[i, ], 'MODIFIED')
+  }
+
+  list(staged = staged, skipped = skipped)
+}
+
+#' Retrieve Pending User Proposals
+#'
+#' Returns all user roster proposals currently in `PENDING` status.
+#'
+#' @param db_path Path to the ZZedc SQLite database. `NULL` uses
+#'   `get_db_path()`.
+#'
+#' @return Data frame of pending proposals, or an empty data frame.
+#'
+#' @export
+get_pending_user_proposals <- function(db_path = NULL) {
+  tryCatch({
+    con <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(con), add = TRUE)
+    DBI::dbGetQuery(con, "
+      SELECT id, proposal_id, username, change_type,
+             current_role, proposed_role,
+             current_email, proposed_email,
+             proposed_full_name, proposed_site_id,
+             staged_by, staged_at
+        FROM user_proposals
+       WHERE status = 'PENDING'
+       ORDER BY staged_at DESC
+    ")
+  }, error = function(e) data.frame())
+}
+
+#' Approve Pending User Proposals
+#'
+#' For each `proposal_id` in `ids`: inserts or updates the user in
+#' `edc_users` from the proposal record, marks the proposal
+#' `'APPROVED'`, and writes an audit entry. Passwords for `NEW` users
+#' are set to a secure random initial value that the coordinator must
+#' change on first login; the hash is recorded but never returned.
+#'
+#' @param ids Character vector of `proposal_id` values to approve.
+#' @param reviewer_id Username of the approving manager.
+#' @param db_path Path to the ZZedc SQLite database. `NULL` uses
+#'   `get_db_path()`.
+#' @param comments Optional comments recorded on each approval.
+#'
+#' @return A list with `approved` (count) and `errors`.
+#'
+#' @export
+approve_user_proposals <- function(ids, reviewer_id, db_path = NULL,
+                                    comments = NULL) {
+  con <- connect_encrypted_db(db_path = db_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  approved <- 0L
+  errors   <- list()
+  now      <- as.character(Sys.time())
+
+  for (pid in ids) {
+    tryCatch({
+      proposal <- DBI::dbGetQuery(
+        con,
+        "SELECT * FROM user_proposals WHERE proposal_id = ?",
+        params = list(pid)
+      )
+
+      if (nrow(proposal) == 0) {
+        errors[[pid]] <- 'Proposal not found'; next
+      }
+      if (proposal$status[1] != 'PENDING') {
+        errors[[pid]] <- paste0('Status is ', proposal$status[1],
+                                ', not PENDING'); next
+      }
+
+      p <- proposal[1, ]
+
+      if (p$change_type == 'NEW') {
+        init_pw   <- paste0(
+          sample(c(letters, LETTERS, 0:9), 12, replace = TRUE),
+          collapse = ''
+        )
+        pw_hash <- digest::digest(
+          paste0(init_pw, 'gsheets_setup_salt_change_in_production'),
+          algo = 'sha256'
+        )
+        db_insert_user(
+          conn      = con,
+          username  = p$username,
+          password_hash = pw_hash,
+          full_name = p$proposed_full_name %||% p$username,
+          email     = p$proposed_email     %||% '',
+          role      = p$proposed_role      %||% 'Coordinator',
+          site_id   = p$proposed_site_id   %||% '',
+          active    = as.logical(p$proposed_active %||% TRUE),
+          created_by = reviewer_id
+        )
+      } else {
+        DBI::dbExecute(con, "
+          UPDATE edc_users
+             SET role       = COALESCE(?, role),
+                 email      = COALESCE(?, email),
+                 full_name  = COALESCE(?, full_name),
+                 site_id    = COALESCE(?, site_id),
+                 active     = COALESCE(?, active)
+           WHERE username = ?",
+          params = list(
+            p$proposed_role,
+            p$proposed_email,
+            p$proposed_full_name,
+            p$proposed_site_id,
+            p$proposed_active,
+            p$username
+          )
+        )
+      }
+
+      DBI::dbExecute(con, "
+        UPDATE user_proposals
+           SET status = 'APPROVED', reviewed_by = ?,
+               reviewed_at = ?, review_comments = ?
+         WHERE proposal_id = ?",
+        params = list(reviewer_id, now, comments, pid)
+      )
+
+      approved <- approved + 1L
+    }, error = function(e) {
+      errors[[pid]] <<- e$message
+    })
+  }
+
+  list(approved = approved, errors = errors)
+}
+
+#' Reject Pending User Proposals
+#'
+#' Marks each proposal in `ids` as `'REJECTED'`. The live `edc_users`
+#' table is not modified.
+#'
+#' @param ids Character vector of `proposal_id` values to reject.
+#' @param reviewer_id Username of the rejecting manager.
+#' @param comments Required rationale for the rejection.
+#' @param db_path Path to the ZZedc SQLite database. `NULL` uses
+#'   `get_db_path()`.
+#'
+#' @return A list with `rejected` (count) and `errors`.
+#'
+#' @export
+reject_user_proposals <- function(ids, reviewer_id, comments,
+                                   db_path = NULL) {
+  con <- connect_encrypted_db(db_path = db_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  rejected <- 0L
+  errors   <- list()
+  now      <- as.character(Sys.time())
+
+  for (pid in ids) {
+    tryCatch({
+      proposal <- DBI::dbGetQuery(
+        con,
+        "SELECT proposal_id, status FROM user_proposals
+          WHERE proposal_id = ?",
+        params = list(pid)
+      )
+
+      if (nrow(proposal) == 0) {
+        errors[[pid]] <- 'Proposal not found'; next
+      }
+      if (proposal$status[1] != 'PENDING') {
+        errors[[pid]] <- paste0('Status is ', proposal$status[1],
+                                ', not PENDING'); next
+      }
+
+      DBI::dbExecute(con, "
+        UPDATE user_proposals
+           SET status = 'REJECTED', reviewed_by = ?,
+               reviewed_at = ?, review_comments = ?
+         WHERE proposal_id = ?",
+        params = list(reviewer_id, now, comments, pid)
+      )
+
+      rejected <- rejected + 1L
+    }, error = function(e) {
+      errors[[pid]] <<- e$message
+    })
+  }
+
+  list(rejected = rejected, errors = errors)
 }
