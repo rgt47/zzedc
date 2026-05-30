@@ -59,6 +59,18 @@ admin:
   password: "ChangeMeToSecurePassword123!"
 
 # ─────────────────────────────────────────────────────────────────
+# PRINCIPAL INVESTIGATOR ACCOUNT (Optional)
+# ─────────────────────────────────────────────────────────────────
+# When provided, a separate PI account is created with the PI role.
+# The admin account above should be a technical sysadmin account
+# that is not used for day-to-day study operations.
+pi:
+  username: ""           # Leave blank to skip PI account creation
+  fullname: ""
+  email: ""
+  password: ""           # Temporary; PI must change on first login
+
+# ─────────────────────────────────────────────────────────────────
 # SECURITY CONFIGURATION
 # ─────────────────────────────────────────────────────────────────
 security:
@@ -141,10 +153,16 @@ database:
 #   phase: "Phase3"
 #
 # admin:
-#   username: "trial_admin"
-#   fullname: "Administrative User"
-#   email: "trial.admin@ucsd.edu"
+#   username: "sysadmin"
+#   fullname: "System Administrator"
+#   email: "sysadmin@ucsd.edu"
 #   password: "SecureAWSPassword123!@#"
+#
+# pi:
+#   username: "jwilson"
+#   fullname: "Dr. James Wilson"
+#   email: "jwilson@ucsd.edu"
+#   password: "TemporaryPI2024!"
 #
 # security:
 #   session_timeout_minutes: 30

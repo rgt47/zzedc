@@ -141,10 +141,16 @@ study:
   phase: "Phase II"
 
 admin:
+  username: "sysadmin"
+  fullname: "System Administrator"
+  email: "sysadmin@university.edu"
+  password: "ChangeMeToVaultManagedSecret!"
+
+pi:
   username: "psmith"
   fullname: "Professor Smith"
   email: "psmith@university.edu"
-  password: "ChangeMeToSecurePassword123!"
+  password: "TemporaryPI2026!"
 
 security:
   session_timeout_minutes: 60
@@ -163,6 +169,11 @@ database:
 
 Notes on these settings:
 
+- The `pi` section creates a separate PI account with the PI role.
+  The `admin` account should be reserved for system-level operations
+  and never used for day-to-day study activities. If the PI and
+  system administrator are the same person, leave `pi:` blank; the
+  admin account will function as both.
 - `pool_size: 5` accommodates five concurrent users
   (one per account). Increase if additional read-only accounts
   are added later.

@@ -252,6 +252,7 @@ init_from_config <- function(config_file, project_dir = ".") {
 
   config <- config_yaml$study
   admin <- config_yaml$admin
+  pi_cfg <- config_yaml$pi %||% list()
   security <- config_yaml$security %||% list()
 
   # Validate study config
@@ -275,6 +276,10 @@ init_from_config <- function(config_file, project_dir = ".") {
     admin_fullname = admin$fullname %||% admin$username,
     admin_email = admin$email %||% "admin@example.com",
     admin_password = admin$password,
+    pi_username = if (nzchar(pi_cfg$username %||% '')) pi_cfg$username else NULL,
+    pi_fullname = pi_cfg$fullname %||% NULL,
+    pi_email    = pi_cfg$email    %||% NULL,
+    pi_password = pi_cfg$password %||% NULL,
     security_salt = generate_security_salt(),
     session_timeout = as.numeric(security$session_timeout_minutes %||% 30),
     enforce_https = as.logical(security$enforce_https %||% TRUE),

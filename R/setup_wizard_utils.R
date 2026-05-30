@@ -104,10 +104,37 @@ create_wizard_database <- function(config_list, db_path = NULL,
       "setup_wizard"
     ))
 
+    # Create PI account if provided separately from sysadmin
+    if (!is.null(config_list$pi_username) &&
+        nzchar(config_list$pi_username) &&
+        config_list$pi_username != config_list$admin_username) {
+      pi_pw   <- config_list$pi_password %||%
+        paste0(sample(c(letters, LETTERS, 0:9), 12, replace = TRUE),
+               collapse = '')
+      pi_hash <- digest::digest(paste0(pi_pw, salt), algo = 'sha256')
+      pi_id   <- paste0('USER_', as.integer(Sys.time()) + 1L)
+      DBI::dbExecute(conn, "
+        INSERT INTO edc_users
+          (user_id, username, password_hash, full_name, email,
+           role, active, created_date, created_by)
+        VALUES (?, ?, ?, ?, ?, 'PI', 1, datetime('now'), ?)
+      ", params = list(
+        pi_id,
+        config_list$pi_username,
+        pi_hash,
+        config_list$pi_fullname %||% config_list$pi_username,
+        config_list$pi_email    %||% '',
+        'setup_wizard'
+      ))
+    }
+
     # Insert predefined roles
     roles <- list(
       list("Admin", "Full system access", "all"),
       list("PI", "Principal Investigator - read/write access", "read,write,reports"),
+      list("StudyManager",
+           "Coordinating centre study manager - configuration and user approval authority",
+           "read,write,reports,export,approve_users"),
       list("Coordinator", "Data entry and basic reports", "data_entry,read_own"),
       list("Data Manager", "Data management and analysis", "read,write,reports,export"),
       list("Monitor", "Read-only access for monitoring", "read_only")

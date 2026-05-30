@@ -886,6 +886,29 @@ approve_user_proposals <- function(ids, reviewer_id, db_path = NULL,
   con <- connect_encrypted_db(db_path = db_path)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
+  reviewer_rec <- DBI::dbGetQuery(
+    con,
+    "SELECT role FROM edc_users WHERE username = ?",
+    params = list(reviewer_id)
+  )
+  if (nrow(reviewer_rec) == 0) {
+    return(list(
+      approved = 0L,
+      errors   = list(auth = paste0('Reviewer "', reviewer_id,
+                                    '" not found in edc_users'))
+    ))
+  }
+  if (!tolower(reviewer_rec$role[1]) %in% c('admin', 'pi', 'studymanager')) {
+    return(list(
+      approved = 0L,
+      errors   = list(auth = paste0(
+        'Role "', reviewer_rec$role[1],
+        '" is not authorised to approve user roster proposals. ',
+        'Required: Admin, PI, or StudyManager.'
+      ))
+    ))
+  }
+
   approved <- 0L
   errors   <- list()
   now      <- as.character(Sys.time())
@@ -983,6 +1006,29 @@ reject_user_proposals <- function(ids, reviewer_id, comments,
                                    db_path = NULL) {
   con <- connect_encrypted_db(db_path = db_path)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  reviewer_rec <- DBI::dbGetQuery(
+    con,
+    "SELECT role FROM edc_users WHERE username = ?",
+    params = list(reviewer_id)
+  )
+  if (nrow(reviewer_rec) == 0) {
+    return(list(
+      approved = 0L,
+      errors   = list(auth = paste0('Reviewer "', reviewer_id,
+                                    '" not found in edc_users'))
+    ))
+  }
+  if (!tolower(reviewer_rec$role[1]) %in% c('admin', 'pi', 'studymanager')) {
+    return(list(
+      approved = 0L,
+      errors   = list(auth = paste0(
+        'Role "', reviewer_rec$role[1],
+        '" is not authorised to approve user roster proposals. ',
+        'Required: Admin, PI, or StudyManager.'
+      ))
+    ))
+  }
 
   rejected <- 0L
   errors   <- list()

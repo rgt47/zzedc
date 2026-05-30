@@ -1,3 +1,32 @@
+# zzedc v0.6.2
+
+## Permissions hierarchy implementation
+
+* **`studymanager` role added.** `setup_default_dsl_permissions()` now
+  includes `studymanager` with full configuration-write and approval
+  authority (`can_create=1, can_edit=1, can_approve=1, can_activate=1,
+  can_delete=0`). `StudyManager` is also registered in `edc_roles`
+  during `create_wizard_database()`.
+* **`migrate_add_studymanager_role()` (new export).** Idempotent
+  migration that adds the `studymanager` permission row and `edc_roles`
+  entry to databases initialised before v0.6.2.
+* **Non-escalation enforcement in user management UI.** New unexported
+  helpers `.ROLE_TIER` and `.assignable_roles()` in
+  `user_management_module.R`. `user_management_server()` now accepts an
+  `actor_role` argument; role choices in the add/edit modals are
+  filtered to roles strictly below the acting user's tier.
+  `admin_dashboard_server()` passes `user_session$role` as the actor.
+* **Approval authority check in `approve_user_proposals()` and
+  `reject_user_proposals()`.** Both functions now look up the
+  reviewer's role in `edc_users` and return an `auth` error if the
+  role is not `admin`, `pi`, or `studymanager`.
+* **PI account separated from sysadmin in config template.** The
+  `zzedc_config_template.yml` and the prazosin-large technical guide
+  now define a `pi:` section alongside `admin:`. When `pi_username` is
+  present and distinct from `admin_username`, `create_wizard_database()`
+  inserts a separate PI-role account. The admin account is documented
+  as a technical sysadmin not used for day-to-day study operations.
+
 # zzedc v0.6.1
 
 ## Access model correction and user-roster change monitor

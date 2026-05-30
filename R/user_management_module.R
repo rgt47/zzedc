@@ -3,6 +3,27 @@
 # Provides user management interface for system administrators.
 # Enables adding, editing, and role assignment without direct database access.
 
+# Role tier hierarchy for non-escalation enforcement.
+# Lower number = higher privilege. A user may only assign roles
+# with a tier number strictly greater than their own.
+.ROLE_TIER <- c(
+  admin        = 1L,
+  pi           = 1L,
+  studymanager = 2L,
+  data_manager = 2L,
+  coordinator  = 3L,
+  monitor      = 4L
+)
+
+# Returns the role names that `actor_role` is permitted to assign.
+.assignable_roles <- function(actor_role) {
+  actor_tier <- .ROLE_TIER[tolower(actor_role %||% 'coordinator')]
+  if (is.na(actor_tier)) actor_tier <- 3L
+  assignable <- names(.ROLE_TIER)[.ROLE_TIER > actor_tier]
+  # Capitalise to match UI display values
+  tools::toTitleCase(gsub('_', ' ', assignable))
+}
+
 #' User Management UI
 #'
 #' @param id The namespace id for the module
@@ -91,7 +112,7 @@ user_management_ui <- function(id) {
     div(class = "form-group",
       tags$label("Role *", `for` = ns("modal_role")),
       selectInput(ns("modal_role"), NULL,
-                 choices = c("Admin", "PI", "Coordinator",
+                 choices = c("Admin", "PI", "StudyManager", "Coordinator",
                              "Data Manager", "Monitor"),
                  selected = role)
     ),
@@ -194,7 +215,7 @@ user_management_ui <- function(id) {
 #' }
 #' }
 #' @keywords internal
-user_management_server <- function(id, db_pool = NULL) {
+user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -307,6 +328,14 @@ user_management_server <- function(id, db_pool = NULL) {
       user_state$edit_user_id <- NULL
 
       shiny::showModal(.user_modal_dialog(ns, title = "Add User"))
+
+      choices <- if (!is.null(actor_role)) {
+        .assignable_roles(actor_role)
+      } else {
+        c("Admin", "PI", "StudyManager", "Coordinator",
+          "Data Manager", "Monitor")
+      }
+      updateSelectInput(session, "modal_role", choices = choices)
     })
 
     # Edit user button
@@ -331,6 +360,16 @@ user_management_server <- function(id, db_pool = NULL) {
         role     = user_row$role[1],
         active   = as.logical(user_row$active[1])
       ))
+
+      choices <- if (!is.null(actor_role)) {
+        .assignable_roles(actor_role)
+      } else {
+        c("Admin", "PI", "StudyManager", "Coordinator",
+          "Data Manager", "Monitor")
+      }
+      updateSelectInput(session, "modal_role",
+                        choices  = choices,
+                        selected = user_row$role[1])
     })
 
     # Save user

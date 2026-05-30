@@ -374,13 +374,14 @@ init_dsl_rules_db <- function() {
 #' @keywords internal
 setup_default_dsl_permissions <- function(con) {
   permissions <- data.frame(
-    role_name = c("admin", "pi", "data_manager", "coordinator", "monitor"),
-    can_view = c(1, 1, 1, 1, 1),
-    can_create = c(1, 0, 1, 0, 0),
-    can_edit = c(1, 0, 1, 0, 0),
-    can_delete = c(1, 0, 0, 0, 0),
-    can_approve = c(1, 1, 0, 0, 0),
-    can_activate = c(1, 1, 1, 0, 0),
+    role_name = c("admin", "pi", "studymanager",
+                  "data_manager", "coordinator", "monitor"),
+    can_view     = c(1, 1, 1, 1, 1, 1),
+    can_create   = c(1, 0, 1, 1, 0, 0),
+    can_edit     = c(1, 0, 1, 1, 0, 0),
+    can_delete   = c(1, 0, 0, 0, 0, 0),
+    can_approve  = c(1, 1, 1, 0, 0, 0),
+    can_activate = c(1, 1, 1, 1, 0, 0),
     stringsAsFactors = FALSE
   )
 
@@ -1274,4 +1275,51 @@ setup_zzedc_from_gsheets <- function(
   if (!isTRUE(rules_res$success)) result$success <- FALSE
 
   result
+}
+
+#' Migrate: Add StudyManager Role to DSL Permissions
+#'
+#' Adds the `studymanager` role to `dsl_rule_permissions` in an
+#' existing database. Safe to run on databases that were initialised
+#' before v0.6.1; does nothing if the role already exists.
+#'
+#' @param db_path Path to the ZZedc SQLite database. `NULL` uses
+#'   `get_db_path()`.
+#'
+#' @return Invisibly returns `TRUE`.
+#'
+#' @export
+migrate_add_studymanager_role <- function(db_path = NULL) {
+  con <- connect_encrypted_db(db_path = db_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  existing <- DBI::dbGetQuery(
+    con,
+    "SELECT role_name FROM dsl_rule_permissions WHERE role_name = 'studymanager'"
+  )
+
+  if (nrow(existing) == 0) {
+    DBI::dbExecute(con, "
+      INSERT INTO dsl_rule_permissions
+        (role_name, can_view, can_create, can_edit,
+         can_delete, can_approve, can_activate)
+      VALUES ('studymanager', 1, 1, 1, 0, 1, 1)
+    ")
+  }
+
+  existing_role <- DBI::dbGetQuery(
+    con,
+    "SELECT role_name FROM edc_roles WHERE role_name = 'StudyManager'"
+  )
+  if (nrow(existing_role) == 0) {
+    DBI::dbExecute(con, "
+      INSERT INTO edc_roles (role_name, description, permissions, created_date)
+      VALUES ('StudyManager',
+              'Coordinating centre study manager - configuration and user approval authority',
+              'read,write,reports,export,approve_users',
+              datetime('now'))
+    ")
+  }
+
+  invisible(TRUE)
 }

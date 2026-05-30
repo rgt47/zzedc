@@ -116,7 +116,11 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL, db_p
     })
 
     # Initialize all submodules
-    user_mgmt_results <- user_management_server("user_mgmt", db_pool = db_pool)
+    user_mgmt_results <- user_management_server(
+      "user_mgmt",
+      db_pool    = db_pool,
+      actor_role = if (!is.null(user_session)) user_session$role else NULL
+    )
 
     backup_restore_results <- backup_restore_server(
       "backup",
