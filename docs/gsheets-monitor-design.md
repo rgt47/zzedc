@@ -138,15 +138,21 @@ coordinator's current intent.
 
 `approve_user_proposals()` for each approved `proposal_id`:
 
-1. Validates `status = 'PENDING'`.
-2. For `NEW`: calls `db_insert_user()` with the proposed values and a
+1. Looks up the reviewer's role in `edc_users` and verifies it is
+   `admin`, `pi`, or `studymanager`. Returns an `auth` error
+   immediately if not; no database writes occur.
+2. Validates `status = 'PENDING'`.
+3. For `NEW`: calls `db_insert_user()` with the proposed values and a
    cryptographically random initial password (12-character alphanumeric,
    hashed with the system salt). The account holder must change this
    password on first login.
-3. For `MODIFIED`: issues an `UPDATE` to `edc_users` using `COALESCE`
+4. For `MODIFIED`: issues an `UPDATE` to `edc_users` using `COALESCE`
    to apply only the fields present in the proposal.
-4. Marks the proposal `'APPROVED'` and records `reviewed_by`,
+5. Marks the proposal `'APPROVED'` and records `reviewed_by`,
    `reviewed_at`, and any comments.
+
+`reject_user_proposals()` applies the same role check before marking
+the proposal `'REJECTED'`.
 
 `approve_proposals()` (for DSL rules) additionally recompiles the DSL
 expression to R and SQL validator expressions before writing to
@@ -262,49 +268,64 @@ For a 4-site 200-subject trial, the standard REDCap account matrix is:
 | Site coordinator | no | no | own site | none or de-id | Tier 3 |
 | Monitor | no | no | all | de-id | Tier 4 |
 
-### Current ZZedc role model and identified gaps
+### ZZedc role model: current state (v0.6.2)
 
-The default `dsl_rule_permissions` table defines five roles:
+The `dsl_rule_permissions` table now defines six roles. The
+`studymanager` row was added in v0.6.2.
 
 | Role | can_view | can_create | can_edit | can_delete | can_approve | can_activate |
 |---|---|---|---|---|---|---|
 | `admin` | 1 | 1 | 1 | 1 | 1 | 1 |
 | `pi` | 1 | 0 | 0 | 0 | 1 | 1 |
+| `studymanager` | 1 | 1 | 1 | 0 | 1 | 1 |
 | `data_manager` | 1 | 1 | 1 | 0 | 0 | 1 |
 | `coordinator` | 1 | 0 | 0 | 0 | 0 | 0 |
 | `monitor` | 1 | 0 | 0 | 0 | 0 | 0 |
 
-Four gaps relative to the standard model:
+### Gap analysis and resolution status
 
-**Gap 1: No `study_manager` role.**
-There is no role that combines configuration-write access
-(`can_create`, `can_edit` on dictionary and rules) with
-user-roster approval authority (`can_approve_users`). The
-coordinating centre study manager who maintains the data dictionary
-and approves user proposals has no appropriate role. The closest
-existing role is `data_manager`, which has `can_approve = 0` (cannot
-approve DSL rules, and the proposal approval functions do not yet
-check a permission flag for user proposals).
+**Gap 1 -- No `studymanager` role. RESOLVED (v0.6.2)**
+`setup_default_dsl_permissions()` now includes `studymanager` with
+full configuration-write and approval authority. `StudyManager` is
+also registered in `edc_roles` during `create_wizard_database()`. The
+exported `migrate_add_studymanager_role()` adds both entries to
+databases initialised before v0.6.2 without requiring a full
+re-import.
 
-**Gap 2: No non-escalation enforcement.**
-The user management UI offers `Admin`, `PI`, `Coordinator`,
-`Data Manager`, and `Monitor` as role choices with no application-layer
-check preventing a `data_manager` from promoting a `coordinator` to
-`admin`. REDCap enforces this at every role-assignment call.
+`approve_user_proposals()` and `reject_user_proposals()` both verify
+the reviewer's role against `edc_users` at call time, requiring
+`admin`, `pi`, or `studymanager`. A `data_manager` or `coordinator`
+account calling these functions receives an `auth` error before any
+proposal state is changed.
 
-**Gap 3: `pi` cannot create or edit rules directly.**
-`can_create = 0` and `can_edit = 0` for the `pi` role means the PI
-can approve rules but cannot author them. This is defensible (it
-enforces separation of authoring and approval) but is not consistent
-with the Tier 1 definition above and may surprise a PI who expects
-full access.
+**Gap 2 -- No non-escalation enforcement. RESOLVED (v0.6.2)**
+`user_management_module.R` now contains a `.ROLE_TIER` hierarchy
+and an `.assignable_roles()` helper. `user_management_server()` accepts
+an `actor_role` parameter populated by `admin_dashboard_server()` from
+the active session's role. The add-user and edit-user modals call
+`updateSelectInput()` with choices filtered to tiers strictly below the
+actor's own tier. A `studymanager` sees only `Coordinator` and
+`Monitor` in the role dropdown; an `admin` or `pi` sees all roles.
 
-**Gap 4: Tier 0 / application admin conflation.**
-The technical guide documents `psmith` (the PI) as the top-level
-application account, conflating the study PI role with the system
-administrator role. A production deployment should have a dedicated
-`sysadmin` application account used only for system-level operations,
-with `psmith` registered as `PI` rather than `Admin`.
+**Gap 3 -- `pi` cannot author rules directly. RETAINED BY DESIGN**
+`can_create = 0` and `can_edit = 0` for the `pi` role remain
+unchanged. The PI can approve rules proposed by a `studymanager` or
+`data_manager` but cannot author them directly. This enforces
+separation of authoring and approval at the permission layer and is
+consistent with good-practice two-person controls for constraint
+changes in a regulated trial. A PI who genuinely needs authoring
+access can be given an additional `data_manager`-role account, or the
+`pi` row in `dsl_rule_permissions` can be updated via
+`migrate_add_studymanager_role()`-style SQL by the data scientist.
+
+**Gap 4 -- Tier 0 / application admin conflation. RESOLVED (v0.6.2)**
+The config template (`inst/templates/zzedc_config_template.yml`) and
+the prazosin-large technical guide (Section 5) now define a `pi:`
+section alongside `admin:`. When `pi_username` is present and distinct
+from `admin_username`, `create_wizard_database()` inserts a PI-role
+account in addition to the sysadmin account. The `admin` account is
+documented as a technical sysadmin reserved for system-level
+operations.
 
 ---
 
@@ -319,15 +340,25 @@ than correcting them after go-live, because post-import role changes
 require direct database writes or admin UI operations rather than a
 re-import.
 
-The construction process is therefore:
+As of v0.6.2, the `studymanager` role, non-escalation enforcement,
+and PI/sysadmin account separation are all built into the
+initialisation path. The construction process is:
 
-1. Define the full desired hierarchy in the `Study_Users` tab of the
-   coordinating centre workbook.
-2. Review it against the tier model before importing.
-3. Import once with `setup_zzedc_from_gsheets()`.
-4. Verify each account's effective permissions with a dry-run login.
-5. Add the `study_manager` role and non-escalation enforcement to
-   `dsl_rule_permissions` as a post-import migration.
+1. Write `zzedc_config.yml` with separate `admin:` (sysadmin) and
+   `pi:` sections.
+2. Define the full desired hierarchy in the `Study_Users` tab of each
+   workbook, using the account matrix below.
+3. Run `zzedc::init(mode = 'config', config_file = 'zzedc_config.yml')`.
+   This creates the sysadmin and PI accounts and registers all six
+   roles including `studymanager` in `dsl_rule_permissions`.
+4. Import the coordinating centre workbook, then each site workbook,
+   with `setup_zzedc_from_gsheets()`.
+5. Verify each account's effective permissions with a dry-run login.
+
+For databases initialised before v0.6.2, run
+`migrate_add_studymanager_role(db_path = ...)` once to backfill the
+`studymanager` permission row and `edc_roles` entry without
+re-importing any data.
 
 ### Recommended account matrix for PRAZ-L-2026
 
@@ -353,68 +384,11 @@ site workbook holds only that site's coordinator accounts.
 | `ucsf_coord` | UCSF Coordinator | UCSF | UCSF | TRUE | Tier 3 |
 | `stanford_coord` | Stanford Coordinator | Coordinator | Stanford | TRUE | Tier 3 |
 
-### Post-import: adding the StudyManager role
+### Configuration file: separating sysadmin from PI
 
-The `StudyManager` role does not exist in the default ZZedc schema.
-After the first import, run the following to add it and set the
-appropriate permissions. This must be run by the data scientist
-(Tier 0) before the `cc_manager` account can use approval functions:
-
-```r
-library(zzedc)
-library(DBI)
-
-con <- connect_encrypted_db(db_path = 'data/praz-large.db')
-
-# Register the new role in the DSL permissions table.
-dbExecute(con, "
-  INSERT OR IGNORE INTO dsl_rule_permissions
-    (role_name, can_view, can_create, can_edit,
-     can_delete, can_approve, can_activate)
-  VALUES ('studymanager', 1, 1, 1, 0, 1, 1)
-")
-
-dbDisconnect(con)
-```
-
-This gives the `StudyManager` role full configuration-write and
-approval authority over DSL rules. User-proposal approval authority
-for `approve_user_proposals()` is enforced by role membership in
-`edc_users` rather than `dsl_rule_permissions`; extend the check
-in `approve_user_proposals()` to verify `role IN ('admin', 'pi',
-'studymanager')` once the function is updated.
-
-### Post-import: enforcing non-escalation in the user management UI
-
-Add a role ceiling check to the user management module server. The
-principle: a user can only assign roles that appear below their own
-tier in the hierarchy. A concrete implementation:
-
-```r
-ROLE_TIER <- c(
-  admin       = 1L,
-  pi          = 1L,
-  studymanager = 2L,
-  data_manager = 2L,
-  coordinator  = 3L,
-  monitor      = 4L
-)
-
-assignable_roles <- function(actor_role) {
-  actor_tier <- ROLE_TIER[tolower(actor_role)]
-  names(ROLE_TIER)[ROLE_TIER > actor_tier]
-}
-```
-
-Pass `assignable_roles(session_user_role)` as the `choices` vector
-when rendering the role select input in the user management UI. The
-PI and admin accounts see all roles; the study manager sees only
-`coordinator` and `monitor`.
-
-### Separating sysadmin from PI in the configuration file
-
-Update `zzedc_config.yml` to distinguish the technical admin account
-from the PI:
+Write `zzedc_config.yml` with an `admin:` section for the technical
+account and a `pi:` section for the study PI. Both sections are
+parsed by `init()` and result in distinct database accounts.
 
 ```yaml
 admin:
@@ -423,17 +397,33 @@ admin:
   email: "sysadmin@university.edu"
   password: "ChangeToVaultManagedSecret!"
 
-study:
-  pi_username: "psmith"
-  pi_name: "Professor Smith"
-  pi_email: "psmith@university.edu"
+pi:
+  username: "psmith"
+  fullname: "Professor Smith"
+  email: "psmith@university.edu"
+  password: "TemporaryPI2026!"
 ```
 
 The `sysadmin` account is used only for system initialisation,
-database migrations, and emergency recovery. It should not be used
-for day-to-day study operations. Its password should be stored in an
-institutional secrets vault (not in the config file under version
-control) and rotated after initial setup.
+database migrations, and emergency recovery. Its password should be
+stored in an institutional secrets vault and rotated after initial
+setup. If the PI and system administrator are the same person, leave
+`pi:` empty; the admin account will function as both.
+
+### Migration for existing databases (pre-v0.6.2)
+
+Databases initialised before v0.6.2 lack the `studymanager` row in
+`dsl_rule_permissions` and `edc_roles`. Run once:
+
+```r
+library(zzedc)
+migrate_add_studymanager_role(db_path = 'data/praz-large.db')
+```
+
+This is idempotent: safe to run on databases that already have the
+row. No data migration is required for the non-escalation or
+PI/sysadmin changes; those are application-layer and config-layer
+controls that take effect on the next application restart.
 
 ---
 
@@ -484,16 +474,20 @@ When the manager receives the notification, they run:
 
 ### What you need to do to set this up
 
-1. Fill in the `Study_Users` tab of each workbook using the account
-   matrix in Part 3 of this document.
-2. Import the coordinating centre workbook first:
+1. Write `zzedc_config.yml` with separate `admin:` and `pi:` sections
+   as shown in Part 3. Run `zzedc::init(mode = 'config', ...)`. This
+   creates both accounts and registers all six roles automatically.
+2. Fill in the `Study_Users` tab of each workbook using the account
+   matrix in Part 3.
+3. Import the coordinating centre workbook first:
    `setup_zzedc_from_gsheets(sheet_url = CC_URL, db_path = ...)`.
-3. Import each site workbook:
+4. Import each site workbook:
    `setup_zzedc_from_gsheets(sheet_url = SITE_URL, db_path = ...)`.
-4. Run the post-import SQL in Part 3 to add the `StudyManager` role.
-5. Create `poll_users.R` and add the cron entry per Section 7a.2 of
+5. If upgrading an existing database (pre-v0.6.2), run
+   `migrate_add_studymanager_role(db_path = ...)` once.
+6. Create `poll_users.R` and add the cron entry per Section 7a.2 of
    the technical guide.
-6. Set the four `PRAZ_SHEET_*` environment variables and the SMTP
+7. Set the four `PRAZ_SHEET_*` environment variables and the SMTP
    variables on the server.
 
 ### What the standard permission hierarchy means for day-to-day operations
@@ -516,15 +510,21 @@ When the manager receives the notification, they run:
 
 ## Files modified or created
 
-| File | Change |
-|---|---|
-| `R/gsheets_monitor.R` | New file; 10 exported functions covering both user and DSL rule proposals |
-| `NAMESPACE` | 10 new `export()` entries |
-| `vignettes/prazosin-large/prazosin-large-technical-guide.Rmd` | Sections 7.3 (corrected access table), 7a (5 subsections, updated for Study_Users monitoring), 2 troubleshooting entries |
-| `vignettes/prazosin-large/prazosin-large-user-guide.Rmd` | Section 9 (corrected access model, approval-loop description), 2 troubleshooting entries, 3 glossary entries |
-| `docs/gsheets-monitor-design.md` | This document |
+| File | Change | Version |
+|---|---|---|
+| `R/gsheets_monitor.R` | 10 exported functions: user and DSL rule proposal queues; role check in approve/reject | v0.6.0--0.6.2 |
+| `R/validation_gsheets_integration.R` | `studymanager` added to `setup_default_dsl_permissions()`; `migrate_add_studymanager_role()` exported | v0.6.2 |
+| `R/setup_wizard_utils.R` | `StudyManager` added to `edc_roles`; PI account creation from `pi:` config section | v0.6.2 |
+| `R/user_management_module.R` | `.ROLE_TIER`, `.assignable_roles()`, `actor_role` parameter, filtered role dropdowns | v0.6.2 |
+| `R/admin_dashboard_module.R` | Passes `user_session$role` as `actor_role` to `user_management_server()` | v0.6.2 |
+| `R/init.R` | Parses optional `pi:` config section | v0.6.2 |
+| `inst/templates/zzedc_config_template.yml` | Added `pi:` section; updated Example 2 | v0.6.2 |
+| `NAMESPACE` | 11 new `export()` entries across v0.6.0--0.6.2 | v0.6.0--0.6.2 |
+| `vignettes/prazosin-large/prazosin-large-technical-guide.Rmd` | Sections 7.3, 7a, Section 5 config block updated | v0.6.0--0.6.2 |
+| `vignettes/prazosin-large/prazosin-large-user-guide.Rmd` | Section 9, troubleshooting, glossary | v0.6.0--0.6.1 |
+| `docs/gsheets-monitor-design.md` | This document | v0.6.0--0.6.2 |
 
 ---
 
-*Rendered on 2026-05-28 at 18:37 PDT.*<br>
+*Rendered on 2026-05-30 at 13:50 PDT.*<br>
 *Source: ~/prj/sfw/05-zzedc/zzedc/docs/gsheets-monitor-design.md*
