@@ -92,3 +92,7 @@ data/*.db
 data/*.duckdb
 /doc/
 /Meta/
+
+# Technical documentation tree: version-controlled locally (Dropbox),
+# but intentionally not tracked so it is never pushed to public GitHub.
+/docs/
