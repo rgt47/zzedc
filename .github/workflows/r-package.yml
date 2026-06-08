@@ -18,6 +18,7 @@ jobs:
     env:
       ZZCOLLAB_CONTAINER: "true"
       CI_TOOLS_LIB: "/tmp/ci-tools"
+      _R_CHECK_FORCE_SUGGESTS_: "false"
 
     steps:
       - uses: actions/checkout@v6
