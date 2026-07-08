@@ -68,7 +68,7 @@ local({
 
             # Verify roles exist
             roles <- DBI::dbGetQuery(conn, "SELECT * FROM edc_roles")
-            expect_equal(nrow(roles), 5)  # 5 predefined roles
+            expect_equal(nrow(roles), 6)  # 6 predefined roles
 
             DBI::dbDisconnect(conn)
             unlink(temp_db)
