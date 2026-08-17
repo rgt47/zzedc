@@ -38,328 +38,356 @@ The adapter pattern enables zzedc to support multiple database backends:
 
 }
 \section{Public fields}{
-\if{html}{\out{<div class="r6-fields">}}
-\describe{
-\item{\code{config}}{Configuration list for this adapter}
-}
-\if{html}{\out{</div>}}
+  \if{html}{\out{<div class="r6-fields">}}
+  \describe{
+    \item{\code{config}}{Configuration list for this adapter}
+  }
+  \if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-DatabaseAdapter-new}{\code{DatabaseAdapter$new()}}
-\item \href{#method-DatabaseAdapter-connect}{\code{DatabaseAdapter$connect()}}
-\item \href{#method-DatabaseAdapter-disconnect}{\code{DatabaseAdapter$disconnect()}}
-\item \href{#method-DatabaseAdapter-pool}{\code{DatabaseAdapter$pool()}}
-\item \href{#method-DatabaseAdapter-pool_close}{\code{DatabaseAdapter$pool_close()}}
-\item \href{#method-DatabaseAdapter-query}{\code{DatabaseAdapter$query()}}
-\item \href{#method-DatabaseAdapter-execute}{\code{DatabaseAdapter$execute()}}
-\item \href{#method-DatabaseAdapter-begin}{\code{DatabaseAdapter$begin()}}
-\item \href{#method-DatabaseAdapter-commit}{\code{DatabaseAdapter$commit()}}
-\item \href{#method-DatabaseAdapter-rollback}{\code{DatabaseAdapter$rollback()}}
-\item \href{#method-DatabaseAdapter-transaction}{\code{DatabaseAdapter$transaction()}}
-\item \href{#method-DatabaseAdapter-dialect}{\code{DatabaseAdapter$dialect()}}
-\item \href{#method-DatabaseAdapter-supports_encryption}{\code{DatabaseAdapter$supports_encryption()}}
-\item \href{#method-DatabaseAdapter-table_exists}{\code{DatabaseAdapter$table_exists()}}
-\item \href{#method-DatabaseAdapter-list_tables}{\code{DatabaseAdapter$list_tables()}}
-\item \href{#method-DatabaseAdapter-backend_name}{\code{DatabaseAdapter$backend_name()}}
-\item \href{#method-DatabaseAdapter-clone}{\code{DatabaseAdapter$clone()}}
-}
+  \itemize{
+    \item \href{#method-DatabaseAdapter-initialize}{\code{DatabaseAdapter$new()}}
+    \item \href{#method-DatabaseAdapter-connect}{\code{DatabaseAdapter$connect()}}
+    \item \href{#method-DatabaseAdapter-disconnect}{\code{DatabaseAdapter$disconnect()}}
+    \item \href{#method-DatabaseAdapter-pool}{\code{DatabaseAdapter$pool()}}
+    \item \href{#method-DatabaseAdapter-pool_close}{\code{DatabaseAdapter$pool_close()}}
+    \item \href{#method-DatabaseAdapter-query}{\code{DatabaseAdapter$query()}}
+    \item \href{#method-DatabaseAdapter-execute}{\code{DatabaseAdapter$execute()}}
+    \item \href{#method-DatabaseAdapter-begin}{\code{DatabaseAdapter$begin()}}
+    \item \href{#method-DatabaseAdapter-commit}{\code{DatabaseAdapter$commit()}}
+    \item \href{#method-DatabaseAdapter-rollback}{\code{DatabaseAdapter$rollback()}}
+    \item \href{#method-DatabaseAdapter-transaction}{\code{DatabaseAdapter$transaction()}}
+    \item \href{#method-DatabaseAdapter-dialect}{\code{DatabaseAdapter$dialect()}}
+    \item \href{#method-DatabaseAdapter-supports_encryption}{\code{DatabaseAdapter$supports_encryption()}}
+    \item \href{#method-DatabaseAdapter-table_exists}{\code{DatabaseAdapter$table_exists()}}
+    \item \href{#method-DatabaseAdapter-list_tables}{\code{DatabaseAdapter$list_tables()}}
+    \item \href{#method-DatabaseAdapter-backend_name}{\code{DatabaseAdapter$backend_name()}}
+    \item \href{#method-DatabaseAdapter-clone}{\code{DatabaseAdapter$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-DatabaseAdapter-new"></a>}}
-\if{latex}{\out{\hypertarget{method-DatabaseAdapter-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize the adapter with configuration
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$new(config)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-DatabaseAdapter-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-DatabaseAdapter-initialize}{}}}
+\subsection{\code{DatabaseAdapter$new()}}{
+  Initialize the adapter with configuration
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$new(config)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{config}}{List containing database configuration}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{config}}{List containing database configuration}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-connect"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-connect}{}}}
-\subsection{Method \code{connect()}}{
-Create a new database connection
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$connect()}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$connect()}}{
+  Create a new database connection
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$connect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    DBI connection object
+  }
 }
 
-\subsection{Returns}{
-DBI connection object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-disconnect"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-disconnect}{}}}
-\subsection{Method \code{disconnect()}}{
-Close a database connection
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$disconnect(conn)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$disconnect()}}{
+  Close a database connection
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$disconnect(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{DBI connection to close}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{DBI connection to close}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-pool"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-pool}{}}}
-\subsection{Method \code{pool()}}{
-Create a connection pool for concurrent access
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$pool()}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$pool()}}{
+  Create a connection pool for concurrent access
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$pool()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Pool object
+  }
 }
 
-\subsection{Returns}{
-Pool object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-pool_close"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-pool_close}{}}}
-\subsection{Method \code{pool_close()}}{
-Close a connection pool
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$pool_close(pool)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$pool_close()}}{
+  Close a connection pool
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$pool_close(pool)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{pool}}{Pool object to close}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{pool}}{Pool object to close}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-query"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-query}{}}}
-\subsection{Method \code{query()}}{
-Execute a SELECT query and return results
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$query(conn, sql, params = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$query()}}{
+  Execute a SELECT query and return results
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$query(conn, sql, params = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection or pool}
+      \item{\code{sql}}{SQL query string}
+      \item{\code{params}}{Optional named list or vector of parameters}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with query results
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection or pool}
-
-\item{\code{sql}}{SQL query string}
-
-\item{\code{params}}{Optional named list or vector of parameters}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Data frame with query results
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-execute"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-execute}{}}}
-\subsection{Method \code{execute()}}{
-Execute a non-SELECT statement (INSERT, UPDATE, DELETE, DDL)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$execute(conn, sql, params = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$execute()}}{
+  Execute a non-SELECT statement (INSERT, UPDATE, DELETE, DDL)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$execute(conn, sql, params = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection or pool}
+      \item{\code{sql}}{SQL statement}
+      \item{\code{params}}{Optional named list or vector of parameters}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Number of rows affected
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection or pool}
-
-\item{\code{sql}}{SQL statement}
-
-\item{\code{params}}{Optional named list or vector of parameters}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Number of rows affected
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-begin"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-begin}{}}}
-\subsection{Method \code{begin()}}{
-Begin a database transaction
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$begin(conn)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$begin()}}{
+  Begin a database transaction
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$begin(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-commit"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-commit}{}}}
-\subsection{Method \code{commit()}}{
-Commit a database transaction
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$commit(conn)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$commit()}}{
+  Commit a database transaction
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$commit(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-rollback"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-rollback}{}}}
-\subsection{Method \code{rollback()}}{
-Rollback a database transaction
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$rollback(conn)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$rollback()}}{
+  Rollback a database transaction
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$rollback(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-transaction"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-transaction}{}}}
-\subsection{Method \code{transaction()}}{
-Execute code within a transaction with automatic rollback on error
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$transaction(conn, code)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$transaction()}}{
+  Execute code within a transaction with automatic rollback on error
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$transaction(conn, code)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{code}}{Code to execute within transaction}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Result of code execution
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{code}}{Code to execute within transaction}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Result of code execution
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-dialect"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-dialect}{}}}
-\subsection{Method \code{dialect()}}{
-Get SQL dialect information for this backend
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$dialect()}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$dialect()}}{
+  Get SQL dialect information for this backend
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$dialect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with dialect-specific SQL fragments
+  }
 }
 
-\subsection{Returns}{
-List with dialect-specific SQL fragments
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-supports_encryption"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-supports_encryption}{}}}
-\subsection{Method \code{supports_encryption()}}{
-Check if this backend supports encryption
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$supports_encryption()}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$supports_encryption()}}{
+  Check if this backend supports encryption
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$supports_encryption()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical TRUE if encryption is supported
+  }
 }
 
-\subsection{Returns}{
-Logical TRUE if encryption is supported
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-table_exists"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-table_exists}{}}}
-\subsection{Method \code{table_exists()}}{
-Check if a table exists in the database
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$table_exists(conn, table_name)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$table_exists()}}{
+  Check if a table exists in the database
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$table_exists(conn, table_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Name of table to check}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical TRUE if table exists
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{table_name}}{Name of table to check}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Logical TRUE if table exists
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-list_tables"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-list_tables}{}}}
-\subsection{Method \code{list_tables()}}{
-List all tables in the database
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$list_tables(conn)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$list_tables()}}{
+  List all tables in the database
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$list_tables(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of table names
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Character vector of table names
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-backend_name"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-backend_name}{}}}
-\subsection{Method \code{backend_name()}}{
-Get the backend type name
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$backend_name()}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$backend_name()}}{
+  Get the backend type name
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$backend_name()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string identifying the backend
+  }
 }
 
-\subsection{Returns}{
-Character string identifying the backend
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DatabaseAdapter$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{DatabaseAdapter$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

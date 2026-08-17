@@ -1,43 +1,35 @@
 #' @keywords internal
 #' @import shiny
-#' @importFrom bslib page_fluid navset_card_tab nav_panel
+#' @importFrom bslib page_fluid navset_card_tab navset_tab nav_panel
 #' @importFrom bsicons bs_icon
 #' @importFrom DT datatable DTOutput
-#' @importFrom plotly plotlyOutput renderPlotly plot_ly
+#' @importFrom plotly plotlyOutput renderPlotly plot_ly ggplotly
 #' @importFrom R.utils withTimeout
 #' @importFrom graphics plot.new text
 #' @importFrom stats aggregate complete.cases median reorder rnorm runif sd
-#' @importFrom utils capture.output head modifyList object.size read.csv tail
-#'   timestamp write.csv
+#' @importFrom utils capture.output head modifyList object.size read.csv tail timestamp write.csv
 #' @importFrom rlang .data
+#' @importFrom dplyr case_when group_by mutate select summarise "%>%"
+#' @importFrom ggplot2 aes coord_flip geom_bar geom_boxplot geom_histogram geom_point ggplot labs theme_minimal
+#' @importFrom shinyalert shinyalert
+#' @importFrom DBI dbConnect dbDisconnect dbWriteTable
+#' @importFrom RSQLite SQLite
 "_PACKAGE"
 
 # Declare global variables to avoid R CMD check NOTEs
-# These are used in non-standard evaluation (NSE) contexts
+# These are used in non-standard evaluation (NSE) contexts. Function
+# names that resolve to real package exports are declared above via
+# @importFrom instead; this list is for genuine NSE symbols plus a few
+# names not yet traced to a declared dependency (see below).
 utils::globalVariables(c(
 
-  # ggplot2 aesthetics and functions
-  "aes", "coord_flip", "geom_bar", "geom_boxplot", "geom_histogram",
-  "geom_point", "ggplot", "labs", "theme_minimal",
-
-
-# plotly functions
-  "ggplotly", "plotlyOutput", "renderPlotly",
-
-# dplyr/tidyverse
-  "%>%", "case_when", "group_by", "mutate", "select", "summarise",
-
-# bslib components
-  "nav_panel", "navset_tab", "small", "label",
-
-# shinyalert
-  "shinyalert",
-
-# shinyauthr
-  "updatePasswordInput",
-
-# DBI/RSQLite
-  "dbConnect", "dbDisconnect", "dbWriteTable", "SQLite",
+# small()/label() are used as bare calls in cfr_compliance_module.R
+# and admin_dashboard_module.R but do not resolve to any declared
+# Import; likely a missing `tags$` prefix or an undeclared dependency.
+# updatePasswordInput() is from shinyauthr, which is used but never
+# declared in DESCRIPTION Imports or Suggests. Left as globalVariables
+# rather than guess-importing an unverified package.
+  "small", "label", "updatePasswordInput",
 
 # Shiny reactive context
   "input", "cfg", "db_pool",
@@ -49,7 +41,7 @@ utils::globalVariables(c(
   "signing_timestamp", "status", "table_name", "training_type",
   "user_name", "validation_title", "validation_type", "validator_name",
 
-# DSL parser internals
+# DSL parser internals (referenced as objects, not calls)
   "DSLParser", "generate_r_validator", "generate_sql_check"
 ))
 

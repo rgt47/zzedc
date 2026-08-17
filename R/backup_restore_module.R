@@ -380,7 +380,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
         showCancelButton = TRUE,
         confirmButtonText = "Delete",
         cancelButtonText = "Cancel",
-        confirmButtonColor = "#d33",
+        confirmButtonCol = "#d33",
         inputId = ns("confirm_delete")
       )
 

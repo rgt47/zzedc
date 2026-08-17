@@ -4,12 +4,17 @@
 \alias{user_management_server}
 \title{User Management Server}
 \usage{
-user_management_server(id, db_pool = NULL)
+user_management_server(id, db_pool = NULL, actor_role = NULL)
 }
 \arguments{
 \item{id}{The namespace id for the module}
 
 \item{db_pool}{Reactive expression returning database connection pool}
+
+\item{actor_role}{Role of the signed-in user driving this module
+instance, used to restrict which roles they may assign to other
+users (see \code{.assignable_roles()}). \code{NULL} defaults to the most
+restrictive tier.}
 }
 \value{
 List of reactive expressions and functions

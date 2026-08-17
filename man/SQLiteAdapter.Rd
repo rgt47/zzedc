@@ -34,183 +34,201 @@ Configuration options (in config$sqlite):
 
 }
 \section{Super class}{
-\code{\link[zzedc:DatabaseAdapter]{zzedc::DatabaseAdapter}} -> \code{SQLiteAdapter}
+\code{\link[zzedc:DatabaseAdapter]{DatabaseAdapter}} -> \code{SQLiteAdapter}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-SQLiteAdapter-new}{\code{SQLiteAdapter$new()}}
-\item \href{#method-SQLiteAdapter-connect}{\code{SQLiteAdapter$connect()}}
-\item \href{#method-SQLiteAdapter-pool}{\code{SQLiteAdapter$pool()}}
-\item \href{#method-SQLiteAdapter-dialect}{\code{SQLiteAdapter$dialect()}}
-\item \href{#method-SQLiteAdapter-supports_encryption}{\code{SQLiteAdapter$supports_encryption()}}
-\item \href{#method-SQLiteAdapter-backend_name}{\code{SQLiteAdapter$backend_name()}}
-\item \href{#method-SQLiteAdapter-enable_wal}{\code{SQLiteAdapter$enable_wal()}}
-\item \href{#method-SQLiteAdapter-optimize}{\code{SQLiteAdapter$optimize()}}
-\item \href{#method-SQLiteAdapter-file_size}{\code{SQLiteAdapter$file_size()}}
-\item \href{#method-SQLiteAdapter-clone}{\code{SQLiteAdapter$clone()}}
+  \itemize{
+    \item \href{#method-SQLiteAdapter-initialize}{\code{SQLiteAdapter$new()}}
+    \item \href{#method-SQLiteAdapter-connect}{\code{SQLiteAdapter$connect()}}
+    \item \href{#method-SQLiteAdapter-pool}{\code{SQLiteAdapter$pool()}}
+    \item \href{#method-SQLiteAdapter-dialect}{\code{SQLiteAdapter$dialect()}}
+    \item \href{#method-SQLiteAdapter-supports_encryption}{\code{SQLiteAdapter$supports_encryption()}}
+    \item \href{#method-SQLiteAdapter-backend_name}{\code{SQLiteAdapter$backend_name()}}
+    \item \href{#method-SQLiteAdapter-enable_wal}{\code{SQLiteAdapter$enable_wal()}}
+    \item \href{#method-SQLiteAdapter-optimize}{\code{SQLiteAdapter$optimize()}}
+    \item \href{#method-SQLiteAdapter-file_size}{\code{SQLiteAdapter$file_size()}}
+    \item \href{#method-SQLiteAdapter-clone}{\code{SQLiteAdapter$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>zzedc::DatabaseAdapter$begin()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>zzedc::DatabaseAdapter$commit()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>zzedc::DatabaseAdapter$disconnect()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>zzedc::DatabaseAdapter$execute()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>zzedc::DatabaseAdapter$list_tables()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>zzedc::DatabaseAdapter$pool_close()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>zzedc::DatabaseAdapter$query()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>zzedc::DatabaseAdapter$rollback()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>zzedc::DatabaseAdapter$table_exists()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>zzedc::DatabaseAdapter$transaction()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>DatabaseAdapter$begin()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>DatabaseAdapter$commit()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-SQLiteAdapter-new"></a>}}
-\if{latex}{\out{\hypertarget{method-SQLiteAdapter-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize SQLite adapter
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$new(config)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-SQLiteAdapter-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-SQLiteAdapter-initialize}{}}}
+\subsection{\code{SQLiteAdapter$new()}}{
+  Initialize SQLite adapter
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$new(config)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{config}}{Configuration list with sqlite settings}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{config}}{Configuration list with sqlite settings}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-connect"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-connect}{}}}
-\subsection{Method \code{connect()}}{
-Create a new SQLite connection
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$connect()}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$connect()}}{
+  Create a new SQLite connection
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$connect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    DBI connection object
+  }
 }
 
-\subsection{Returns}{
-DBI connection object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-pool"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-pool}{}}}
-\subsection{Method \code{pool()}}{
-Create a connection pool
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$pool()}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$pool()}}{
+  Create a connection pool
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$pool()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Pool object
+  }
 }
 
-\subsection{Returns}{
-Pool object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-dialect"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-dialect}{}}}
-\subsection{Method \code{dialect()}}{
-Get SQLite-specific SQL dialect information
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$dialect()}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$dialect()}}{
+  Get SQLite-specific SQL dialect information
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$dialect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with dialect-specific SQL fragments
+  }
 }
 
-\subsection{Returns}{
-List with dialect-specific SQL fragments
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-supports_encryption"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-supports_encryption}{}}}
-\subsection{Method \code{supports_encryption()}}{
-Check if encryption is supported (RSQLCipher available)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$supports_encryption()}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$supports_encryption()}}{
+  Check if encryption is supported (RSQLCipher available)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$supports_encryption()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical TRUE if RSQLCipher is available
+  }
 }
 
-\subsection{Returns}{
-Logical TRUE if RSQLCipher is available
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-backend_name"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-backend_name}{}}}
-\subsection{Method \code{backend_name()}}{
-Get backend name
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$backend_name()}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$backend_name()}}{
+  Get backend name
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$backend_name()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character "sqlite"
+  }
 }
 
-\subsection{Returns}{
-Character "sqlite"
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-enable_wal"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-enable_wal}{}}}
-\subsection{Method \code{enable_wal()}}{
-SQLite-specific: Enable Write-Ahead Logging for better concurrency
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$enable_wal(conn)}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$enable_wal()}}{
+  SQLite-specific: Enable Write-Ahead Logging for better concurrency
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$enable_wal(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-optimize"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-optimize}{}}}
-\subsection{Method \code{optimize()}}{
-SQLite-specific: Optimize database (VACUUM and ANALYZE)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$optimize(conn)}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$optimize()}}{
+  SQLite-specific: Optimize database (VACUUM and ANALYZE)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$optimize(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-file_size"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-file_size}{}}}
-\subsection{Method \code{file_size()}}{
-SQLite-specific: Get database file size in bytes
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$file_size()}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$file_size()}}{
+  SQLite-specific: Get database file size in bytes
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$file_size()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Integer file size or NA if file doesn't exist
+  }
 }
 
-\subsection{Returns}{
-Integer file size or NA if file doesn't exist
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-SQLiteAdapter-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-SQLiteAdapter-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{SQLiteAdapter$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{SQLiteAdapter$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

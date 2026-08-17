@@ -42,246 +42,262 @@ Configuration options (in config$postgresql):
 
 }
 \section{Super class}{
-\code{\link[zzedc:DatabaseAdapter]{zzedc::DatabaseAdapter}} -> \code{PostgreSQLAdapter}
+\code{\link[zzedc:DatabaseAdapter]{DatabaseAdapter}} -> \code{PostgreSQLAdapter}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-PostgreSQLAdapter-new}{\code{PostgreSQLAdapter$new()}}
-\item \href{#method-PostgreSQLAdapter-connect}{\code{PostgreSQLAdapter$connect()}}
-\item \href{#method-PostgreSQLAdapter-pool}{\code{PostgreSQLAdapter$pool()}}
-\item \href{#method-PostgreSQLAdapter-dialect}{\code{PostgreSQLAdapter$dialect()}}
-\item \href{#method-PostgreSQLAdapter-supports_encryption}{\code{PostgreSQLAdapter$supports_encryption()}}
-\item \href{#method-PostgreSQLAdapter-backend_name}{\code{PostgreSQLAdapter$backend_name()}}
-\item \href{#method-PostgreSQLAdapter-is_ssl_connected}{\code{PostgreSQLAdapter$is_ssl_connected()}}
-\item \href{#method-PostgreSQLAdapter-server_version}{\code{PostgreSQLAdapter$server_version()}}
-\item \href{#method-PostgreSQLAdapter-listen}{\code{PostgreSQLAdapter$listen()}}
-\item \href{#method-PostgreSQLAdapter-notify}{\code{PostgreSQLAdapter$notify()}}
-\item \href{#method-PostgreSQLAdapter-create_index_concurrent}{\code{PostgreSQLAdapter$create_index_concurrent()}}
-\item \href{#method-PostgreSQLAdapter-clone}{\code{PostgreSQLAdapter$clone()}}
+  \itemize{
+    \item \href{#method-PostgreSQLAdapter-initialize}{\code{PostgreSQLAdapter$new()}}
+    \item \href{#method-PostgreSQLAdapter-connect}{\code{PostgreSQLAdapter$connect()}}
+    \item \href{#method-PostgreSQLAdapter-pool}{\code{PostgreSQLAdapter$pool()}}
+    \item \href{#method-PostgreSQLAdapter-dialect}{\code{PostgreSQLAdapter$dialect()}}
+    \item \href{#method-PostgreSQLAdapter-supports_encryption}{\code{PostgreSQLAdapter$supports_encryption()}}
+    \item \href{#method-PostgreSQLAdapter-backend_name}{\code{PostgreSQLAdapter$backend_name()}}
+    \item \href{#method-PostgreSQLAdapter-is_ssl_connected}{\code{PostgreSQLAdapter$is_ssl_connected()}}
+    \item \href{#method-PostgreSQLAdapter-server_version}{\code{PostgreSQLAdapter$server_version()}}
+    \item \href{#method-PostgreSQLAdapter-listen}{\code{PostgreSQLAdapter$listen()}}
+    \item \href{#method-PostgreSQLAdapter-notify}{\code{PostgreSQLAdapter$notify()}}
+    \item \href{#method-PostgreSQLAdapter-create_index_concurrent}{\code{PostgreSQLAdapter$create_index_concurrent()}}
+    \item \href{#method-PostgreSQLAdapter-clone}{\code{PostgreSQLAdapter$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>zzedc::DatabaseAdapter$begin()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>zzedc::DatabaseAdapter$commit()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>zzedc::DatabaseAdapter$disconnect()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>zzedc::DatabaseAdapter$execute()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>zzedc::DatabaseAdapter$list_tables()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>zzedc::DatabaseAdapter$pool_close()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>zzedc::DatabaseAdapter$query()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>zzedc::DatabaseAdapter$rollback()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>zzedc::DatabaseAdapter$table_exists()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>zzedc::DatabaseAdapter$transaction()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>DatabaseAdapter$begin()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>DatabaseAdapter$commit()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-PostgreSQLAdapter-new"></a>}}
-\if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize PostgreSQL adapter
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$new(config)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-PostgreSQLAdapter-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-initialize}{}}}
+\subsection{\code{PostgreSQLAdapter$new()}}{
+  Initialize PostgreSQL adapter
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$new(config)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{config}}{Configuration list with postgresql settings}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{config}}{Configuration list with postgresql settings}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-connect"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-connect}{}}}
-\subsection{Method \code{connect()}}{
-Create a new PostgreSQL connection
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$connect()}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$connect()}}{
+  Create a new PostgreSQL connection
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$connect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    DBI connection object
+  }
 }
 
-\subsection{Returns}{
-DBI connection object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-pool"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-pool}{}}}
-\subsection{Method \code{pool()}}{
-Create a connection pool
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$pool()}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$pool()}}{
+  Create a connection pool
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$pool()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Pool object
+  }
 }
 
-\subsection{Returns}{
-Pool object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-dialect"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-dialect}{}}}
-\subsection{Method \code{dialect()}}{
-Get PostgreSQL-specific SQL dialect information
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$dialect()}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$dialect()}}{
+  Get PostgreSQL-specific SQL dialect information
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$dialect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with dialect-specific SQL fragments
+  }
 }
 
-\subsection{Returns}{
-List with dialect-specific SQL fragments
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-supports_encryption"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-supports_encryption}{}}}
-\subsection{Method \code{supports_encryption()}}{
-Check if encryption is supported
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$supports_encryption()}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$supports_encryption()}}{
+  Check if encryption is supported
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$supports_encryption()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical TRUE (PostgreSQL supports SSL/TLS)
+  }
 }
 
-\subsection{Returns}{
-Logical TRUE (PostgreSQL supports SSL/TLS)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-backend_name"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-backend_name}{}}}
-\subsection{Method \code{backend_name()}}{
-Get backend name
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$backend_name()}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$backend_name()}}{
+  Get backend name
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$backend_name()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character "postgresql"
+  }
 }
 
-\subsection{Returns}{
-Character "postgresql"
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-is_ssl_connected"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-is_ssl_connected}{}}}
-\subsection{Method \code{is_ssl_connected()}}{
-PostgreSQL-specific: Check if connected via SSL
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$is_ssl_connected(conn)}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$is_ssl_connected()}}{
+  PostgreSQL-specific: Check if connected via SSL
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$is_ssl_connected(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical TRUE if using SSL
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Logical TRUE if using SSL
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-server_version"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-server_version}{}}}
-\subsection{Method \code{server_version()}}{
-PostgreSQL-specific: Get server version
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$server_version(conn)}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$server_version()}}{
+  PostgreSQL-specific: Get server version
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$server_version(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string with PostgreSQL version
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Character string with PostgreSQL version
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-listen"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-listen}{}}}
-\subsection{Method \code{listen()}}{
-PostgreSQL-specific: LISTEN for notifications
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$listen(conn, channel)}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$listen()}}{
+  PostgreSQL-specific: LISTEN for notifications
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$listen(conn, channel)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{channel}}{Channel name to listen on}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{channel}}{Channel name to listen on}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-notify"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-notify}{}}}
-\subsection{Method \code{notify()}}{
-PostgreSQL-specific: NOTIFY a channel
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$notify(conn, channel, payload = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$notify()}}{
+  PostgreSQL-specific: NOTIFY a channel
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$notify(conn, channel, payload = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{channel}}{Channel name}
+      \item{\code{payload}}{Optional payload string}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{channel}}{Channel name}
-
-\item{\code{payload}}{Optional payload string}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-create_index_concurrent"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-create_index_concurrent}{}}}
-\subsection{Method \code{create_index_concurrent()}}{
-PostgreSQL-specific: Create index concurrently (non-blocking)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$create_index_concurrent(
+\subsection{\code{PostgreSQLAdapter$create_index_concurrent()}}{
+  PostgreSQL-specific: Create index concurrently (non-blocking)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$create_index_concurrent(
   conn,
   table_name,
   index_name,
   columns
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Table name}
+      \item{\code{index_name}}{Index name}
+      \item{\code{columns}}{Column names}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{table_name}}{Table name}
-
-\item{\code{index_name}}{Index name}
-
-\item{\code{columns}}{Column names}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PostgreSQLAdapter-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PostgreSQLAdapter$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{PostgreSQLAdapter$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

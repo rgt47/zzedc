@@ -45,286 +45,302 @@ RDBMS. It uses eventual consistency and is optimized for batch inserts.
 
 }
 \section{Super class}{
-\code{\link[zzedc:DatabaseAdapter]{zzedc::DatabaseAdapter}} -> \code{ClickHouseAdapter}
+\code{\link[zzedc:DatabaseAdapter]{DatabaseAdapter}} -> \code{ClickHouseAdapter}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-ClickHouseAdapter-new}{\code{ClickHouseAdapter$new()}}
-\item \href{#method-ClickHouseAdapter-connect}{\code{ClickHouseAdapter$connect()}}
-\item \href{#method-ClickHouseAdapter-pool}{\code{ClickHouseAdapter$pool()}}
-\item \href{#method-ClickHouseAdapter-dialect}{\code{ClickHouseAdapter$dialect()}}
-\item \href{#method-ClickHouseAdapter-supports_encryption}{\code{ClickHouseAdapter$supports_encryption()}}
-\item \href{#method-ClickHouseAdapter-backend_name}{\code{ClickHouseAdapter$backend_name()}}
-\item \href{#method-ClickHouseAdapter-insert_batch}{\code{ClickHouseAdapter$insert_batch()}}
-\item \href{#method-ClickHouseAdapter-create_table}{\code{ClickHouseAdapter$create_table()}}
-\item \href{#method-ClickHouseAdapter-optimize}{\code{ClickHouseAdapter$optimize()}}
-\item \href{#method-ClickHouseAdapter-table_stats}{\code{ClickHouseAdapter$table_stats()}}
-\item \href{#method-ClickHouseAdapter-begin}{\code{ClickHouseAdapter$begin()}}
-\item \href{#method-ClickHouseAdapter-commit}{\code{ClickHouseAdapter$commit()}}
-\item \href{#method-ClickHouseAdapter-rollback}{\code{ClickHouseAdapter$rollback()}}
-\item \href{#method-ClickHouseAdapter-clone}{\code{ClickHouseAdapter$clone()}}
+  \itemize{
+    \item \href{#method-ClickHouseAdapter-initialize}{\code{ClickHouseAdapter$new()}}
+    \item \href{#method-ClickHouseAdapter-connect}{\code{ClickHouseAdapter$connect()}}
+    \item \href{#method-ClickHouseAdapter-pool}{\code{ClickHouseAdapter$pool()}}
+    \item \href{#method-ClickHouseAdapter-dialect}{\code{ClickHouseAdapter$dialect()}}
+    \item \href{#method-ClickHouseAdapter-supports_encryption}{\code{ClickHouseAdapter$supports_encryption()}}
+    \item \href{#method-ClickHouseAdapter-backend_name}{\code{ClickHouseAdapter$backend_name()}}
+    \item \href{#method-ClickHouseAdapter-insert_batch}{\code{ClickHouseAdapter$insert_batch()}}
+    \item \href{#method-ClickHouseAdapter-create_table}{\code{ClickHouseAdapter$create_table()}}
+    \item \href{#method-ClickHouseAdapter-optimize}{\code{ClickHouseAdapter$optimize()}}
+    \item \href{#method-ClickHouseAdapter-table_stats}{\code{ClickHouseAdapter$table_stats()}}
+    \item \href{#method-ClickHouseAdapter-begin}{\code{ClickHouseAdapter$begin()}}
+    \item \href{#method-ClickHouseAdapter-commit}{\code{ClickHouseAdapter$commit()}}
+    \item \href{#method-ClickHouseAdapter-rollback}{\code{ClickHouseAdapter$rollback()}}
+    \item \href{#method-ClickHouseAdapter-clone}{\code{ClickHouseAdapter$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>zzedc::DatabaseAdapter$disconnect()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>zzedc::DatabaseAdapter$execute()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>zzedc::DatabaseAdapter$list_tables()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>zzedc::DatabaseAdapter$pool_close()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>zzedc::DatabaseAdapter$query()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>zzedc::DatabaseAdapter$table_exists()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>zzedc::DatabaseAdapter$transaction()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ClickHouseAdapter-new"></a>}}
-\if{latex}{\out{\hypertarget{method-ClickHouseAdapter-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize ClickHouse adapter
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$new(config)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-ClickHouseAdapter-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-ClickHouseAdapter-initialize}{}}}
+\subsection{\code{ClickHouseAdapter$new()}}{
+  Initialize ClickHouse adapter
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$new(config)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{config}}{Configuration list with clickhouse settings}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{config}}{Configuration list with clickhouse settings}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-connect"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-connect}{}}}
-\subsection{Method \code{connect()}}{
-Create a new ClickHouse connection
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$connect()}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$connect()}}{
+  Create a new ClickHouse connection
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$connect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    DBI connection object
+  }
 }
 
-\subsection{Returns}{
-DBI connection object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-pool"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-pool}{}}}
-\subsection{Method \code{pool()}}{
-Create a connection pool
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$pool()}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$pool()}}{
+  Create a connection pool
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$pool()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Pool object
+  }
 }
 
-\subsection{Returns}{
-Pool object
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-dialect"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-dialect}{}}}
-\subsection{Method \code{dialect()}}{
-Get ClickHouse-specific SQL dialect information
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$dialect()}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$dialect()}}{
+  Get ClickHouse-specific SQL dialect information
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$dialect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with dialect-specific SQL fragments
+  }
 }
 
-\subsection{Returns}{
-List with dialect-specific SQL fragments
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-supports_encryption"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-supports_encryption}{}}}
-\subsection{Method \code{supports_encryption()}}{
-Check if encryption is supported
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$supports_encryption()}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$supports_encryption()}}{
+  Check if encryption is supported
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$supports_encryption()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical TRUE (ClickHouse supports TLS)
+  }
 }
 
-\subsection{Returns}{
-Logical TRUE (ClickHouse supports TLS)
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-backend_name"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-backend_name}{}}}
-\subsection{Method \code{backend_name()}}{
-Get backend name
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$backend_name()}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$backend_name()}}{
+  Get backend name
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$backend_name()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character "clickhouse"
+  }
 }
 
-\subsection{Returns}{
-Character "clickhouse"
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-insert_batch"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-insert_batch}{}}}
-\subsection{Method \code{insert_batch()}}{
-ClickHouse-specific: Execute batch insert for better performance
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$insert_batch(conn, table_name, data)}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$insert_batch()}}{
+  ClickHouse-specific: Execute batch insert for better performance
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$insert_batch(conn, table_name, data)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Name of table}
+      \item{\code{data}}{Data frame to insert}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{table_name}}{Name of table}
-
-\item{\code{data}}{Data frame to insert}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-create_table"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-create_table}{}}}
-\subsection{Method \code{create_table()}}{
-ClickHouse-specific: Create table with MergeTree engine
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$create_table(
+\subsection{\code{ClickHouseAdapter$create_table()}}{
+  ClickHouse-specific: Create table with MergeTree engine
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$create_table(
   conn,
   table_name,
   columns,
   order_by,
   partition_by = NULL,
   engine = "MergeTree()"
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Table name}
+      \item{\code{columns}}{Column definitions}
+      \item{\code{order_by}}{Columns for ORDER BY clause (required for MergeTree)}
+      \item{\code{partition_by}}{Optional partition expression}
+      \item{\code{engine}}{Table engine (default MergeTree)}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{table_name}}{Table name}
-
-\item{\code{columns}}{Column definitions}
-
-\item{\code{order_by}}{Columns for ORDER BY clause (required for MergeTree)}
-
-\item{\code{partition_by}}{Optional partition expression}
-
-\item{\code{engine}}{Table engine (default MergeTree)}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-optimize"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-optimize}{}}}
-\subsection{Method \code{optimize()}}{
-ClickHouse-specific: Optimize table (merge parts)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$optimize(conn, table_name, final = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$optimize()}}{
+  ClickHouse-specific: Optimize table (merge parts)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$optimize(conn, table_name, final = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Table name}
+      \item{\code{final}}{Run FINAL optimization}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{table_name}}{Table name}
-
-\item{\code{final}}{Run FINAL optimization}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-table_stats"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-table_stats}{}}}
-\subsection{Method \code{table_stats()}}{
-ClickHouse-specific: Get table size and row count
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$table_stats(conn, table_name)}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$table_stats()}}{
+  ClickHouse-specific: Get table size and row count
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$table_stats(conn, table_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Table name}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with rows and bytes
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-
-\item{\code{table_name}}{Table name}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List with rows and bytes
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-begin"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-begin}{}}}
-\subsection{Method \code{begin()}}{
-Override transaction methods (ClickHouse has limited transaction support)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$begin(conn)}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$begin()}}{
+  Override transaction methods (ClickHouse has limited transaction support)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$begin(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-commit"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-commit}{}}}
-\subsection{Method \code{commit()}}{
-Override commit (no-op for ClickHouse)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$commit(conn)}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$commit()}}{
+  Override commit (no-op for ClickHouse)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$commit(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-rollback"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-rollback}{}}}
-\subsection{Method \code{rollback()}}{
-Override rollback (not supported in ClickHouse)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$rollback(conn)}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$rollback()}}{
+  Override rollback (not supported in ClickHouse)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$rollback(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ClickHouseAdapter-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-ClickHouseAdapter-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ClickHouseAdapter$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{ClickHouseAdapter$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

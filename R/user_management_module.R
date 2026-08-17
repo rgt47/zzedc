@@ -195,6 +195,10 @@ user_management_ui <- function(id) {
 #'
 #' @param id The namespace id for the module
 #' @param db_pool Reactive expression returning database connection pool
+#' @param actor_role Role of the signed-in user driving this module
+#'   instance, used to restrict which roles they may assign to other
+#'   users (see `.assignable_roles()`). `NULL` defaults to the most
+#'   restrictive tier.
 #'
 #' @return List of reactive expressions and functions
 #'

@@ -76,182 +76,198 @@ machinery; these are present in all supported versions.
 
 }
 \section{Super class}{
-\code{\link[zzedc:DatabaseAdapter]{zzedc::DatabaseAdapter}} -> \code{MySQLAdapter}
+\code{\link[zzedc:DatabaseAdapter]{DatabaseAdapter}} -> \code{MySQLAdapter}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-MySQLAdapter-new}{\code{MySQLAdapter$new()}}
-\item \href{#method-MySQLAdapter-connect}{\code{MySQLAdapter$connect()}}
-\item \href{#method-MySQLAdapter-pool}{\code{MySQLAdapter$pool()}}
-\item \href{#method-MySQLAdapter-dialect}{\code{MySQLAdapter$dialect()}}
-\item \href{#method-MySQLAdapter-supports_encryption}{\code{MySQLAdapter$supports_encryption()}}
-\item \href{#method-MySQLAdapter-backend_name}{\code{MySQLAdapter$backend_name()}}
-\item \href{#method-MySQLAdapter-server_version}{\code{MySQLAdapter$server_version()}}
-\item \href{#method-MySQLAdapter-is_ssl_connected}{\code{MySQLAdapter$is_ssl_connected()}}
-\item \href{#method-MySQLAdapter-clone}{\code{MySQLAdapter$clone()}}
+  \itemize{
+    \item \href{#method-MySQLAdapter-initialize}{\code{MySQLAdapter$new()}}
+    \item \href{#method-MySQLAdapter-connect}{\code{MySQLAdapter$connect()}}
+    \item \href{#method-MySQLAdapter-pool}{\code{MySQLAdapter$pool()}}
+    \item \href{#method-MySQLAdapter-dialect}{\code{MySQLAdapter$dialect()}}
+    \item \href{#method-MySQLAdapter-supports_encryption}{\code{MySQLAdapter$supports_encryption()}}
+    \item \href{#method-MySQLAdapter-backend_name}{\code{MySQLAdapter$backend_name()}}
+    \item \href{#method-MySQLAdapter-server_version}{\code{MySQLAdapter$server_version()}}
+    \item \href{#method-MySQLAdapter-is_ssl_connected}{\code{MySQLAdapter$is_ssl_connected()}}
+    \item \href{#method-MySQLAdapter-clone}{\code{MySQLAdapter$clone()}}
+  }
 }
-}
-\if{html}{\out{
-<details><summary>Inherited methods</summary>
+\if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>zzedc::DatabaseAdapter$begin()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>zzedc::DatabaseAdapter$commit()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>zzedc::DatabaseAdapter$disconnect()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>zzedc::DatabaseAdapter$execute()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>zzedc::DatabaseAdapter$list_tables()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>zzedc::DatabaseAdapter$pool_close()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>zzedc::DatabaseAdapter$query()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>zzedc::DatabaseAdapter$rollback()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>zzedc::DatabaseAdapter$table_exists()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>zzedc::DatabaseAdapter$transaction()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>DatabaseAdapter$begin()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>DatabaseAdapter$commit()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
-</details>
-}}
+</details>}}
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-MySQLAdapter-new"></a>}}
-\if{latex}{\out{\hypertarget{method-MySQLAdapter-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize MySQL / MariaDB adapter.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$new(config)}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-MySQLAdapter-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-MySQLAdapter-initialize}{}}}
+\subsection{\code{MySQLAdapter$new()}}{
+  Initialize MySQL / MariaDB adapter.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$new(config)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{config}}{Configuration list with \code{mysql} settings.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{config}}{Configuration list with \code{mysql} settings.}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-MySQLAdapter-connect"></a>}}
 \if{latex}{\out{\hypertarget{method-MySQLAdapter-connect}{}}}
-\subsection{Method \code{connect()}}{
-Create a new MySQL / MariaDB connection.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$connect()}\if{html}{\out{</div>}}
+\subsection{\code{MySQLAdapter$connect()}}{
+  Create a new MySQL / MariaDB connection.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$connect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    DBI connection object.
+  }
 }
 
-\subsection{Returns}{
-DBI connection object.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-MySQLAdapter-pool"></a>}}
 \if{latex}{\out{\hypertarget{method-MySQLAdapter-pool}{}}}
-\subsection{Method \code{pool()}}{
-Create a connection pool.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$pool()}\if{html}{\out{</div>}}
+\subsection{\code{MySQLAdapter$pool()}}{
+  Create a connection pool.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$pool()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Pool object.
+  }
 }
 
-\subsection{Returns}{
-Pool object.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-MySQLAdapter-dialect"></a>}}
 \if{latex}{\out{\hypertarget{method-MySQLAdapter-dialect}{}}}
-\subsection{Method \code{dialect()}}{
-Get MySQL-specific SQL dialect information.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$dialect()}\if{html}{\out{</div>}}
+\subsection{\code{MySQLAdapter$dialect()}}{
+  Get MySQL-specific SQL dialect information.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$dialect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with dialect-specific SQL fragments.
+  }
 }
 
-\subsection{Returns}{
-List with dialect-specific SQL fragments.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-MySQLAdapter-supports_encryption"></a>}}
 \if{latex}{\out{\hypertarget{method-MySQLAdapter-supports_encryption}{}}}
-\subsection{Method \code{supports_encryption()}}{
-Whether this backend supports encryption at rest. MySQL
+\subsection{\code{MySQLAdapter$supports_encryption()}}{
+  Whether this backend supports encryption at rest. MySQL
 supports InnoDB tablespace encryption at the server level;
 the \code{key} argument used by the SQLite path is not honoured
 here, but transport-level TLS is configured via
 \code{mysql$ssl_mode}.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$supports_encryption()}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$supports_encryption()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical TRUE.
+  }
 }
 
-\subsection{Returns}{
-Logical TRUE.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-MySQLAdapter-backend_name"></a>}}
 \if{latex}{\out{\hypertarget{method-MySQLAdapter-backend_name}{}}}
-\subsection{Method \code{backend_name()}}{
-Get backend name.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$backend_name()}\if{html}{\out{</div>}}
+\subsection{\code{MySQLAdapter$backend_name()}}{
+  Get backend name.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$backend_name()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character "mysql".
+  }
 }
 
-\subsection{Returns}{
-Character "mysql".
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-MySQLAdapter-server_version"></a>}}
 \if{latex}{\out{\hypertarget{method-MySQLAdapter-server_version}{}}}
-\subsection{Method \code{server_version()}}{
-MySQL-specific: report the server version string returned
+\subsection{\code{MySQLAdapter$server_version()}}{
+  MySQL-specific: report the server version string returned
 by \verb{SELECT VERSION()}. Useful for compatibility checks
 (the adapter requires MySQL 8.0+ or MariaDB 10.5+).
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$server_version(conn)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$server_version(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Character.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-MySQLAdapter-is_ssl_connected"></a>}}
 \if{latex}{\out{\hypertarget{method-MySQLAdapter-is_ssl_connected}{}}}
-\subsection{Method \code{is_ssl_connected()}}{
-MySQL-specific: report whether the current connection is
+\subsection{\code{MySQLAdapter$is_ssl_connected()}}{
+  MySQL-specific: report whether the current connection is
 using TLS, by inspecting \verb{SHOW STATUS LIKE 'Ssl_cipher'}.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$is_ssl_connected(conn)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$is_ssl_connected(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Logical TRUE if a non-empty cipher is in use.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{conn}}{Database connection.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Logical TRUE if a non-empty cipher is in use.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-MySQLAdapter-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-MySQLAdapter-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{MySQLAdapter$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{MySQLAdapter$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

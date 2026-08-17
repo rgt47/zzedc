@@ -38,3 +38,7 @@
 ^CRAN-readiness-report\.md$
 ^LICENSE$
 ^\.zzcollab$
+^\.zzcollab-state$
+^tooling\.lock$
+^zzcollab\.yaml$
+^CONTRIBUTING\.md$
