@@ -185,7 +185,7 @@ proposed remediation path.
 
 ---
 
-## Epistemic status
+## Status
 
 - **Verified by reading source**: NAMESPACE counts, DESCRIPTION fields,
   .Rbuildignore content, presence/absence of examples in man/, specific
@@ -464,7 +464,7 @@ Should be removed before submission and is .Rbuildignored — confirm.
 
 ## 4. What I did not check
 
-- `R CMD check --as-cran` was not executed (see Epistemic status).
+- `R CMD check --as-cran` was not executed (see Status above).
 - Reverse-dependency safety: zzedc has no current dependents (it has
   not been on CRAN), so this is N/A for first submission.
 - Vignette runtime and PDF rendering. The 3 built vignettes
