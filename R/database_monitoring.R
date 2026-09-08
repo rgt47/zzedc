@@ -489,7 +489,7 @@ check_database_health <- function(conn) {
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
 #' on.exit(DBI::dbDisconnect(conn), add = TRUE)
-#' # Track records-per-day to detect a slowdown in study enrolment.
+#' # Track records-per-day to detect a slowdown in study enrollment.
 #' monitor_data_entry_rate(conn, days = 30)
 #' }
 #' @keywords internal

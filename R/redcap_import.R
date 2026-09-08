@@ -396,7 +396,7 @@ redcap_extract_audit <- function(conn, pid) {
 # Phase C1 orchestrator
 # ============================================================================
 
-#' Import a REDCap project into ZZedc CSV-format artefacts
+#' Import a REDCap project into ZZedc CSV-format artifacts
 #'
 #' Phase C1 of the REDCap migration pipeline. Reads a REDCap-
 #' shaped relational database (typically via an \pkg{RMariaDB}
@@ -428,7 +428,7 @@ redcap_extract_audit <- function(conn, pid) {
 #'   (typically a live MySQL / MariaDB connection or a SQLite
 #'   database hydrated with REDCap-shaped tables for testing).
 #' @param pid         Numeric REDCap project ID.
-#' @param output_dir  Directory to write CSV artefacts into.
+#' @param output_dir  Directory to write CSV artifacts into.
 #'   Created if it does not exist.
 #' @param redcap_version Optional version string recorded in the
 #'   manifest. The importer makes no version-specific decisions
@@ -441,7 +441,7 @@ redcap_extract_audit <- function(conn, pid) {
 #'   \item{paths}{Named list of file paths
 #'     (`data_dictionary`, `validation_rules`, `users`,
 #'     `subjects`, `subject_data`, `audit_log`, `manifest`).}
-#'   \item{counts}{Per-artefact row counts.}
+#'   \item{counts}{Per-artifact row counts.}
 #'   \item{skipped_rules}{List of rules that could not be
 #'     translated automatically (branching logic, complex
 #'     conditionals).}
@@ -1148,7 +1148,7 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
     errors          = list()
   )
 
-  # --- 1. Extract artefacts from REDCap --------------------------
+  # --- 1. Extract artifacts from REDCap --------------------------
   csv_dir <- file.path(tempdir(),
                         sprintf("redcap_c2_pid_%s_%s",
                                 as.character(pid),
@@ -1828,7 +1828,7 @@ redcap_extract_subjects_api <- function(api, metadata = NULL) {
 #' extractor returns long-form (subject_id, field_name, value,
 #' event_id), so this function pivots wide -> long after the
 #' fetch. Empty / NA cells are dropped to match the DB extractor's
-#' behaviour (it reads from the EAV `redcap_data` table, which
+#' behavior (it reads from the EAV `redcap_data` table, which
 #' stores only set values).
 #'
 #' @keywords internal

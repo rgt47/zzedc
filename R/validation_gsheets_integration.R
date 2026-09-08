@@ -1013,7 +1013,7 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #' database, then imports the user roster, data dictionary
 #' (CRF definitions and fields), and validation rules from a
 #' Google Sheets workbook. Each tab in the workbook corresponds
-#' to one of these artefacts.
+#' to one of these artifacts.
 #'
 #' @param sheet_id Google Sheets ID or URL.
 #' @param db_path  Path to the encrypted SQLite database to
@@ -1315,7 +1315,7 @@ migrate_add_studymanager_role <- function(db_path = NULL) {
     DBI::dbExecute(con, "
       INSERT INTO edc_roles (role_name, description, permissions, created_date)
       VALUES ('StudyManager',
-              'Coordinating centre study manager - configuration and user approval authority',
+              'Coordinating center study manager - configuration and user approval authority',
               'read,write,reports,export,approve_users',
               datetime('now'))
     ")

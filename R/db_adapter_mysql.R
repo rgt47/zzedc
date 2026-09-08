@@ -10,7 +10,7 @@
 #' MySQL / MariaDB is appropriate for:
 #' \itemize{
 #'   \item Multi-user deployments with an existing MySQL or MariaDB
-#'         server (common in academic medical centres that already
+#'         server (common in academic medical centers that already
 #'         operate REDCap, which itself stores data in MySQL).
 #'   \item Sites with an established institutional MySQL stack and
 #'         backup / replication tooling.
