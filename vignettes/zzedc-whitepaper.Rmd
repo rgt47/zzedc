@@ -41,7 +41,7 @@ reference at `docs/compliance/gdpr-and-cfr-part11.md`.
 
 ## The problem ZZedc addresses
 
-Clinical data capture in small and mid-sized research programmes is
+Clinical data capture in small and mid-sized research programs is
 served poorly by the existing toolset. Commercial EDC platforms such
 as Medidata Rave or Oracle Clinical impose per-study licensing fees
 and procurement timelines that are incompatible with grant-funded and

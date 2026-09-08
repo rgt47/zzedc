@@ -144,8 +144,8 @@ For full installation guidance including renv setup, see
 # Where this guide used to live
 
 If you arrived here looking for a quickstart, the content has
-been reorganised into role-based runbooks (above). Five older
-vignettes were retired in favour of the two canonical guides:
+been reorganized into role-based runbooks (above). Five older
+vignettes were retired in favor of the two canonical guides:
 
 - `quick-start-solo-researcher`, `small-project-guide`, and
   `medium-project-guide` are subsumed by
