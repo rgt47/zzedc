@@ -1,3 +1,63 @@
+# zzedc 0.7.0
+
+## Correctness fixes
+
+* **`verify_signature_chain()` did not verify the signatures.** It
+  compared each row's `previous_signature_hash` against the prior row's
+  stored `signature_hash` and stopped there. That establishes only that
+  the linkage fields agree with one another; it never recomputed a
+  signature's hash from its content, so the content was never checked
+  against the hash that is supposed to bind it.
+
+  The consequence is that the signed record could be rewritten and the
+  function would still return `is_valid = TRUE` with the message
+  "Signature chain integrity verified". Demonstrated on a four-signature
+  ledger: replacing the signer, downgrading a signature's meaning from
+  approval to review, repointing a signature at a different subject
+  record, and moving a timestamp were each undetected, because none of
+  them touches a stored hash. For a 21 CFR Part 11 control whose entire
+  purpose is to make such a change detectable, reporting integrity in
+  those circumstances is worse than reporting nothing.
+
+  Verification now recomputes each signature's SHA-256 from the stored
+  content in the same field order `sign_record()` used to construct it,
+  and compares it with the recorded hash. The linkage check is retained.
+  The result gains a `tampered_records` element listing signatures whose
+  content does not match their hash, alongside the existing
+  `invalid_records` for broken links, and the failure message
+  distinguishes the two.
+
+* **`execute_erasure_item()` did not re-check the legal hold.** The
+  hold was consulted only when an erasure item was created, where it
+  sets the item's initial status. Execution checked nothing but that
+  the item was `APPROVED`, so the sequence create, approve, place hold,
+  execute erased data that was under preservation. A litigation or
+  regulatory hold exists to stop deletion from the moment it is placed,
+  which puts the check immediately before the erasure, not only at
+  intake. The hold is now re-checked at execution; a held item is
+  refused, returned to `ON_HOLD` with the hold's reason, and the
+  refusal is written to the erasure audit log as
+  `ITEM_BLOCKED_BY_HOLD`.
+
+## Tests
+
+* New `test_signature_chain.R` rebuilds the ledger in plain SQLite,
+  mirroring the schema and hash construction, and asserts that an
+  untampered chain verifies while each of the four tampering cases
+  above is caught.
+* `test_erasure.R` gains a case for a hold placed after approval, which
+  fails against the previous sources.
+
+## Known, not changed
+
+* Passwords for electronic signatures are hashed with unsalted SHA-256
+  in `verify_password_for_signature()`, while `auth_module.R` salts via
+  the `ZZEDC_SALT` environment variable. The two schemes are
+  inconsistent, and an unsalted single-round hash is weak for a
+  credential guarding a Part 11 signature. Changing it is a migration,
+  not an edit, since existing stored hashes would have to be rehashed,
+  so it is recorded here rather than done.
+
 # zzedc v0.6.2
 
 ## Permissions hierarchy implementation

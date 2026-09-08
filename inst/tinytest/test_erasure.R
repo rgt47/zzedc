@@ -1383,3 +1383,70 @@ local({
     expect_true(release$success)
 
 })
+# =============================================================================
+# Legal hold at execution (regression)
+# =============================================================================
+
+# execute_erasure_item() checked only that the item was APPROVED. The
+# legal hold was consulted when the item was created, where it sets the
+# initial status, so a hold placed after approval did not stop the
+# erasure: create, approve, hold, execute deleted data that was under
+# preservation. A litigation or regulatory hold has to bite from the
+# moment it is placed.
+local({
+  test_db <- setup_test_db()
+  on.exit(cleanup_test_db(test_db), add = TRUE)
+
+  req <- create_erasure_request(
+    subject_email = "subject@example.invalid",
+    subject_name = "Test Subject",
+    erasure_grounds = "CONSENT_WITHDRAWN",
+    requested_by = "dpo",
+    db_path = test_db
+  )
+  expect_true(isTRUE(req$success), info = "the erasure request is created")
+
+  item <- add_erasure_item(
+    request_id = req$request_id,
+    table_name = "subjects",
+    record_id = "REC-1",
+    data_category = "contact_details",
+    erasure_method = "ANONYMIZE",
+    db_path = test_db
+  )
+  expect_true(isTRUE(item$success), info = "the erasure item is created")
+
+  # No hold yet, so the item is eligible; approve it.
+  conn <- connect_encrypted_db(db_path = test_db)
+  DBI::dbExecute(conn, "UPDATE erasure_items SET status = 'APPROVED'
+                        WHERE item_id = ?", list(item$item_id))
+  DBI::dbDisconnect(conn)
+
+  # The hold arrives after approval, which is the case that was missed.
+  hold <- create_legal_hold(
+    hold_type = "LITIGATION",
+    hold_reason = "Pending litigation; preserve contact details",
+    legal_basis = "Anticipated civil proceedings; preservation duty",
+    created_by = "counsel",
+    affected_data_categories = "contact_details",
+    db_path = test_db
+  )
+  expect_true(isTRUE(hold$success), info = "the legal hold is created")
+
+  res <- execute_erasure_item(
+    item_id = item$item_id,
+    executed_by = "dpo",
+    db_path = test_db
+  )
+  expect_false(isTRUE(res$success),
+    info = "erasure is refused while a legal hold is active")
+
+  conn <- connect_encrypted_db(db_path = test_db)
+  after <- DBI::dbGetQuery(conn, "SELECT status FROM erasure_items
+                                  WHERE item_id = ?", list(item$item_id))
+  DBI::dbDisconnect(conn)
+  expect_false(identical(after$status[1], "EXECUTED"),
+    info = "the item was not marked executed")
+  expect_equal(after$status[1], "ON_HOLD",
+    info = "the item is returned to ON_HOLD rather than erased")
+})

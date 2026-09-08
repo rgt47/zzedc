@@ -1028,6 +1028,51 @@ execute_erasure_item <- function(item_id,
       return(list(success = FALSE, error = "Item must be approved before execution"))
     }
 
+    # Re-check the legal hold here, at the point of deletion. It was
+    # previously consulted only when the item was created, where it sets
+    # the initial status, so a hold placed after the item was approved
+    # did not stop execution: the sequence create, approve, hold,
+    # execute erased data that was under preservation. A litigation or
+    # regulatory hold has to bite from the moment it is placed, which
+    # means the check belongs immediately before the erasure, not only
+    # at intake.
+    hold_check <- check_legal_hold(
+      data_category = item$data_category,
+      db_path = db_path
+    )
+    if (isTRUE(hold_check$is_held)) {
+      reason <- if (length(hold_check$holds) > 0) {
+        hold_check$holds[[1]]$hold_reason
+      } else {
+        NA_character_
+      }
+      DBI::dbExecute(conn, "
+        UPDATE erasure_items SET status = 'ON_HOLD', hold_reason = ?
+        WHERE item_id = ?
+      ", list(safe_scalar_erasure(reason), item_id))
+      log_erasure_action(
+        request_id = item$request_id,
+        item_id = item_id,
+        action = "ITEM_BLOCKED_BY_HOLD",
+        action_details = paste(
+          "Execution refused: an active legal hold covers",
+          item$data_category
+        ),
+        performed_by = executed_by,
+        db_path = db_path
+      )
+      return(list(
+        success = FALSE,
+        error = paste0(
+          "An active legal hold covers this data category (",
+          item$data_category, "); the item has been returned to ON_HOLD ",
+          "and not erased."
+        ),
+        is_held = TRUE,
+        holds = hold_check$holds
+      ))
+    }
+
     timestamp <- as.character(Sys.time())
     verification_content <- paste(
       item_id, item$table_name, item$record_id, item$erasure_method,

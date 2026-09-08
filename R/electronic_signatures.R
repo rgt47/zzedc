@@ -1130,8 +1130,19 @@ verify_signature_chain <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
+    # Every field that goes into the hash is selected, so the hash can
+    # be recomputed rather than taken on trust. Checking only that each
+    # row's previous_signature_hash equals the prior row's stored
+    # signature_hash verifies that the linkage fields agree with each
+    # other and nothing more: the signed content could be rewritten --
+    # a different signer, a different record, a different meaning --
+    # and the chain would still report itself intact, which is the one
+    # thing a hash chain exists to prevent.
     signatures <- DBI::dbGetQuery(conn, "
-      SELECT signature_id, signature_hash, previous_signature_hash
+      SELECT signature_id, signature_code, signer_user_id,
+             signer_full_name, table_name, record_id, signature_meaning,
+             signature_statement, record_hash, signed_at,
+             signature_hash, previous_signature_hash
       FROM electronic_signatures
       ORDER BY signature_id ASC
     ")
@@ -1146,28 +1157,59 @@ verify_signature_chain <- function(db_path = NULL) {
     }
 
     invalid_records <- c()
+    tampered_records <- c()
 
     for (i in seq_len(nrow(signatures))) {
       s <- signatures[i, ]
 
       expected_prev <- if (i == 1) "GENESIS" else signatures$signature_hash[i - 1]
 
-      if (s$previous_signature_hash != expected_prev) {
+      if (!identical(as.character(s$previous_signature_hash),
+                     as.character(expected_prev))) {
         invalid_records <- c(invalid_records, s$signature_id)
+      }
+
+      # Recompute the hash from the stored content, in exactly the
+      # order sign_record() used to build it.
+      recomputed <- digest::digest(
+        paste(
+          s$signature_code,
+          s$signer_user_id,
+          s$signer_full_name,
+          s$table_name,
+          s$record_id,
+          s$signature_meaning,
+          s$signature_statement,
+          s$record_hash,
+          s$signed_at,
+          s$previous_signature_hash,
+          sep = "|"
+        ),
+        algo = "sha256"
+      )
+      if (!identical(recomputed, as.character(s$signature_hash))) {
+        tampered_records <- c(tampered_records, s$signature_id)
       }
     }
 
-    is_valid <- length(invalid_records) == 0
+    is_valid <- length(invalid_records) == 0 &&
+      length(tampered_records) == 0
 
     list(
       success = TRUE,
       is_valid = is_valid,
       total_signatures = nrow(signatures),
       invalid_records = invalid_records,
+      tampered_records = tampered_records,
       message = if (is_valid) {
         "Signature chain integrity verified"
       } else {
-        paste("Found", length(invalid_records), "signatures with broken chain")
+        paste0(
+          "Chain integrity failed: ",
+          length(invalid_records), " with a broken link, ",
+          length(tampered_records),
+          " whose content does not match its recorded hash"
+        )
       }
     )
 
