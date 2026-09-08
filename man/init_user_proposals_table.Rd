@@ -2,7 +2,7 @@
 % Please edit documentation in R/gsheets_monitor.R
 \name{init_user_proposals_table}
 \alias{init_user_proposals_table}
-\title{Initialise the User Proposals Table}
+\title{Initialize the User Proposals Table}
 \usage{
 init_user_proposals_table(db_path = NULL)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/gsheets_monitor.R
 \name{init_proposals_table}
 \alias{init_proposals_table}
-\title{Initialise the Rule Proposals Table}
+\title{Initialize the Rule Proposals Table}
 \usage{
 init_proposals_table(db_path = NULL)
 }

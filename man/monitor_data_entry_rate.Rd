@@ -19,12 +19,12 @@ Track how many records are being entered per day
 }
 \examples{
 \dontrun{
-# Connect to an initialised study database. See
+# Connect to an initialized study database. See
 # `?initialize_encrypted_database` for the prerequisite setup.
 conn <- connect_encrypted_db(db_path = "data/study.db",
                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
 on.exit(DBI::dbDisconnect(conn), add = TRUE)
-# Track records-per-day to detect a slowdown in study enrolment.
+# Track records-per-day to detect a slowdown in study enrollment.
 monitor_data_entry_rate(conn, days = 30)
 }
 }

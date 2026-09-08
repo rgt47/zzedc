@@ -1,7 +1,7 @@
 # Vignettes Index
 *2026-04-30 16:50 PDT*
 
-The ZZedc vignette set is organised around two canonical
+The ZZedc vignette set is organized around two canonical
 role-based runbooks plus a small number of focused references
 and worked examples. The two runbooks are the entry points;
 read those first and follow their internal cross-references to

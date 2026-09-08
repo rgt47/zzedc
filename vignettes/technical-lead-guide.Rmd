@@ -366,7 +366,7 @@ practice are:
   sponsor's AWS Secrets Manager; sites access via a
   sponsor-controlled interface; rotation managed by the
   sponsor's IT security team; unblinding requires sponsor
-  authorisation.
+  authorization.
 - *Academic trial, DCC-held key.* Key in the Data
   Coordinating Center's institutional secret store;
   investigators receive encrypted exports; the DCC controls
@@ -400,7 +400,7 @@ layout is identical.
 
 ---
 
-# Chapter 5. Initialising the database
+# Chapter 5. Initializing the database
 
 ## 5.1 Encryption-at-rest architecture
 
@@ -539,7 +539,7 @@ rollback_migration(
 )
 ```
 
-## 5.7 Initialise the audit log
+## 5.7 Initialize the audit log
 
 ```{r}
 audit_res <- init_audit_logging(
@@ -858,7 +858,7 @@ login page.
 ## 8.3 AWS deployment pattern (config-file-driven)
 
 For an AWS-hosted deployment, the recommended pattern is a
-config-file-driven, non-interactive initialisation: the
+config-file-driven, non-interactive initialization: the
 deployment is declarative, reproducible, and friendly to
 CloudFormation, ECS task definitions, or Kubernetes manifests.
 Time estimate after infrastructure provisioning: 5 to 10
@@ -921,7 +921,7 @@ Backend selection guide for AWS:
 | ECS / EKS, multi-node | PostgreSQL |
 | High-volume analytics | DuckDB or ClickHouse |
 
-### Step 2: run the initialiser
+### Step 2: run the initializer
 
 ```sh
 cd /srv/zzedc
@@ -932,7 +932,7 @@ Rscript -e "
 "
 ```
 
-`zzedc::init()` creates the encrypted database, initialises
+`zzedc::init()` creates the encrypted database, initializes
 the audit log, creates the admin user, and writes the
 generated `ZZEDC_SALT` to the local `.env`. Capture that
 value and move it into your secrets manager.
@@ -1022,7 +1022,7 @@ require documented redundancy.
 - **Kubernetes.** Apply the manifests under
   `inst/deployment/k8s/` after building and pushing the
   container image. Overkill for a small trial; appropriate
-  for an organisation running many trials.
+  for an organization running many trials.
 - **On-prem bare metal.** Same Docker/Compose pattern, no
   cloud. Adjust backups (Chapter 9) to write to local NAS
   instead of S3.
@@ -1137,7 +1137,7 @@ the Admin tab for one-off snapshots a project administrator
 can take from a browser without shell access — useful before
 schema migrations, before bulk data corrections, or as the
 "safety backup" the restore flow makes automatically before
-overwriting the live database. Behaviour notes:
+overwriting the live database. Behavior notes:
 
 - The backup runs synchronously on the R session that hosts
   the Shiny app. SQLite copy + gzip on a clinical-trial-sized
@@ -1611,10 +1611,10 @@ date.
 
 ## Database
 
-- [ ] Encrypted database initialised
+- [ ] Encrypted database initialized
 - [ ] `verify_database_encryption()` returns `encrypted =
       TRUE` on the production host
-- [ ] Audit log initialised
+- [ ] Audit log initialized
 - [ ] Core tables created via `create_wizard_database()` or the
       web wizard
 - [ ] Admin user created; admin password changed at first
@@ -1799,7 +1799,7 @@ file:
 | REDCap migration with audit replay | `R/redcap_import.R` |
 | Multi-backend portability | `R/portability.R`, `R/db_adapter_*.R` |
 
-## Mapping regulatory clauses to ZZedc behaviour
+## Mapping regulatory clauses to ZZedc behavior
 
 The two clauses most often cited in DMP and IRB submissions
 are GDPR Article 32 and FDA 21 CFR Part 11. ZZedc's

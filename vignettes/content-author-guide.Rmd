@@ -53,13 +53,13 @@ require a terminal, database, or server.
 | You (content author) | Technical lead |
 |---|---|
 | Define the case-report forms | Install the package and provision the server |
-| Author validation rules in plain language | Initialise the encrypted database |
+| Author validation rules in plain language | Initialize the encrypted database |
 | Build the user roster (names, sites, roles) | Run the import that loads your workbook |
 | Test-drive the trial with synthetic data | Configure TLS, backups, and monitoring |
 | Train site staff to use the application | Give site staff the URL and credentials |
 | Resolve data queries with site coordinators | Maintain the system and verify the audit chain |
 
-You will exchange three artefacts with the technical lead:
+You will exchange three artifacts with the technical lead:
 **(1)** the Google Sheets workbook URL, **(2)** the list of
 site-id values for your trial, **(3)** the agreed go-live date.
 Everything else lives in the workbook or in the application.
@@ -576,7 +576,7 @@ not train multiple sites at once unless they share staff.
   are required because the form is long. Print the cheat sheet
   with the required-vs-optional distinction visible.
 - **Form layout on mobile.** The application is responsive but
-  not optimised for phones. Site coordinators should use a
+  not optimized for phones. Site coordinators should use a
   laptop or tablet.
 
 ---

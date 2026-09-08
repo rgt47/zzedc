@@ -284,7 +284,7 @@ site's AE series (e.g., `AE-S1-003` for UCSD's third AE).
 | AE ID | Site-prefixed AE ID (see Section 4) |
 | Onset Date | Date the event began |
 | Resolution Date | Date the event resolved; leave blank if ongoing |
-| AE Term | Standardised adverse event term |
+| AE Term | Standardized adverse event term |
 | Severity | `mild`, `moderate`, `severe`, or `life_threatening` |
 | Serious | `yes` if the event meets SAE criteria, `no` otherwise |
 | Relatedness | `yes`, `no`, `possibly`, or `probably` |
@@ -475,7 +475,7 @@ The workbook is a configuration source, not a live interface
 to the database. A monitoring script on the study server
 checks the workbook at regular intervals. When it detects a
 change, it places your edit in a review queue and sends an
-email notification to the coordinating centre study manager.
+email notification to the coordinating center study manager.
 
 The manager reviews the proposed change and either approves
 or rejects it:
@@ -562,7 +562,7 @@ your Google account and ask them to re-share the workbook.
 **You edited a validation rule in the sheet but ZZedc still
 rejects (or accepts) the same data as before.** Edits to the
 sheet take effect only after the data scientist runs a
-synchronisation step against the database. Notify them and
+synchronization step against the database. Notify them and
 allow one working day for the update to propagate.
 
 **You forgot your password.** Contact the lab data scientist.
@@ -592,7 +592,7 @@ administrator can reset the account.
   the database. Runs automatically; no coordinator action required.
 - **Configuration workbook**: the Google Sheets workbook that
   served as the seed source when the ZZedc database was
-  initialised. It holds the data dictionary and validation rules.
+  initialized. It holds the data dictionary and validation rules.
   You have editor access to the `validation_rules` tab; the
   other tabs are read-only for coordinators.
 - **Data dictionary**: the master list of every field in the

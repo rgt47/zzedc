@@ -265,7 +265,7 @@ Sys.setenv(DB_ENCRYPTION_KEY = result$key)
 
 `setup_zzedc_from_gsheets()` runs four stages in order:
 
-1. Initialise the encrypted SQLite database at `db_path`.
+1. Initialize the encrypted SQLite database at `db_path`.
 2. Read `Study_Users` and create user accounts.
 3. Read `Data_Dictionary`, create one CRF per `form_code` value,
    and add each field as defined.
@@ -295,7 +295,7 @@ preview$validation_rules$errors   # named list of error messages
 
 ### Importing only the validation rules
 
-If you already have an initialised database and only need to
+If you already have an initialized database and only need to
 refresh the validation-rule tab, call the lower-level importer
 directly:
 

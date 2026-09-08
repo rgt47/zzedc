@@ -33,7 +33,7 @@ pluggable database layer that supports SQLite, PostgreSQL, MySQL,
 DuckDB, and ClickHouse. This vignette is a positioning document. It
 states what ZZedc is, why the architecture takes the form it does, and
 which regulatory obligations are addressed by the package versus those
-that remain operational responsibilities of the deploying organisation.
+that remain operational responsibilities of the deploying organization.
 Comprehensive technical detail and the full citation set are deferred
 to the long-form whitepaper at
 `docs/whitepaper/whitepaper.Rmd` and to the canonical compliance
@@ -47,14 +47,14 @@ as Medidata Rave or Oracle Clinical impose per-study licensing fees
 and procurement timelines that are incompatible with grant-funded and
 investigator-initiated work. REDCap, the dominant academic
 alternative, is widely deployed but presents three constraints that
-matter at the regulatory margin: its consortium licence restricts
+matter at the regulatory margin: its consortium license restricts
 redistribution; its compliance posture is institutionally framed
 rather than codified in inspectable functions; and its extension model
 relies on PHP modules rather than a programming environment that
 researchers already use for analysis.
 
 ZZedc takes a different position. It is distributed under an
-open-source licence; its compliance claims are tied to specific
+open-source license; its compliance claims are tied to specific
 exported R functions with cited file and line locations; and its
 runtime is the same R environment in which downstream statistical
 work is performed, allowing the audit trail, the validation framework,
@@ -83,7 +83,7 @@ the language the analyst is already using.
 
 ## Architecture in one diagram and three guarantees
 
-ZZedc is organised in five layers. The application layer is a Shiny
+ZZedc is organized in five layers. The application layer is a Shiny
 front-end composed of feature modules (subject management, form
 rendering, query workflow, signature dialogues, privacy dashboard).
 The domain layer holds the package's exported R functions, grouped by
@@ -133,7 +133,7 @@ versioned database rows; ad-hoc administrative changes are routed
 through audited workflows rather than direct database edits. This
 constraint makes the audit trail a complete description of system
 state changes rather than a partial one. It is also the property that
-allows a deployment to be re-created from version-controlled artefacts
+allows a deployment to be re-created from version-controlled artifacts
 plus a database backup, a property that matters for both disaster
 recovery and inspection-readiness.
 
@@ -195,10 +195,10 @@ deprecated. This is documented openly rather than papered over.
 System validation through the IQ/OQ/PQ framework
 (`run_iq_tests`, `run_oq_tests`, `run_pq_tests`,
 `run_validation_suite`) executes the technical portion of §11.10(a).
-The organisational portion of a Part 11 validation package, which
+The organizational portion of a Part 11 validation package, which
 includes a Validation Master Plan, signed validation report, and
 traceability matrix to user requirements, remains an operational
-deliverable produced by the deploying organisation.
+deliverable produced by the deploying organization.
 
 Record-level controls under §11.10(c) and §11.10(j) are implemented
 through `R/version_control.R` (record versioning, comparison,
@@ -261,7 +261,7 @@ for operational qualification, `run_pq_tests` for performance
 qualification, `run_validation_suite` for the bundled run). These
 functions exercise the package's compliance-relevant code paths and
 produce a structured validation result that can be archived as a
-deployment artefact.
+deployment artifact.
 
 Case Report Form authoring is supported through a Google Sheets
 workbook ingestion pipeline and a CSV authoring path. Validation rules
@@ -342,7 +342,7 @@ dispatch back into the system, after which timeliness can be verified
 via `check_72_hour_deadline()`. This is a deliberate scope decision:
 the package does not own the messaging stack.
 
-The Article 30 register and the data minimisation log have schema
+The Article 30 register and the data minimization log have schema
 present but no exported functions to write to or query them. The
 international-transfer mechanisms required by Chapter V (transfer
 impact assessment, Standard Contractual Clauses tracking, adequacy
@@ -383,7 +383,7 @@ in routine data capture. Differences worth naming:
 
 REDCap is licensed by the Vanderbilt consortium and redistribution is
 restricted to consortium members; ZZedc is released under an
-open-source licence. REDCap's compliance posture is presented at the
+open-source license. REDCap's compliance posture is presented at the
 institutional level (the institution running REDCap is the
 controller); ZZedc's compliance posture is tied to specific exported
 functions in inspectable R code. REDCap extends through PHP modules;
@@ -398,8 +398,8 @@ The choice between the two is largely an institutional one. ZZedc is
 a defensible choice when source-level inspection of compliance code
 matters, when integration with R-based downstream analysis is the
 dominant workflow, when consortium licensing is unavailable, or when
-the deploying organisation needs to extend or modify compliance
-behaviour rather than configure it within fixed parameters. REDCap
+the deploying organization needs to extend or modify compliance
+behavior rather than configure it within fixed parameters. REDCap
 is the conservative default at institutions that already license it
 and have an established operational practice around it; switching to
 ZZedc has a justified case but is not a default recommendation.

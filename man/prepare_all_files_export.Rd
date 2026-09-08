@@ -18,7 +18,7 @@ Prepare all files data for export
 \examples{
 \dontrun{
 # End-of-study archival bundle: database snapshot + audit log +
-# all generated reports + reproducibility artefacts.
+# all generated reports + reproducibility artifacts.
 prepare_all_files_export(output_dir = tempfile())
 }
 }

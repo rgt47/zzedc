@@ -1008,7 +1008,7 @@ run_validation_suite <- function(db_path = NULL, verbose = TRUE,
 #'
 #' @examples
 #' \dontrun{
-#' # PDF/HTML report summarising validation findings, suitable for
+#' # PDF/HTML report summarizing validation findings, suitable for
 #' # a Data Monitoring Committee meeting.
 #' rep <- generate_validation_report(
 #'   output_path = tempfile(fileext = ".html"),

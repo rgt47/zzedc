@@ -19,7 +19,7 @@ Verifies an electronic signature is valid and intact.
 }
 \examples{
 \dontrun{
-# CFR-Part-11 features require an initialised database with the
+# CFR-Part-11 features require an initialized database with the
 # signature tables created at study-init time.
 # Verify a stored signature against the audit trail.
 ok <- verify_electronic_signature(signature_id = 1)

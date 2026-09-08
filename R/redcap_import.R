@@ -653,7 +653,7 @@ import_redcap_to_zzedc <- function(conn, pid, output_dir,
 #' }
 #'
 #' Phase C2 conservatively returns NA for any expression that
-#' contains a construct it does not recognise (parentheses
+#' contains a construct it does not recognize (parentheses
 #' nested deeper than one level, REDCap-specific functions like
 #' `datediff()`, instance references like `[event_arm_1][age]`).
 #' Such rows are recorded in the importer's
@@ -717,7 +717,7 @@ redcap_translate_branching_logic <- function(expr) {
 #' (e.g., "INSERT", "Manage/Design", "Updated record S001").
 #' ZZedc's `audit_log.event_type` is constrained to a fixed
 #' enumeration. Phase C2 maps the common categories; anything
-#' unrecognised becomes `ACCESS` (the safest non-destructive
+#' unrecognized becomes `ACCESS` (the safest non-destructive
 #' default) with the original label preserved in `details`.
 #'
 #' @keywords internal
@@ -764,7 +764,7 @@ redcap_translate_event_type <- function(label) {
 #'   When not `"full"`, a marker event is prepended to the
 #'   audit chain documenting the gap; downstream chain
 #'   validation continues to succeed, but the chain is
-#'   labelled as starting at the migration boundary rather
+#'   labeled as starting at the migration boundary rather
 #'   than at the project's true genesis.
 #' @return List with `success`, `imported`, `errors`,
 #'   `chain_validates`, and (when applicable) `completeness`
@@ -1343,7 +1343,7 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
   }
   result$branching_translated <- length(branching_rows)
 
-  # --- 3. Initialise the encrypted database ---------------------
+  # --- 3. Initialize the encrypted database ---------------------
   if (dry_run) {
     result$database <- list(success = TRUE,
                             message = "dry_run: skipped database init")
@@ -1712,7 +1712,7 @@ redcap_extract_metadata_api <- function(api) {
     ))
   }
 
-  # API uses `field_label`; DB uses `element_label`. Normalise.
+  # API uses `field_label`; DB uses `element_label`. Normalize.
   label_col <- if ("field_label" %in% names(rows)) "field_label"
                else "element_label"
 

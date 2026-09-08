@@ -69,5 +69,5 @@ spreadsheet.
 - [Content-Author Guide](content-author-guide.html) — the
   canonical Google Sheets authoring path
 - [Technical-Lead Guide](technical-lead-guide.html) — Chapter
-  5 covers programmatic database initialisation that
+  5 covers programmatic database initialization that
   complements the wizard's GUI-driven path

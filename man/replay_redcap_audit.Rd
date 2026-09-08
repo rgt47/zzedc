@@ -21,7 +21,7 @@ shape returned by \code{\link[=redcap_extract_audit]{redcap_extract_audit()}} (c
 When not \code{"full"}, a marker event is prepended to the
 audit chain documenting the gap; downstream chain
 validation continues to succeed, but the chain is
-labelled as starting at the migration boundary rather
+labeled as starting at the migration boundary rather
 than at the project's true genesis.}
 }
 \value{

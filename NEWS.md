@@ -9,7 +9,7 @@
   during `create_wizard_database()`.
 * **`migrate_add_studymanager_role()` (new export).** Idempotent
   migration that adds the `studymanager` permission row and `edc_roles`
-  entry to databases initialised before v0.6.2.
+  entry to databases initialized before v0.6.2.
 * **Non-escalation enforcement in user management UI.** New unexported
   helpers `.ROLE_TIER` and `.assignable_roles()` in
   `user_management_module.R`. `user_management_server()` now accepts an
@@ -53,7 +53,7 @@
   model (missing `StudyManager` role, absent non-escalation
   enforcement, PI cannot author rules directly, Tier 0 / application
   admin conflation); and a step-by-step construction guide for
-  initialising the correct hierarchy via the Google Sheets seed-import
+  initializing the correct hierarchy via the Google Sheets seed-import
   pathway.
 
 # zzedc v0.6.0
@@ -119,7 +119,7 @@
   components inside `bslib::layout_columns()` rather than
   hand-rolled `display-4` text divs inside generic
   `bslib::card`s. They surface the answer the user came for
-  with consistent showcase icons, theme colours, and
+  with consistent showcase icons, theme colors, and
   responsive sizing.
 * **Metric outputs hoisted out of `observe()`.** The four
   `output$metric_*` assignments in
@@ -157,7 +157,7 @@
   and `shinydashboard` is no longer in `Imports` or in the
   package-level `@importFrom`. The whole dashboard now
   uses one UI library.
-* **Card standardisation.** All `div(class = "card", ...)`
+* **Card standardization.** All `div(class = "card", ...)`
   blocks in `admin_dashboard_module.R`,
   `audit_log_viewer_module.R`, `backup_restore_module.R`,
   and `user_management_module.R` migrated to

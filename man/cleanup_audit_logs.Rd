@@ -19,7 +19,7 @@ Archive and remove old audit log entries (configurable retention)
 }
 \examples{
 \dontrun{
-# Connect to an initialised study database. See
+# Connect to an initialized study database. See
 # `?initialize_encrypted_database` for the prerequisite setup.
 conn <- connect_encrypted_db(db_path = "data/study.db",
                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))

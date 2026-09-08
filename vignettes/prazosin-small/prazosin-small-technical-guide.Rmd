@@ -21,7 +21,7 @@ the Prazosin Sleep Study (Small), protocol PRAZ-S-2026. The
 study is a single-site, single-instance deployment: one SQLite
 database at UCSD, one application process, two user accounts.
 Setup is straightforward. The guide covers prerequisites,
-installation, project directory structure, the initialisation
+installation, project directory structure, the initialization
 script, the manual CSV alternative, import, verification, backup,
 and troubleshooting.
 
@@ -76,7 +76,7 @@ trial; keep it backed up (see Section 9).
 
 ---
 
-## 4. Initialisation Script
+## 4. Initialization Script
 
 The package ships with a generalised init script at
 `inst/scripts/edc-init.R`. It collects study and user
@@ -207,7 +207,7 @@ Notes on these settings:
 - `pool_size: 2` is sufficient for a two-user installation with
   no concurrent heavy queries.
 
-Initialise the database from this file:
+Initialize the database from this file:
 
 ```{r}
 library(zzedc)
@@ -281,7 +281,7 @@ structure is:
 | `is_active` | `TRUE` to enable; `FALSE` to disable without deleting |
 
 Do not modify `Data_Dictionary.csv` or `validation_rules.csv`
-unless you need to customise the field set or rules. Any
+unless you need to customize the field set or rules. Any
 structural change (adding or removing fields, altering field
 names) must be made before the first import; changes after
 go-live require a migration path.

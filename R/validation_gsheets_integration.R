@@ -1009,7 +1009,7 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 
 #' Set up a ZZedc study from a Google Sheets workbook
 #'
-#' One-call orchestrator that initialises an encrypted study
+#' One-call orchestrator that initializes an encrypted study
 #' database, then imports the user roster, data dictionary
 #' (CRF definitions and fields), and validation rules from a
 #' Google Sheets workbook. Each tab in the workbook corresponds
@@ -1071,7 +1071,7 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #' @seealso
 #' [import_validation_rules_from_gsheets()] for importing
 #' validation rules only; [sync_dsl_rules_from_gsheets()] for
-#' incremental synchronisation.
+#' incremental synchronization.
 #'
 #' @export
 setup_zzedc_from_gsheets <- function(
@@ -1280,7 +1280,7 @@ setup_zzedc_from_gsheets <- function(
 #' Migrate: Add StudyManager Role to DSL Permissions
 #'
 #' Adds the `studymanager` role to `dsl_rule_permissions` in an
-#' existing database. Safe to run on databases that were initialised
+#' existing database. Safe to run on databases that were initialized
 #' before v0.6.1; does nothing if the role already exists.
 #'
 #' @param db_path Path to the ZZedc SQLite database. `NULL` uses

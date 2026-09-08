@@ -31,7 +31,7 @@ Creates a new CRF definition for version control.
 }
 \examples{
 \dontrun{
-# After initialising an encrypted database (see
+# After initializing an encrypted database (see
 # `initialize_encrypted_database()`), define a baseline-visit CRF
 # for a new study. The returned `crf_id` is the handle used by
 # subsequent calls such as `add_form_section()` and

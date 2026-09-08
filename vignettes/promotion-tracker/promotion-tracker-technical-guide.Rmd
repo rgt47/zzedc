@@ -29,7 +29,7 @@ who handles day-to-day data entry, is
 setup, hand the assistant that guide along with the application
 URL (or local access instructions) and their login credentials.
 
-The recommended setup path is the initialisation script
+The recommended setup path is the initialization script
 (Section 4), which writes all configuration and data-dictionary
 files automatically. Sections 5 and 6 describe the manual
 alternative for reference and troubleshooting.
@@ -79,7 +79,7 @@ source of truth.
 
 ---
 
-## 4. Initialisation Script
+## 4. Initialization Script
 
 The script `inst/scripts/edc-init.R` collects study and user
 information, writes `zzedc_config.yml` and `Study_Users.csv`,
@@ -101,7 +101,7 @@ a styled menu. Without `gum` it falls back to a plain text
 prompt:
 
 ```
-zzedc Project Initialisation
+zzedc Project Initialization
 
   1  TUI    -- guided prompts
   2  Config -- plain-text file
@@ -314,7 +314,7 @@ Notes on these settings:
 - GDPR and 21 CFR Part 11 modules are disabled. The audit log
   remains active regardless.
 
-Initialise the database from this file:
+Initialize the database from this file:
 
 ```{r}
 library(zzedc)
@@ -490,7 +490,7 @@ vignettes/promotion-tracker/
 
 Copy them to your project directory, edit `Study_Users.csv`
 to replace the placeholder credentials, and leave the other
-two files unchanged unless you need to customise the field
+two files unchanged unless you need to customize the field
 set:
 
 ```{r}
@@ -552,7 +552,7 @@ setup_zzedc_from_csv(
 
 ### Checking the import log
 
-The import prints any skipped rules or unrecognised field
+The import prints any skipped rules or unrecognized field
 types. Review this output before proceeding. Common issues:
 
 | Message | Cause | Fix |
@@ -706,7 +706,7 @@ activity records.
 ## 12. Troubleshooting
 
 **Import fails with `googlesheets4` authentication error.**
-Run `googlesheets4::gs4_auth()` interactively to authorise
+Run `googlesheets4::gs4_auth()` interactively to authorize
 access to your Google account, then re-run the import.
 
 **Port 3838 already in use.** Pass an alternate port:

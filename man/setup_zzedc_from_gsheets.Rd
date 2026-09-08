@@ -44,11 +44,11 @@ register it with \code{Sys.setenv(DB_ENCRYPTION_KEY = ...)}
 before subsequent operations.
 }
 \description{
-One-call orchestrator that initialises an encrypted study
+One-call orchestrator that initializes an encrypted study
 database, then imports the user roster, data dictionary
 (CRF definitions and fields), and validation rules from a
 Google Sheets workbook. Each tab in the workbook corresponds
-to one of these artefacts.
+to one of these artifacts.
 }
 \details{
 The Google Sheet must contain three tabs:
@@ -85,5 +85,5 @@ result$validation_rules$imported  # number of rules imported
 \seealso{
 \code{\link[=import_validation_rules_from_gsheets]{import_validation_rules_from_gsheets()}} for importing
 validation rules only; \code{\link[=sync_dsl_rules_from_gsheets]{sync_dsl_rules_from_gsheets()}} for
-incremental synchronisation.
+incremental synchronization.
 }

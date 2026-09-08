@@ -90,7 +90,7 @@ conventions without exception.
 **Subjects:** `PRAZ-S-NNN`
 
 Assign the next available three-digit number at each new
-enrolment. The counter resets at the start of each calendar year.
+enrollment. The counter resets at the start of each calendar year.
 Examples: `PRAZ-S-001`, `PRAZ-S-002`, ... `PRAZ-S-050`.
 
 **Adverse event records:** `AE-NNN`
@@ -242,7 +242,7 @@ after full resolution, create a second record.
 | AE Record ID | `AE-NNN` per the convention in Section 4 |
 | Onset Date | Date the adverse event began |
 | Resolution Date | Date the adverse event resolved; leave blank if ongoing |
-| AE Term | Standardised adverse event term (use MedDRA preferred term if available) |
+| AE Term | Standardized adverse event term (use MedDRA preferred term if available) |
 | Severity | `mild`, `moderate`, `severe`, or `life_threatening` |
 | Serious AE | `yes` if the event meets protocol-defined SAE criteria; `no` otherwise |
 | Relatedness | `yes`, `no`, `possibly`, or `probably` per investigator assessment |
@@ -441,9 +441,9 @@ The ZZedc system is not a regulatory reporting tool.
 - **Medication Record ID**: the unique identifier for each
   concomitant medication record, format `MED-NNN`.
 - **Inclusion criterion (IC)**: a condition the subject must
-  meet to be eligible for enrolment.
+  meet to be eligible for enrollment.
 - **Exclusion criterion (EC)**: a condition that disqualifies a
-  subject from enrolment.
+  subject from enrollment.
 - **Screen failure**: formal determination that a subject does
   not meet eligibility criteria after screening procedures.
 - **PSQI**: Pittsburgh Sleep Quality Index; a validated

@@ -234,7 +234,7 @@ log_security_event <- function(event_type, user_id, description,
 #'
 #' @examples
 #' \dontrun{
-#' # Audit logging requires an initialised database with the
+#' # Audit logging requires an initialized database with the
 #' # audit-trail tables; see `?init_audit_logging`.
 #' Sys.setenv(DB_ENCRYPTION_KEY = "your-64-char-hex-key")
 #' log_failed_login(
@@ -277,7 +277,7 @@ log_failed_login <- function(username, reason = "Invalid credentials",
 #'
 #' @examples
 #' \dontrun{
-#' # Audit logging requires an initialised database with the
+#' # Audit logging requires an initialized database with the
 #' # audit-trail tables; see `?init_audit_logging`.
 #' Sys.setenv(DB_ENCRYPTION_KEY = "your-64-char-hex-key")
 #' log_account_lockout(
@@ -357,7 +357,7 @@ log_password_change <- function(user_id, changed_by = NULL,
 #'
 #' @examples
 #' \dontrun{
-#' # Audit logging requires an initialised database with the
+#' # Audit logging requires an initialized database with the
 #' # audit-trail tables; see `?init_audit_logging`.
 #' Sys.setenv(DB_ENCRYPTION_KEY = "your-64-char-hex-key")
 #' log_role_change(
@@ -408,7 +408,7 @@ log_role_change <- function(user_id, old_role, new_role,
 #'
 #' @examples
 #' \dontrun{
-#' # Audit logging requires an initialised database with the
+#' # Audit logging requires an initialized database with the
 #' # audit-trail tables; see `?init_audit_logging`.
 #' Sys.setenv(DB_ENCRYPTION_KEY = "your-64-char-hex-key")
 #' log_config_change(
@@ -749,7 +749,7 @@ detect_audit_anomalies <- function(lookback_hours = 24, thresholds = NULL,
 #'
 #' @examples
 #' \dontrun{
-#' # Audit logging requires an initialised database with the
+#' # Audit logging requires an initialized database with the
 #' # audit-trail tables; see `?init_audit_logging`.
 #' Sys.setenv(DB_ENCRYPTION_KEY = "your-64-char-hex-key")
 #' # Find every action by a specific coordinator in the last week
@@ -861,7 +861,7 @@ search_audit_trail <- function(search_term = NULL, event_types = NULL,
 #'
 #' @examples
 #' \dontrun{
-#' # Audit logging requires an initialised database with the
+#' # Audit logging requires an initialized database with the
 #' # audit-trail tables; see `?init_audit_logging`.
 #' Sys.setenv(DB_ENCRYPTION_KEY = "your-64-char-hex-key")
 #' stats <- get_audit_statistics(

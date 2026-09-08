@@ -2,7 +2,7 @@
 % Please edit documentation in R/redcap_import.R
 \name{import_redcap_to_zzedc}
 \alias{import_redcap_to_zzedc}
-\title{Import a REDCap project into ZZedc CSV-format artefacts}
+\title{Import a REDCap project into ZZedc CSV-format artifacts}
 \usage{
 import_redcap_to_zzedc(conn, pid, output_dir, redcap_version = NULL)
 }
@@ -13,7 +13,7 @@ database hydrated with REDCap-shaped tables for testing).}
 
 \item{pid}{Numeric REDCap project ID.}
 
-\item{output_dir}{Directory to write CSV artefacts into.
+\item{output_dir}{Directory to write CSV artifacts into.
 Created if it does not exist.}
 
 \item{redcap_version}{Optional version string recorded in the
@@ -28,7 +28,7 @@ Named list with one entry per stage:
 \item{paths}{Named list of file paths
 (\code{data_dictionary}, \code{validation_rules}, \code{users},
 \code{subjects}, \code{subject_data}, \code{audit_log}, \code{manifest}).}
-\item{counts}{Per-artefact row counts.}
+\item{counts}{Per-artifact row counts.}
 \item{skipped_rules}{List of rules that could not be
 translated automatically (branching logic, complex
 conditionals).}

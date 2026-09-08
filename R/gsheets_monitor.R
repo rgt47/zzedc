@@ -38,10 +38,10 @@
 NULL
 
 # ============================================================================
-# Schema initialisation
+# Schema initialization
 # ============================================================================
 
-#' Initialise the Rule Proposals Table
+#' Initialize the Rule Proposals Table
 #'
 #' Creates `dsl_rule_proposals` if it does not already exist. Called
 #' automatically by [poll_gsheets_and_stage()] on first use.
@@ -625,7 +625,7 @@ poll_gsheets_and_stage <- function(sheet_id,
 # User roster change detection, staging, and approval
 # ============================================================================
 
-#' Initialise the User Proposals Table
+#' Initialize the User Proposals Table
 #'
 #' Creates `user_proposals` if it does not already exist. Called
 #' automatically by [poll_gsheets_and_stage()] on first use.
@@ -903,7 +903,7 @@ approve_user_proposals <- function(ids, reviewer_id, db_path = NULL,
       approved = 0L,
       errors   = list(auth = paste0(
         'Role "', reviewer_rec$role[1],
-        '" is not authorised to approve user roster proposals. ',
+        '" is not authorized to approve user roster proposals. ',
         'Required: Admin, PI, or StudyManager.'
       ))
     ))
@@ -1024,7 +1024,7 @@ reject_user_proposals <- function(ids, reviewer_id, comments,
       approved = 0L,
       errors   = list(auth = paste0(
         'Role "', reviewer_rec$role[1],
-        '" is not authorised to approve user roster proposals. ',
+        '" is not authorized to approve user roster proposals. ',
         'Required: Admin, PI, or StudyManager.'
       ))
     ))

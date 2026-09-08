@@ -11,7 +11,7 @@ REDCap's \code{redcap_log_event.event} is free-text descriptive
 (e.g., "INSERT", "Manage/Design", "Updated record S001").
 ZZedc's \code{audit_log.event_type} is constrained to a fixed
 enumeration. Phase C2 maps the common categories; anything
-unrecognised becomes \code{ACCESS} (the safest non-destructive
+unrecognized becomes \code{ACCESS} (the safest non-destructive
 default) with the original label preserved in \code{details}.
 }
 \keyword{internal}

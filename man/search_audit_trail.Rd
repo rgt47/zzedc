@@ -46,7 +46,7 @@ Advanced search of audit trail with multiple filter options.
 }
 \examples{
 \dontrun{
-# Audit logging requires an initialised database with the
+# Audit logging requires an initialized database with the
 # audit-trail tables; see `?init_audit_logging`.
 Sys.setenv(DB_ENCRYPTION_KEY = "your-64-char-hex-key")
 # Find every action by a specific coordinator in the last week

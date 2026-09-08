@@ -161,7 +161,7 @@ result <- import_redcap_to_zzedc(
   output_dir = "~/zzedc_migration/redcap_42"
 )
 
-result$counts          # rows per artefact
+result$counts          # rows per artifact
 length(result$skipped_rules)  # rules needing manual review
 ```
 
@@ -230,7 +230,7 @@ These are the explicit limitations of the C1 release:
 ### C1 recipe (CSV emission)
 
 When a CSV intermediate is wanted (for human review of the
-extracted artefacts before populating the ZZedc database), use
+extracted artifacts before populating the ZZedc database), use
 the C1 entry point:
 
 ```{r recipe-c1}
@@ -325,7 +325,7 @@ result$branching_translated          # branching rules translated
   `[event_arm_1][field]`) are conservatively rejected and
   recorded in `result$skipped_rules` for manual review.
 - **Conflict policy.** `on_conflict = "skip"` (default),
-  `"merge"`, or `"fail"` controls behaviour when imported rows
+  `"merge"`, or `"fail"` controls behavior when imported rows
   conflict with existing ZZedc rows. Default is `"skip"` with
   per-user diagnostics in the result list.
 - **Dry-run mode.** `dry_run = TRUE` exercises the full
@@ -583,7 +583,7 @@ For each ZZedc concept, the corresponding REDCap source:
 1. **Schema drift.** REDCap has shipped 14 major versions. A
    schema feature added in 14.3 may not exist in 14.0. The
    importer should declare a tested version range and reject
-   schemas it does not recognise rather than silently
+   schemas it does not recognize rather than silently
    producing partial imports.
 
 2. **Branching-logic edge cases.** REDCap's syntax for

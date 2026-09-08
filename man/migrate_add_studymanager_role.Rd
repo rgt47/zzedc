@@ -15,6 +15,6 @@ Invisibly returns \code{TRUE}.
 }
 \description{
 Adds the \code{studymanager} role to \code{dsl_rule_permissions} in an
-existing database. Safe to run on databases that were initialised
+existing database. Safe to run on databases that were initialized
 before v0.6.1; does nothing if the role already exists.
 }

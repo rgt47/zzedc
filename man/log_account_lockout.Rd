@@ -28,7 +28,7 @@ Records when a user account is locked due to security policy.
 }
 \examples{
 \dontrun{
-# Audit logging requires an initialised database with the
+# Audit logging requires an initialized database with the
 # audit-trail tables; see `?init_audit_logging`.
 Sys.setenv(DB_ENCRYPTION_KEY = "your-64-char-hex-key")
 log_account_lockout(

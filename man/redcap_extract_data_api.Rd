@@ -11,7 +11,7 @@ The REDCap API returns wide-form records by default. The DB
 extractor returns long-form (subject_id, field_name, value,
 event_id), so this function pivots wide -> long after the
 fetch. Empty / NA cells are dropped to match the DB extractor's
-behaviour (it reads from the EAV \code{redcap_data} table, which
+behavior (it reads from the EAV \code{redcap_data} table, which
 stores only set values).
 }
 \keyword{internal}

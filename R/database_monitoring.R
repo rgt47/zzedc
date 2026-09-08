@@ -58,7 +58,7 @@ get_db_file_size <- function(db_path = "data/memory001_study.db") {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -100,7 +100,7 @@ get_db_statistics <- function(conn) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -141,7 +141,7 @@ show_db_overview <- function(conn) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -175,7 +175,7 @@ analyze_query_performance <- function(conn, query) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -248,7 +248,7 @@ identify_slow_queries <- function(conn) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -306,7 +306,7 @@ create_recommended_indexes <- function(conn) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -349,7 +349,7 @@ analyze_indexes <- function(conn) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -388,7 +388,7 @@ vacuum_database <- function(conn) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -484,7 +484,7 @@ check_database_health <- function(conn) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
@@ -552,7 +552,7 @@ monitor_data_entry_rate <- function(conn, days = 30) {
 #'
 #' @examples
 #' \dontrun{
-#' # Connect to an initialised study database. See
+#' # Connect to an initialized study database. See
 #' # `?initialize_encrypted_database` for the prerequisite setup.
 #' conn <- connect_encrypted_db(db_path = "data/study.db",
 #'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))

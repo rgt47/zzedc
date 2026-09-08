@@ -25,7 +25,7 @@ three most common patterns:
 }
 
 Phase C2 conservatively returns NA for any expression that
-contains a construct it does not recognise (parentheses
+contains a construct it does not recognize (parentheses
 nested deeper than one level, REDCap-specific functions like
 \code{datediff()}, instance references like \verb{[event_arm_1][age]}).
 Such rows are recorded in the importer's

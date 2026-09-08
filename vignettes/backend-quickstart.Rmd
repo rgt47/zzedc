@@ -28,7 +28,7 @@ identical across backends. This vignette consolidates what was
 previously five parallel quick-start guides into one document.
 
 The body covers the workflow that is the same for every backend: pick
-a backend, install ZZedc, write a `config.yml`, initialise the
+a backend, install ZZedc, write a `config.yml`, initialize the
 database, and launch the application. Backend-specific mechanics
 (server install, driver selection, dialect features, backup tooling)
 are isolated in five short appendices. Read the body first, then read
@@ -53,7 +53,7 @@ and whether analytics or transactions dominate the workload.
   true multi-user concurrency, streaming replication, and
   point-in-time recovery.
 - **MySQL or MariaDB** for the same multi-site profile when the
-  institution standardises on MySQL or MariaDB rather than
+  institution standardizes on MySQL or MariaDB rather than
   PostgreSQL, or when an existing REDCap deployment is the source of
   data. The two server families share a wire protocol and a single R
   driver (`RMariaDB`).
@@ -76,7 +76,7 @@ committing to a non-default backend on a production study.
 
 ### Comparison at a glance
 
-The following table summarises the dimensions that drive the choice.
+The following table summarizes the dimensions that drive the choice.
 It is intentionally coarse; treat it as orientation, not as a scoring
 rubric.
 
@@ -107,7 +107,7 @@ server prerequisites appear in the corresponding appendix.
 - An R environment with package installation available (RStudio is
   the supported IDE but not required).
 - Internet access for the initial `devtools::install_github()` call.
-- Write access to a working directory for the study artefacts (the
+- Write access to a working directory for the study artifacts (the
   `config.yml`, the `logs/` and `exports/` subdirectories, and, for
   the file-based backends, the database file itself).
 
@@ -219,7 +219,7 @@ Two conventions are worth flagging:
 
 ---
 
-## 6. Initialise the database
+## 6. Initialize the database
 
 The `create_db_adapter()` factory dispatches on `db_backend` and
 returns an R6 adapter object whose `connect()`, `query()`, `execute()`,
@@ -266,7 +266,7 @@ result <- create_wizard_database(
 )
 
 if (!isTRUE(result$success)) {
-  stop('Database initialisation failed: ', result$message)
+  stop('Database initialization failed: ', result$message)
 }
 ```
 
@@ -304,7 +304,7 @@ parameters, the database backend, and the initial data dictionary.
 
 ## 7. Launch the application
 
-Once the database is initialised, launching the Shiny application is
+Once the database is initialized, launching the Shiny application is
 backend-independent:
 
 ```{r launch}
@@ -388,7 +388,7 @@ the appendix. The principles below apply universally:
   custody chain.
 
 The application-level audit trail in `audit_trail` is a separate
-artefact from the database backup and complies with 21 CFR Part 11
+artifact from the database backup and complies with 21 CFR Part 11
 ALCOA-C requirements. It is preserved by every backup mechanism the
 appendices describe, but its hash-chained integrity should be
 verified after any restore.
@@ -418,7 +418,7 @@ errors appear in the appendix. The patterns below are universal.
   `session_timeout_minutes` in `config.yml` if the workflow requires
   a longer window.
 - **'Database is locked' (SQLite only).** Close the other R session
-  or application that holds the file. SQLite serialises writers.
+  or application that holds the file. SQLite serializes writers.
 
 ---
 
@@ -426,7 +426,7 @@ errors appear in the appendix. The patterns below are universal.
 
 The unified workflow is: pick a backend (Section 1), install ZZedc
 (Section 3), assemble the project layout and `config.yml` (Sections
-4-5), initialise the database (Section 6), launch (Section 7). Sections
+4-5), initialize the database (Section 6), launch (Section 7). Sections
 8-10 cover the operational lifecycle. The five appendices document the
 backend-specific mechanics: server install, R driver, dialect features,
 and backup tooling.
@@ -490,7 +490,7 @@ dbDisconnect(conn)
 
 ### Backend-specific notes
 
-- SQLite serialises writers. A second R session attempting to write
+- SQLite serializes writers. A second R session attempting to write
   will block until the first releases its lock. This is the expected
   cost of zero-configuration concurrency.
 - For studies that outgrow SQLite, the most common promotion path is

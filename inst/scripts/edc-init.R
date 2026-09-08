@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # edc-init.R
 #
-# Generalised zzedc project initialiser using the `gum` TUI toolkit.
+# Generalized zzedc project initializer using the `gum` TUI toolkit.
 # Writes zzedc_config.yml and Study_Users.csv for any zzedc project.
 # Optionally copies Data_Dictionary.csv and validation_rules.csv from
 # caller-supplied source paths (--dd-csv, --rules-csv).
@@ -119,7 +119,7 @@ default_db_name <- function(protocol_id) {
 # ---------------------------------------------------------------------------
 
 collect_tui_gum <- function() {
-  cli_h1("zzedc Project Initialisation")
+  cli_h1("zzedc Project Initialization")
   cli_bullets(c(
     "i" = "Type a value and press {.strong Enter} to accept.",
     "i" = "Fields with a pre-filled value can be accepted as-is or overwritten.",
@@ -306,7 +306,7 @@ collect_tui_gum <- function() {
 # ---------------------------------------------------------------------------
 
 collect_tui_readline <- function() {
-  cli_h1("zzedc Project Initialisation")
+  cli_h1("zzedc Project Initialization")
 
   cli_h2("Study information")
   study_name <- rl_prompt("Study name")
@@ -440,13 +440,13 @@ select_mode <- function() {
           "config - Edit a plain-text template, then re-run",
           "sheets - Populate a Google Sheet, then point this script at it"
         ),
-        header = "zzedc Project Initialisation -- choose an interface mode"
+        header = "zzedc Project Initialization -- choose an interface mode"
       ),
       error = function(e) "tui    - Guided prompts (styled, no files needed)"
     )
     sub("^(\\S+).*", "\\1", trimws(choice))
   } else {
-    cli_h1("zzedc Project Initialisation")
+    cli_h1("zzedc Project Initialization")
     cli_text("  {.strong 1  TUI}    -- guided prompts")
     cli_text("  {.strong 2  Config} -- plain-text file")
     cli_text("  {.strong 3  Sheets} -- Google Sheets")

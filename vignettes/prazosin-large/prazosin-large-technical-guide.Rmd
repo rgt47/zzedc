@@ -97,7 +97,7 @@ to all four sites over HTTPS. This architecture provides:
 Minimum server requirements: 2 CPU cores, 4 GB RAM, 20 GB
 disk. Shiny Server Open Source is sufficient; Posit Connect
 provides additional authentication options if your institution
-has a licence.
+has a license.
 
 Set `enforce_https: true` in `zzedc_config.yml` for any
 deployment accessible over a network. Never transmit credentials
@@ -184,7 +184,7 @@ Notes on these settings:
 - GDPR and 21 CFR Part 11 modules are disabled. The audit log
   remains active regardless.
 
-Initialise the database:
+Initialize the database:
 
 ```{r}
 library(zzedc)
@@ -827,7 +827,7 @@ to any repository; it contains identifiable subject data.
 ## 12. Troubleshooting
 
 **Import fails with `googlesheets4` authentication error.**
-Run `googlesheets4::gs4_auth()` interactively to authorise
+Run `googlesheets4::gs4_auth()` interactively to authorize
 access to your Google account, then re-run the import.
 
 **The poll cron job runs but no proposals appear in
