@@ -203,22 +203,33 @@ log_audit_event <- function(event_type, table_name, record_id = NULL,
         "GENESIS"
       }
 
-      # Record hash
-      record_content <- paste(
+      # Record hash.
+      #
+      # The timestamp that goes into the hash must be the one that gets
+      # stored. It previously hashed Sys.time() while letting the
+      # column take the database's CURRENT_TIMESTAMP default, so the
+      # value inside the hash was never recorded anywhere: local time
+      # against UTC, and a different rendering besides. The hash was
+      # therefore impossible to recompute from the row it describes,
+      # which is why nothing ever checked it and why tampering with an
+      # audit record's content could not be detected. The timestamp is
+      # now generated once, hashed, and written to the column.
+      timestamp <- format(Sys.time(), tz = "UTC", "%Y-%m-%d %H:%M:%S")
+      record_content <- .audit_hash_content(
         event_type, table_name, record_id, operation, details,
-        user_id, Sys.time(), previous_hash,
-        sep = "|"
+        user_id, NULL, NULL, timestamp, previous_hash
       )
       audit_hash <- digest::digest(record_content, algo = "sha256")
 
       # Insert audit record
       DBI::dbExecute(conn, "
         INSERT INTO audit_log
-        (event_type, table_name, record_id, operation, details, user_id, audit_hash, previous_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (timestamp, event_type, table_name, record_id, operation, details,
+         user_id, audit_hash, previous_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ", list(
-        event_type, table_name, record_id, operation, details, user_id,
-        audit_hash, previous_hash
+        timestamp, event_type, table_name, record_id, operation, details,
+        user_id, audit_hash, previous_hash
       ))
 
       audit_id <- DBI::dbGetQuery(
@@ -352,25 +363,43 @@ verify_audit_integrity <- function(start_id = NULL, end_id = NULL, db_path = NUL
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    # Get chain records
-    query <- "SELECT * FROM audit_chain ORDER BY chain_order ASC"
-
+    # Join the chain to the log so the content behind each hash is
+    # available. The clauses are assembled before ORDER BY: they were
+    # appended after it, which is a syntax error, so any call passing
+    # start_id or end_id failed outright and was swallowed by the
+    # handler below as a verification failure.
+    where <- character(0)
+    params <- list()
     if (!is.null(start_id)) {
-      query <- paste0(query, " WHERE audit_id >= ", start_id)
+      where <- c(where, "c.audit_id >= ?")
+      params <- c(params, list(start_id))
     }
-
     if (!is.null(end_id)) {
-      if (!is.null(start_id)) {
-        query <- paste0(query, " AND audit_id <= ", end_id)
-      } else {
-        query <- paste0(query, " WHERE audit_id <= ", end_id)
-      }
+      where <- c(where, "c.audit_id <= ?")
+      params <- c(params, list(end_id))
     }
-
-    chain_records <- DBI::dbGetQuery(conn, query)
+    query <- paste0(
+      "SELECT c.audit_id, c.record_hash, c.previous_hash, c.chain_order, ",
+      "l.event_type, l.table_name, l.record_id, l.operation, l.details, ",
+      "l.user_id, l.ip_address, l.session_id, l.timestamp, l.previous_hash AS log_previous_hash ",
+      "FROM audit_chain c JOIN audit_log l ON l.audit_id = c.audit_id",
+      if (length(where)) paste0(" WHERE ", paste(where, collapse = " AND ")) else "",
+      " ORDER BY c.chain_order ASC"
+    )
+    chain_records <- if (length(params)) {
+      DBI::dbGetQuery(conn, query, params = params)
+    } else {
+      DBI::dbGetQuery(conn, query)
+    }
+    # Whether this run covers the head of the chain, which is the only
+    # place GENESIS belongs.
+    from_start <- nrow(chain_records) > 0 &&
+      chain_records$chain_order[1] == 1
 
     records_checked <- nrow(chain_records)
     verification_errors <- 0
+
+    tampered <- integer(0)
 
     # Verify each record in chain
     if (records_checked > 0) {
@@ -381,9 +410,34 @@ verify_audit_integrity <- function(start_id = NULL, end_id = NULL, db_path = NUL
           if (chain_records[i, "previous_hash"] != prev_record_hash) {
             verification_errors <- verification_errors + 1
           }
-        } else if (i == 1 && chain_records[i, "previous_hash"] != "GENESIS") {
-          # First record should have GENESIS as previous
+        } else if (i == 1 && from_start &&
+                     chain_records[i, "previous_hash"] != "GENESIS") {
+          # Only the true first record of the chain has GENESIS as its
+          # predecessor. When a sub-range is verified its first record
+          # legitimately points at the record before it, so applying
+          # this check there reported a failure on every partial
+          # verification.
           verification_errors <- verification_errors + 1
+        }
+
+        # Recompute the hash from the record's own content, in the
+        # field order log_audit_event() used. Comparing the linkage
+        # fields alone proves only that they agree with each other:
+        # the event, the user, the record acted on and the timestamp
+        # could all be rewritten and the chain would still report
+        # itself intact.
+        rec <- chain_records[i, ]
+        recomputed <- digest::digest(
+          .audit_hash_content(
+            rec$event_type, rec$table_name, rec$record_id, rec$operation,
+            rec$details, rec$user_id, rec$ip_address, rec$session_id,
+            rec$timestamp, rec$log_previous_hash
+          ),
+          algo = "sha256"
+        )
+        if (!identical(recomputed, as.character(rec$record_hash))) {
+          verification_errors <- verification_errors + 1
+          tampered <- c(tampered, rec$audit_id)
         }
       }
 
@@ -400,6 +454,7 @@ verify_audit_integrity <- function(start_id = NULL, end_id = NULL, db_path = NUL
       valid = verification_errors == 0,
       records_checked = records_checked,
       errors_found = verification_errors,
+      tampered_records = tampered,
       integrity_verified = verification_errors == 0,
       message = ifelse(
         verification_errors == 0,
@@ -571,4 +626,36 @@ export_audit_report <- function(start_date, end_date, output_file,
   }, error = function(e) {
     stop("Export failed: ", e$message)
   })
+}
+
+#' @noRd
+# Canonical content string behind an audit record's hash.
+#
+# There were two writers, log_audit_event() here and
+# log_audit_event_extended() in audit_enhanced.R, hashing different
+# field sets into the same audit_log table: the extended one added
+# ip_address, session_id and event_category, the last of which is
+# stored in a different table entirely. Both also hashed a Sys.time()
+# that was never written anywhere, so neither hash could be recomputed
+# from the row it described. One verifier cannot check two
+# constructions, which is why verification only ever compared the
+# linkage fields.
+#
+# Everything here is a column of audit_log, so the string can be
+# rebuilt from a stored row. NULL and NA collapse to the empty string
+# so that a writer omitting a field and a reader finding it NULL agree.
+.audit_hash_content <- function(event_type, table_name, record_id,
+                                operation, details, user_id,
+                                ip_address, session_id, timestamp,
+                                previous_hash) {
+  nz <- function(x) {
+    if (is.null(x) || length(x) == 0L || is.na(x[1L])) {
+      ""
+    } else {
+      as.character(x[1L])
+    }
+  }
+  paste(nz(event_type), nz(table_name), nz(record_id), nz(operation),
+        nz(details), nz(user_id), nz(ip_address), nz(session_id),
+        nz(timestamp), nz(previous_hash), sep = "|")
 }

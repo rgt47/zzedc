@@ -1,3 +1,86 @@
+# zzedc 0.8.0
+
+## Correctness fixes: the audit trail
+
+The 21 CFR Part 11 audit trail could not detect tampering with an
+audit record's content. Three separate faults combined to produce that.
+
+* **The hash was not reproducible from the row it described.** Both
+  writers hashed `Sys.time()` while letting the `timestamp` column take
+  the database's `CURRENT_TIMESTAMP` default, so the value inside the
+  hash was never recorded anywhere: a different clock, in a different
+  rendering. Nobody could recompute the hash of a stored row, which is
+  why nothing ever tried. The timestamp is now generated once, hashed,
+  and written to the column.
+
+* **Two writers hashed different field sets into the same table.**
+  `log_audit_event()` hashed eight fields; `log_audit_event_extended()`
+  hashed eleven, adding `ip_address`, `session_id` and
+  `event_category`, the last of which is stored in `audit_events`
+  rather than `audit_log` and so could never be recovered when reading
+  a row back. One verifier cannot check two constructions. Both now
+  build the content through a shared `.audit_hash_content()`, over
+  columns that all live in `audit_log`.
+
+* **`verify_audit_integrity()` never recomputed a hash.** It compared
+  each record's `previous_hash` against the prior record's stored
+  `record_hash` and stopped, which establishes that the linkage fields
+  agree with one another and nothing about the content. Rewriting who
+  performed an action, which record it touched, whether it was an
+  UPDATE or a SELECT, or when it happened, all went undetected, and the
+  function then wrote `verified = 1` into `audit_chain`, recording a
+  false attestation. It now recomputes each hash from the stored row
+  and reports offending records in a new `tampered_records` element.
+
+Two further faults in the same function:
+
+* The `start_id` and `end_id` clauses were appended after `ORDER BY`,
+  which is a syntax error, so every ranged call failed and was
+  swallowed by the error handler.
+* The `GENESIS` check was applied to the first row of whatever set was
+  returned, so verifying a sub-range always reported a spurious failure
+  on its first record. It now applies only at the head of the chain.
+
+Audit rows written by earlier versions cannot be content-verified,
+because the timestamp behind their hash was never stored. They will be
+reported as tampered. This is accurate rather than a regression: those
+hashes never attested to anything.
+
+## Correctness fixes: the other integrity verifiers
+
+The same pattern held in three more places. Each selected or could have
+selected the content behind a hash, then compared only the linkage
+fields, which establishes that those fields agree with one another and
+nothing about what they are supposed to bind.
+
+* **`verify_correction_integrity()`** reported "All correction request
+  hashes verified" without verifying a hash. A correction request
+  records a change to a stored clinical value, so its content is the
+  entire point: the field, the original value, the value it was changed
+  to, the stated reason and who asked could all be rewritten
+  undetected. It now recomputes each hash and reports offenders in
+  `tampered_records`. These hashes were already reproducible, since the
+  timestamp behind them was stored.
+
+* **`verify_version_integrity()`** selected only the three linkage
+  columns, so it could not have checked content even in principle. It
+  now selects the snapshot and recomputes.
+
+* **`create_record_version()`** had the audit trail's fault: it hashed
+  `Sys.time()` while letting `changed_at` take the database default, so
+  no version hash could be recomputed from its row. The timestamp is
+  now generated once, hashed, and stored. Versions written by earlier
+  releases cannot be content-verified, for the same reason as the audit
+  rows.
+
+## Tests
+
+* New `test_audit_chain_integrity.R`: the hash recomputes from a stored
+  row; a clean trail verifies; rewriting the acting user, the record
+  acted on, the operation, or the timestamp is each detected and named;
+  rows from both writers verify under one rule; and a sub-range
+  verifies without a spurious failure.
+
 # zzedc 0.7.0
 
 ## Correctness fixes

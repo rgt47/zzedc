@@ -1376,6 +1376,8 @@ verify_correction_integrity <- function(db_path = NULL) {
 
     invalid_records <- c()
 
+    tampered_records <- c()
+
     for (i in seq_len(nrow(requests))) {
       r <- requests[i, ]
 
@@ -1384,19 +1386,51 @@ verify_correction_integrity <- function(db_path = NULL) {
       if (r$previous_request_hash != expected_prev) {
         invalid_records <- c(invalid_records, r$request_id)
       }
+
+      # Recompute from the stored content, in the order the request was
+      # hashed with. Comparing the linkage fields alone establishes that
+      # they agree with one another and nothing about what was
+      # corrected: the field, the original value, the value it was
+      # changed to and who asked for it could all be rewritten, and the
+      # function still reported "All correction request hashes
+      # verified". These records exist to document a change to a
+      # recorded clinical value, so the content is the whole point.
+      nz <- function(x) {
+        if (is.null(x) || length(x) == 0L || is.na(x[1L])) {
+          ""
+        } else {
+          as.character(x[1L])
+        }
+      }
+      recomputed <- digest::digest(
+        paste(nz(r$table_name), nz(r$record_id), nz(r$field_name),
+              nz(r$original_value), nz(r$corrected_value),
+              nz(r$correction_reason), nz(r$requested_by),
+              nz(r$requested_at), nz(r$previous_request_hash),
+              sep = "|"),
+        algo = "sha256"
+      )
+      if (!identical(recomputed, as.character(r$request_hash))) {
+        tampered_records <- c(tampered_records, r$request_id)
+      }
     }
 
-    is_valid <- length(invalid_records) == 0
+    is_valid <- length(invalid_records) == 0 &&
+      length(tampered_records) == 0
 
     list(
       success = TRUE,
       is_valid = is_valid,
       total_records = nrow(requests),
       invalid_records = invalid_records,
+      tampered_records = tampered_records,
       message = if (is_valid) {
         "All correction request hashes verified"
       } else {
-        paste("Found", length(invalid_records), "records with invalid hash chain")
+        paste0("Found ", length(invalid_records),
+               " records with a broken hash chain and ",
+               length(tampered_records),
+               " whose content does not match its recorded hash")
       }
     )
 

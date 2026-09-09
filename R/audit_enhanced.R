@@ -510,20 +510,24 @@ log_audit_event_extended <- function(event_type, event_category = "DATA",
       "GENESIS"
     }
 
-    record_content <- paste(
-      event_type, event_category, table_name, record_id, operation, details,
-      user_id, ip_address, session_id, Sys.time(), previous_hash,
-      sep = "|"
+    # Same canonical content as log_audit_event(), so one verifier can
+    # check rows from either writer. event_category is deliberately not
+    # hashed: it lives in audit_events, not audit_log, so it could not
+    # be recovered when recomputing the hash from the stored row.
+    timestamp <- format(Sys.time(), tz = "UTC", "%Y-%m-%d %H:%M:%S")
+    record_content <- .audit_hash_content(
+      event_type, table_name, record_id, operation, details,
+      user_id, ip_address, session_id, timestamp, previous_hash
     )
     audit_hash <- digest::digest(record_content, algo = "sha256")
 
     DBI::dbExecute(conn, "
       INSERT INTO audit_log
-      (event_type, table_name, record_id, operation, details,
+      (timestamp, event_type, table_name, record_id, operation, details,
        user_id, ip_address, session_id, audit_hash, previous_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ", list(
-      event_type, table_name, record_id, operation, details,
+      timestamp, event_type, table_name, record_id, operation, details,
       user_id, ip_address, session_id, audit_hash, previous_hash
     ))
 

@@ -177,9 +177,15 @@ create_record_version <- function(table_name, record_id, data,
 
     data_json <- jsonlite::toJSON(data, auto_unbox = TRUE)
 
+    # The timestamp inside the hash has to be the one that gets stored.
+    # It previously hashed Sys.time() while letting changed_at take the
+    # database's CURRENT_TIMESTAMP default, so the value behind the
+    # hash was never written anywhere and no version hash could be
+    # recomputed from its row.
+    changed_at <- format(Sys.time(), tz = "UTC", "%Y-%m-%d %H:%M:%S")
     hash_content <- paste(
       table_name, record_id, new_version_number, data_json,
-      change_type, changed_by, Sys.time(), previous_hash,
+      change_type, changed_by, changed_at, previous_hash,
       sep = "|"
     )
     version_hash <- digest::digest(hash_content, algo = "sha256")
@@ -193,11 +199,13 @@ create_record_version <- function(table_name, record_id, data,
     DBI::dbExecute(conn, "
       INSERT INTO record_versions
       (table_name, record_id, version_number, data_snapshot, change_type,
-       change_reason, changed_by, version_hash, previous_version_hash, is_current)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+       change_reason, changed_by, changed_at, version_hash,
+       previous_version_hash, is_current)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     ", list(
       table_name, record_id, new_version_number, as.character(data_json),
-      change_type, change_reason, changed_by, version_hash, previous_hash
+      change_type, change_reason, changed_by, changed_at, version_hash,
+      previous_hash
     ))
 
     version_id <- DBI::dbGetQuery(conn,
@@ -653,7 +661,9 @@ verify_version_integrity <- function(table_name, record_id, db_path = NULL) {
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     versions <- DBI::dbGetQuery(conn, "
-      SELECT version_number, version_hash, previous_version_hash
+      SELECT version_number, table_name, record_id, data_snapshot,
+             change_type, changed_by, changed_at,
+             version_hash, previous_version_hash
       FROM record_versions
       WHERE table_name = ? AND record_id = ?
       ORDER BY version_number ASC
@@ -678,9 +688,39 @@ verify_version_integrity <- function(table_name, record_id, db_path = NULL) {
             paste("Version 1 should have GENESIS as previous hash")
           ))
         }
+        # Content check, alongside the linkage check. Comparing only
+        # the linkage fields establishes that they agree with one
+        # another and nothing about the snapshot they are supposed to
+        # bind, so a stored version's data could be rewritten and the
+        # chain would still report itself intact.
+        recomputed <- digest::digest(
+          paste(versions$table_name[i], versions$record_id[i],
+                versions$version_number[i], versions$data_snapshot[i],
+                versions$change_type[i], versions$changed_by[i],
+                versions$changed_at[i], versions$previous_version_hash[i],
+                sep = "|"),
+          algo = "sha256"
+        )
+        if (!identical(recomputed,
+                       as.character(versions$version_hash[i]))) {
+          errors <- errors + 1
+        }
       } else {
         expected_prev <- versions$version_hash[i - 1]
         actual_prev <- versions$previous_version_hash[i]
+
+        recomputed <- digest::digest(
+          paste(versions$table_name[i], versions$record_id[i],
+                versions$version_number[i], versions$data_snapshot[i],
+                versions$change_type[i], versions$changed_by[i],
+                versions$changed_at[i], versions$previous_version_hash[i],
+                sep = "|"),
+          algo = "sha256"
+        )
+        if (!identical(recomputed,
+                       as.character(versions$version_hash[i]))) {
+          errors <- errors + 1
+        }
 
         if (expected_prev != actual_prev) {
           errors <- errors + 1
