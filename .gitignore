@@ -96,3 +96,6 @@ data/*.duckdb
 # Technical documentation tree: version-controlled locally (Dropbox),
 # but intentionally not tracked so it is never pushed to public GitHub.
 /docs/
+
+# Machine-local Claude Code settings
+**/.claude/settings.local.json
