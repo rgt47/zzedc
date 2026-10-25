@@ -830,9 +830,16 @@ print_next_steps <- function(cfg, yaml_path, out_dir, mode) {
   if (mode == "sheets") {
     cli_text("2. Import:")
     cli_code(sprintf(
-      "zzedc::setup_zzedc_from_gsheets(\n  sheet_url = '<YOUR_SHEET_URL>',\n  db_path   = '%s'\n)",
+      "result <- zzedc::setup_zzedc_from_gsheets(\n  sheet_id = '<YOUR_SHEET_URL_OR_ID>',\n  db_path  = '%s'\n)\nSys.setenv(DB_ENCRYPTION_KEY = result$key)\nSys.setenv(ZZEDC_SALT = result$salt)",
       db_path
     ))
+    cli_text(" ")
+    cli_text(
+      "Save both values somewhere durable (e.g. a local .env file ",
+      "outside version control) and re-export them in every future ",
+      "session before calling launch_zzedc(); losing the key makes ",
+      "the database unreadable."
+    )
   } else {
     cli_text("2. Import:")
     cli_code(sprintf(

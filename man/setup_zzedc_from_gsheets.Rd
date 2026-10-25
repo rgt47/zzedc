@@ -11,7 +11,8 @@ setup_zzedc_from_gsheets(
     "validation_rules"),
   imported_by = "setup_from_gsheets",
   overwrite = FALSE,
-  dry_run = FALSE
+  dry_run = FALSE,
+  salt = NULL
 )
 }
 \arguments{
@@ -33,6 +34,14 @@ import. Defaults to \code{"setup_from_gsheets"}.}
 \item{dry_run}{Logical. If \code{TRUE}, parses and validates the
 workbook without writing to the database. Defaults to
 \code{FALSE}.}
+
+\item{salt}{Character. Salt used to hash each imported user's
+initial password. Defaults to \code{NULL}, which resolves to the
+\code{ZZEDC_SALT} environment variable if set, or otherwise to a
+freshly generated random salt (returned as \code{result$salt}).
+Earlier versions of this function hashed every import with a
+single hardcoded salt shared across all installations; that
+behavior is no longer present.}
 }
 \value{
 List with one element per stage (\code{database}, \code{users},
@@ -41,7 +50,11 @@ List with one element per stage (\code{database}, \code{users},
 \code{success} is \code{TRUE} only if every stage succeeded. The
 encryption key (\code{key}) is included so the caller can
 register it with \code{Sys.setenv(DB_ENCRYPTION_KEY = ...)}
-before subsequent operations.
+before subsequent operations. The password salt (\code{salt}) is
+included so the caller can register it with
+\code{Sys.setenv(ZZEDC_SALT = ...)} (or write it into
+\code{config.yml}'s \code{auth.default_salt}) before \code{launch_zzedc()};
+without this, login will fail for every imported user.
 }
 \description{
 One-call orchestrator that initializes an encrypted study
@@ -76,6 +89,7 @@ result <- setup_zzedc_from_gsheets(
   db_path  = "~/zzedc_demonstration_trial/data/demonstration_trial.db"
 )
 Sys.setenv(DB_ENCRYPTION_KEY = result$key)
+Sys.setenv(ZZEDC_SALT = result$salt)
 result$users$imported       # number of users imported
 result$forms$imported_forms # number of CRFs created
 result$validation_rules$imported  # number of rules imported

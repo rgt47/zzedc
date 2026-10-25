@@ -1028,6 +1028,13 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #' @param dry_run  Logical. If `TRUE`, parses and validates the
 #'   workbook without writing to the database. Defaults to
 #'   `FALSE`.
+#' @param salt Character. Salt used to hash each imported user's
+#'   initial password. Defaults to `NULL`, which resolves to the
+#'   `ZZEDC_SALT` environment variable if set, or otherwise to a
+#'   freshly generated random salt (returned as `result$salt`).
+#'   Earlier versions of this function hashed every import with a
+#'   single hardcoded salt shared across all installations; that
+#'   behavior is no longer present.
 #'
 #' @return List with one element per stage (`database`, `users`,
 #'   `forms`, `validation_rules`), each carrying its own
@@ -1035,7 +1042,11 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   `success` is `TRUE` only if every stage succeeded. The
 #'   encryption key (`key`) is included so the caller can
 #'   register it with `Sys.setenv(DB_ENCRYPTION_KEY = ...)`
-#'   before subsequent operations.
+#'   before subsequent operations. The password salt (`salt`) is
+#'   included so the caller can register it with
+#'   `Sys.setenv(ZZEDC_SALT = ...)` (or write it into
+#'   `config.yml`'s `auth.default_salt`) before `launch_zzedc()`;
+#'   without this, login will fail for every imported user.
 #'
 #' @details
 #' The Google Sheet must contain three tabs:
@@ -1063,6 +1074,7 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   db_path  = "~/zzedc_demonstration_trial/data/demonstration_trial.db"
 #' )
 #' Sys.setenv(DB_ENCRYPTION_KEY = result$key)
+#' Sys.setenv(ZZEDC_SALT = result$salt)
 #' result$users$imported       # number of users imported
 #' result$forms$imported_forms # number of CRFs created
 #' result$validation_rules$imported  # number of rules imported
@@ -1084,7 +1096,8 @@ setup_zzedc_from_gsheets <- function(
   ),
   imported_by = "setup_from_gsheets",
   overwrite   = FALSE,
-  dry_run     = FALSE
+  dry_run     = FALSE,
+  salt        = NULL
 ) {
 
   if (!requireNamespace("googlesheets4", quietly = TRUE)) {
@@ -1112,6 +1125,10 @@ setup_zzedc_from_gsheets <- function(
     validation_rules  = list(success = FALSE, imported = 0),
     errors            = list()
   )
+
+  resolved_salt <- salt %||% Sys.getenv("ZZEDC_SALT", unset = "")
+  if (!nzchar(resolved_salt)) resolved_salt <- generate_security_salt()
+  result$salt <- resolved_salt
 
   # --- Stage 1: database ------------------------------------------
   if (dry_run) {
@@ -1148,7 +1165,7 @@ setup_zzedc_from_gsheets <- function(
     # reactive `db_pool` and an admin-UI signature.
     user_errors  <- list()
     n_imported   <- 0L
-    salt_default <- "gsheets_setup_salt_change_in_production"
+    salt_default <- resolved_salt
     user_conn    <- if (dry_run) NULL else
       tryCatch(connect_encrypted_db(db_path = db_path,
                                       key = db_key),

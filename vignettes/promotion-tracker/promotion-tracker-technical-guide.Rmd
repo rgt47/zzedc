@@ -29,10 +29,19 @@ who handles day-to-day data entry, is
 setup, hand the assistant that guide along with the application
 URL (or local access instructions) and their login credentials.
 
-The recommended setup path is the initialization script
-(Section 4), which writes all configuration and data-dictionary
-files automatically. Sections 5 and 6 describe the manual
-alternative for reference and troubleshooting.
+The recommended setup path is Google Sheets import (Sections
+6.1 and 7): author the data dictionary, validation rules, and
+user roster in a Google Sheet, then import everything in one
+call with `setup_zzedc_from_gsheets()`. The initialization
+script (Section 4) can drive this same path non-interactively,
+but only its Sheets mode currently produces a working import
+command -- its TUI and Config modes print a call to
+`setup_zzedc_from_csv()`, a function that does not exist in the
+package as of this writing. Section 5 describes the
+`config.yml` fields `launch_zzedc()` itself reads, for
+reference and troubleshooting; you do not need to author this
+file by hand for a Google-Sheets-based study, since
+`launch_zzedc()` creates a working default on first run.
 
 ---
 
@@ -41,11 +50,17 @@ alternative for reference and troubleshooting.
 - R 4.4 or later
 - RStudio (recommended) or any terminal with R on `PATH`
 - The `pak` package: `install.packages('pak')`
+- A Google account, and the `googlesheets4` package
+  (`pak::pak('googlesheets4')`): the data dictionary,
+  validation rules, and user roster are authored and imported
+  from a Google Sheet (Section 6.1 and Section 7)
 - A local working directory for the project, hereafter
   called `~/prj/promotion-tracker/`
 
-No server, cloud account, or Google account is required for
-a local SQLite deployment.
+The database itself is a local, encrypted SQLite file; no
+database server is required. A Google account is needed only
+to author and import the data dictionary, not to run the
+application day to day.
 
 ---
 
@@ -113,6 +128,13 @@ Enter 1, 2, or 3 [1]:
 Enter a number, or press Enter to accept the default (TUI).
 You may also specify the mode directly on the command line to
 skip the selection prompt (see §4.2--4.4).
+
+**Only Mode 3 (Sheets) currently ends with a working import
+command.** Modes 1 (TUI) and 2 (Config) print a call to
+`zzedc::setup_zzedc_from_csv()` as the next step; that function
+does not exist in the package yet. Use Mode 3, or follow the
+Google Sheets path manually in Sections 6.1 and 7, until CSV
+import ships.
 
 ### 4.2 Mode 1: TUI
 
@@ -248,7 +270,21 @@ Rscript inst/scripts/edc-init.R \
 The script reads `Study_Info` for study metadata and all
 Coordinator rows from `Study_Users`, writes `zzedc_config.yml`
 and `Study_Users.csv`, copies the supplied CSV files, and
-prints the next-steps import commands.
+prints the next-steps import command, which looks like this:
+
+```{r}
+result <- zzedc::setup_zzedc_from_gsheets(
+  sheet_id = '<YOUR_SHEET_URL_OR_ID>',
+  db_path  = 'data/zzedc.db'
+)
+Sys.setenv(DB_ENCRYPTION_KEY = result$key)
+Sys.setenv(ZZEDC_SALT = result$salt)
+```
+
+The argument is `sheet_id`, not `sheet_url` -- a full sheet URL
+works too, since `googlesheets4` accepts either. `result$key`
+and `result$salt` are generated fresh on this call; see the
+warning in Section 7 before proceeding past this step.
 
 ### 4.5 Outputs (all modes)
 
@@ -269,66 +305,70 @@ of copy-paste R commands for the import step (see Section 7).
 
 ---
 
-## 5. Configuration File (Manual Alternative)
+## 5. The `config.yml` File (Reference)
 
-Create `~/prj/promotion-tracker/zzedc_config.yml` with the
-following content. Replace the password before first use.
+`launch_zzedc()` (Section 8) reads application settings from
+`config.yml` in the current working directory, using the
+`config` package's `default` profile. If the file is missing,
+`launch_zzedc()` offers to create one for you with working
+defaults -- for a Google-Sheets-provisioned study (Section 7),
+accepting that default is normally all you need to do, since
+study metadata and user accounts live in the Sheet and the
+database, not in this file.
+
+The file `launch_zzedc()` creates (or that you may hand-author
+for reference) looks like this:
 
 ```yaml
-study:
-  name: "Promotion Review Tracker"
-  protocol_id: "PROMO-2026"
-  pi_name: "Professor Smith"
-  pi_email: "psmith@university.edu"
-  target_enrollment: 500
-  phase: "Observational"
+default:
+  database:
+    path: "data/zzedc.db"
+    pool_size: 5
 
-admin:
-  username: "psmith"
-  fullname: "Professor Smith"
-  email: "psmith@university.edu"
-  password: "ChangeMeToSecurePassword123!"
+  auth:
+    max_failed_attempts: 3
+    session_timeout_minutes: 30
+    default_salt: "zzedc_default_salt_change_in_production_2024"
 
-security:
-  session_timeout_minutes: 60
-  enforce_https: false
-  max_failed_login_attempts: 10
+  app:
+    name: "ZZedc - Electronic Data Capture"
+    version: "1.0.0"
+    debug: true
 
-compliance:
-  gdpr_enabled: false
-  cfr_part11_enabled: false
-  audit_logging_enabled: true
-
-database:
-  type: "sqlite"
-  pool_size: 2
+  ui:
+    theme: "flatly"
 ```
 
 Notes on these settings:
 
-- `target_enrollment: 500` is a generous ceiling for tracking
-  items; it does not constrain the number of records.
-- `enforce_https: false` is appropriate for a local-only
-  installation. If the application is ever deployed to a
-  shared server, set this to `true`.
-- GDPR and 21 CFR Part 11 modules are disabled. The audit log
-  remains active regardless.
-
-Initialize the database from this file:
-
-```{r}
-library(zzedc)
-setwd('~/prj/promotion-tracker')
-zzedc::init(mode = 'config', config_file = 'zzedc_config.yml')
-```
+- The top-level `default:` key is required; the `config`
+  package's `config::get()` call reads exactly that profile.
+  A `config.yml` without it is read as empty, and the
+  application falls back to built-in defaults with no error.
+- `database.path` must match the `db_path` argument you pass
+  to `setup_zzedc_from_gsheets()` (Section 7) exactly, or the
+  application connects to a different, empty database.
+  Passing `db_path = 'data/zzedc.db'` in Section 7 means you
+  never need to edit this field.
+- `auth.default_salt` is the fallback password salt and is
+  only consulted when the `ZZEDC_SALT` environment variable is
+  unset. If you export `ZZEDC_SALT` before every session (as
+  Section 7 instructs), this field is never read and does not
+  need to match anything.
+- There is no `study`, `admin`, or `compliance` section in
+  this file. Study metadata is cosmetic and not currently
+  captured anywhere by the application; user accounts and
+  roles come entirely from the `Study_Users` tab imported in
+  Section 7.
 
 ---
 
-## 6. Data Dictionary (Manual Alternative)
+## 6. Data Dictionary
 
-The data dictionary defines the seven tracking forms. You may
-author it in Google Sheets (preferred) or as a local CSV file.
-Both paths are described below.
+The data dictionary defines the seven tracking forms, and is
+authored in Google Sheets and imported with
+`setup_zzedc_from_gsheets()` (Section 7). A CSV-based
+alternative is planned but not yet implemented (Section 6.2).
 
 ### 6.1 Google Sheets path
 
@@ -356,21 +396,31 @@ administrative access.
 #### Data_Dictionary tab
 
 The table below documents all fields across the seven forms.
-The `form_code` column groups fields by form. When authoring
-manually in Google Sheets, enter one row per field with the
-column headers shown. The init script (Section 4) generates
-these files automatically; this table is provided for review
-and reference.
+The `form_code` column groups fields by form. The column
+headers in your Sheet must be exactly `field_name`,
+`field_label`, `field_type`, `required`, and `validation` --
+the tables below rename these to `Label`, `Type`, `Req`, and
+`Validation` only for readability here. The init script
+(Section 4, Sheets mode only) generates these files
+automatically; this table is provided for review and
+reference.
+
+**The `required` column must contain the literal values
+`TRUE` or `FALSE` (or be left blank), not `yes`/`no`.** The
+importer evaluates it with `as.logical()`, which silently
+returns `NA` -- treated as not required, with no error shown
+-- for any other text, including `yes`. The "Req" column
+below shows `TRUE` for required fields and is blank otherwise.
 
 **`manuscripts` -- Research publications**
 
 | field_name | Label | Type | Req | Validation |
 |---|---|---|:---:|---|
-| tracking_id | Tracking ID | text | yes | PUB-YYYY-NNN |
-| title | Manuscript Title | text | yes | |
+| tracking_id | Tracking ID | text | TRUE | PUB-YYYY-NNN |
+| title | Manuscript Title | text | TRUE | |
 | target_journal | Target Journal | text | | |
 | co_authors | Co-authors | text | | |
-| status | Status | select | yes | ideation / drafting / submitted / under_review / revision / accepted / in_press / published |
+| status | Status | select | TRUE | ideation / drafting / submitted / under_review / revision / accepted / in_press / published |
 | submission_date | Submission Date | date | | |
 | acceptance_date | Acceptance Date | date | | |
 | publication_date | Publication Date | date | | |
@@ -381,24 +431,24 @@ and reference.
 
 | field_name | Label | Type | Req | Validation |
 |---|---|---|:---:|---|
-| tracking_id | Tracking ID | text | yes | CRS-YYYY-NNN |
-| course_code | Course Code | text | yes | |
-| course_title | Course Title | text | yes | |
-| academic_year | Academic Year | text | yes | |
-| term | Term | radio | yes | Fall / Winter / Spring / Summer |
-| role | Role | radio | yes | developed / taught / developed_and_taught |
-| student_count | Student Count | numeric | yes | between 1 and 500 |
-| contact_hours | Contact Hours | numeric | yes | between 1 and 500 |
+| tracking_id | Tracking ID | text | TRUE | CRS-YYYY-NNN |
+| course_code | Course Code | text | TRUE | |
+| course_title | Course Title | text | TRUE | |
+| academic_year | Academic Year | text | TRUE | |
+| term | Term | radio | TRUE | Fall / Winter / Spring / Summer |
+| role | Role | radio | TRUE | developed / taught / developed_and_taught |
+| student_count | Student Count | numeric | TRUE | between 1 and 500 |
+| contact_hours | Contact Hours | numeric | TRUE | between 1 and 500 |
 | notes | Notes | text | | |
 
 **`mentoring` -- One-on-one tutorials**
 
 | field_name | Label | Type | Req | Validation |
 |---|---|---|:---:|---|
-| tracking_id | Tracking ID | text | yes | MNT-YYYY-NNN |
-| student_initials | Student Initials | text | yes | |
-| student_level | Student Level | radio | yes | undergraduate / graduate / postdoc / other |
-| start_date | Start Date | date | yes | |
+| tracking_id | Tracking ID | text | TRUE | MNT-YYYY-NNN |
+| student_initials | Student Initials | text | TRUE | |
+| student_level | Student Level | radio | TRUE | undergraduate / graduate / postdoc / other |
+| start_date | Start Date | date | TRUE | |
 | end_date | End Date | date | | >= start_date |
 | hours_per_week | Hours per Week | numeric | | between 0 and 40 |
 | topic_area | Topic Area | text | | |
@@ -409,37 +459,37 @@ and reference.
 
 | field_name | Label | Type | Req | Validation |
 |---|---|---|:---:|---|
-| tracking_id | Tracking ID | text | yes | GNT-YYYY-NNN |
-| agency | Agency | text | yes | |
+| tracking_id | Tracking ID | text | TRUE | GNT-YYYY-NNN |
+| agency | Agency | text | TRUE | |
 | program_name | Program Name | text | | |
 | panel_name | Panel Name | text | | |
-| review_date | Review Date | date | yes | |
-| role | Role | radio | yes | reviewer / chair / observer |
+| review_date | Review Date | date | TRUE | |
+| role | Role | radio | TRUE | reviewer / chair / observer |
 | notes | Notes | text | | |
 
 **`committees` -- Committee memberships**
 
 | field_name | Label | Type | Req | Validation |
 |---|---|---|:---:|---|
-| tracking_id | Tracking ID | text | yes | COM-YYYY-NNN |
-| committee_name | Committee Name | text | yes | |
-| organization | Organization | text | yes | |
+| tracking_id | Tracking ID | text | TRUE | COM-YYYY-NNN |
+| committee_name | Committee Name | text | TRUE | |
+| organization | Organization | text | TRUE | |
 | scope | Scope | radio | | departmental / institutional / national / international |
-| role | Role | text | yes | |
-| start_date | Start Date | date | yes | |
+| role | Role | text | TRUE | |
+| start_date | Start Date | date | TRUE | |
 | end_date | End Date | date | | >= start_date |
 | meeting_frequency | Meeting Frequency | radio | | weekly / monthly / quarterly / semi_annual / annual / ad_hoc |
-| active | Active | radio | yes | yes / no |
+| active | Active | radio | TRUE | yes / no |
 | notes | Notes | text | | |
 
 **`journal_reviews` -- Peer review assignments**
 
 | field_name | Label | Type | Req | Validation |
 |---|---|---|:---:|---|
-| tracking_id | Tracking ID | text | yes | JRV-YYYY-NNN |
-| journal_name | Journal Name | text | yes | |
+| tracking_id | Tracking ID | text | TRUE | JRV-YYYY-NNN |
+| journal_name | Journal Name | text | TRUE | |
 | manuscript_id | Manuscript ID | text | | |
-| review_date | Review Date | date | yes | |
+| review_date | Review Date | date | TRUE | |
 | recommendation | Recommendation | radio | | accept / minor_revision / major_revision / reject / not_reviewed |
 | notes | Notes | text | | |
 
@@ -447,19 +497,24 @@ and reference.
 
 | field_name | Label | Type | Req | Validation |
 |---|---|---|:---:|---|
-| tracking_id | Tracking ID | text | yes | DSB-YYYY-NNN |
-| trial_name | Trial Name | text | yes | |
+| tracking_id | Tracking ID | text | TRUE | DSB-YYYY-NNN |
+| trial_name | Trial Name | text | TRUE | |
 | sponsor | Sponsor | text | | |
-| role | Role | radio | yes | member / chair / statistician / other |
-| start_date | Start Date | date | yes | |
+| role | Role | radio | TRUE | member / chair / statistician / other |
+| start_date | Start Date | date | TRUE | |
 | end_date | End Date | date | | >= start_date |
 | meeting_frequency | Meeting Frequency | radio | | semi_annual / annual / ad_hoc / other |
-| active | Active | radio | yes | yes / no |
+| active | Active | radio | TRUE | yes / no |
 | notes | Notes | text | | |
 
 #### validation_rules tab
 
-Eight rules enforce basic data integrity across the forms.
+Eight rules enforce basic data integrity across the forms. As
+with the `Data_Dictionary` tab, the column headers below are
+renamed for readability; the literal column names the importer
+requires are `rule_id`, `form_code`, `field_code`, `rule_dsl`,
+and `severity`. See `vignette('content-author-guide')` for the
+DSL syntax reference.
 
 | Rule ID | Form | Field | Condition | Severity |
 |---|---|---|---|:---:|
@@ -476,10 +531,11 @@ All rules are conditional: they fire only when the relevant
 field is non-empty, so optional date and numeric fields do
 not block saves on incomplete records.
 
-### 6.2 CSV path (alternative to Google Sheets)
+### 6.2 CSV path (not yet implemented)
 
 Pre-built template CSV files ship with the package in the
-same directory as this guide:
+same directory as this guide, matching the Google Sheets
+tab layout above:
 
 ```
 vignettes/promotion-tracker/
@@ -488,24 +544,14 @@ vignettes/promotion-tracker/
   validation_rules.csv
 ```
 
-Copy them to your project directory, edit `Study_Users.csv`
-to replace the placeholder credentials, and leave the other
-two files unchanged unless you need to customize the field
-set:
-
-```{r}
-pkg_dir <- system.file(
-  'vignettes/promotion-tracker',
-  package = 'zzedc'
-)
-file.copy(
-  list.files(pkg_dir, pattern = '\\.csv$', full.names = TRUE),
-  '~/prj/promotion-tracker/'
-)
-```
-
-The CSV import path in ZZedc reads these files directly
-once they are in the project directory.
+These files are useful today as a reference for the required
+columns, and as a source to paste into a new Google Sheet. A
+direct CSV import function (`setup_zzedc_from_csv()`) is
+referenced by the init script (Section 4) but does not exist
+in the package yet. Until it ships, import your data
+dictionary through Google Sheets (Section 7), even if you
+author the content locally in these CSVs first and paste it
+into a new Sheet's tabs.
 
 ---
 
@@ -520,47 +566,73 @@ Then run:
 library(zzedc)
 setwd('~/prj/promotion-tracker')
 
-setup_zzedc_from_gsheets(
-  sheet_url = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID',
-  db_path   = 'data/promotion.db'
+result <- setup_zzedc_from_gsheets(
+  sheet_id = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID',
+  db_path  = 'data/zzedc.db'
 )
 ```
+
+The argument is `sheet_id`, not `sheet_url`; a full sheet URL
+is accepted. Use `db_path = 'data/zzedc.db'` so it matches the
+default `config.yml` created in Section 8 -- a different path
+here means the application connects to a different, empty
+database later, with no error.
+
+**Before doing anything else, capture and save the encryption
+key and password salt this call generated:**
+
+```{r}
+Sys.setenv(DB_ENCRYPTION_KEY = result$key)
+Sys.setenv(ZZEDC_SALT = result$salt)
+
+# Persist both somewhere durable and NOT committed to version
+# control -- e.g. a local credentials file outside the project
+# directory, or a password manager entry. You must re-export
+# both in every future R session before calling launch_zzedc();
+# losing the encryption key makes the database permanently
+# unreadable, by design (there is no recovery mechanism).
+writeLines(
+  c(
+    sprintf("DB_ENCRYPTION_KEY=%s", result$key),
+    sprintf("ZZEDC_SALT=%s", result$salt)
+  ),
+  '~/prj/promotion-tracker-credentials.env'
+)
+```
+
+Each call to `setup_zzedc_from_gsheets()` with `overwrite =
+TRUE` generates a *new* random key and salt, invalidating the
+previous ones. For a re-import against an existing database,
+omit `overwrite` (it defaults to `FALSE`) so the existing
+database, key, and salt are left alone.
 
 Expected output: one confirmation line per tab successfully
 read, then a summary of forms, fields, validation rules, and
 users imported. Elapsed time is typically under five seconds
 for this data dictionary.
 
-### From CSV
-
-The three CSV files must be in your project directory
-(`~/prj/promotion-tracker/`) before running this command.
-They are placed there either by the init script (Section 4)
-or by copying the package templates (Section 6.2).
-
-```{r}
-library(zzedc)
-setwd('~/prj/promotion-tracker')
-
-setup_zzedc_from_csv(
-  users_csv      = 'Study_Users.csv',
-  dictionary_csv = 'Data_Dictionary.csv',
-  rules_csv      = 'validation_rules.csv',
-  db_path        = 'data/promotion.db'
-)
-```
-
 ### Checking the import log
 
-The import prints any skipped rules or unrecognized field
-types. Review this output before proceeding. Common issues:
+`setup_zzedc_from_gsheets()` does not print progress messages;
+it returns a results list that you must inspect. Check
+`result$success` first, then drill into each stage on failure:
 
-| Message | Cause | Fix |
+```{r}
+result$success
+str(result$users)
+str(result$forms)
+str(result$validation_rules)
+```
+
+Common issues, by what you will actually see in `result`:
+
+| Symptom | Cause | Fix |
 |---|---|---|
-| `Skipped rule: <rule_id>` | DSL syntax error | Re-check the `rule_dsl` cell against the patterns in the Content-Author Guide |
-| `Unknown field type: <type>` | Typo in `field_type` | Allowed types: `text`, `numeric`, `date`, `select`, `radio`, `checkbox` |
-| `Tab not found: Study_Users` | Tab name mismatch | Rename to exactly `Study_Users` |
-| `No rows in Data_Dictionary` | Empty row before end of data | Delete the empty row; re-import |
+| `result$users$message == "No users found or tab missing"` | Tab name mismatch, or empty tab | Rename the tab to exactly `Study_Users`; confirm it has data rows |
+| `result$forms$message == "No data dictionary found or tab missing"` | Tab name mismatch, or empty tab | Rename to exactly `Data_Dictionary` |
+| Entries in `result$forms$errors` | A field's `field_type` or `required` value failed when passed to `add_form_field()` | `required` must be `TRUE`/`FALSE`, not `yes`/`no` (Section 6.1) |
+| Entries in `result$validation_rules$errors` | DSL syntax error in `rule_dsl` | Re-check the cell against the patterns in `vignette('content-author-guide')` |
+| `result$database$success == FALSE` | Database already exists at `db_path` and `overwrite` was not set | Pass `overwrite = TRUE` only if you intend to discard the existing database, key, and salt |
 
 ---
 
@@ -568,13 +640,38 @@ types. Review this output before proceeding. Common issues:
 
 ### Launch and inspect
 
+Every new R session must re-export the credentials captured
+in Section 7 before launching:
+
 ```{r}
+library(zzedc)
+setwd('~/prj/promotion-tracker')
+
+# Read back the credentials file written in Section 7
+creds <- readLines('~/prj/promotion-tracker-credentials.env')
+for (line in creds) {
+  kv <- strsplit(line, '=', fixed = TRUE)[[1]]
+  do.call(Sys.setenv, setNames(list(kv[2]), kv[1]))
+}
+
 launch_zzedc()
 ```
 
-Log in with the `psmith` admin account and the initial
-password set in `zzedc_config.yml`. You will be forced to
-change it on first login.
+On first run in this directory, `launch_zzedc()` asks to
+create a default `config.yml` (Section 5); accept it if you
+used `db_path = 'data/zzedc.db'` in Section 7.
+
+Log in with the username and `password_initial` value from
+your `Study_Users` tab for an `Admin`-role account. There is
+no forced password change on first login in the current
+version; change it yourself under **Admin > Users** once
+logged in.
+
+If login fails with "Invalid password," re-check that
+`ZZEDC_SALT` is exported with the exact `result$salt` value
+from the import in Section 7 -- a missing or mismatched salt
+is the most common cause, and it fails silently (no indication
+of which value is wrong, only "Invalid password").
 
 Navigate to **Admin > Forms** and confirm that all seven
 forms appear: `manuscripts`, `courses`, `mentoring`,
@@ -601,42 +698,63 @@ removed from the data tables.
 
 ### Audit log integrity check
 
+`verify_audit_log_integrity()` takes an in-memory data frame
+of audit records, not a database path -- query the table
+yourself first, ordered by insertion:
+
 ```{r}
 library(zzedc)
 setwd('~/prj/promotion-tracker')
 
-verify_audit_log_integrity(db_path = 'data/promotion.db')
+conn <- connect_encrypted_db(db_path = 'data/zzedc.db')
+log_data <- DBI::dbGetQuery(
+  conn,
+  'SELECT * FROM audit_log ORDER BY audit_id'
+)
+DBI::dbDisconnect(conn)
+
+verify_audit_log_integrity(log_data)
 ```
 
-Expected output: `Audit chain intact. N entries verified.`
-Run this check after the dry run and again after any bulk
-data migration.
+Returns `TRUE` if the hash chain is intact, `FALSE` otherwise;
+there is no per-entry count or message. Run this check after
+the dry run and again after any bulk data migration.
 
 ---
 
 ## 9. Backup
 
-For a local SQLite installation, backup is straightforward.
+The database file alone is not a usable backup: it is
+encrypted with the key captured in Section 7, which exists
+nowhere inside the file itself. **Back up the key and salt
+with at least the same care as the database file** -- losing
+either one permanently locks you out of your own data, with
+no recovery path.
 
 ### Manual backup
 
 ```{r}
 file.copy(
-  'data/promotion.db',
-  paste0('backups/promotion_', format(Sys.time(), '%Y%m%d'), '.db')
+  'data/zzedc.db',
+  paste0('backups/zzedc_', format(Sys.time(), '%Y%m%d'), '.db')
+)
+file.copy(
+  '~/prj/promotion-tracker-credentials.env',
+  paste0('backups/credentials_', format(Sys.time(), '%Y%m%d'), '.env')
 )
 ```
 
-Create a `backups/` subdirectory in the project folder and
-add it to your cloud sync (Dropbox, iCloud, etc.) if the
-project directory is not already synced.
+Create a `backups/` subdirectory in the project folder. If you
+sync it to Dropbox, iCloud, or similar, be aware the
+credentials file is cleartext at rest; consider keeping that
+one copy in a password manager instead of general cloud sync.
 
 ### Automated daily backup via cron (macOS)
 
 Add a line to your crontab (`crontab -e`):
 
 ```
-0 22 * * * Rscript -e "file.copy('~/prj/promotion-tracker/data/promotion.db', paste0('~/prj/promotion-tracker/backups/promotion_', format(Sys.time(), '%Y%m%d'), '.db'))"
+0 22 * * * Rscript -e "file.copy('~/prj/promotion-tracker/data/zzedc.db', paste0('~/prj/promotion-tracker/backups/zzedc_', format(Sys.time(), '%Y%m%d'), '.db')); file.copy('~/prj/promotion-tracker-credentials.env', paste0('~/prj/promotion-tracker/backups/credentials_', format(Sys.time(), '%Y%m%d'), '.env'))"
 ```
 
 This runs at 22:00 each night. Adjust the path and time
@@ -646,36 +764,82 @@ as needed.
 
 ```{r}
 file.copy(
-  'backups/promotion_20260515.db',
-  'data/promotion.db',
+  'backups/zzedc_20260515.db',
+  'data/zzedc.db',
   overwrite = TRUE
 )
 ```
 
 Stop the Shiny session before restoring, then restart
-`launch_zzedc()` afterward.
+`launch_zzedc()` afterward. The key and salt in effect when
+you restore must be the ones that were active when that
+backup was taken, not whatever you most recently generated --
+restore `backups/credentials_20260515.env` alongside it and
+re-export both values before relaunching.
 
 ---
 
 ## 10. Updating the Data Dictionary After Go-Live
 
-**Adding or changing validation rules:** edit the
-`validation_rules` tab and re-run the import command. The
-import is safe to re-run; it merges new rules and updates
-changed rules without deleting existing subject data.
+**Do not re-run `setup_zzedc_from_gsheets()` against a
+database that already has data.** It calls
+`initialize_encrypted_database()` internally, which errors if
+`db_path` already exists unless you pass `overwrite = TRUE`
+-- and `overwrite = TRUE` deletes the existing database file
+and creates an empty one with a brand-new encryption key and
+salt, destroying everything you have entered. There is
+currently no supported merge/re-import path through this
+function.
 
-**Adding a new field to an existing form:** add the row to
-`Data_Dictionary` and re-run the import. New fields appear
-as optional by default; existing records will show them as
-blank until updated.
+For incremental changes after go-live, call the lower-level
+functions directly against the live database instead (with
+`DB_ENCRYPTION_KEY` and `ZZEDC_SALT` already exported, as in
+Section 8):
 
-**Changing a field type** after data have been entered is not
-supported by the importer. Contact the ZZedc maintainer for
-a migration path.
+**Adding or changing validation rules** is safe to re-run on
+its own:
 
-**Adding a new form:** add the rows to `Data_Dictionary` and
-re-run the import. The new form tab appears in the
-application on the next launch.
+```{r}
+import_validation_rules_from_gsheets(
+  sheet_id    = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID',
+  imported_by = 'psmith'
+)
+```
+
+**Adding a new field to an existing form** -- look up the
+form's `design_id` first, then add the field once. Unlike
+`create_crf_definition()` below, `add_form_field()` has no
+duplicate check: calling it twice for the same field creates
+two rows, so do not simply re-run the whole batch.
+
+```{r}
+add_form_field(
+  design_id   = 1,              # the manuscripts form's design_id
+  field_code  = 'preprint_doi',
+  field_label = 'Preprint DOI',
+  field_type  = 'text',
+  is_required = FALSE
+)
+```
+
+**Adding a new form** is safe to re-attempt; it errors if the
+`crf_code` already exists rather than duplicating it:
+
+```{r}
+create_crf_definition(
+  crf_code   = 'AWARDS',
+  crf_name   = 'Awards and Honors',
+  created_by = 'psmith'
+)
+```
+
+Then add its fields with `add_form_field()` as above.
+
+**Changing a field's type** after data has been entered has
+not been verified against this package and has no documented
+migration path. Treat it as unsupported: back up the database
+and credentials (Section 9) first, and consider adding a new
+field rather than retyping an existing one.
 
 ---
 
@@ -685,21 +849,27 @@ After setup, the project directory should contain:
 
 ```
 ~/prj/promotion-tracker/
-  zzedc_config.yml        # Study configuration
-  Study_Users.csv         # (if using CSV path)
-  Data_Dictionary.csv     # (if using CSV path)
-  validation_rules.csv    # (if using CSV path)
+  config.yml                # App settings (Section 5);
+                             #   created by launch_zzedc()
   data/
-    promotion.db          # Live SQLite database
+    zzedc.db                # Live, encrypted SQLite database
   backups/
-    promotion_YYYYMMDD.db # Rolling daily backups
-  logs/                   # Application logs (if enabled)
+    zzedc_YYYYMMDD.db        # Rolling daily backups
+    credentials_YYYYMMDD.env # Matching key/salt for each backup
+  logs/                      # Application logs (if enabled)
+
+~/prj/promotion-tracker-credentials.env
+                             # DB_ENCRYPTION_KEY and ZZEDC_SALT
+                             # (kept outside the project directory
+                             # on purpose -- see below)
 ```
 
-Keep `zzedc_config.yml` in version control with the password
-field replaced by a placeholder. Do not commit the `.db`
-file to a public repository; it contains your academic
-activity records.
+Do not commit `data/zzedc.db`, `backups/`, or any
+`credentials*.env` file to version control, public or private:
+the database contains your academic activity records, and the
+`.env` files contain the only copy of the key that makes it
+readable. `config.yml` itself contains no secrets by default
+and can be committed.
 
 ---
 
@@ -724,10 +894,22 @@ that causes the rule to reference a field that does not
 exist. Re-check the `field_code` column against the
 `field_name` values in `Data_Dictionary`.
 
-**User cannot log in.** Confirm the `active` column is
-`TRUE` for that user in `Study_Users`. If the account is
-locked after repeated failed attempts, reset it in the
+**User cannot log in ("Invalid password").** `Study_Users`'s
+`active` column is not read by `setup_zzedc_from_gsheets()` --
+every imported user is created active regardless of that
+column's value. The near-universal cause of a login failure
+here is a `ZZEDC_SALT` that does not exactly match
+`result$salt` from the import in Section 7. Re-export it
+(Section 8) before suspecting anything else. If the account
+is locked after repeated failed attempts, reset it in the
 application under **Admin > Users**.
+
+**`launch_zzedc()` stops with "Database encryption key not
+found."** `DB_ENCRYPTION_KEY` is unset in this R session.
+Re-export it from your saved credentials file (Section 8)
+before calling `launch_zzedc()`; this is a deliberate hard
+stop, not a bug -- there is no way to connect to the encrypted
+database without it.
 
 ---
 
