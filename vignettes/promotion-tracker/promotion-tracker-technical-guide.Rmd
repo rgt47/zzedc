@@ -30,18 +30,24 @@ setup, hand the assistant that guide along with the application
 URL (or local access instructions) and their login credentials.
 
 The recommended setup path is Google Sheets import (Sections
-6.1 and 7): author the data dictionary, validation rules, and
-user roster in a Google Sheet, then import everything in one
-call with `setup_zzedc_from_gsheets()`. The initialization
-script (Section 4) can drive this same path non-interactively,
-but only its Sheets mode currently produces a working import
-command -- its TUI and Config modes print a call to
-`setup_zzedc_from_csv()`, a function that does not exist in the
-package as of this writing. Section 5 describes the
-`config.yml` fields `launch_zzedc()` itself reads, for
-reference and troubleshooting; you do not need to author this
-file by hand for a Google-Sheets-based study, since
-`launch_zzedc()` creates a working default on first run.
+6.1 and 7): create the Sheet by hand in the Drive web UI,
+author the data dictionary, validation rules, and user roster
+in it, then import everything in one call with
+`setup_zzedc_from_gsheets()`. **Do not use the initialization
+script's Sheets mode (Section 4.4) to create the Sheet.** It
+calls `googlesheets4::gs4_create()`, which as of this writing
+fails for every account tested with a `403
+ACCESS_TOKEN_SCOPE_INSUFFICIENT` error -- a restriction on the
+shared OAuth client all tidyverse Google-API packages use, not
+a bug in your account or script (Section 12 has the full
+symptom and workaround). Its TUI and Config modes are also not
+usable yet: they print a call to `setup_zzedc_from_csv()`, a
+function that does not exist in the package as of this
+writing. Section 5 describes the `config.yml` fields
+`launch_zzedc()` itself reads, for reference and
+troubleshooting; you do not need to author this file by hand
+for a Google-Sheets-based study, since `launch_zzedc()` creates
+a working default on first run.
 
 ---
 
@@ -241,6 +247,16 @@ no quoting, no indentation rules.
 *Highest technical barrier. Requires a Google account and
 OAuth authentication in the browser.*
 
+**This mode's first run is currently broken and should not be
+used.** It calls `googlesheets4::gs4_create()` to create the
+workbook, which fails with `403
+ACCESS_TOKEN_SCOPE_INSUFFICIENT` on the shared tidyverse OAuth
+client (Section 12 has the full diagnosis). Create the Sheet
+by hand instead (Section 6.1) and skip straight to Section 7's
+`setup_zzedc_from_gsheets()` call; the rest of this subsection
+is kept for reference in case the restriction is lifted or you
+register your own OAuth client.
+
 **First run -- create the workbook:**
 
 ```{bash}
@@ -372,15 +388,48 @@ alternative is planned but not yet implemented (Section 6.2).
 
 ### 6.1 Google Sheets path
 
-Create a new Google Sheet. Rename the default tab and add
-two additional tabs, named exactly as shown:
+Create a new Google Sheet by hand, through the ordinary Drive
+web UI (`drive.google.com` -> **+ New** -> **Google Sheets**).
+Do not create it with `googlesheets4::gs4_create()` or the init
+script's Sheets mode (Section 4.4) -- both currently fail with
+`403 ACCESS_TOKEN_SCOPE_INSUFFICIENT` (Section 12). Creating it
+by hand in the browser is a pure Drive-UI action with no OAuth
+client or API call involved, so it is not affected.
+
+Rename the default tab and add two additional tabs, named
+exactly as shown:
 
 - `Study_Users`
 - `Data_Dictionary`
 - `validation_rules`
 
 Capitalisation and spelling are exact; the importer performs
-a literal string match.
+a literal string match. You can author the content directly in
+the Sheets UI, or write it with `googlesheets4::sheet_write()`
+against the already-created Sheet (Sheets-only OAuth scope,
+unaffected by the restriction above):
+
+```{r}
+library(googlesheets4)
+gs4_auth(scope = 'https://www.googleapis.com/auth/spreadsheets')
+
+sheet_url <- 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID'
+
+sheet_write(study_users_df,      ss = sheet_url, sheet = 'Study_Users')
+sheet_write(data_dictionary_df,  ss = sheet_url, sheet = 'Data_Dictionary')
+sheet_write(validation_rules_df, ss = sheet_url, sheet = 'validation_rules')
+
+# Remove the default blank "Sheet1" tab Google creates automatically
+if ('Sheet1' %in% sheet_names(sheet_url)) {
+  sheet_delete(sheet_url, sheet = 'Sheet1')
+}
+```
+
+The template CSVs in Section 6.2 (`Study_Users.csv`,
+`Data_Dictionary.csv`, `validation_rules.csv`) are a ready-made
+source for `study_users_df` etc. via `read.csv()`, if you want
+to start from the shipped examples rather than authoring from
+scratch.
 
 #### Study_Users tab
 
@@ -910,6 +959,30 @@ Re-export it from your saved credentials file (Section 8)
 before calling `launch_zzedc()`; this is a deliberate hard
 stop, not a bug -- there is no way to connect to the encrypted
 database without it.
+
+**`gs4_create()` fails with `403 PERMISSION_DENIED` /
+`ACCESS_TOKEN_SCOPE_INSUFFICIENT` on
+`SpreadsheetsService.CreateSpreadsheet`.** This is not fixable
+by changing the requested scope, clearing the cached token, or
+re-granting consent -- all three were tried and failed
+identically in this deployment. The cause is a restriction on
+the shared "Tidyverse API Packages" OAuth client that every
+tidyverse Google-API package authenticates through, independent
+of what your script requests. Do not use `gs4_create()` (or the
+init script's Sheets mode, Section 4.4) at all: create the
+Sheet by hand in the Drive web UI instead, then populate it
+with `sheet_write()` under the narrower `.../auth/spreadsheets`
+scope, which this restriction does not affect (Section 6.1 has
+the working sequence).
+
+**After reinstalling or updating the `zzedc` package, the same
+error keeps happening.** `library(zzedc)` is a no-op if the
+package is already attached in the current R session -- it does
+not reload code from disk even after `devtools::install()`
+completes successfully underneath it. Restart R entirely
+(**Session > Restart R** in RStudio) before re-running anything
+that depends on a package update; re-running `source()` alone
+in the same session will keep using the old in-memory code.
 
 ---
 

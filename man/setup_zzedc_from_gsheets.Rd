@@ -81,6 +81,12 @@ there.}
 
 Bidirectional sync of validation rules is available via
 \code{\link[=sync_dsl_rules_from_gsheets]{sync_dsl_rules_from_gsheets()}} for ongoing studies.
+
+Stage 1 also initializes the CRF designer, CRF version-control,
+DSL validation-rule, and audit-log schemas (via
+\code{init_crf_designer()}, \code{init_crf_version()},
+\code{init_dsl_rules_db()}, and \code{init_audit_logging()}), none of
+which \code{initialize_encrypted_database()} creates on its own.
 }
 \examples{
 \dontrun{

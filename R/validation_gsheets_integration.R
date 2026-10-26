@@ -55,6 +55,50 @@ get_dsl_rule_categories <- function() {
   )
 }
 
+#' Map Data_Dictionary `field_type` values to the CRF designer's
+#' internal type codes
+#'
+#' The `Data_Dictionary` tab (and the package's own shipped
+#' templates) documents `field_type` using lowercase values such as
+#' `text`, `numeric`, and `date`. `add_form_field()` only accepts
+#' the designer's uppercase internal codes (see
+#' `get_designer_field_types()`), e.g. `TEXT`, `NUMBER`, `DATE`.
+#' Every field in the shipped templates would otherwise fail type
+#' validation on import.
+#'
+#' @param x Character. A `field_type` value as authored in the
+#'   sheet.
+#' @return Character. The corresponding designer type code. Values
+#'   already matching a designer code (any case) pass through
+#'   unchanged (uppercased); unrecognized values are uppercased and
+#'   passed through as-is, so `add_form_field()`'s own validation
+#'   surfaces the error with the original value.
+#' @keywords internal
+map_gsheets_field_type <- function(x) {
+  field_type_map <- c(
+    text        = "TEXT",
+    textarea    = "TEXTAREA",
+    numeric     = "NUMBER",
+    number      = "NUMBER",
+    integer     = "INTEGER",
+    date        = "DATE",
+    time        = "TIME",
+    datetime    = "DATETIME",
+    radio       = "RADIO",
+    checkbox    = "CHECKBOX",
+    select      = "SELECT",
+    multiselect = "MULTISELECT",
+    file        = "FILE",
+    signature   = "SIGNATURE",
+    calculated  = "CALCULATED",
+    label       = "LABEL",
+    divider     = "DIVIDER"
+  )
+  key <- tolower(trimws(as.character(x)))
+  mapped <- unname(field_type_map[key])
+  if (is.na(mapped)) toupper(as.character(x)) else mapped
+}
+
 # ============================================================================
 # Google Sheets Import Functions
 # ============================================================================
@@ -393,7 +437,7 @@ setup_default_dsl_permissions <- function(con) {
         INSERT INTO dsl_rule_permissions
         (role_name, can_view, can_create, can_edit, can_delete, can_approve, can_activate)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      ", params = as.list(permissions[i, ]))
+      ", params = unname(as.list(permissions[i, ])))
     }
   }
 }
@@ -497,10 +541,21 @@ log_dsl_rule_action <- function(rule_id, action, old_value = NULL, new_value = N
   }
 
   tryCatch({
+    # DBI requires each bound parameter to have length 1; a bare
+    # NULL (length 0) for old_value/reason, as every importer call
+    # site passes, makes dbExecute() fail with "Parameter N does
+    # not have length 1" and silently drop the audit entry.
     DBI::dbExecute(con, "
       INSERT INTO dsl_rule_audit (rule_id, action, old_value, new_value, changed_by, reason)
       VALUES (?, ?, ?, ?, ?, ?)
-    ", params = list(rule_id, action, old_value, new_value, changed_by, reason))
+    ", params = list(
+      rule_id,
+      action,
+      old_value %||% NA_character_,
+      new_value %||% NA_character_,
+      changed_by,
+      reason %||% NA_character_
+    ))
   }, error = function(e) {
     warning("Failed to log DSL rule action: ", e$message)
   })
@@ -1067,6 +1122,12 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #' Bidirectional sync of validation rules is available via
 #' [sync_dsl_rules_from_gsheets()] for ongoing studies.
 #'
+#' Stage 1 also initializes the CRF designer, CRF version-control,
+#' DSL validation-rule, and audit-log schemas (via
+#' `init_crf_designer()`, `init_crf_version()`,
+#' `init_dsl_rules_db()`, and `init_audit_logging()`), none of
+#' which `initialize_encrypted_database()` creates on its own.
+#'
 #' @examples
 #' \dontrun{
 #' result <- setup_zzedc_from_gsheets(
@@ -1149,6 +1210,47 @@ setup_zzedc_from_gsheets <- function(
     db_key <- init_res$key
     result$key <- db_key
     Sys.setenv(DB_ENCRYPTION_KEY = db_key)
+    # The initializer functions below take no db_path argument and
+    # resolve the database location via get_db_path(), which falls
+    # back to ZZEDC_DB_PATH. Set it so they target this database
+    # even when db_path differs from the package default.
+    Sys.setenv(ZZEDC_DB_PATH = normalizePath(db_path, mustWork = FALSE))
+
+    # initialize_encrypted_database() only creates `study_info` and
+    # `subjects`. The CRF designer, CRF version-control, and DSL
+    # validation-rule schemas each live behind their own
+    # initializer and are not created by the call above; forms and
+    # rules import below will fail with "no such table" without
+    # this step.
+    schema_initializers <- list(
+      crf_designer = init_crf_designer,
+      crf_version  = init_crf_version,
+      dsl_rules    = init_dsl_rules_db
+    )
+    schema_errors <- list()
+    for (nm in names(schema_initializers)) {
+      init_ok <- tryCatch(
+        schema_initializers[[nm]](),
+        error = function(e) list(success = FALSE, error = e$message)
+      )
+      if (!isTRUE(init_ok$success)) {
+        schema_errors[[nm]] <- init_ok$error %||% init_ok$message %||%
+          "schema initialization failed"
+      }
+    }
+    audit_ok <- tryCatch(
+      init_audit_logging(db_path = db_path),
+      error = function(e) list(success = FALSE, error = e$message)
+    )
+    if (!isTRUE(audit_ok$success)) {
+      schema_errors[["audit_log"]] <- audit_ok$error %||% audit_ok$message %||%
+        "audit log initialization failed"
+    }
+    if (length(schema_errors) > 0) {
+      result$success <- FALSE
+      result$errors$schema <- schema_errors
+      return(result)
+    }
   }
 
   # --- Stage 2: users ---------------------------------------------
@@ -1253,7 +1355,7 @@ setup_zzedc_from_gsheets <- function(
             design_id   = crf$crf_id,
             field_code  = as.character(fields$field_name[j]),
             field_label = as.character(fields$field_label[j]),
-            field_type  = as.character(fields$field_type[j]),
+            field_type  = map_gsheets_field_type(fields$field_type[j]),
             is_required = isTRUE(as.logical(fields$required[j]))
           ),
           error = function(e) list(success = FALSE, error = e$message)
