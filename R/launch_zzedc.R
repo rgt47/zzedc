@@ -40,6 +40,19 @@
 #' @importFrom shiny runApp
 launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = NULL) {
 
+  # inst/app/*.R files (e.g. edc.R's renderPanel(blfieldlist) call)
+  # reference several zzedc-exported functions unqualified, relying
+  # on zzedc being attached to the search path. zzedc::launch_zzedc()
+  # only loads the namespace, it does not attach it, so those calls
+  # fail with "could not find function" unless the caller remembered
+  # to library(zzedc) first. Attach it here so launch_zzedc() works
+  # the same way regardless of how it was called.
+  if (!"package:zzedc" %in% search()) {
+    suppressPackageStartupMessages(
+      library(zzedc, character.only = TRUE, quietly = TRUE)
+    )
+  }
+
   # Ensure required directories exist in working directory
   if (!dir.exists("data")) {
     dir.create("data", showWarnings = FALSE)

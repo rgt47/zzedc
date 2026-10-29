@@ -15,8 +15,20 @@ authenticate_user <- function(username, password) {
       return(list(success = FALSE, message = "Invalid username or account inactive"))
     }
     
-    # Verify password using configuration
-    salt <- Sys.getenv(cfg$auth$salt_env_var)
+    # Verify password using configuration.
+    # cfg$auth$salt_env_var is absent from config.yml files scaffolded
+    # by launch_zzedc() (only default_salt is written), and
+    # Sys.getenv(NULL) returns every environment variable on the
+    # machine rather than "" or erroring, which made the salt == ""
+    # check below throw "the condition has length > 1" on every
+    # login attempt against a freshly-scaffolded config.
+    salt_env_var <- cfg$auth$salt_env_var
+    salt <- if (is.character(salt_env_var) && length(salt_env_var) == 1 &&
+                  nzchar(salt_env_var)) {
+      Sys.getenv(salt_env_var)
+    } else {
+      ""
+    }
     if (salt == "") {
       salt <- cfg$auth$default_salt
     }
