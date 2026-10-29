@@ -46,10 +46,13 @@ auto-launch on login.
 
 ## 2. Logging In
 
-Enter your username and password on the login screen. On your
-first login you will be prompted to change the initial password.
-Choose a password you will remember; it is not recoverable
-without the lab data scientist's help.
+Enter your username and password on the login screen. The
+application does not force a password change on first login;
+if the lab data scientist issued you a temporary password,
+ask them to generate a permanent one for you, or follow their
+instructions for changing it yourself. Choose a password you
+will remember; it is not recoverable without the lab data
+scientist's help.
 
 If the application shows a session-timeout warning, save your
 current entry before clicking away. Unsaved form fields are lost
