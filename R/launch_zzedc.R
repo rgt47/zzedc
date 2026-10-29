@@ -49,7 +49,7 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
   # the same way regardless of how it was called.
   if (!"package:zzedc" %in% search()) {
     suppressPackageStartupMessages(
-      library(zzedc, character.only = TRUE, quietly = TRUE)
+      library("zzedc", quietly = TRUE)
     )
   }
 

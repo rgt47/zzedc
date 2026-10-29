@@ -49,6 +49,22 @@ if (.zzedc_forms_present()) {
 # visit (2) rather than supporting arbitrary added visits.
 viscode_rv <- shiny::reactiveVal(1L)
 
+# When a study has imported real CRFs (setup_zzedc_from_gsheets() or
+# the CSV path), crf_definitions/designer_fields hold the actual
+# form/field definitions. Previously nothing in edc.R ever read
+# these tables; the EDC tab only ever rendered the demo forms/*.R
+# scaffold, regardless of what had been imported. This path takes
+# priority over both the demo scaffold and the "forms not found"
+# notice below, since real imported forms are always preferable to
+# demo content when they exist. See R/edc_dynamic_forms.R.
+.zzedc_crf_forms <- function() {
+  if (!exists("db_pool", envir = globalenv())) return(NULL)
+  tryCatch({
+    forms <- zzedc:::get_active_crf_forms(get("db_pool", envir = globalenv()))
+    if (nrow(forms) == 0) NULL else forms
+  }, error = function(e) NULL)
+}
+
 .zzedc_forms_missing_panel <- function() {
   fluidPage(
     div(
@@ -87,9 +103,41 @@ viscode_rv <- shiny::reactiveVal(1L)
   )
 }
 
+.zzedc_crf_dynamic_panel <- function(forms) {
+  choices <- stats::setNames(as.character(forms$crf_id), forms$crf_name)
+  fluidPage(
+    fluidRow(
+      column(2,
+        wellPanel(
+          tags$img(src = paste0(shiny::isolate(user_input$username),".jpg"),
+                   width = "80px"),
+          br(), br(), hr(),
+          textOutput("usr"),
+          hr(),
+          selectInput("edc_crf_form", "Form", choices = choices)
+        )
+      ),
+      column(7,
+        uiOutput("edc_crf_fields"),
+        actionButton("submitcrf", "Submit entry",
+                     class = "btn btn-primary mt-3"),
+        shinyjs::hidden(div(id = "crf_results",
+                            class = "alert alert-success mt-3",
+                            "Entry saved."))
+      ),
+      column(3,
+        textOutput("crf_messages"),
+        DT::dataTableOutput("crf_entries_table")
+      )
+    )
+  )
+}
+
 output$ui <- renderUI({
   if (user_input$authenticated == FALSE) {
     fluidPage(uiOutput("uiLogin"))
+  } else if (!is.null(.zzedc_crf_forms())) {
+    .zzedc_crf_dynamic_panel(.zzedc_crf_forms())
   } else if (!.zzedc_forms_present()) {
     .zzedc_forms_missing_panel()
   } else {
@@ -119,6 +167,86 @@ output$ui <- renderUI({
            tableOutput("val"))))}})
 
 output$messages <- renderText({"Messages"})
+output$crf_messages <- renderText({"Messages"})
+
+output$edc_crf_fields <- renderUI({
+  shiny::req(input$edc_crf_form)
+  metadata <- zzedc:::get_crf_field_metadata(db_pool, as.integer(input$edc_crf_form))
+  if (length(metadata) == 0) {
+    return(div(class = "text-muted", "This form has no fields defined."))
+  }
+  shiny::tagList(renderPanel(names(metadata), metadata))
+})
+
+observeEvent(input$submitcrf, {
+  shiny::req(input$edc_crf_form)
+  crf_id <- as.integer(input$edc_crf_form)
+  forms <- zzedc:::get_active_crf_forms(db_pool)
+  crf_row <- forms[forms$crf_id == crf_id, , drop = FALSE]
+  if (nrow(crf_row) == 0) return(invisible(NULL))
+
+  metadata <- zzedc:::get_crf_field_metadata(db_pool, crf_id)
+  field_codes <- names(metadata)
+  field_data <- stats::setNames(lapply(field_codes, function(f) {
+    v <- input[[f]]
+    if (is.null(v)) NA_character_
+    else if (inherits(v, "Date")) format(v)
+    else as.character(v)
+  }), field_codes)
+
+  missing_required <- vapply(field_codes, function(f) {
+    isTRUE(metadata[[f]]$required) &&
+      (is.na(field_data[[f]]) || !nzchar(trimws(field_data[[f]])))
+  }, logical(1))
+  if (any(missing_required)) {
+    missing_labels <- vapply(metadata[missing_required], function(m) m$label,
+                              character(1))
+    shiny::showNotification(
+      paste("Missing required field(s):", paste(missing_labels, collapse = ", ")),
+      type = "error", duration = 8
+    )
+    return(invisible(NULL))
+  }
+
+  # input$username is only the login form's own text box; the real
+  # logged-in identity is set on the user_input reactiveValues by
+  # auth.R at login (same source forms/save.R's saveData() already
+  # reads for the demo-scaffold path -- see auth.R:76).
+  username <- shiny::isolate(user_input$username)
+  created_by <- if (!is.null(username) && nzchar(username)) {
+    as.character(username)
+  } else {
+    "unknown"
+  }
+
+  result <- zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
+                                    created_by = created_by)
+  if (isTRUE(result$success)) {
+    shiny::showNotification(
+      sprintf("Entry saved (%s, %s).", crf_row$crf_name[1], result$entry_id),
+      type = "message", duration = 5
+    )
+    shinyjs::show("crf_results")
+  } else {
+    shiny::showNotification(
+      paste("Database error saving entry:", result$error),
+      type = "error", duration = 10
+    )
+  }
+})
+
+output$crf_entries_table <- DT::renderDataTable({
+  shiny::req(input$edc_crf_form)
+  forms <- zzedc:::get_active_crf_forms(db_pool)
+  crf_row <- forms[forms$crf_id == as.integer(input$edc_crf_form), , drop = FALSE]
+  if (nrow(crf_row) == 0) return(NULL)
+  rows <- DBI::dbGetQuery(
+    db_pool,
+    "SELECT subject_id, created_date FROM data_entries WHERE form_name = ? ORDER BY created_date DESC",
+    params = list(tolower(crf_row$crf_code[1]))
+  )
+  DT::datatable(rows, options = list(pageLength = 5), rownames = FALSE)
+})
 
 # Source the form helpers only when they exist; otherwise the
 # missing-forms panel above takes over the EDC tab cleanly.
@@ -170,7 +298,11 @@ output$studyid <- renderText({
 })
 
 output$usr <- renderText({
-  username <- req(input$username, cancelOutput = TRUE)
+  # input$username is only the login form's own text box, not the
+  # logged-in identity (set on user_input by auth.R at login); it
+  # renders blank once the login modal closes. Confirmed empirically
+  # testing the dynamic CRF panel's sidebar against the live app.
+  username <- req(user_input$username, cancelOutput = TRUE)
   as.character(username[1])
 })
 
