@@ -19,17 +19,20 @@ row order) suitable as the \code{field_metadata} argument to
 }
 \description{
 Reads \code{designer_fields} (and, where present, \code{designer_field_options}
-for \code{SELECT}/\code{RADIO} choice lists) for the given form and returns
-a named list in the shape \code{\link[=renderPanel]{renderPanel()}} expects.
+for \code{SELECT}/\code{RADIO}/\code{MULTISELECT} choice lists) for the given
+form and returns a named list in the shape \code{\link[=renderPanel]{renderPanel()}}
+expects.
 }
 \details{
-The Google Sheets/CSV \code{Data_Dictionary} import does not currently
-capture a choices/options column, so \code{designer_field_options} is
-typically empty for an imported form even though the field is
-marked \code{SELECT} or \code{RADIO}. Rendering a choice widget with no
-choices to offer is worse than a plain text box, so a \code{SELECT}/
-\code{RADIO} field with no rows in \code{designer_field_options} is rendered
-as \code{"text"} instead; this is a known limitation of the import
-path, not a limitation of this renderer.
+The Google Sheets/CSV \code{Data_Dictionary} import populates
+\code{designer_field_options} only when a choice-type field's
+\code{validation} cell holds an \verb{in(...)} list (see
+\code{parse_gsheets_choice_list()}); a field authored without one, or
+imported before this import-time support existed, still has no
+rows there even though it is marked \code{SELECT}/\code{RADIO}/
+\code{MULTISELECT}. Rendering a choice widget with no choices to offer
+is worse than a plain text box, so such a field is rendered as
+\code{"text"} instead; this is a property of the data, not a
+limitation of this renderer.
 }
 \keyword{internal}

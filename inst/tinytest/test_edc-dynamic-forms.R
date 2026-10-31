@@ -204,6 +204,64 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_equal(parsed$page_count, "4")
   })
 
+  local({
+    # validate_crf_submission() / crf_live_invalid_fields(): a
+    # required text field, a choice field with a defined choice set,
+    # and an optional text field with none.
+    meta <- list(
+      tracking_id = list(type = "text", label = "Tracking ID",
+                          required = TRUE, choices = NULL),
+      status = list(type = "select", label = "Status", required = TRUE,
+                    choices = c(Draft = "draft", Submitted = "submitted",
+                                Accepted = "accepted")),
+      notes = list(type = "text", label = "Notes", required = FALSE,
+                   choices = NULL)
+    )
+
+    # Fully valid submission.
+    ok <- zzedc:::validate_crf_submission(
+      list(tracking_id = "PUB-1", status = "draft", notes = ""), meta
+    )
+    expect_true(ok$valid)
+    expect_equal(length(ok$errors), 0)
+    expect_equal(
+      length(zzedc:::crf_live_invalid_fields(
+        list(tracking_id = "PUB-1", status = "draft", notes = ""), meta
+      )),
+      0,
+      info = "no flags when every value is valid"
+    )
+
+    # Blank required field: blocks submit (kind "required") but is
+    # NOT a live flag -- a field not yet filled in is not an
+    # invalid entry.
+    blank_required <- list(tracking_id = "", status = "draft", notes = "")
+    r_required <- zzedc:::validate_crf_submission(blank_required, meta)
+    expect_false(r_required$valid)
+    expect_equal(r_required$errors$tracking_id$kind, "required")
+    expect_equal(
+      length(zzedc:::crf_live_invalid_fields(blank_required, meta)), 0,
+      info = "a required-but-blank field is not flagged live"
+    )
+
+    # Value outside the field's choice set: blocks submit (kind
+    # "invalid_choice") AND is surfaced as a live flag.
+    bad_choice <- list(tracking_id = "PUB-1", status = "bogus_value",
+                        notes = "")
+    r_choice <- zzedc:::validate_crf_submission(bad_choice, meta)
+    expect_false(r_choice$valid)
+    expect_equal(r_choice$errors$status$kind, "invalid_choice")
+    live_flags <- zzedc:::crf_live_invalid_fields(bad_choice, meta)
+    expect_equal(length(live_flags), 1)
+    expect_true(grepl("bogus_value", live_flags, fixed = TRUE))
+
+    # Optional field left blank: never an error, live or at submit.
+    r_optional <- zzedc:::validate_crf_submission(
+      list(tracking_id = "PUB-1", status = "draft", notes = NA), meta
+    )
+    expect_true(r_optional$valid)
+  })
+
 } else {
   exit_file("RSQLite and/or jsonlite not installed")
 }

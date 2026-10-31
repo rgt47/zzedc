@@ -119,6 +119,10 @@ viscode_rv <- shiny::reactiveVal(1L)
       ),
       column(7,
         uiOutput("edc_crf_fields"),
+        # Live, non-blocking flags: re-renders on every keystroke/
+        # selection change via the crf_live_field_data() reactive
+        # below, but never disables the fields or the submit button.
+        uiOutput("edc_crf_field_flags"),
         actionButton("submitcrf", "Submit entry",
                      class = "btn btn-primary mt-3"),
         shinyjs::hidden(div(id = "crf_results",
@@ -178,6 +182,47 @@ output$edc_crf_fields <- renderUI({
   shiny::tagList(renderPanel(names(metadata), metadata))
 })
 
+# The current form's field metadata, re-fetched whenever the form
+# selector changes. Shared by the live-flags reactive below and the
+# submit handler so both build field_data/validate the same way.
+crf_field_metadata <- reactive({
+  shiny::req(input$edc_crf_form)
+  zzedc:::get_crf_field_metadata(db_pool, as.integer(input$edc_crf_form))
+})
+
+# Reads every current input value for the active form's fields. This
+# reactive re-evaluates on every keystroke/selection change in any of
+# those inputs, which is what drives the live flags panel below; it
+# is also called (via shiny::isolate()) from the submit handler so
+# the two never build field_data two different ways.
+crf_live_field_data <- reactive({
+  metadata <- crf_field_metadata()
+  field_codes <- names(metadata)
+  stats::setNames(lapply(field_codes, function(f) {
+    v <- input[[f]]
+    if (is.null(v)) NA_character_
+    else if (inherits(v, "Date")) format(v)
+    else as.character(v)
+  }), field_codes)
+})
+
+# Non-blocking: flags an invalid entry (e.g. a value outside the
+# field's defined choice set) as soon as it is made, but never
+# disables the field or the submit button. Required-but-blank
+# fields are deliberately not flagged here -- a field simply not
+# filled in yet while the form is in progress is not an invalid
+# entry; that check still runs, and blocks saving, at submit time
+# below.
+output$edc_crf_field_flags <- renderUI({
+  metadata <- crf_field_metadata()
+  if (length(metadata) == 0) return(NULL)
+  flags <- zzedc:::crf_live_invalid_fields(crf_live_field_data(), metadata)
+  if (length(flags) == 0) return(NULL)
+  div(class = "alert alert-warning py-2 px-3 mt-2 mb-0",
+      style = "font-size: 0.85em;",
+      tags$ul(class = "mb-0 ps-3", lapply(flags, tags$li)))
+})
+
 observeEvent(input$submitcrf, {
   shiny::req(input$edc_crf_form)
   crf_id <- as.integer(input$edc_crf_form)
@@ -185,24 +230,14 @@ observeEvent(input$submitcrf, {
   crf_row <- forms[forms$crf_id == crf_id, , drop = FALSE]
   if (nrow(crf_row) == 0) return(invisible(NULL))
 
-  metadata <- zzedc:::get_crf_field_metadata(db_pool, crf_id)
-  field_codes <- names(metadata)
-  field_data <- stats::setNames(lapply(field_codes, function(f) {
-    v <- input[[f]]
-    if (is.null(v)) NA_character_
-    else if (inherits(v, "Date")) format(v)
-    else as.character(v)
-  }), field_codes)
+  metadata <- shiny::isolate(crf_field_metadata())
+  field_data <- shiny::isolate(crf_live_field_data())
 
-  missing_required <- vapply(field_codes, function(f) {
-    isTRUE(metadata[[f]]$required) &&
-      (is.na(field_data[[f]]) || !nzchar(trimws(field_data[[f]])))
-  }, logical(1))
-  if (any(missing_required)) {
-    missing_labels <- vapply(metadata[missing_required], function(m) m$label,
-                              character(1))
+  check <- zzedc:::validate_crf_submission(field_data, metadata)
+  if (!check$valid) {
+    messages <- vapply(check$errors, function(e) e$message, character(1))
     shiny::showNotification(
-      paste("Missing required field(s):", paste(missing_labels, collapse = ", ")),
+      paste(messages, collapse = "; "),
       type = "error", duration = 8
     )
     return(invisible(NULL))

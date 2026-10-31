@@ -72,7 +72,16 @@ The Google Sheet must contain three tabs:
 \item{Data_Dictionary}{One row per field across all CRFs.
 Columns: \code{form_code}, \code{field_name}, \code{field_label},
 \code{field_type}, \code{required}. Optional: \code{validation},
-\code{description}, \code{field_order}.}
+\code{description}, \code{field_order}. For a \code{select}, \code{radio}, or
+\code{multiselect} field, \code{validation} may hold a choice list as
+\verb{in(value1,value2,...)} (bare, unquoted values, e.g.
+\verb{in(Fall,Winter,Spring,Summer)}); each value is imported as a
+row in \code{designer_field_options}, with a title-cased display
+label derived from the value (\code{under_review} becomes \code{"Under Review"}) and the raw value preserved unchanged as
+\code{option_value}. A field of one of these types with no \verb{in(...)}
+list, or a blank/malformed \code{validation} cell, imports with no
+options, and the EDC tab renders it as a plain text input
+rather than a choice widget with nothing to choose from.}
 \item{validation_rules}{Columns expected by
 \code{\link[=import_validation_rules_from_gsheets]{import_validation_rules_from_gsheets()}}: \code{rule_id},
 \code{field_code}, \code{rule_dsl} and the optional columns documented

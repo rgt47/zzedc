@@ -62,17 +62,20 @@ map_designer_field_type <- function(x) {
 #' Build [renderPanel()] field metadata for one imported CRF form
 #'
 #' Reads `designer_fields` (and, where present, `designer_field_options`
-#' for `SELECT`/`RADIO` choice lists) for the given form and returns
-#' a named list in the shape [renderPanel()] expects.
+#' for `SELECT`/`RADIO`/`MULTISELECT` choice lists) for the given
+#' form and returns a named list in the shape [renderPanel()]
+#' expects.
 #'
-#' The Google Sheets/CSV `Data_Dictionary` import does not currently
-#' capture a choices/options column, so `designer_field_options` is
-#' typically empty for an imported form even though the field is
-#' marked `SELECT` or `RADIO`. Rendering a choice widget with no
-#' choices to offer is worse than a plain text box, so a `SELECT`/
-#' `RADIO` field with no rows in `designer_field_options` is rendered
-#' as `"text"` instead; this is a known limitation of the import
-#' path, not a limitation of this renderer.
+#' The Google Sheets/CSV `Data_Dictionary` import populates
+#' `designer_field_options` only when a choice-type field's
+#' `validation` cell holds an `in(...)` list (see
+#' `parse_gsheets_choice_list()`); a field authored without one, or
+#' imported before this import-time support existed, still has no
+#' rows there even though it is marked `SELECT`/`RADIO`/
+#' `MULTISELECT`. Rendering a choice widget with no choices to offer
+#' is worse than a plain text box, so such a field is rendered as
+#' `"text"` instead; this is a property of the data, not a
+#' limitation of this renderer.
 #'
 #' @param conn A DBI connection (or pool object).
 #' @param crf_id The `crf_definitions.crf_id` / `designer_fields.design_id`
@@ -120,7 +123,7 @@ get_crf_field_metadata <- function(conn, crf_id) {
     } else {
       NULL
     }
-    if (type %in% c("select", "radio") && is.null(choices)) {
+    if (type %in% c("select", "radio", "checkbox_group") && is.null(choices)) {
       type <- "text"
     }
 
@@ -135,6 +138,90 @@ get_crf_field_metadata <- function(conn, crf_id) {
     )
   })
   stats::setNames(metadata, fields$field_code)
+}
+
+
+#' Validate a CRF submission's field values against their metadata
+#'
+#' Checks required-field presence and, for choice-type fields
+#' (`select`/`radio`/`checkbox_group`) with a defined choice set,
+#' that every non-blank submitted value is actually a member of it.
+#' A blank, non-required field is never flagged. Pulled out as a
+#' plain function (rather than inlined in the EDC tab's Shiny
+#' observer) so it is unit-testable outside Shiny and so the EDC
+#' tab can run the exact same check twice for two different
+#' purposes: live, non-blocking inline flags as the user fills in
+#' the form (via [crf_live_invalid_fields()], which only surfaces
+#' `"invalid_choice"`-kind problems -- an empty required field is
+#' expected while a form is still being filled in, not an error to
+#' flag mid-entry), and the full gate run once at submit time
+#' (every error kind, including `"required"`), which still blocks
+#' saving an incomplete or invalid record.
+#'
+#' @param field_data Named list of submitted field values, keyed by
+#'   `field_code` (same shape passed to [save_crf_entry()]).
+#' @param metadata Field metadata as returned by
+#'   [get_crf_field_metadata()].
+#' @return `list(valid=, errors=)`. `errors` is a named list (by
+#'   `field_code`) of `list(kind=, message=)`, `kind` one of
+#'   `"required"` or `"invalid_choice"`.
+#' @keywords internal
+validate_crf_submission <- function(field_data, metadata) {
+  errors <- list()
+
+  for (f in names(metadata)) {
+    m <- metadata[[f]]
+    v <- field_data[[f]]
+    is_blank <- is.null(v) || all(is.na(v)) ||
+      all(!nzchar(trimws(as.character(v))))
+
+    if (isTRUE(m$required) && is_blank) {
+      errors[[f]] <- list(kind = "required",
+                           message = sprintf("%s is required", m$label %||% f))
+      next
+    }
+    if (is_blank) next
+
+    if (m$type %in% c("select", "radio", "checkbox_group") &&
+          !is.null(m$choices)) {
+      submitted <- as.character(v)
+      submitted <- submitted[nzchar(trimws(submitted))]
+      bad <- setdiff(submitted, unname(m$choices))
+      if (length(bad) > 0) {
+        errors[[f]] <- list(
+          kind = "invalid_choice",
+          message = sprintf("%s: \"%s\" is not one of the listed options",
+                             m$label %||% f, paste(bad, collapse = '", "'))
+        )
+      }
+    }
+  }
+
+  list(valid = length(errors) == 0, errors = errors)
+}
+
+
+#' Live, non-blocking field flags for a CRF form in progress
+#'
+#' Filters [validate_crf_submission()]'s result down to the subset
+#' meant to be shown while the user is still filling in the form --
+#' i.e. everything except `"required"`-kind errors, since a field
+#' simply not filled in yet is not an invalid entry. Intended to be
+#' called from a reactive that re-runs on every keystroke/selection
+#' change, so the EDC tab can flag a bad entry (e.g. a value no
+#' longer in a field's choice set after a CRF definition change)
+#' immediately, without disabling input or the submit button.
+#'
+#' @param field_data Named list of currently entered field values.
+#' @param metadata Field metadata as returned by
+#'   [get_crf_field_metadata()].
+#' @return Character vector of flag messages, in field order; empty
+#'   (`character(0)`) when nothing is currently flagged.
+#' @keywords internal
+crf_live_invalid_fields <- function(field_data, metadata) {
+  result <- validate_crf_submission(field_data, metadata)
+  live <- Filter(function(e) e$kind != "required", result$errors)
+  vapply(live, function(e) e$message, character(1))
 }
 
 

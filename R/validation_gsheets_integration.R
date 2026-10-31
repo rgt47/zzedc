@@ -99,6 +99,61 @@ map_gsheets_field_type <- function(x) {
   if (is.na(mapped)) toupper(as.character(x)) else mapped
 }
 
+#' Parse a Data_Dictionary `validation` cell's `in(...)` choice list
+#'
+#' The package's own shipped example sheets already encode
+#' SELECT/RADIO/MULTISELECT choice lists directly in the
+#' `validation` column using `in(a,b,c)` syntax, e.g.
+#' `"in(ideation,drafting,submitted,accepted)"`. This reads only
+#' that one shape and is deliberately independent of
+#' `R/validation_dsl_parser.R`'s tokenizer: that parser returns a
+#' different AST node type per value (bare identifier vs. numeric
+#' literal vs. quoted string), which a consumer would need to branch
+#' on to recover plain text, for no benefit here since every real
+#' `validation` cell in this repository's shipped example sheets
+#' uses bare, unquoted values.
+#'
+#' @param x Character. A `validation` column cell, e.g.
+#'   `"in(Fall,Winter,Spring,Summer)"`.
+#' @return Character vector of trimmed choice values, in the order
+#'   given, or `NULL` if `x` is `NA`, empty, or does not match the
+#'   `in(...)` shape.
+#' @keywords internal
+parse_gsheets_choice_list <- function(x) {
+  x <- as.character(x %||% NA_character_)
+  if (is.na(x) || !nzchar(trimws(x))) return(NULL)
+
+  m <- regmatches(x, regexec("^\\s*in\\s*\\((.*)\\)\\s*$", x,
+                              ignore.case = TRUE))[[1]]
+  if (length(m) != 2) return(NULL)
+
+  values <- trimws(strsplit(m[2], ",", fixed = TRUE)[[1]])
+  values <- values[nzchar(values)]
+  if (length(values) == 0) NULL else values
+}
+
+#' Turn a raw choice value into a readable option label
+#'
+#' The `validation` column's `in(...)` list supplies only a single
+#' token per choice (e.g. `under_review`, `in_press`), not a
+#' separate display label. This gives imported choice fields a
+#' readable dropdown/radio label (`"Under Review"`) while the
+#' underlying `option_value` stored in `designer_field_options`
+#' stays exactly as authored, so it continues to match any DSL rule
+#' or export written against the raw token.
+#'
+#' @param x Character scalar, a single raw choice value.
+#' @return Character scalar, a title-cased label with underscores
+#'   and hyphens turned into spaces.
+#' @keywords internal
+beautify_choice_label <- function(x) {
+  words <- strsplit(gsub("[_-]+", " ", x), " ", fixed = TRUE)[[1]]
+  words <- words[nzchar(words)]
+  if (length(words) == 0) return(x)
+  paste0(toupper(substring(words, 1, 1)), substring(words, 2),
+         collapse = " ")
+}
+
 # ============================================================================
 # Google Sheets Import Functions
 # ============================================================================
@@ -1112,7 +1167,17 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   \item{Data_Dictionary}{One row per field across all CRFs.
 #'   Columns: `form_code`, `field_name`, `field_label`,
 #'   `field_type`, `required`. Optional: `validation`,
-#'   `description`, `field_order`.}
+#'   `description`, `field_order`. For a `select`, `radio`, or
+#'   `multiselect` field, `validation` may hold a choice list as
+#'   `in(value1,value2,...)` (bare, unquoted values, e.g.
+#'   `in(Fall,Winter,Spring,Summer)`); each value is imported as a
+#'   row in `designer_field_options`, with a title-cased display
+#'   label derived from the value (`under_review` becomes `"Under
+#'   Review"`) and the raw value preserved unchanged as
+#'   `option_value`. A field of one of these types with no `in(...)`
+#'   list, or a blank/malformed `validation` cell, imports with no
+#'   options, and the EDC tab renders it as a plain text input
+#'   rather than a choice widget with nothing to choose from.}
 #'   \item{validation_rules}{Columns expected by
 #'   [import_validation_rules_from_gsheets()]: `rule_id`,
 #'   `field_code`, `rule_dsl` and the optional columns documented
@@ -1327,8 +1392,9 @@ setup_zzedc_from_gsheets <- function(
     result$forms$message <- "No data dictionary found or tab missing"
   } else {
     form_errors <- list()
-    n_forms  <- 0L
-    n_fields <- 0L
+    n_forms   <- 0L
+    n_fields  <- 0L
+    n_options <- 0L
     for (form_code in unique(as.character(dd$form_code))) {
       fields <- dd[as.character(dd$form_code) == form_code, ]
       if (dry_run) {
@@ -1350,30 +1416,65 @@ setup_zzedc_from_gsheets <- function(
       }
       n_forms <- n_forms + 1L
       for (j in seq_len(nrow(fields))) {
+        mapped_type <- map_gsheets_field_type(fields$field_type[j])
         added <- tryCatch(
           add_form_field(
             design_id   = crf$crf_id,
             field_code  = as.character(fields$field_name[j]),
             field_label = as.character(fields$field_label[j]),
-            field_type  = map_gsheets_field_type(fields$field_type[j]),
+            field_type  = mapped_type,
             is_required = isTRUE(as.logical(fields$required[j]))
           ),
           error = function(e) list(success = FALSE, error = e$message)
         )
-        if (isTRUE(added$success)) {
-          n_fields <- n_fields + 1L
-        } else {
+        if (!isTRUE(added$success)) {
           form_errors[[paste(form_code,
                               fields$field_name[j], sep = "/")]] <-
             added$error %||% "add_form_field failed"
+          next
+        }
+        n_fields <- n_fields + 1L
+
+        # Choice-type fields store their options as separate rows in
+        # designer_field_options (populated via add_field_option()),
+        # not on designer_fields itself. The `validation` column's
+        # `in(...)` list is the only place this import format
+        # currently carries that data; see
+        # parse_gsheets_choice_list()'s own docs for why a small
+        # dedicated parser is used here instead of the DSL tokenizer.
+        if (mapped_type %in% c("SELECT", "RADIO", "MULTISELECT")) {
+          choice_values <- tryCatch(
+            parse_gsheets_choice_list(fields$validation[j]),
+            error = function(e) NULL
+          )
+          for (k in seq_along(choice_values)) {
+            opt <- tryCatch(
+              add_field_option(
+                field_id     = added$field_id,
+                option_value = choice_values[k],
+                option_label = beautify_choice_label(choice_values[k]),
+                option_order = k
+              ),
+              error = function(e) list(success = FALSE, error = e$message)
+            )
+            if (isTRUE(opt$success)) {
+              n_options <- n_options + 1L
+            } else {
+              form_errors[[paste(form_code, fields$field_name[j],
+                                  "option", choice_values[k],
+                                  sep = "/")]] <-
+                opt$error %||% "add_field_option failed"
+            }
+          }
         }
       }
     }
     result$forms <- list(
-      success         = length(form_errors) == 0,
-      imported_forms  = n_forms,
-      imported_fields = n_fields,
-      errors          = form_errors
+      success          = length(form_errors) == 0,
+      imported_forms   = n_forms,
+      imported_fields  = n_fields,
+      imported_options = n_options,
+      errors           = form_errors
     )
     if (length(form_errors) > 0) result$success <- FALSE
   }
