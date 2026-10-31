@@ -314,36 +314,51 @@ monitoring board memberships. One record per trial.
 
 ## 5. Reviewing, Reporting on, and Exporting Your Data
 
-**As of this writing, the Data Explorer, Reports, and Export
-tabs in the top navigation bar do not read your real tracked
-entries.** They were built as general-purpose demonstration
-screens and still show synthetic sample content (random numbers,
-placeholder statistics like "87% complete", and generic
-columns such as "Patient Demographics" that have nothing to do
-with this tracker). This is a known gap, tracked separately from
-the EDC data-entry screen itself, which *does* read and write
-your real data correctly.
+The Data Explorer, Reports, and Export tabs in the top navigation
+bar read your real tracked entries directly from the database --
+they are not demonstration screens.
 
-Concretely:
+- **Data Explorer** (top navigation bar), with "ZZedc Tracker
+  Data" selected as the data source, lists every entry you have
+  submitted across all forms, one row per entry, with each
+  field's value flattened into a readable `field=value; ...`
+  summary column.
+- **Reports** menu:
+  - **Activity Summary** shows the number of entries logged for
+    each form, plus the date of the first and most recent entry
+    per form.
+  - **Data Quality** re-runs the same required-field and
+    choice-list validation the EDC tab uses at submit time
+    against every stored entry, and lists any entry that fails a
+    check (a blank required field, or a stored value that is no
+    longer one of the field's current choices). Entries that
+    belong to a form with no current definition (for example a
+    leftover from before this study's forms were set up) are
+    called out separately rather than silently included in or
+    excluded from the totals.
+  - **Domain Breakdown** tabulates how often each choice-field
+    option has been selected, per form -- for example, how many
+    manuscripts are logged at each status.
+  - **Personal Statement** auto-generates a draft narrative,
+    organized the same way a promotion self-assessment is
+    (Research and Scholarly Activities, Teaching Activities,
+    Service Contributions), summarizing counts and breakdowns
+    computed from your logged entries. It regenerates every time
+    you open it, so it always reflects what is currently in the
+    tracker. It is a data-grounded starting outline, not a
+    finished statement: it has no access to funding amounts,
+    leadership roles, citation counts, or other context your
+    actual self-assessment should cover, and it will read thin
+    until the tracker is populated with real activity.
+- **Export** lets you choose a single form, or all forms
+  combined, an optional date range, and a CSV or XLSX format,
+  with a preview of the rows before download.
 
-- **Data Explorer** shows a randomly generated 50-row sample
-  table, not your manuscripts, courses, or other entries.
-- **Reports** (Basic Report, Quality Report, Statistical Report
-  under the Reports menu) show a demo histogram of random
-  numbers and hardcoded placeholder statistics, not summaries of
-  your actual data.
-- **Export** offers export options for data sources ("Patient
-  Demographics", "Adverse Events", etc.) that do not correspond
-  to anything in this tracker; do not use it to produce dossier
-  files yet.
-
-**Until this is fixed**, the only verified way to see your real
-data is the recent-entries panel on the right side of the EDC
-tab, which lists up to five of the most recent entries for the
-currently selected form. For anything beyond that -- a full
-pipeline view, a count by status, or an export for the promotion
-dossier -- ask your lab data scientist to query the database
-directly on your behalf.
+Because every one of these screens is computed from what is
+actually stored, an empty or sparse tracker will show empty or
+sparse reports. Enter your activity through the EDC tab first --
+the reports update automatically, with no separate refresh step
+required.
 
 ---
 
