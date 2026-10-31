@@ -223,6 +223,11 @@ output$edc_crf_field_flags <- renderUI({
       tags$ul(class = "mb-0 ps-3", lapply(flags, tags$li)))
 })
 
+# Bumped on every successful save so crf_entries_table (below) picks
+# up the new row immediately; the table otherwise only reacts to the
+# form selector, not to data_entries changing underneath it.
+crf_entries_refresh <- reactiveVal(0)
+
 observeEvent(input$submitcrf, {
   shiny::req(input$edc_crf_form)
   crf_id <- as.integer(input$edc_crf_form)
@@ -262,6 +267,7 @@ observeEvent(input$submitcrf, {
       type = "message", duration = 5
     )
     shinyjs::show("crf_results")
+    crf_entries_refresh(crf_entries_refresh() + 1)
   } else {
     shiny::showNotification(
       paste("Database error saving entry:", result$error),
@@ -272,6 +278,7 @@ observeEvent(input$submitcrf, {
 
 output$crf_entries_table <- DT::renderDataTable({
   shiny::req(input$edc_crf_form)
+  crf_entries_refresh()
   forms <- zzedc:::get_active_crf_forms(db_pool)
   crf_row <- forms[forms$crf_id == as.integer(input$edc_crf_form), , drop = FALSE]
   if (nrow(crf_row) == 0) return(NULL)
