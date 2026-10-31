@@ -23,11 +23,14 @@ controls for selecting data sources (local files, database, or sample data),
 viewing data tables, analyzing missing data patterns, and creating visualizations.
 }
 \details{
-The module supports three data sources:
+The module supports two data sources:
 \itemize{
-\item Local CSV/TSV files (uploaded via file input)
-\item Database connections (connection string and table name)
-\item Built-in sample data (for demonstration and testing)
+\item ZZedc Tracker Data: every entry currently saved through
+the EDC tab, across all forms, via
+\code{\link{flatten_all_entries_for_explorer}}. Selected by
+default.
+\item Local CSV/TSV files (uploaded via file input), for
+exploring data outside this application.
 }
 }
 \examples{

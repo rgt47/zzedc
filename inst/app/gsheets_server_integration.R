@@ -196,11 +196,24 @@ initialize_traditional_server <- function(input, output, session) {
   if (file.exists("report3.R")) {
     source("report3.R", local = TRUE)
   }
-
-  # Always load data explorer and export
-  if (file.exists("data.R")) {
-    source("data.R", local = TRUE)
+  if (file.exists("report4.R")) {
+    source("report4.R", local = TRUE)
   }
+
+  # Data Explorer is a real Shiny module (R/data_module.R), not a flat
+  # script like the files above -- previously nothing here ever
+  # called data_server(), so its outputs (data-*) were never bound to
+  # anything despite data_ui() rendering a working-looking control
+  # panel. (The `if (file.exists("data.R"))` this replaced always
+  # evaluated FALSE: no such file was ever shipped.)
+  data_server_fn <- tryCatch(
+    utils::getFromNamespace("data_server", "zzedc"),
+    error = function(e) NULL
+  )
+  if (!is.null(data_server_fn)) {
+    data_server_fn("data")
+  }
+
   if (file.exists("export.R")) {
     source("export.R", local = TRUE)
   }

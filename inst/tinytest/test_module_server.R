@@ -65,28 +65,39 @@ local({
 })
 
 # ----------------------------------------------------------------
-# data_server: sample data source populates reactive data
+# data_server: ZZedc Tracker Data source reads real data_entries
 # ----------------------------------------------------------------
+# The previous version of this test drove the module's "sample"
+# source (a hardcoded 50-row rnorm() data frame); that source was
+# removed when data_server was wired to real data_entries (see
+# R/edc_reports.R / R/data_module.R). This exercises its
+# replacement, "zzedc", against a small seeded fixture instead.
 
 local({
   if (!exists("data_server")) return(invisible())
 
+  db_path <- tempfile(fileext = ".db")
+  test_con <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+  zzedc:::ensure_data_entries_table(test_con)
+  zzedc:::db_insert_data_entry(
+    test_con, subject_id = "PUB-1", form_name = "manuscripts",
+    data = list(tracking_id = "PUB-1", status = "ideation"),
+    is_complete = TRUE, created_by = "rgt"
+  )
+  assign("db_pool", test_con, envir = .GlobalEnv)
+
   shiny::testServer(zzedc:::data_server, {
     session$setInputs(
-      data_source = "sample",
+      data_source = "zzedc",
       max_rows    = 50
     )
 
-    # `current_data()` is a private reactive in the module; access
-    # via `session$getReturned()` would require the module to
-    # expose it. Instead, drive an output that depends on it and
-    # verify the rendered string is non-empty. The "sample"
-    # branch produces a 50-row data frame, so the summary output
-    # contains "Rows: 50".
     summary_text <- output$data_summary
-    expect_true(grepl("Rows: 50", summary_text, fixed = TRUE))
-    expect_true(grepl("Columns: 9", summary_text, fixed = TRUE))
+    expect_true(grepl("Rows: 1", summary_text, fixed = TRUE))
   })
+
+  DBI::dbDisconnect(test_con)
+  rm("db_pool", envir = .GlobalEnv)
 })
 
 # ----------------------------------------------------------------

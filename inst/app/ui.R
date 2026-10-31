@@ -206,21 +206,27 @@ if (!exists("ui_content") || is.null(ui_content)) {
     title = tagList(safe_icon("bar-chart-fill"), "Reports"),
 
     bslib::nav_panel(
-      title = tagList(safe_icon("file-text"), "Basic Report"),
+      title = tagList(safe_icon("file-text"), "Activity Summary"),
       value = "report1",
       uiOutput("rep1")
     ),
 
     bslib::nav_panel(
-      title = tagList(safe_icon("shield-check"), "Quality Report"),
+      title = tagList(safe_icon("shield-check"), "Data Quality"),
       value = "report2",
       uiOutput("rep2")
     ),
 
     bslib::nav_panel(
-      title = tagList(safe_icon("graph-up"), "Statistical Report"),
+      title = tagList(safe_icon("graph-up"), "Domain Breakdown"),
       value = "report3",
       uiOutput("htable")
+    ),
+
+    bslib::nav_panel(
+      title = tagList(safe_icon("file-person"), "Personal Statement"),
+      value = "report4",
+      uiOutput("rep4")
     )
   ),
 

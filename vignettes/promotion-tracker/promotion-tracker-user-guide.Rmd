@@ -23,6 +23,13 @@ No knowledge of R, databases, or ZZedc internals is required. A
 lab data scientist has installed and configured the system; this
 guide covers everything the assistant will do day to day.
 
+This revision (last verified 2026-10-31, against the EDC tab as
+actually run and clicked through in a browser) corrects several
+claims in the previous version of this guide that described an
+intended future design rather than the application's actual
+current behavior. Where a tab does not yet do what you might
+expect, that is noted explicitly below rather than left implied.
+
 ---
 
 ## 1. Launching the Application
@@ -34,9 +41,13 @@ library(zzedc)
 launch_zzedc()
 ```
 
-The application opens in your default browser at
-`http://localhost:3838`. Keep the console open while you work;
-closing it stops the server.
+The application opens in your default browser. By default it
+picks a free port automatically, so the exact address (something
+like `http://127.0.0.1:XXXXX`) is printed to the console when it
+starts -- it is not always the same address twice. If your lab
+data scientist has configured a fixed, memorable address for you,
+use that instead and ignore the console output. Keep the console
+open while you work; closing it stops the server.
 
 If you prefer a persistent local installation that starts
 automatically, ask the lab data scientist to configure
@@ -46,37 +57,38 @@ auto-launch on login.
 
 ## 2. Logging In
 
-Enter your username and password on the login screen. The
-application does not force a password change on first login;
-if the lab data scientist issued you a temporary password,
-ask them to generate a permanent one for you, or follow their
-instructions for changing it yourself. Choose a password you
-will remember; it is not recoverable without the lab data
-scientist's help.
+Click the **EDC** tab in the top navigation bar. If you are not
+already logged in, a login box appears over the page. Enter your
+username and password there and click **Login** (or **Dismiss**
+to close the box without logging in).
 
-If the application shows a session-timeout warning, save your
-current entry before clicking away. Unsaved form fields are lost
-on timeout.
+The application does not force a password change on first login;
+if the lab data scientist issued you a temporary password, ask
+them to generate a permanent one for you, or follow their
+instructions for changing it yourself. Choose a password you will
+remember; it is not recoverable without the lab data scientist's
+help, since only a hash of it is stored.
 
 ---
 
 ## 3. Application Layout
 
-The left sidebar contains seven tabs, one per tracking domain:
+Once logged in, the **EDC** tab shows three sections side by side:
 
-| Tab | What it tracks |
-|---|---|
-| Publications | Manuscripts from idea to print |
-| Courses | Courses developed or taught |
-| Mentoring | One-on-one student tutorials |
-| Grant Reviews | External grant panels served |
-| Committees | Departmental and national committees |
-| Journal Reviews | Peer review assignments completed |
-| DSMB | Data safety monitoring board memberships |
+- **Left:** your username and a **Form** dropdown. This is how
+  you switch between the seven tracking domains -- there is one
+  combined data-entry screen, not seven separate tabs.
+- **Middle:** the fields for whichever form is currently selected,
+  with a **Submit entry** button below them.
+- **Right:** a panel (currently labeled "Messages" in the
+  interface -- this is a cosmetic leftover, not a messaging
+  feature) listing the five most recent entries *for the
+  currently selected form only*, with search and paging controls.
 
-The top navigation bar also provides access to the Data Explorer
-(for browsing all your records at once), the Reports tab, and the
-Export Center.
+The top navigation bar also has **Home**, **Reports**, **Data
+Explorer**, and **Export** tabs. As of this writing, those four
+do not yet reflect your real tracked data -- see Section 5 below
+before relying on any of them.
 
 ---
 
@@ -84,44 +96,57 @@ Export Center.
 
 ### How to create a new entry
 
-1. Click the relevant tab in the left sidebar.
-2. Click the **New Record** button (top right of the form panel).
-3. Assign a tracking ID following the convention for that domain
+1. Click the **EDC** tab, then choose the relevant form from the
+   **Form** dropdown on the left.
+2. Assign a tracking ID following the convention for that domain
    (see each section below).
-4. Fill in the fields. Required fields are marked with a red
-   asterisk and will block the save if left empty.
-5. Click **Save**. A green confirmation banner appears if the
-   save succeeded. A red banner describes any validation errors.
+3. Fill in the fields. Required fields are marked with a red
+   asterisk. A field with a fixed list of options (Status, Term,
+   Role, and similar) is presented as a dropdown you choose from,
+   rather than free text.
+4. Click **Submit entry**. A green "Entry saved." banner appears
+   on success and the entry immediately appears in the recent-
+   entries panel on the right. If a required field was left
+   blank, or an entered value is not one of a field's listed
+   options, a red notification describes the problem and the
+   entry is not saved; you can keep editing and resubmit.
 
-### How to edit an existing entry
+### Editing an existing entry
 
-Click the record in the table at the top of the tab, then edit
-the fields that have changed and click **Save**.
+The EDC tab does not currently support reopening a saved entry
+for editing. If something was entered incorrectly, note the
+tracking ID and ask your lab data scientist to correct it
+directly in the database; do not try to work around this by
+submitting a duplicate corrected entry under the same tracking
+ID, since tracking IDs are not enforced as unique.
 
 ---
 
 ### 4.1 Publications (`PUB-YYYY-NNN`)
 
-Use this form to track every manuscript from initial concept
-through publication. Create one record per manuscript.
+Use this form (listed as "MANUSCRIPTS Form" in the Form dropdown)
+to track every manuscript from initial concept through
+publication. Create one record per manuscript.
 
 **Tracking ID convention:** `PUB-2026-001`, `PUB-2026-002`, ...
-Reset the counter each calendar year.
+Reset the counter each calendar year. This is a convention for
+you to follow consistently; the application does not check or
+enforce the format.
 
 | Field | What to enter |
 |---|---|
 | Tracking ID | Unique identifier, format `PUB-YYYY-NNN` |
-| Title | Working or final manuscript title |
+| Manuscript Title | Working or final manuscript title |
 | Target Journal | Journal of intended submission |
 | Co-authors | Comma-separated list of co-author surnames |
-| Status | Current stage (see status list below) |
+| Status | Current stage, chosen from the dropdown below |
 | Submission Date | Date the manuscript was first submitted |
 | Acceptance Date | Date of formal acceptance notice |
 | Publication Date | Date of online or print publication |
 | DOI | Digital object identifier once assigned |
 | Notes | Any notes relevant to the promotion dossier |
 
-**Status options** (choose one):
+**Status options** (choose one from the dropdown):
 
 - `ideation` -- concept stage, not yet drafted
 - `drafting` -- active writing in progress
@@ -132,20 +157,23 @@ Reset the counter each calendar year.
 - `in_press` -- accepted and assigned a DOI; not yet in an issue
 - `published` -- assigned to a volume and issue
 
-**Validation:** the system will flag you if the acceptance date
-precedes the submission date, or if the publication date precedes
-the acceptance date.
+The three date fields are plain date pickers; the application
+does **not** currently check that they are in a sensible order
+(e.g. it will accept an acceptance date before the submission
+date without complaint). Double-check the dates yourself before
+submitting.
 
 **Tip:** enter a record at ideation stage and update the status
-field as the manuscript progresses. The Data Explorer will show
-you your full pipeline at a glance.
+field as the manuscript progresses by submitting a corrected
+entry (see "Editing an existing entry" above for the current
+limitation on this).
 
 ---
 
 ### 4.2 Courses (`CRS-YYYY-NNN`)
 
-Use this form to record every course you developed or taught.
-One record per course per term.
+Use this form ("COURSES Form" in the dropdown) to record every
+course you developed or taught. One record per course per term.
 
 **Tracking ID convention:** `CRS-2026-001`, `CRS-2026-002`, ...
 
@@ -155,8 +183,8 @@ One record per course per term.
 | Course Code | Department code and number, e.g., `FMPH 101` |
 | Course Title | Full course title |
 | Academic Year | e.g., `2025-2026` |
-| Term | Fall, Winter, Spring, or Summer |
-| Role | `developed`, `taught`, or `developed_and_taught` |
+| Term | Fall, Winter, Spring, or Summer (dropdown) |
+| Role | `developed`, `taught`, or `developed_and_taught` (dropdown) |
 | Student Count | Total enrolled students |
 | Contact Hours | Total instructor contact hours for the term |
 | Notes | Curriculum innovations, guest lectures, etc. |
@@ -170,8 +198,8 @@ ten weeks is 30 contact hours.
 
 ### 4.3 Mentoring (`MNT-YYYY-NNN`)
 
-Use this form to record individual tutorial relationships.
-One record per student.
+Use this form ("MENTORING Form" in the dropdown) to record
+individual tutorial relationships. One record per student.
 
 **Tracking ID convention:** `MNT-2026-001`, `MNT-2026-002`, ...
 
@@ -179,7 +207,7 @@ One record per student.
 |---|---|
 | Tracking ID | Unique identifier |
 | Student Initials | Initials only (e.g., `J.D.`) |
-| Student Level | undergraduate, graduate, postdoc, or other |
+| Student Level | undergraduate, graduate, postdoc, or other (dropdown) |
 | Start Date | Date the relationship began |
 | End Date | Date the relationship ended (leave blank if ongoing) |
 | Hours per Week | Approximate weekly tutorial hours |
@@ -187,15 +215,17 @@ One record per student.
 | Outcome | Degree earned, publication, employment, etc. |
 | Notes | Any notes relevant to the dossier |
 
-**Validation:** the end date, if entered, must fall on or after
-the start date.
+As with Publications, the application does not currently check
+that the end date falls on or after the start date -- check this
+yourself.
 
 ---
 
 ### 4.4 Grant Reviews (`GNT-YYYY-NNN`)
 
-Use this form to record each external grant review service.
-One record per review assignment.
+Use this form ("GRANT_REVIEWS Form" in the dropdown) to record
+each external grant review service. One record per review
+assignment.
 
 **Tracking ID convention:** `GNT-2026-001`, `GNT-2026-002`, ...
 
@@ -206,15 +236,16 @@ One record per review assignment.
 | Program Name | Study section or program name |
 | Panel Name | Panel or review group identifier |
 | Review Date | Date of the review panel meeting or deadline |
-| Role | `reviewer`, `chair`, or `observer` |
+| Role | `reviewer`, `chair`, or `observer` (dropdown) |
 | Notes | Notes relevant to the dossier |
 
 ---
 
 ### 4.5 Committees (`COM-YYYY-NNN`)
 
-Use this form to record standing or ad-hoc committee
-memberships. One record per committee.
+Use this form ("COMMITTEES Form" in the dropdown) to record
+standing or ad-hoc committee memberships. One record per
+committee.
 
 **Tracking ID convention:** `COM-2026-001`, `COM-2026-002`, ...
 
@@ -223,23 +254,23 @@ memberships. One record per committee.
 | Tracking ID | Unique identifier |
 | Committee Name | Official name of the committee |
 | Organization | Institution or body, e.g., `UCSD`, `ASA`, `NIH` |
-| Scope | departmental, institutional, national, or international |
+| Scope | departmental, institutional, national, or international (dropdown) |
 | Role | Your role, e.g., `member`, `chair`, `secretary` |
 | Start Date | Date your membership began |
 | End Date | Date your membership ended (leave blank if current) |
-| Meeting Frequency | Typical meeting cadence |
-| Active | `yes` if membership is current, `no` if completed |
+| Meeting Frequency | Typical meeting cadence (dropdown) |
+| Active | `yes` if membership is current, `no` if completed (dropdown) |
 | Notes | Notes relevant to the dossier |
 
-**Validation:** the end date, if entered, must fall on or after
-the start date.
+The end-date-after-start-date check described for Mentoring above
+does not apply here either; verify manually.
 
 ---
 
 ### 4.6 Journal Reviews (`JRV-YYYY-NNN`)
 
-Use this form to record each peer review assignment.
-One record per manuscript reviewed.
+Use this form ("JOURNAL_REVIEWS Form" in the dropdown) to record
+each peer review assignment. One record per manuscript reviewed.
 
 **Tracking ID convention:** `JRV-2026-001`, `JRV-2026-002`, ...
 
@@ -249,7 +280,7 @@ One record per manuscript reviewed.
 | Journal Name | Name of the journal |
 | Manuscript ID | Blinded identifier supplied by the journal |
 | Review Date | Date you submitted your review |
-| Recommendation | Your editorial recommendation |
+| Recommendation | Your editorial recommendation (dropdown) |
 | Notes | Notes relevant to the dossier (do not include manuscript details) |
 
 **Recommendation options:** `accept`, `minor_revision`,
@@ -262,8 +293,8 @@ This maintains a complete record of all review requests.
 
 ### 4.7 DSMB Memberships (`DSB-YYYY-NNN`)
 
-Use this form to record data safety monitoring board
-memberships. One record per trial.
+Use this form ("DSMB Form" in the dropdown) to record data safety
+monitoring board memberships. One record per trial.
 
 **Tracking ID convention:** `DSB-2026-001`, `DSB-2026-002`, ...
 
@@ -272,76 +303,51 @@ memberships. One record per trial.
 | Tracking ID | Unique identifier |
 | Trial Name | Abbreviated or full trial name |
 | Sponsor | Funding agency or industry sponsor |
-| Role | `member`, `chair`, `statistician`, or `other` |
+| Role | `member`, `chair`, `statistician`, or `other` (dropdown) |
 | Start Date | Date your membership began |
 | End Date | Date your membership ended (leave blank if current) |
-| Meeting Frequency | Typical meeting cadence |
-| Active | `yes` if membership is current, `no` if completed |
+| Meeting Frequency | Typical meeting cadence (dropdown) |
+| Active | `yes` if membership is current, `no` if completed (dropdown) |
 | Notes | Notes relevant to the dossier |
 
 ---
 
-## 5. Reviewing Your Data
+## 5. Reviewing, Reporting on, and Exporting Your Data
 
-The **Data Explorer** tab (top navigation bar) provides a
-consolidated view of all records across all seven forms.
+**As of this writing, the Data Explorer, Reports, and Export
+tabs in the top navigation bar do not read your real tracked
+entries.** They were built as general-purpose demonstration
+screens and still show synthetic sample content (random numbers,
+placeholder statistics like "87% complete", and generic
+columns such as "Patient Demographics" that have nothing to do
+with this tracker). This is a known gap, tracked separately from
+the EDC data-entry screen itself, which *does* read and write
+your real data correctly.
 
-Useful features:
+Concretely:
 
-- **Filter by date range** to isolate the promotion review
-  period (typically the last three to five years; confirm the
-  exact window with your department).
-- **Filter by domain** using the form-code selector.
-- **Sort any column** by clicking the column header.
-- **Search** for a keyword using the search box to locate a
-  specific manuscript, committee, or journal.
+- **Data Explorer** shows a randomly generated 50-row sample
+  table, not your manuscripts, courses, or other entries.
+- **Reports** (Basic Report, Quality Report, Statistical Report
+  under the Reports menu) show a demo histogram of random
+  numbers and hardcoded placeholder statistics, not summaries of
+  your actual data.
+- **Export** offers export options for data sources ("Patient
+  Demographics", "Adverse Events", etc.) that do not correspond
+  to anything in this tracker; do not use it to produce dossier
+  files yet.
 
-For the publications pipeline, use the status filter to count
-how many manuscripts are in each stage.
-
----
-
-## 6. Reports
-
-The **Reports** tab provides summary counts and timelines for
-each domain. The following reports are most relevant to the
-promotion review:
-
-| Report | Use |
-|---|---|
-| Activity Summary | Counts per domain per academic year |
-| Publications Pipeline | Status breakdown across manuscripts |
-| Teaching Load | Student counts and contact hours by year |
-| Service Profile | Committee and review counts by year |
-
-Run the Activity Summary report at the start of each semester
-and save a copy as confirmation of your progress.
+**Until this is fixed**, the only verified way to see your real
+data is the recent-entries panel on the right side of the EDC
+tab, which lists up to five of the most recent entries for the
+currently selected form. For anything beyond that -- a full
+pipeline view, a count by status, or an export for the promotion
+dossier -- ask your lab data scientist to query the database
+directly on your behalf.
 
 ---
 
-## 7. Exporting Data for the Promotion Dossier
-
-When you are ready to compile the formal dossier:
-
-1. Open the **Export Center** tab.
-2. Select the date range that matches your promotion review
-   window.
-3. Choose your preferred format: Excel for a working
-   spreadsheet, CSV for import into other tools.
-4. Click **Export**. The file downloads to your browser's
-   default download folder.
-
-Export each domain separately for the cleanest output, then
-assemble the individual sheets into the dossier tables your
-department requires.
-
-The audit log records every export. If the promotion committee
-asks for confirmation that the data were not altered after
-export, your technical lead can provide a signed audit extract.
-
----
-
-## 8. Recommended Data Entry Cadence
+## 6. Recommended Data Entry Cadence
 
 Keeping the tracker current takes roughly five to ten minutes per
 entry if done at the time the activity occurs. Batch
@@ -350,9 +356,9 @@ reconstruction is error-prone.
 | Activity | When to enter or update |
 |---|---|
 | New manuscript | At conception (status: `ideation`) |
-| Manuscript submission | Same day (update status, add submission date) |
-| Manuscript accepted | Same day (update status, add acceptance date) |
-| Manuscript published | Same day (update status, add DOI, publication date) |
+| Manuscript submission | Same day (new corrected entry noting submission date) |
+| Manuscript accepted | Same day (new corrected entry noting acceptance date) |
+| Manuscript published | Same day (new corrected entry noting DOI, publication date) |
 | Course taught | First week of each term |
 | Mentoring relationship | At start and end |
 | Grant review completed | Same day as review deadline or panel meeting |
@@ -360,28 +366,34 @@ reconstruction is error-prone.
 | Journal review submitted | Same day |
 | DSMB meeting attended | Day of the meeting |
 
-A monthly five-minute review of open records (manuscripts in
-`under_review` or `revision`, committees with no end date,
-mentoring with no outcome) is sufficient to catch anything
-missed.
+Because the EDC tab cannot currently reopen a saved entry for
+editing (Section 4), "update" above means asking your lab data
+scientist to make the correction directly, or -- if you and your
+department are comfortable with duplicate tracking IDs for the
+same manuscript at different stages -- submitting a new entry.
+Confirm your department's preference before choosing an approach.
 
 ---
 
-## 9. Troubleshooting
+## 7. Troubleshooting
 
 **The application will not launch.** Close the browser and
-re-run `launch_zzedc()` in a fresh R session. If the port
-3838 is occupied, your lab data scientist can configure an
-alternate port.
+re-run `launch_zzedc()` in a fresh R session. The console prints
+the address to open; if nothing prints, ask your lab data
+scientist to check for a startup error.
 
-**A save fails with a validation error.** Read the red banner
-message; it identifies the field and what is wrong. The most
-common causes are a date out of order (acceptance before
-submission) or a required field left empty.
+**A save fails with a validation error.** Read the red
+notification; it identifies the field and what is wrong. The
+most common causes are a required field left empty, or (rarely,
+since most constrained fields are dropdowns) a value that is not
+one of a field's listed options.
 
-**A record is missing.** Use the Data Explorer search box.
-Records are not deleted from the database; if it was saved, it
-is there.
+**A record is missing.** Records are not deleted from the
+database; if it was saved, it is there. The recent-entries panel
+on the EDC tab only shows the five latest entries for the
+currently selected form, so an older record will not appear
+there -- ask your lab data scientist to look it up directly
+until the Data Explorer tab is wired to real data (Section 5).
 
 **You forgot your password.** Contact the lab data scientist.
 Passwords are hashed and cannot be recovered, but an
@@ -389,15 +401,17 @@ administrator can reset the account.
 
 ---
 
-## 10. Glossary
+## 8. Glossary
 
 - **Tracking ID**: the unique identifier you assign to each
-  entry. Follow the domain prefix conventions in Section 4.
-- **Status**: the current lifecycle stage of a manuscript.
+  entry. Follow the domain prefix conventions in Section 4. Not
+  currently enforced to be unique by the application.
+- **Status**: the current lifecycle stage of a manuscript, chosen
+  from a fixed dropdown list.
 - **Contact hours**: total scheduled instructor-student contact
   time for a course, not including preparation.
-- **Audit log**: a system-maintained record of every change to
-  the database. You do not need to manage it; it runs
-  automatically.
-- **Export Center**: the application tab for downloading your
-  data as Excel or CSV files.
+- **Form dropdown**: the selector on the left of the EDC tab used
+  to switch between the seven tracking domains.
+- **Recent-entries panel**: the list on the right of the EDC tab,
+  currently labeled "Messages" in the interface, showing the five
+  most recently saved entries for the currently selected form.

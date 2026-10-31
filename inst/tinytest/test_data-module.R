@@ -43,11 +43,14 @@ local({
     ui_output <- data_ui("test_data")
     ui_html <- as.character(ui_output)
 
-    # Check for conditional panels (rendered as data-display-if)
+    # Check for conditional panels (rendered as data-display-if).
+    # The "Database"/"Sample Data" sources were removed when this
+    # module was wired to real data_entries (ZZedc Tracker Data is
+    # now the default source, alongside Local Files); see
+    # R/edc_reports.R.
     expect_true(grepl("data-display-if", ui_html, fixed = TRUE))
     expect_true(grepl("Local Files", ui_html, fixed = TRUE))
-    expect_true(grepl("Database", ui_html, fixed = TRUE))
-    expect_true(grepl("Sample Data", ui_html, fixed = TRUE))
+    expect_true(grepl("ZZedc Tracker Data", ui_html, fixed = TRUE))
 
     })
 })

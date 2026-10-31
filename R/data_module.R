@@ -22,11 +22,14 @@ NULL
 #'   - Multiple tabs: Data View, Variable Info, Missing Data Analysis, Visualizations
 #'
 #' @details
-#' The module supports three data sources:
+#' The module supports two data sources:
 #' \itemize{
-#'   \item Local CSV/TSV files (uploaded via file input)
-#'   \item Database connections (connection string and table name)
-#'   \item Built-in sample data (for demonstration and testing)
+#'   \item ZZedc Tracker Data: every entry currently saved through
+#'     the EDC tab, across all forms, via
+#'     \code{\link{flatten_all_entries_for_explorer}}. Selected by
+#'     default.
+#'   \item Local CSV/TSV files (uploaded via file input), for
+#'     exploring data outside this application.
 #' }
 #'
 #' @examples
@@ -47,23 +50,23 @@ data_ui <- function(id) {
         wellPanel(
           h4("Data Source"),
           selectInput(ns("data_source"), "Choose Data Source:",
-                     choices = c("Local Files" = "local",
-                               "Database" = "database",
-                               "Sample Data" = "sample"),
-                     selected = "local"),
+                     choices = c("ZZedc Tracker Data" = "zzedc",
+                               "Local Files" = "local"),
+                     selected = "zzedc"),
+
+          conditionalPanel(
+            condition = paste0("input['", ns("data_source"), "'] == 'zzedc'"),
+            p(class = "small text-muted",
+              "Every entry currently saved through the EDC tab, across",
+              "all forms. Each row's field values are collapsed into",
+              "one readable column since different forms have",
+              "different fields.")
+          ),
 
           conditionalPanel(
             condition = paste0("input['", ns("data_source"), "'] == 'local'"),
             fileInput(ns("data_file"), "Choose CSV File:",
                      accept = c(".csv", ".txt", ".tsv"))
-          ),
-
-          conditionalPanel(
-            condition = paste0("input['", ns("data_source"), "'] == 'database'"),
-            textInput(ns("db_connection"), "Database Connection:",
-                     placeholder = "Enter connection string"),
-            textInput(ns("db_table"), "Table Name:",
-                     placeholder = "Enter table name")
           ),
 
           hr(),
@@ -188,19 +191,17 @@ data_server <- function(id) {
     current_data <- reactive({
       req(input$data_source)
 
-      if (input$data_source == "sample") {
-        # Generate sample data
-        data.frame(
-          ID = 1:50,
-          Subject = paste0("SUBJ_", sprintf("%03d", 1:50)),
-          Age = round(rnorm(50, 65, 10)),
-          Gender = sample(c("M", "F"), 50, replace = TRUE),
-          Visit_Date = sample(seq(as.Date("2024-01-01"), as.Date("2024-12-31"), by = "day"), 50),
-          Score_1 = round(rnorm(50, 75, 15), 1),
-          Score_2 = round(rnorm(50, 80, 12), 1),
-          Status = sample(c("Complete", "Incomplete", "Pending"), 50, replace = TRUE),
-          Notes = sample(c("Normal", "Follow-up", "Review", NA), 50, replace = TRUE, prob = c(0.4, 0.3, 0.2, 0.1))
-        )
+      if (input$data_source == "zzedc") {
+        conn <- if (exists("db_pool", envir = globalenv())) {
+          get("db_pool", envir = globalenv())
+        } else {
+          NULL
+        }
+        if (is.null(conn)) {
+          data.frame(Message = "No database connection available.")
+        } else {
+          flatten_all_entries_for_explorer(conn)
+        }
       } else if (input$data_source == "local") {
         req(input$data_file)
         tryCatch({
