@@ -4,7 +4,7 @@
 \alias{validate_crf_submission}
 \title{Validate a CRF submission's field values against their metadata}
 \usage{
-validate_crf_submission(field_data, metadata)
+validate_crf_submission(field_data, metadata, crf_code = NULL)
 }
 \arguments{
 \item{field_data}{Named list of submitted field values, keyed by
@@ -12,26 +12,37 @@ validate_crf_submission(field_data, metadata)
 
 \item{metadata}{Field metadata as returned by
 \code{\link[=get_crf_field_metadata]{get_crf_field_metadata()}}.}
+
+\item{crf_code}{The form's \code{crf_code}, or \code{NULL} to skip the
+tracking-ID format check entirely.}
 }
 \value{
 \code{list(valid=, errors=)}. \code{errors} is a named list (by
 \code{field_code}) of \code{list(kind=, message=)}, \code{kind} one of
-\code{"required"} or \code{"invalid_choice"}.
+\code{"required"}, \code{"invalid_choice"}, or \code{"invalid_format"}.
 }
 \description{
-Checks required-field presence and, for choice-type fields
+Checks required-field presence, for choice-type fields
 (\code{select}/\code{radio}/\code{checkbox_group}) with a defined choice set,
-that every non-blank submitted value is actually a member of it.
-A blank, non-required field is never flagged. Pulled out as a
+that every non-blank submitted value is actually a member of it,
+and, when \code{crf_code} names a form with a tracking-ID convention
+(see \code{\link[=tracking_id_prefix_for_form]{tracking_id_prefix_for_form()}}), that \code{tracking_id} matches
+it. A blank, non-required field is never flagged. Pulled out as a
 plain function (rather than inlined in the EDC tab's Shiny
 observer) so it is unit-testable outside Shiny and so the EDC
 tab can run the exact same check twice for two different
 purposes: live, non-blocking inline flags as the user fills in
 the form (via \code{\link[=crf_live_invalid_fields]{crf_live_invalid_fields()}}, which only surfaces
-\code{"invalid_choice"}-kind problems -- an empty required field is
+non-\code{"required"}-kind problems -- an empty required field is
 expected while a form is still being filled in, not an error to
 flag mid-entry), and the full gate run once at submit time
 (every error kind, including \code{"required"}), which still blocks
 saving an incomplete or invalid record.
+}
+\details{
+Uniqueness of \code{tracking_id} within its year is a separate,
+database-backed check (see \code{\link[=tracking_id_already_used]{tracking_id_already_used()}}); it is
+not performed here since this function is deliberately pure and
+database-free.
 }
 \keyword{internal}

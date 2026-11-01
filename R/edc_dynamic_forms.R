@@ -141,32 +141,90 @@ get_crf_field_metadata <- function(conn, crf_id) {
 }
 
 
+#' Tracking-ID prefix convention for a CRF form, if one is defined
+#'
+#' Only the manuscripts form currently has an enforced tracking ID
+#' convention (`PUB-<year>-<n>`, assigned in sequence per year by
+#' [next_manuscript_tracking_id()]). Returns `NULL` for any other
+#' form (or an unrecognized `crf_code`), so
+#' [validate_tracking_id_format()] is a no-op there.
+#'
+#' @param crf_code A form's `crf_definitions.crf_code`, in any case.
+#' @return A single prefix string, or `NULL`.
+#' @keywords internal
+tracking_id_prefix_for_form <- function(crf_code) {
+  prefixes <- c(manuscripts = "PUB")
+  key <- tolower(crf_code %||% "")
+  if (!key %in% names(prefixes)) return(NULL)
+  prefixes[[key]]
+}
+
+#' Human-readable description of a form's tracking-ID pattern
+#'
+#' Used by [validate_tracking_id_format()]'s error message.
+#'
+#' @param prefix A tracking-ID prefix, e.g. `"PUB"`.
+#' @return A single string, e.g. `'PUB-YYYY-N (e.g. "PUB-2026-001")'`.
+#' @keywords internal
+.tracking_id_pattern_text <- function(prefix) {
+  sprintf('%s-YYYY-N (e.g. "%s-%s-001")', prefix, prefix, format(Sys.Date(), "%Y"))
+}
+
+#' Check a tracking ID against its form's prefix-year-number convention
+#'
+#' @param value The submitted `tracking_id` value.
+#' @param crf_code The form's `crf_code` (e.g. `"manuscripts"`).
+#' @return `NULL` if the form has no tracking-ID convention, or
+#'   `value` is blank, or `value` matches it; otherwise an error
+#'   message string.
+#' @keywords internal
+validate_tracking_id_format <- function(value, crf_code) {
+  prefix <- tracking_id_prefix_for_form(crf_code)
+  if (is.null(prefix) || is.null(value) || !nzchar(trimws(value))) {
+    return(NULL)
+  }
+  pattern <- sprintf("^%s-[0-9]{4}-[0-9]+$", prefix)
+  if (grepl(pattern, value)) {
+    return(NULL)
+  }
+  sprintf("Tracking ID must match %s", .tracking_id_pattern_text(prefix))
+}
+
 #' Validate a CRF submission's field values against their metadata
 #'
-#' Checks required-field presence and, for choice-type fields
+#' Checks required-field presence, for choice-type fields
 #' (`select`/`radio`/`checkbox_group`) with a defined choice set,
-#' that every non-blank submitted value is actually a member of it.
-#' A blank, non-required field is never flagged. Pulled out as a
+#' that every non-blank submitted value is actually a member of it,
+#' and, when `crf_code` names a form with a tracking-ID convention
+#' (see [tracking_id_prefix_for_form()]), that `tracking_id` matches
+#' it. A blank, non-required field is never flagged. Pulled out as a
 #' plain function (rather than inlined in the EDC tab's Shiny
 #' observer) so it is unit-testable outside Shiny and so the EDC
 #' tab can run the exact same check twice for two different
 #' purposes: live, non-blocking inline flags as the user fills in
 #' the form (via [crf_live_invalid_fields()], which only surfaces
-#' `"invalid_choice"`-kind problems -- an empty required field is
+#' non-`"required"`-kind problems -- an empty required field is
 #' expected while a form is still being filled in, not an error to
 #' flag mid-entry), and the full gate run once at submit time
 #' (every error kind, including `"required"`), which still blocks
 #' saving an incomplete or invalid record.
 #'
+#' Uniqueness of `tracking_id` within its year is a separate,
+#' database-backed check (see [tracking_id_already_used()]); it is
+#' not performed here since this function is deliberately pure and
+#' database-free.
+#'
 #' @param field_data Named list of submitted field values, keyed by
 #'   `field_code` (same shape passed to [save_crf_entry()]).
 #' @param metadata Field metadata as returned by
 #'   [get_crf_field_metadata()].
+#' @param crf_code The form's `crf_code`, or `NULL` to skip the
+#'   tracking-ID format check entirely.
 #' @return `list(valid=, errors=)`. `errors` is a named list (by
 #'   `field_code`) of `list(kind=, message=)`, `kind` one of
-#'   `"required"` or `"invalid_choice"`.
+#'   `"required"`, `"invalid_choice"`, or `"invalid_format"`.
 #' @keywords internal
-validate_crf_submission <- function(field_data, metadata) {
+validate_crf_submission <- function(field_data, metadata, crf_code = NULL) {
   errors <- list()
 
   for (f in names(metadata)) {
@@ -195,6 +253,13 @@ validate_crf_submission <- function(field_data, metadata) {
         )
       }
     }
+
+    if (f == "tracking_id" && !is.null(crf_code)) {
+      fmt_error <- validate_tracking_id_format(as.character(v), crf_code)
+      if (!is.null(fmt_error)) {
+        errors[[f]] <- list(kind = "invalid_format", message = fmt_error)
+      }
+    }
   }
 
   list(valid = length(errors) == 0, errors = errors)
@@ -215,11 +280,13 @@ validate_crf_submission <- function(field_data, metadata) {
 #' @param field_data Named list of currently entered field values.
 #' @param metadata Field metadata as returned by
 #'   [get_crf_field_metadata()].
+#' @param crf_code The form's `crf_code`, or `NULL` to skip the
+#'   tracking-ID format check (see [validate_crf_submission()]).
 #' @return Character vector of flag messages, in field order; empty
 #'   (`character(0)`) when nothing is currently flagged.
 #' @keywords internal
-crf_live_invalid_fields <- function(field_data, metadata) {
-  result <- validate_crf_submission(field_data, metadata)
+crf_live_invalid_fields <- function(field_data, metadata, crf_code = NULL) {
+  result <- validate_crf_submission(field_data, metadata, crf_code = crf_code)
   live <- Filter(function(e) e$kind != "required", result$errors)
   vapply(live, function(e) e$message, character(1))
 }
@@ -243,7 +310,11 @@ crf_live_invalid_fields <- function(field_data, metadata) {
 #' produces (`text`, `numeric`, `date`, `select`, `radio`,
 #' `checkbox_group`) are handled explicitly; any other type falls
 #' back to the text-input reset, matching [renderPanel()]'s own
-#' fallback for an unrecognized type.
+#' fallback for an unrecognized type. The text-input reset uses
+#' `field_config$value` when the caller has set one (e.g. the EDC
+#' tab's submit handler recomputes the next free tracking ID before
+#' calling this, for forms with a tracking-ID convention), and
+#' falls back to blank otherwise.
 #'
 #' @param session The current Shiny session.
 #' @param metadata Field metadata as returned by
@@ -266,7 +337,7 @@ reset_crf_field_inputs <- function(session, metadata) {
       "checkbox_group" = shiny::updateCheckboxGroupInput(
         session, field_name, selected = character(0)
       ),
-      shiny::updateTextInput(session, field_name, value = "")
+      shiny::updateTextInput(session, field_name, value = field_config$value %||% "")
     )
   }
   invisible(NULL)

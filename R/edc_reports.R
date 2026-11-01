@@ -77,6 +77,74 @@ get_data_entries <- function(conn, crf_code = NULL,
 }
 
 
+#' Every `tracking_id` currently recorded for one form
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param crf_code The form's `crf_code` (matched case-insensitively).
+#' @return A character vector, one element per entry that has a
+#'   non-blank `tracking_id`; `character(0)` if there are none.
+#' @keywords internal
+.existing_tracking_ids <- function(conn, crf_code) {
+  entries <- get_data_entries(conn, crf_code = crf_code)
+  ids <- vapply(entries$fields, function(f) {
+    v <- f$tracking_id
+    if (is.null(v) || length(v) == 0) "" else as.character(v)[1]
+  }, character(1))
+  ids[nzchar(ids)]
+}
+
+
+#' Next unused manuscripts tracking ID for a given year
+#'
+#' Scans existing `manuscripts` entries for IDs matching the form's
+#' `PUB-<year>-<n>` convention (see
+#' [tracking_id_prefix_for_form()]) and returns one past the
+#' highest `n` seen for `year`, zero-padded to 3 digits to match the
+#' IDs already in use (e.g. `"PUB-2026-004"`). IDs for other years,
+#' or that do not match the pattern at all, are ignored. Returns
+#' `"PUB-<year>-001"` when there are none yet for that year.
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param year A 4-digit year string or number; defaults to the
+#'   current year.
+#' @return A single tracking ID string.
+#' @keywords internal
+next_manuscript_tracking_id <- function(conn, year = NULL) {
+  year <- as.character(year %||% format(Sys.Date(), "%Y"))
+  ids <- .existing_tracking_ids(conn, "manuscripts")
+  pattern <- sprintf("^PUB-%s-([0-9]+)$", year)
+  matches <- ids[grepl(pattern, ids)]
+  n <- if (length(matches) == 0) {
+    0L
+  } else {
+    max(as.integer(sub(pattern, "\\1", matches)))
+  }
+  sprintf("PUB-%s-%03d", year, n + 1L)
+}
+
+
+#' Whether a tracking ID is already used by another entry on its form
+#'
+#' Only enforced for forms with a tracking-ID convention (currently
+#' just `manuscripts`, see [tracking_id_prefix_for_form()]); always
+#' `FALSE` for any other form, so this is a safe no-op to call from
+#' a generic submit/live-flag path.
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param crf_code The form's `crf_code`.
+#' @param value The `tracking_id` value to check.
+#' @return `TRUE` if `value` already appears on another entry of
+#'   this form, `FALSE` otherwise (including a blank `value`).
+#' @keywords internal
+tracking_id_already_used <- function(conn, crf_code, value) {
+  if (is.null(tracking_id_prefix_for_form(crf_code)) ||
+        is.null(value) || !nzchar(trimws(value))) {
+    return(FALSE)
+  }
+  value %in% .existing_tracking_ids(conn, crf_code)
+}
+
+
 #' Entry counts per form, joined to the form's display name
 #'
 #' @param conn A DBI connection (or pool object).

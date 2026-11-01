@@ -313,6 +313,88 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
                  info = "notes/textarea fields fall back to the text-input reset")
   })
 
+  local({
+    # tracking_id_prefix_for_form() / validate_tracking_id_format():
+    # manuscripts has an enforced PUB-YYYY-N convention; any other
+    # (or unknown) form has none.
+    expect_equal(zzedc:::tracking_id_prefix_for_form("manuscripts"), "PUB")
+    expect_equal(zzedc:::tracking_id_prefix_for_form("MANUSCRIPTS"), "PUB",
+                 info = "matched case-insensitively")
+    expect_null(zzedc:::tracking_id_prefix_for_form("courses"))
+    expect_null(zzedc:::tracking_id_prefix_for_form(NULL))
+
+    expect_null(zzedc:::validate_tracking_id_format("PUB-2026-001", "manuscripts"))
+    expect_null(zzedc:::validate_tracking_id_format("PUB-2026-12", "manuscripts"),
+                info = "any number of digits is accepted, not just 3")
+    expect_null(zzedc:::validate_tracking_id_format("", "manuscripts"),
+                info = "a blank value is not a format error (required-ness is checked separately)")
+    expect_null(zzedc:::validate_tracking_id_format("ddd", "courses"),
+                info = "no convention is enforced for a form with no prefix rule")
+
+    err <- zzedc:::validate_tracking_id_format("ddd", "manuscripts")
+    expect_true(is.character(err) && grepl("PUB-YYYY-N", err, fixed = TRUE))
+    expect_true(is.character(
+      zzedc:::validate_tracking_id_format("PUB-26-001", "manuscripts")
+    ), info = "a 2-digit year does not match the 4-digit convention")
+  })
+
+  local({
+    # validate_crf_submission()'s tracking_id format check only runs
+    # when crf_code is supplied, and only flags a non-matching value
+    # as "invalid_format" (never "required" -- that is a separate,
+    # already-covered error kind). The live view surfaces it the
+    # same way it already surfaces "invalid_choice".
+    meta <- list(
+      tracking_id = list(type = "text", required = TRUE, label = "Tracking ID"),
+      status = list(type = "select", required = TRUE,
+                    choices = c(Ideation = "ideation"))
+    )
+
+    bad_format <- list(tracking_id = "ddd", status = "ideation")
+    r_no_code <- zzedc:::validate_crf_submission(bad_format, meta)
+    expect_true(r_no_code$valid,
+                info = "no crf_code given -- format check is skipped entirely")
+
+    r_format <- zzedc:::validate_crf_submission(bad_format, meta, crf_code = "manuscripts")
+    expect_false(r_format$valid)
+    expect_equal(r_format$errors$tracking_id$kind, "invalid_format")
+
+    live_flags <- zzedc:::crf_live_invalid_fields(bad_format, meta, crf_code = "manuscripts")
+    expect_equal(length(live_flags), 1)
+    expect_true(grepl("PUB-YYYY-N", live_flags, fixed = TRUE))
+
+    good_format <- list(tracking_id = "PUB-2026-005", status = "ideation")
+    r_good <- zzedc:::validate_crf_submission(good_format, meta, crf_code = "manuscripts")
+    expect_true(r_good$valid)
+
+    r_other_form <- zzedc:::validate_crf_submission(bad_format, meta, crf_code = "courses")
+    expect_true(r_other_form$valid,
+                info = "courses has no tracking-ID convention, so 'ddd' is fine there")
+  })
+
+  local({
+    # reset_crf_field_inputs() honors a caller-supplied text value
+    # (the EDC tab uses this to re-prefill tracking_id with the next
+    # free id after a successful manuscripts submission) instead of
+    # always blanking.
+    make_fake_session <- function() {
+      self <- new.env()
+      self$calls <- list()
+      self$sendInputMessage <- function(inputId, message) {
+        self$calls[[inputId]] <- message
+      }
+      self$ns <- function(x) x
+      class(self) <- c("MockShinySession", "environment")
+      self
+    }
+
+    sess <- make_fake_session()
+    zzedc:::reset_crf_field_inputs(
+      sess, list(tracking_id = list(type = "text", value = "PUB-2026-005"))
+    )
+    expect_equal(sess$calls$tracking_id$value, "PUB-2026-005")
+  })
+
 } else {
   exit_file("RSQLite and/or jsonlite not installed")
 }

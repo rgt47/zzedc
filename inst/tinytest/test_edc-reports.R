@@ -230,6 +230,62 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
                 info = "a zero-length field value renders as an empty value, not a vapply crash")
   })
 
+  local({
+    conn <- .make_reports_fixture()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    # The fixture's PUB-1/PUB-2/PUB-3 entries don't match the
+    # PUB-YYYY-N convention at all, so they're ignored; a year with
+    # no matching entries yet starts at 001.
+    expect_equal(zzedc:::next_manuscript_tracking_id(conn, year = "2026"),
+                 "PUB-2026-001")
+  })
+
+  local({
+    conn <- .make_reports_fixture()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-2026-001", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-2026-001", status = "ideation"),
+      is_complete = TRUE, created_by = "rgt"
+    )
+    zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-2026-007", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-2026-007", status = "ideation"),
+      is_complete = TRUE, created_by = "rgt"
+    )
+    # A different year's entry must not influence the 2026 sequence.
+    zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-2025-099", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-2025-099", status = "ideation"),
+      is_complete = TRUE, created_by = "rgt"
+    )
+
+    expect_equal(
+      zzedc:::next_manuscript_tracking_id(conn, year = "2026"), "PUB-2026-008",
+      info = "one past the highest existing N for that year, ignoring other years and non-matching IDs"
+    )
+  })
+
+  local({
+    conn <- .make_reports_fixture()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-2026-001", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-2026-001", status = "ideation"),
+      is_complete = TRUE, created_by = "rgt"
+    )
+
+    expect_true(zzedc:::tracking_id_already_used(conn, "manuscripts", "PUB-2026-001"))
+    expect_false(zzedc:::tracking_id_already_used(conn, "manuscripts", "PUB-2026-002"))
+    expect_false(zzedc:::tracking_id_already_used(conn, "manuscripts", ""),
+                 info = "a blank value is never flagged as a duplicate")
+    expect_false(zzedc:::tracking_id_already_used(conn, "courses", "PUB-2026-001"),
+                 info = "courses has no tracking-ID convention, so uniqueness is not enforced there either")
+  })
+
 } else {
   exit_file("RSQLite and/or jsonlite not installed")
 }

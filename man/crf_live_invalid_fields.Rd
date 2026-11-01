@@ -4,13 +4,16 @@
 \alias{crf_live_invalid_fields}
 \title{Live, non-blocking field flags for a CRF form in progress}
 \usage{
-crf_live_invalid_fields(field_data, metadata)
+crf_live_invalid_fields(field_data, metadata, crf_code = NULL)
 }
 \arguments{
 \item{field_data}{Named list of currently entered field values.}
 
 \item{metadata}{Field metadata as returned by
 \code{\link[=get_crf_field_metadata]{get_crf_field_metadata()}}.}
+
+\item{crf_code}{The form's \code{crf_code}, or \code{NULL} to skip the
+tracking-ID format check (see \code{\link[=validate_crf_submission]{validate_crf_submission()}}).}
 }
 \value{
 Character vector of flag messages, in field order; empty

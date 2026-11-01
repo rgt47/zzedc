@@ -197,13 +197,241 @@ output$ui <- renderUI({
 output$messages <- renderText({"Messages"})
 output$crf_messages <- renderText({"Messages"})
 
+# The active form's crf_code (e.g. "MANUSCRIPTS"), re-looked-up
+# whenever the form selector changes. Shared by the prefill, the
+# live-flags reactive, and the submit handler so all three agree on
+# which form's tracking-ID convention (if any) applies.
+crf_current_code <- reactive({
+  shiny::req(input$edc_crf_form)
+  forms <- zzedc:::get_active_crf_forms(db_pool)
+  row <- forms[forms$crf_id == as.integer(input$edc_crf_form), , drop = FALSE]
+  if (nrow(row) == 0) NULL else row$crf_code[1]
+})
+
 output$edc_crf_fields <- renderUI({
   shiny::req(input$edc_crf_form)
   metadata <- zzedc:::get_crf_field_metadata(db_pool, as.integer(input$edc_crf_form))
   if (length(metadata) == 0) {
     return(div(class = "text-muted", "This form has no fields defined."))
   }
-  shiny::tagList(renderPanel(names(metadata), metadata))
+  # tracking_id has no stored per-form default; for manuscripts it
+  # is instead pre-filled with the next free PUB-<year>-<n> ID so a
+  # fresh form never opens on a blank, easy-to-mistype field.
+  if (!is.null(zzedc:::tracking_id_prefix_for_form(crf_current_code())) &&
+        "tracking_id" %in% names(metadata)) {
+    metadata$tracking_id$value <- zzedc:::next_manuscript_tracking_id(db_pool)
+  }
+
+  field_tags <- renderPanel(names(metadata), metadata)
+
+  # The co-author builder only makes sense on a form that actually
+  # has a co_authors field (currently just manuscripts). Its trigger
+  # button is spliced in right after that field's own rendered
+  # block, so it sits next to the field it affects instead of at the
+  # bottom of the whole form; the builder itself opens in a modal
+  # (see the coauthor_builder_open observer below) rather than
+  # always taking up page space inline. It writes into the
+  # co_authors input by id via updateTextInput(), so nothing about
+  # it needs to be inline with that field to work.
+  co_authors_idx <- which(names(metadata) == "co_authors")
+  if (length(co_authors_idx) == 1) {
+    trigger <- tags$div(
+      style = "margin-top: -0.75rem; margin-bottom: 0.75rem;",
+      actionButton("coauthor_builder_open", "Co-author builder…",
+                   class = "btn btn-sm btn-outline-secondary")
+    )
+    field_tags <- append(field_tags, list(trigger), after = co_authors_idx)
+  }
+
+  shiny::tagList(field_tags)
+})
+
+# Opens the co-author builder (see output$edc_crf_fields above for
+# its trigger button, spliced in right after the Co-authors field)
+# as a modal. The modal's content is the same inputs/outputs the
+# builder has always used; the observers below (coauthor_add,
+# coauthor_apply, coauthor_remove_click, coauthor_edit_click,
+# coauthor_reformat) react to them identically whether they live
+# inline or inside a modalDialog.
+observeEvent(input$coauthor_builder_open, {
+  shiny::showModal(shiny::modalDialog(
+    title = "Co-author builder", size = "l", easyClose = TRUE,
+    footer = shiny::modalButton("Close"),
+
+    tags$div(
+      class = "text-muted mb-2",
+      "Builds the Co-authors field above from individual names; ",
+      "it only ever writes to that one field."
+    ),
+    fluidRow(
+      column(4, selectInput("coauthor_format", "Name format", choices = c(
+        "First Middle Last"  = "first_middle_last",
+        "Last, First Middle" = "last_first_middle",
+        "Last, Initials"     = "last_initials"
+      ))),
+      column(4, selectInput("coauthor_delim", "Delimiter", choices = c(
+        "Comma"                         = "comma",
+        "Semicolon"                     = "semicolon",
+        "Comma + \"and\" before last"   = "comma_and"
+      ))),
+      column(4, style = "padding-top: 1.75rem;",
+        actionButton("coauthor_reformat", "Reformat existing text",
+                     class = "btn btn-sm btn-outline-secondary"))
+    ),
+    tags$div(
+      class = "text-muted mb-2", style = "font-size: 0.8em;",
+      tags$strong("Reformatting existing text: "),
+      "pick the delimiter the text above is ALREADY split on. If ",
+      "it's in \"Last, First\" or \"Last, Initials\" style, pick ",
+      "Semicolon -- each name's own comma otherwise looks just ",
+      "like the delimiter between names and splits it apart."
+    ),
+    fluidRow(
+      column(4, textInput("coauthor_first", "First name")),
+      column(4, textInput("coauthor_middle", "Middle name/initial")),
+      column(4, textInput("coauthor_last", "Last name"))
+    ),
+    actionButton("coauthor_add", "Add author", class = "btn btn-sm btn-primary mb-2"),
+    uiOutput("coauthor_preview_ui")
+  ))
+})
+
+# Co-author builder state. Reset whenever the active form changes so
+# switching away from manuscripts and back never resurfaces stale
+# rows. Keying rows by an ever-increasing id (not list position)
+# keeps each row's Edit/Remove button valid even after other rows
+# are removed.
+coauthor_rows <- reactiveVal(list())
+coauthor_next_id <- reactiveVal(1L)
+
+observeEvent(input$edc_crf_form, {
+  coauthor_rows(list())
+  coauthor_next_id(1L)
+})
+
+observeEvent(input$coauthor_add, {
+  first <- trimws(input$coauthor_first %||% "")
+  middle <- trimws(input$coauthor_middle %||% "")
+  last <- trimws(input$coauthor_last %||% "")
+  if (!nzchar(first) && !nzchar(last)) return(invisible(NULL))
+
+  rid <- as.character(coauthor_next_id())
+  rows <- coauthor_rows()
+  rows[[rid]] <- list(first = first, middle = middle, last = last)
+  coauthor_rows(rows)
+  coauthor_next_id(coauthor_next_id() + 1L)
+
+  shiny::updateTextInput(session, "coauthor_first", value = "")
+  shiny::updateTextInput(session, "coauthor_middle", value = "")
+  shiny::updateTextInput(session, "coauthor_last", value = "")
+}, ignoreInit = TRUE)
+
+# Each row's Edit/Remove button is created dynamically (a fresh
+# render per add/remove), so a single static observeEvent per
+# button isn't possible; each button instead calls
+# Shiny.setInputValue() with its own row id via onclick, and these
+# two observers dispatch on whichever id comes through.
+observeEvent(input$coauthor_remove_click, {
+  rows <- coauthor_rows()
+  rows[[input$coauthor_remove_click]] <- NULL
+  coauthor_rows(rows)
+}, ignoreInit = TRUE)
+
+observeEvent(input$coauthor_edit_click, {
+  rid <- input$coauthor_edit_click
+  rows <- coauthor_rows()
+  row <- rows[[rid]]
+  if (is.null(row)) return(invisible(NULL))
+  rows[[rid]] <- NULL
+  coauthor_rows(rows)
+  shiny::updateTextInput(session, "coauthor_first", value = row$first)
+  shiny::updateTextInput(session, "coauthor_middle", value = row$middle)
+  shiny::updateTextInput(session, "coauthor_last", value = row$last)
+}, ignoreInit = TRUE)
+
+observeEvent(input$coauthor_apply, {
+  rows <- coauthor_rows()
+  fmt <- input$coauthor_format %||% "first_middle_last"
+  delim <- input$coauthor_delim %||% "comma"
+  formatted <- vapply(rows, function(r) {
+    zzedc:::format_author_name(r$first, r$middle, r$last, format = fmt)
+  }, character(1))
+  shiny::updateTextInput(session, "co_authors",
+                          value = zzedc:::join_author_names(formatted, delimiter = delim))
+  shiny::removeModal()
+}, ignoreInit = TRUE)
+
+# Parses the co_authors field's CURRENT text (using the selected
+# delimiter as the splitting rule) back into rows, loads them into
+# the builder for review/editing, and immediately writes the
+# reassembled text back -- a no-op round trip if the parse was
+# clean, and a starting point to fix up via Edit/Remove if it
+# wasn't (see parse_author_name()'s documented limitations).
+observeEvent(input$coauthor_reformat, {
+  delim <- input$coauthor_delim %||% "comma"
+  current <- shiny::isolate(crf_live_field_data())$co_authors
+  pieces <- zzedc:::split_author_list(current, delimiter = delim)
+  if (length(pieces) == 0) return(invisible(NULL))
+
+  parsed <- lapply(pieces, zzedc:::parse_author_name)
+  start_id <- coauthor_next_id()
+  ids <- as.character(seq(start_id, length.out = length(parsed)))
+  rows <- stats::setNames(parsed, ids)
+  coauthor_rows(rows)
+  coauthor_next_id(start_id + length(parsed))
+
+  fmt <- input$coauthor_format %||% "first_middle_last"
+  formatted <- vapply(parsed, function(r) {
+    zzedc:::format_author_name(r$first, r$middle, r$last, format = fmt)
+  }, character(1))
+  shiny::updateTextInput(session, "co_authors",
+                          value = zzedc:::join_author_names(formatted, delimiter = delim))
+}, ignoreInit = TRUE)
+
+output$coauthor_preview_ui <- renderUI({
+  rows <- coauthor_rows()
+  if (length(rows) == 0) {
+    return(div(class = "text-muted", "No authors added yet."))
+  }
+  fmt <- input$coauthor_format %||% "first_middle_last"
+  delim <- input$coauthor_delim %||% "comma"
+
+  formatted <- vapply(rows, function(r) {
+    zzedc:::format_author_name(r$first, r$middle, r$last, format = fmt)
+  }, character(1))
+
+  row_items <- Map(function(rid, label) {
+    tags$li(
+      class = "d-flex justify-content-between align-items-center mb-1",
+      span(label),
+      tags$span(
+        tags$button(
+          type = "button", class = "btn btn-sm btn-outline-secondary py-0 px-2",
+          style = "margin-right: 4px;",
+          onclick = sprintf(
+            "Shiny.setInputValue('coauthor_edit_click', '%s', {priority: 'event'})", rid
+          ),
+          "Edit"
+        ),
+        tags$button(
+          type = "button", class = "btn btn-sm btn-outline-danger py-0 px-2",
+          onclick = sprintf(
+            "Shiny.setInputValue('coauthor_remove_click', '%s', {priority: 'event'})", rid
+          ),
+          "Remove"
+        )
+      )
+    )
+  }, names(rows), formatted)
+
+  combined <- zzedc:::join_author_names(formatted, delimiter = delim)
+
+  tagList(
+    tags$ul(class = "list-unstyled mb-2", row_items),
+    tags$div(class = "text-muted mb-1", "Preview:"),
+    tags$div(class = "border rounded p-2 mb-2 bg-light", combined),
+    actionButton("coauthor_apply", "Apply to Co-authors field", class = "btn btn-sm btn-primary")
+  )
 })
 
 # The current form's field metadata, re-fetched whenever the form
@@ -231,20 +459,51 @@ crf_live_field_data <- reactive({
 })
 
 # Non-blocking: flags an invalid entry (e.g. a value outside the
-# field's defined choice set) as soon as it is made, but never
-# disables the field or the submit button. Required-but-blank
-# fields are deliberately not flagged here -- a field simply not
-# filled in yet while the form is in progress is not an invalid
-# entry; that check still runs, and blocks saving, at submit time
-# below.
+# field's defined choice set, or a tracking_id that breaks its
+# form's PUB-YYYY-N convention or duplicates another entry's) as
+# soon as it is made, but never disables the field or the submit
+# button. Required-but-blank fields are deliberately not flagged
+# here -- a field simply not filled in yet while the form is in
+# progress is not an invalid entry; that check still runs, and
+# blocks saving, at submit time below. Rendered in red (not the
+# calmer warning yellow used elsewhere) since every flag here is a
+# real error, not just an in-progress reminder.
 output$edc_crf_field_flags <- renderUI({
   metadata <- crf_field_metadata()
   if (length(metadata) == 0) return(NULL)
-  flags <- zzedc:::crf_live_invalid_fields(crf_live_field_data(), metadata)
-  if (length(flags) == 0) return(NULL)
-  div(class = "alert alert-warning py-2 px-3 mt-2 mb-0",
-      style = "font-size: 0.85em;",
-      tags$ul(class = "mb-0 ps-3", lapply(flags, tags$li)))
+  crf_code <- crf_current_code()
+  field_data <- crf_live_field_data()
+
+  result <- zzedc:::validate_crf_submission(field_data, metadata, crf_code = crf_code)
+  live_errors <- Filter(function(e) e$kind != "required", result$errors)
+  if (isTRUE(zzedc:::tracking_id_already_used(db_pool, crf_code, field_data$tracking_id))) {
+    live_errors$tracking_id <- list(
+      kind = "duplicate",
+      message = sprintf('Tracking ID "%s" is already in use', field_data$tracking_id)
+    )
+  }
+  if (length(live_errors) == 0) return(NULL)
+
+  # renderPanel() gives both a field's wrapper div AND its actual
+  # <input>/<textarea>/<select> the field_code as their id, so a
+  # plain "#tracking_id" selector matches both and draws two nested
+  # outlines. Scoping the selector to the control tags themselves
+  # (not the wrapper div) keeps just the one, on the control.
+  outline_css <- paste(
+    sprintf(
+      "input#%1$s, textarea#%1$s, select#%1$s { outline: 2px solid #dc3545; outline-offset: 2px; border-radius: 4px; }",
+      names(live_errors)
+    ),
+    collapse = "\n"
+  )
+  messages <- vapply(live_errors, function(e) e$message, character(1))
+
+  shiny::tagList(
+    tags$style(shiny::HTML(outline_css)),
+    div(class = "alert alert-danger py-2 px-3 mt-2 mb-0",
+        style = "font-size: 0.85em;",
+        tags$ul(class = "mb-0 ps-3", lapply(messages, tags$li)))
+  )
 })
 
 # Bumped on every successful save so crf_entries_table (below) picks
@@ -261,8 +520,16 @@ observeEvent(input$submitcrf, {
 
   metadata <- shiny::isolate(crf_field_metadata())
   field_data <- shiny::isolate(crf_live_field_data())
+  crf_code <- crf_row$crf_code[1]
 
-  check <- zzedc:::validate_crf_submission(field_data, metadata)
+  check <- zzedc:::validate_crf_submission(field_data, metadata, crf_code = crf_code)
+  if (check$valid &&
+        isTRUE(zzedc:::tracking_id_already_used(db_pool, crf_code, field_data$tracking_id))) {
+    check <- list(valid = FALSE, errors = list(tracking_id = list(
+      kind = "duplicate",
+      message = sprintf('Tracking ID "%s" is already in use', field_data$tracking_id)
+    )))
+  }
   if (!check$valid) {
     messages <- vapply(check$errors, function(e) e$message, character(1))
     shiny::showNotification(
@@ -292,6 +559,14 @@ observeEvent(input$submitcrf, {
     )
     shinyjs::show("crf_results")
     crf_entries_refresh(crf_entries_refresh() + 1)
+    # The just-saved tracking_id is now taken, so a plain blank
+    # reset would invite the next entry to collide with it; recompute
+    # the next free id (same convention used to prefill the form
+    # originally) instead, for forms that have one.
+    if (!is.null(zzedc:::tracking_id_prefix_for_form(crf_code)) &&
+          "tracking_id" %in% names(metadata)) {
+      metadata$tracking_id$value <- zzedc:::next_manuscript_tracking_id(db_pool)
+    }
     zzedc:::reset_crf_field_inputs(session, metadata)
   } else {
     shiny::showNotification(

@@ -33,6 +33,10 @@ Only the field types \code{\link[=map_designer_field_type]{map_designer_field_ty
 produces (\code{text}, \code{numeric}, \code{date}, \code{select}, \code{radio},
 \code{checkbox_group}) are handled explicitly; any other type falls
 back to the text-input reset, matching \code{\link[=renderPanel]{renderPanel()}}'s own
-fallback for an unrecognized type.
+fallback for an unrecognized type. The text-input reset uses
+\code{field_config$value} when the caller has set one (e.g. the EDC
+tab's submit handler recomputes the next free tracking ID before
+calling this, for forms with a tracking-ID convention), and
+falls back to blank otherwise.
 }
 \keyword{internal}
