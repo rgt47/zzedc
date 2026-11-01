@@ -61,7 +61,7 @@ a working default on first run.
   validation rules, and user roster are authored and imported
   from a Google Sheet (Section 6.1 and Section 7)
 - A local working directory for the project, hereafter
-  called `~/prj/promotion-tracker/`
+  called `~/prj/srv/14-promotion-tracker/`
 
 The database itself is a local, encrypted SQLite file; no
 database server is required. A Google account is needed only
@@ -90,8 +90,8 @@ packageVersion('zzedc')
 Create the project directory and change into it:
 
 ```{r}
-dir.create('~/prj/promotion-tracker', recursive = TRUE)
-setwd('~/prj/promotion-tracker')
+dir.create('~/prj/srv/14-promotion-tracker', recursive = TRUE)
+setwd('~/prj/srv/14-promotion-tracker')
 ```
 
 ZZedc will write the SQLite database, credentials, and logs
@@ -315,7 +315,7 @@ Regardless of mode, the script produces:
 ```
 
 Set `out_dir` (TUI prompt or config-file key) to your project
-directory (`~/prj/promotion-tracker`) so the files land
+directory (`~/prj/srv/14-promotion-tracker`) so the files land
 alongside the database. The script closes with a printed block
 of copy-paste R commands for the import step (see Section 7).
 
@@ -613,7 +613,7 @@ Then run:
 
 ```{r}
 library(zzedc)
-setwd('~/prj/promotion-tracker')
+setwd('~/prj/srv/14-promotion-tracker')
 
 result <- setup_zzedc_from_gsheets(
   sheet_id = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID',
@@ -635,17 +635,18 @@ Sys.setenv(DB_ENCRYPTION_KEY = result$key)
 Sys.setenv(ZZEDC_SALT = result$salt)
 
 # Persist both somewhere durable and NOT committed to version
-# control -- e.g. a local credentials file outside the project
-# directory, or a password manager entry. You must re-export
-# both in every future R session before calling launch_zzedc();
-# losing the encryption key makes the database permanently
-# unreadable, by design (there is no recovery mechanism).
+# control -- e.g. a credentials file in the project directory
+# that .gitignore excludes, or a password manager entry. You
+# must re-export both in every future R session before calling
+# launch_zzedc(); losing the encryption key makes the database
+# permanently unreadable, by design (there is no recovery
+# mechanism).
 writeLines(
   c(
     sprintf("DB_ENCRYPTION_KEY=%s", result$key),
     sprintf("ZZEDC_SALT=%s", result$salt)
   ),
-  '~/prj/promotion-tracker-credentials.env'
+  'credentials.env'
 )
 ```
 
@@ -694,10 +695,10 @@ in Section 7 before launching:
 
 ```{r}
 library(zzedc)
-setwd('~/prj/promotion-tracker')
+setwd('~/prj/srv/14-promotion-tracker')
 
 # Read back the credentials file written in Section 7
-creds <- readLines('~/prj/promotion-tracker-credentials.env')
+creds <- readLines('credentials.env')
 for (line in creds) {
   kv <- strsplit(line, '=', fixed = TRUE)[[1]]
   do.call(Sys.setenv, setNames(list(kv[2]), kv[1]))
@@ -753,7 +754,7 @@ yourself first, ordered by insertion:
 
 ```{r}
 library(zzedc)
-setwd('~/prj/promotion-tracker')
+setwd('~/prj/srv/14-promotion-tracker')
 
 conn <- connect_encrypted_db(db_path = 'data/zzedc.db')
 log_data <- DBI::dbGetQuery(
@@ -788,7 +789,7 @@ file.copy(
   paste0('backups/zzedc_', format(Sys.time(), '%Y%m%d'), '.db')
 )
 file.copy(
-  '~/prj/promotion-tracker-credentials.env',
+  'credentials.env',
   paste0('backups/credentials_', format(Sys.time(), '%Y%m%d'), '.env')
 )
 ```
@@ -803,7 +804,7 @@ one copy in a password manager instead of general cloud sync.
 Add a line to your crontab (`crontab -e`):
 
 ```
-0 22 * * * Rscript -e "file.copy('~/prj/promotion-tracker/data/zzedc.db', paste0('~/prj/promotion-tracker/backups/zzedc_', format(Sys.time(), '%Y%m%d'), '.db')); file.copy('~/prj/promotion-tracker-credentials.env', paste0('~/prj/promotion-tracker/backups/credentials_', format(Sys.time(), '%Y%m%d'), '.env'))"
+0 22 * * * Rscript -e "file.copy('~/prj/srv/14-promotion-tracker/data/zzedc.db', paste0('~/prj/srv/14-promotion-tracker/backups/zzedc_', format(Sys.time(), '%Y%m%d'), '.db')); file.copy('~/prj/srv/14-promotion-tracker/credentials.env', paste0('~/prj/srv/14-promotion-tracker/backups/credentials_', format(Sys.time(), '%Y%m%d'), '.env'))"
 ```
 
 This runs at 22:00 each night. Adjust the path and time
@@ -897,28 +898,26 @@ field rather than retyping an existing one.
 After setup, the project directory should contain:
 
 ```
-~/prj/promotion-tracker/
+~/prj/srv/14-promotion-tracker/
   config.yml                # App settings (Section 5);
                              #   created by launch_zzedc()
+  credentials.env            # DB_ENCRYPTION_KEY and ZZEDC_SALT
+                             #   (gitignored -- see below)
   data/
     zzedc.db                # Live, encrypted SQLite database
   backups/
     zzedc_YYYYMMDD.db        # Rolling daily backups
     credentials_YYYYMMDD.env # Matching key/salt for each backup
   logs/                      # Application logs (if enabled)
-
-~/prj/promotion-tracker-credentials.env
-                             # DB_ENCRYPTION_KEY and ZZEDC_SALT
-                             # (kept outside the project directory
-                             # on purpose -- see below)
 ```
 
 Do not commit `data/zzedc.db`, `backups/`, or any
 `credentials*.env` file to version control, public or private:
 the database contains your academic activity records, and the
 `.env` files contain the only copy of the key that makes it
-readable. `config.yml` itself contains no secrets by default
-and can be committed.
+readable. Add `credentials.env`, `data/`, `backups/`, and
+`*.db` to `.gitignore` in the project directory. `config.yml`
+itself contains no secrets by default and can be committed.
 
 ---
 
