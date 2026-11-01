@@ -262,6 +262,57 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_true(r_optional$valid)
   })
 
+  local({
+    # reset_crf_field_inputs() always goes through
+    # shiny::update*Input(), which require a 'ShinySession'-ish
+    # object (validate_session_object() checks the class
+    # attribute) and ultimately just call session$sendInputMessage().
+    # A minimal fake session capturing those calls lets this run
+    # without shiny::testServer(), whose MockShinySession does not
+    # reflect update*Input() calls back into `input` (verified
+    # directly: shiny 1.13's MockShinySession has no sendInputMessage
+    # override, so it falls through to the real ShinySession method,
+    # which is a no-op outside a live app).
+    make_fake_session <- function() {
+      self <- new.env()
+      self$calls <- list()
+      self$sendInputMessage <- function(inputId, message) {
+        self$calls[[inputId]] <- message
+      }
+      self$ns <- function(x) x
+      class(self) <- c("MockShinySession", "environment")
+      self
+    }
+
+    metadata <- list(
+      tracking_id = list(type = "text"),
+      count = list(type = "numeric"),
+      visit_date = list(type = "date"),
+      status = list(type = "select",
+                     choices = c(Ideation = "ideation", Submitted = "submitted")),
+      priority = list(type = "radio", choices = c(Low = "low", High = "high")),
+      tags = list(type = "checkbox_group", choices = c(A = "a", B = "b")),
+      note = list(type = "notes")
+    )
+
+    sess <- make_fake_session()
+    zzedc:::reset_crf_field_inputs(sess, metadata)
+
+    expect_equal(sess$calls$tracking_id$value, "")
+    expect_equal(sess$calls$count$value, "NA",
+                 info = "numeric fields reset to NA, not 0 or blank")
+    expect_equal(sess$calls$visit_date$value, format(Sys.Date()),
+                 info = "date fields reset to today, matching renderPanel()'s own fresh-render default")
+    expect_equal(sess$calls$status$value, "ideation",
+                 info = "select fields reset to their first choice")
+    expect_equal(sess$calls$priority$value, "low",
+                 info = "radio fields reset to their first choice")
+    expect_equal(sess$calls$tags$value, character(0),
+                 info = "checkbox-group fields reset to nothing selected")
+    expect_equal(sess$calls$note$value, "",
+                 info = "notes/textarea fields fall back to the text-input reset")
+  })
+
 } else {
   exit_file("RSQLite and/or jsonlite not installed")
 }

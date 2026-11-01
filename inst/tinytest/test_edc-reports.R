@@ -179,6 +179,57 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_true(grepl("0 course", html, fixed = TRUE))
   })
 
+  local({
+    conn <- .make_reports_fixture()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    # A blank optional field is saved as NA_character_, which
+    # round-trips through jsonlite::toJSON()/fromJSON() as an R
+    # NULL, not NA (JSON has no NA, only null). Every real entry
+    # with any blank optional field hits this -- reproduced directly
+    # against the live promotion-tracker deployment, where it broke
+    # the Data Explorer tab outright (vapply() error, uncaught,
+    # wedging the whole Shiny session rather than just that output).
+    zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-4", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-4", status = "ideation",
+                  notes = NA_character_),
+      is_complete = TRUE, created_by = "rgt"
+    )
+
+    flat <- zzedc:::flatten_all_entries_for_explorer(conn)
+    expect_equal(nrow(flat), 4)
+    row <- flat[flat$subject_id == "PUB-4", ]
+    expect_true(grepl("tracking_id=PUB-4", row$fields, fixed = TRUE))
+    expect_true(grepl("status=ideation", row$fields, fixed = TRUE))
+    expect_true(grepl("notes=", row$fields, fixed = TRUE),
+                info = "a NULL-valued field renders as an empty value, not a vapply crash")
+  })
+
+  local({
+    conn <- .make_reports_fixture()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    # A dateInput() cleared to empty in the EDC tab serializes as
+    # JSON `[]` (a zero-length value), not `null` -- a second,
+    # distinct shape of "blank" from the NULL case above, also
+    # reproduced directly against the live deployment (clearing
+    # Submission/Acceptance/Publication Date before submitting).
+    zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-5", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-5", status = "ideation",
+                  notes = character(0)),
+      is_complete = TRUE, created_by = "rgt"
+    )
+
+    flat <- zzedc:::flatten_all_entries_for_explorer(conn)
+    expect_equal(nrow(flat), 4)
+    row <- flat[flat$subject_id == "PUB-5", ]
+    expect_true(grepl("tracking_id=PUB-5", row$fields, fixed = TRUE))
+    expect_true(grepl("notes=", row$fields, fixed = TRUE),
+                info = "a zero-length field value renders as an empty value, not a vapply crash")
+  })
+
 } else {
   exit_file("RSQLite and/or jsonlite not installed")
 }

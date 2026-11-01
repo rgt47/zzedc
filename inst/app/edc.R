@@ -109,11 +109,35 @@ viscode_rv <- shiny::reactiveVal(1L)
     fluidRow(
       column(2,
         wellPanel(
-          tags$img(src = paste0(shiny::isolate(user_input$username),".jpg"),
-                   width = "80px"),
+          # No per-user avatar images are shipped or uploaded
+          # anywhere in this app; a `<img src="<username>.jpg">`
+          # here always 404s and shows a broken-image icon. A
+          # generic person icon needs no such file.
+          bsicons::bs_icon("person-circle", size = "4rem"),
           br(), br(), hr(),
           textOutput("usr"),
           hr(),
+          # The narrow column(2) width wraps longer form names
+          # (e.g. "GRANT_REVIEWS Form", "JOURNAL_REVIEWS Form")
+          # across two lines in both the closed control and the
+          # open dropdown, since selectInput()'s selectize.js
+          # replacement renders as styled divs rather than a native
+          # <select> that just truncates. A smaller font keeps every
+          # current form name on one line; the dropdown is also
+          # allowed to size to its content instead of matching the
+          # (narrow) control width.
+          tags$style(shiny::HTML(
+            "#edc_crf_form + .selectize-control .selectize-input,",
+            "#edc_crf_form + .selectize-control .selectize-input > div,",
+            "#edc_crf_form + .selectize-control .selectize-dropdown-content .option {",
+            "  white-space: nowrap;",
+            "  font-size: 0.8rem;",
+            "}",
+            "#edc_crf_form + .selectize-control .selectize-dropdown {",
+            "  width: auto !important;",
+            "  min-width: 100%;",
+            "}"
+          )),
           selectInput("edc_crf_form", "Form", choices = choices)
         )
       ),
@@ -149,7 +173,7 @@ output$ui <- renderUI({
     fluidRow(
       column(2,
     wellPanel(
-    tags$img(src = paste0(input$username,".jpg"), width = "80px"),
+    bsicons::bs_icon("person-circle", size = "4rem"),
     br(), br(), hr(),
     textOutput("usr"),
     textOutput("studyid"),
@@ -268,6 +292,7 @@ observeEvent(input$submitcrf, {
     )
     shinyjs::show("crf_results")
     crf_entries_refresh(crf_entries_refresh() + 1)
+    zzedc:::reset_crf_field_inputs(session, metadata)
   } else {
     shiny::showNotification(
       paste("Database error saving entry:", result$error),

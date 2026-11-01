@@ -225,6 +225,54 @@ crf_live_invalid_fields <- function(field_data, metadata) {
 }
 
 
+#' Reset a dynamic CRF form's inputs after a successful submission
+#'
+#' [renderPanel()] gives every field in a freshly rendered form a
+#' deterministic starting value (an empty string for text fields,
+#' today's date for date fields, the first choice for select/radio
+#' fields, nothing selected for a checkbox group). The EDC tab's
+#' submit handler previously left every input holding whatever the
+#' user had just typed, so a second entry on the same form always
+#' started pre-filled with the first entry's values instead of a
+#' blank form. This restores each field named in `metadata` to that
+#' same fresh-render default via the matching `shiny::update*Input()`
+#' call, so a successful submit leaves the form ready for the next
+#' entry.
+#'
+#' Only the field types [map_designer_field_type()] actually
+#' produces (`text`, `numeric`, `date`, `select`, `radio`,
+#' `checkbox_group`) are handled explicitly; any other type falls
+#' back to the text-input reset, matching [renderPanel()]'s own
+#' fallback for an unrecognized type.
+#'
+#' @param session The current Shiny session.
+#' @param metadata Field metadata as returned by
+#'   [get_crf_field_metadata()].
+#' @return `NULL`, invisibly. Called for its side effect.
+#' @keywords internal
+reset_crf_field_inputs <- function(session, metadata) {
+  for (field_name in names(metadata)) {
+    field_config <- metadata[[field_name]] %||% list(type = "text")
+    switch(
+      field_config$type,
+      "numeric" = shiny::updateNumericInput(session, field_name, value = NA),
+      "date" = shiny::updateDateInput(session, field_name, value = Sys.Date()),
+      "select" = shiny::updateSelectInput(
+        session, field_name, selected = field_config$choices[1]
+      ),
+      "radio" = shiny::updateRadioButtons(
+        session, field_name, selected = field_config$choices[1]
+      ),
+      "checkbox_group" = shiny::updateCheckboxGroupInput(
+        session, field_name, selected = character(0)
+      ),
+      shiny::updateTextInput(session, field_name, value = "")
+    )
+  }
+  invisible(NULL)
+}
+
+
 #' Save a submitted CRF entry to `data_entries`
 #'
 #' Thin wrapper over [ensure_data_entries_table()]/

@@ -22,4 +22,17 @@ entry has regardless of form. Used by the Data Explorer tab's
 "ZZedc Tracker Data" source, where a generic cross-domain table is
 more useful than a form-specific export.
 }
+\details{
+A blank field's stored value is not always a length-1 \code{NA}.
+\code{NA_character_} round-trips through \code{jsonlite::toJSON()}/
+\code{fromJSON()} as JSON \code{null} -> R \code{NULL}. A \code{dateInput()} cleared
+to empty in the EDC tab round-trips as JSON \verb{[]} -> R \code{list()}
+(zero-length), not \code{NA} -- reproduced directly against the live
+promotion-tracker deployment. \code{as.character()} on either is
+\code{character(0)}, not a length-1 string, so mapping every field
+through plain \code{as.character()} crashes as soon as any entry has
+a blank optional field -- which most real entries do. A
+multi-select field's value can likewise be longer than length 1;
+that case is joined rather than dropped.
+}
 \keyword{internal}

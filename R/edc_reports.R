@@ -304,6 +304,18 @@ flatten_crf_entries_for_export <- function(conn, crf_code,
 #' "ZZedc Tracker Data" source, where a generic cross-domain table is
 #' more useful than a form-specific export.
 #'
+#' A blank field's stored value is not always a length-1 `NA`.
+#' `NA_character_` round-trips through `jsonlite::toJSON()`/
+#' `fromJSON()` as JSON `null` -> R `NULL`. A `dateInput()` cleared
+#' to empty in the EDC tab round-trips as JSON `[]` -> R `list()`
+#' (zero-length), not `NA` -- reproduced directly against the live
+#' promotion-tracker deployment. `as.character()` on either is
+#' `character(0)`, not a length-1 string, so mapping every field
+#' through plain `as.character()` crashes as soon as any entry has
+#' a blank optional field -- which most real entries do. A
+#' multi-select field's value can likewise be longer than length 1;
+#' that case is joined rather than dropped.
+#'
 #' @param conn A DBI connection (or pool object).
 #' @return A data frame with `entry_id`, `subject_id`, `form_name`,
 #'   `created_date`, `created_by`, `fields`.
@@ -312,8 +324,13 @@ flatten_all_entries_for_explorer <- function(conn) {
   entries <- get_data_entries(conn)
   entries$fields <- vapply(entries$fields, function(f) {
     if (length(f) == 0) return("")
-    paste(sprintf("%s=%s", names(f), vapply(f, as.character, character(1))),
-          collapse = "; ")
+    values <- vapply(f, function(v) {
+      if (length(v) == 0) return("")
+      if (length(v) > 1) return(paste(as.character(v), collapse = ", "))
+      if (is.na(v)) return("")
+      as.character(v)
+    }, character(1))
+    paste(sprintf("%s=%s", names(f), values), collapse = "; ")
   }, character(1))
   entries
 }
