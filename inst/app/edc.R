@@ -216,7 +216,10 @@ output$edc_crf_fields <- renderUI({
   }
   # tracking_id has no stored per-form default; for manuscripts it
   # is instead pre-filled with the next free PUB-<year>-<n> ID so a
-  # fresh form never opens on a blank, easy-to-mistype field.
+  # fresh form never opens on a blank, easy-to-mistype field. The
+  # format rule itself is on the field's hover tooltip only (see the
+  # edc_crf_field_flags output below), not permanent on-page text --
+  # kept out of the way until someone actually wants it.
   if (!is.null(zzedc:::tracking_id_prefix_for_form(crf_current_code())) &&
         "tracking_id" %in% names(metadata)) {
     metadata$tracking_id$value <- zzedc:::next_manuscript_tracking_id(db_pool)
@@ -482,7 +485,34 @@ output$edc_crf_field_flags <- renderUI({
       message = sprintf('Tracking ID "%s" is already in use', field_data$tracking_id)
     )
   }
-  if (length(live_errors) == 0) return(NULL)
+
+  # Hover tooltip on tracking_id: its static format-hint help text
+  # (set in output$edc_crf_fields above) is always visible under the
+  # field, but the field's title attribute is additionally kept in
+  # sync with the live error's own message once there is one, as a
+  # second, more targeted cue right where the cursor already is.
+  # Runs every keystroke regardless of whether there are any errors
+  # to show, since the title must revert to the format hint once an
+  # error clears. jsonlite::toJSON() quotes/escapes the title safely
+  # for embedding in the script -- the error message it can carry
+  # includes the user's own just-typed tracking_id value, so this is
+  # untrusted text, not just the fixed hint string.
+  hint <- zzedc:::tracking_id_format_hint(crf_code)
+  title_script <- if (!is.null(hint)) {
+    tooltip_text <- if (!is.null(live_errors$tracking_id)) {
+      live_errors$tracking_id$message
+    } else {
+      hint
+    }
+    tags$script(shiny::HTML(sprintf(
+      "(function(el) { if (el) el.title = %s; })(document.getElementById('tracking_id'));",
+      jsonlite::toJSON(tooltip_text, auto_unbox = TRUE)
+    )))
+  } else {
+    NULL
+  }
+
+  if (length(live_errors) == 0) return(title_script)
 
   # renderPanel() gives both a field's wrapper div AND its actual
   # <input>/<textarea>/<select> the field_code as their id, so a
@@ -499,6 +529,7 @@ output$edc_crf_field_flags <- renderUI({
   messages <- vapply(live_errors, function(e) e$message, character(1))
 
   shiny::tagList(
+    title_script,
     tags$style(shiny::HTML(outline_css)),
     div(class = "alert alert-danger py-2 px-3 mt-2 mb-0",
         style = "font-size: 0.85em;",

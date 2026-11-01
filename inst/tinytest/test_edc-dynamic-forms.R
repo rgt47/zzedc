@@ -373,6 +373,19 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
   })
 
   local({
+    # tracking_id_format_hint() backs both the EDC tab's always-
+    # visible help text under tracking_id and its hover tooltip; it
+    # should describe the same pattern validate_tracking_id_format()'s
+    # error message does.
+    hint <- zzedc:::tracking_id_format_hint("manuscripts")
+    expect_true(is.character(hint) && grepl("PUB-YYYY-N", hint, fixed = TRUE))
+    expect_true(grepl("unique within its year", hint, fixed = TRUE))
+    expect_null(zzedc:::tracking_id_format_hint("courses"),
+                info = "no hint text for a form with no tracking-ID convention")
+    expect_null(zzedc:::tracking_id_format_hint(NULL))
+  })
+
+  local({
     # reset_crf_field_inputs() honors a caller-supplied text value
     # (the EDC tab uses this to re-prefill tracking_id with the next
     # free id after a successful manuscripts submission) instead of

@@ -161,13 +161,33 @@ tracking_id_prefix_for_form <- function(crf_code) {
 
 #' Human-readable description of a form's tracking-ID pattern
 #'
-#' Used by [validate_tracking_id_format()]'s error message.
+#' Used by both [validate_tracking_id_format()]'s error message and
+#' [tracking_id_format_hint()], so the two always describe the same
+#' convention in the same words.
 #'
 #' @param prefix A tracking-ID prefix, e.g. `"PUB"`.
 #' @return A single string, e.g. `'PUB-YYYY-N (e.g. "PUB-2026-001")'`.
 #' @keywords internal
 .tracking_id_pattern_text <- function(prefix) {
   sprintf('%s-YYYY-N (e.g. "%s-%s-001")', prefix, prefix, format(Sys.Date(), "%Y"))
+}
+
+#' Format hint for a form's tracking-ID field, if it has a convention
+#'
+#' Meant to sit permanently beneath the field as `renderPanel()`'s
+#' own `help` text -- always visible, not hover-dependent -- as well
+#' as in the field's `title` attribute (the EDC tab overrides that
+#' with the specific error message instead, once there is one; see
+#' `inst/app/edc.R`'s `edc_crf_field_flags` output).
+#'
+#' @param crf_code The form's `crf_code`, or `NULL`.
+#' @return A single string, or `NULL` if the form has no
+#'   tracking-ID convention.
+#' @keywords internal
+tracking_id_format_hint <- function(crf_code) {
+  prefix <- tracking_id_prefix_for_form(crf_code)
+  if (is.null(prefix)) return(NULL)
+  sprintf("Format: %s, unique within its year.", .tracking_id_pattern_text(prefix))
 }
 
 #' Check a tracking ID against its form's prefix-year-number convention

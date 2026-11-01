@@ -13,6 +13,8 @@
 A single string, e.g. \code{'PUB-YYYY-N (e.g. "PUB-2026-001")'}.
 }
 \description{
-Used by \code{\link[=validate_tracking_id_format]{validate_tracking_id_format()}}'s error message.
+Used by both \code{\link[=validate_tracking_id_format]{validate_tracking_id_format()}}'s error message and
+\code{\link[=tracking_id_format_hint]{tracking_id_format_hint()}}, so the two always describe the same
+convention in the same words.
 }
 \keyword{internal}

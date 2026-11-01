@@ -10,7 +10,14 @@ join_author_names(names, delimiter = "comma")
 \item{names}{Character vector of already-formatted names, in order.}
 
 \item{delimiter}{One of \code{"comma"}, \code{"semicolon"}, \code{"comma_and"}.
-Any other value behaves like \code{"comma"}.}
+Any other value behaves like \code{"comma"}. May be named (e.g. from
+\code{vapply()} over a named list of author rows) or not -- any
+names are dropped immediately so the single-author fast path
+below can never return a \emph{named} length-1 vector. That
+distinction matters downstream: \code{shiny::updateTextInput()}
+JSON-serializes a named vector as an object rather than a
+plain string, which renders client-side as the literal text
+"[object Object]" instead of the name.}
 }
 \value{
 A single joined string; \code{""} for an empty/all-blank \code{names}.
