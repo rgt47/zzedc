@@ -72,7 +72,12 @@ The Google Sheet must contain three tabs:
 \item{Data_Dictionary}{One row per field across all CRFs.
 Columns: \code{form_code}, \code{field_name}, \code{field_label},
 \code{field_type}, \code{required}. Optional: \code{validation},
-\code{description}, \code{field_order}. For a \code{select}, \code{radio}, or
+\code{description} (becomes the field's help text, shown beneath
+it), \code{field_order} (an integer controlling the field's position
+on the form; defaults to the field's own row position within
+its form when omitted), \code{widget} (the name of a custom widget
+to attach to this field, e.g. \code{"coauthor_builder"} -- see
+\code{resolve_widget_module()}). For a \code{select}, \code{radio}, or
 \code{multiselect} field, \code{validation} may hold a choice list as
 \verb{in(value1,value2,...)} (bare, unquoted values, e.g.
 \verb{in(Fall,Winter,Spring,Summer)}); each value is imported as a

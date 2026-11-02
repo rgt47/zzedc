@@ -99,6 +99,29 @@ map_gsheets_field_type <- function(x) {
   if (is.na(mapped)) toupper(as.character(x)) else mapped
 }
 
+#' Safely read one optional Data_Dictionary column's cell
+#'
+#' `googlesheets4::read_sheet()` only returns the columns actually
+#' present in the sheet, so an optional column like `field_order`,
+#' `description`, or `widget` may not exist in `fields` at all (most
+#' sheets imported so far don't have them) -- a bare `fields$widget`
+#' would error with "argument is of length zero" when later code
+#' tries to index it by row, not just return `NA`.
+#'
+#' @param fields A single form's rows from the `Data_Dictionary`
+#'   sheet (a data frame).
+#' @param col The column name to read.
+#' @param j The row index within `fields`.
+#' @return The cell's value as a single string, or `NULL` if the
+#'   column doesn't exist or the cell is blank/`NA`.
+#' @keywords internal
+.gsheets_cell <- function(fields, col, j) {
+  if (!col %in% names(fields)) return(NULL)
+  val <- fields[[col]][j]
+  if (is.na(val) || !nzchar(trimws(as.character(val)))) return(NULL)
+  as.character(val)
+}
+
 #' Parse a Data_Dictionary `validation` cell's `in(...)` choice list
 #'
 #' The package's own shipped example sheets already encode
@@ -1167,7 +1190,12 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   \item{Data_Dictionary}{One row per field across all CRFs.
 #'   Columns: `form_code`, `field_name`, `field_label`,
 #'   `field_type`, `required`. Optional: `validation`,
-#'   `description`, `field_order`. For a `select`, `radio`, or
+#'   `description` (becomes the field's help text, shown beneath
+#'   it), `field_order` (an integer controlling the field's position
+#'   on the form; defaults to the field's own row position within
+#'   its form when omitted), `widget` (the name of a custom widget
+#'   to attach to this field, e.g. `"coauthor_builder"` -- see
+#'   `resolve_widget_module()`). For a `select`, `radio`, or
 #'   `multiselect` field, `validation` may hold a choice list as
 #'   `in(value1,value2,...)` (bare, unquoted values, e.g.
 #'   `in(Fall,Winter,Spring,Summer)`); each value is imported as a
@@ -1417,13 +1445,38 @@ setup_zzedc_from_gsheets <- function(
       n_forms <- n_forms + 1L
       for (j in seq_len(nrow(fields))) {
         mapped_type <- map_gsheets_field_type(fields$field_type[j])
+
+        # field_order/description/widget are optional Data_Dictionary
+        # columns (documented in setup_zzedc_from_gsheets()'s @details
+        # since this function was first written) that were never
+        # actually read here -- every field silently landed with the
+        # field_row default (1) for every row in a form, and no
+        # help_text/widget_file was ever set from the sheet, no
+        # matter what the sheet said. field_order falling back to a
+        # field's own position within its form (j) when the column is
+        # absent/blank preserves the apparent "order" the import has
+        # always had (insertion order happened to match the sheet's
+        # row order), now made an explicit field_row instead of an
+        # accident of every row sharing field_row = 1.
+        field_order <- .gsheets_cell(fields, "field_order", j)
+        field_row <- if (!is.null(field_order) && !is.na(suppressWarnings(as.integer(field_order)))) {
+          as.integer(field_order)
+        } else {
+          j
+        }
+        help_text <- .gsheets_cell(fields, "description", j)
+        widget_file <- .gsheets_cell(fields, "widget", j)
+
         added <- tryCatch(
           add_form_field(
             design_id   = crf$crf_id,
             field_code  = as.character(fields$field_name[j]),
             field_label = as.character(fields$field_label[j]),
             field_type  = mapped_type,
-            is_required = isTRUE(as.logical(fields$required[j]))
+            is_required = isTRUE(as.logical(fields$required[j])),
+            field_row   = field_row,
+            help_text   = help_text,
+            widget_file = widget_file
           ),
           error = function(e) list(success = FALSE, error = e$message)
         )

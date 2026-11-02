@@ -208,6 +208,34 @@ crf_current_code <- reactive({
   if (nrow(row) == 0) NULL else row$crf_code[1]
 })
 
+# Custom field widgets (see R/edc_widget_loader.R for the contract):
+# every (form, field, widget) attachment across ALL forms is
+# resolved and its server-side logic registered ONCE here, at
+# session start, regardless of which form the user has selected --
+# shiny::moduleServer() can only be called once per namespace id,
+# not re-called every time a field's form becomes active. Each
+# widget's trigger UI is instead spliced in reactively, per field,
+# in output$edc_crf_fields below, only when that field's form is the
+# one currently being rendered.
+widget_triggers <- local({
+  attachments <- zzedc:::all_widget_attachments(db_pool)
+  triggers <- list()
+  if (nrow(attachments) > 0) {
+    for (i in seq_len(nrow(attachments))) {
+      row <- attachments[i, ]
+      widget_path <- zzedc:::resolve_widget_module(row$widget_file)
+      if (is.null(widget_path)) next
+      mod <- zzedc:::load_widget_module(widget_path)
+      if (is.null(mod)) next
+
+      mod_id <- zzedc:::widget_module_id(row$field_code)
+      mod$widget_server(mod_id, db_pool, session, row$field_code)
+      triggers[[row$field_code]] <- mod$widget_ui(mod_id)
+    }
+  }
+  triggers
+})
+
 output$edc_crf_fields <- renderUI({
   shiny::req(input$edc_crf_form)
   metadata <- zzedc:::get_crf_field_metadata(db_pool, as.integer(input$edc_crf_form))
@@ -227,214 +255,17 @@ output$edc_crf_fields <- renderUI({
 
   field_tags <- renderPanel(names(metadata), metadata)
 
-  # The co-author builder only makes sense on a form that actually
-  # has a co_authors field (currently just manuscripts). Its trigger
-  # button is spliced in right after that field's own rendered
-  # block, so it sits next to the field it affects instead of at the
-  # bottom of the whole form; the builder itself opens in a modal
-  # (see the coauthor_builder_open observer below) rather than
-  # always taking up page space inline. It writes into the
-  # co_authors input by id via updateTextInput(), so nothing about
-  # it needs to be inline with that field to work.
-  co_authors_idx <- which(names(metadata) == "co_authors")
-  if (length(co_authors_idx) == 1) {
-    trigger <- tags$div(
-      style = "margin-top: -0.75rem; margin-bottom: 0.75rem;",
-      actionButton("coauthor_builder_open", "Co-author builder…",
-                   class = "btn btn-sm btn-outline-secondary")
-    )
-    field_tags <- append(field_tags, list(trigger), after = co_authors_idx)
+  # Splice each attached field's trigger UI (built once, above) in
+  # right after that field's own rendered block -- working from the
+  # end of the field list backwards so each splice's position isn't
+  # thrown off by an earlier one.
+  widget_fields <- intersect(names(metadata), names(widget_triggers))
+  for (fc in rev(widget_fields)) {
+    idx <- which(names(metadata) == fc)
+    field_tags <- append(field_tags, list(widget_triggers[[fc]]), after = idx)
   }
 
   shiny::tagList(field_tags)
-})
-
-# Opens the co-author builder (see output$edc_crf_fields above for
-# its trigger button, spliced in right after the Co-authors field)
-# as a modal. The modal's content is the same inputs/outputs the
-# builder has always used; the observers below (coauthor_add,
-# coauthor_apply, coauthor_remove_click, coauthor_edit_click,
-# coauthor_reformat) react to them identically whether they live
-# inline or inside a modalDialog.
-observeEvent(input$coauthor_builder_open, {
-  shiny::showModal(shiny::modalDialog(
-    title = "Co-author builder", size = "l", easyClose = TRUE,
-    footer = shiny::modalButton("Close"),
-
-    tags$div(
-      class = "text-muted mb-2",
-      "Builds the Co-authors field above from individual names; ",
-      "it only ever writes to that one field."
-    ),
-    fluidRow(
-      column(4, selectInput("coauthor_format", "Name format", choices = c(
-        "First Middle Last"  = "first_middle_last",
-        "Last, First Middle" = "last_first_middle",
-        "Last, Initials"     = "last_initials"
-      ))),
-      column(4, selectInput("coauthor_delim", "Delimiter", choices = c(
-        "Comma"                         = "comma",
-        "Semicolon"                     = "semicolon",
-        "Comma + \"and\" before last"   = "comma_and"
-      ))),
-      column(4, style = "padding-top: 1.75rem;",
-        actionButton("coauthor_reformat", "Reformat existing text",
-                     class = "btn btn-sm btn-outline-secondary"))
-    ),
-    tags$div(
-      class = "text-muted mb-2", style = "font-size: 0.8em;",
-      tags$strong("Reformatting existing text: "),
-      "pick the delimiter the text above is ALREADY split on. If ",
-      "it's in \"Last, First\" or \"Last, Initials\" style, pick ",
-      "Semicolon -- each name's own comma otherwise looks just ",
-      "like the delimiter between names and splits it apart."
-    ),
-    fluidRow(
-      column(4, textInput("coauthor_first", "First name")),
-      column(4, textInput("coauthor_middle", "Middle name/initial")),
-      column(4, textInput("coauthor_last", "Last name"))
-    ),
-    actionButton("coauthor_add", "Add author", class = "btn btn-sm btn-primary mb-2"),
-    uiOutput("coauthor_preview_ui")
-  ))
-})
-
-# Co-author builder state. Reset whenever the active form changes so
-# switching away from manuscripts and back never resurfaces stale
-# rows. Keying rows by an ever-increasing id (not list position)
-# keeps each row's Edit/Remove button valid even after other rows
-# are removed.
-coauthor_rows <- reactiveVal(list())
-coauthor_next_id <- reactiveVal(1L)
-
-observeEvent(input$edc_crf_form, {
-  coauthor_rows(list())
-  coauthor_next_id(1L)
-})
-
-observeEvent(input$coauthor_add, {
-  first <- trimws(input$coauthor_first %||% "")
-  middle <- trimws(input$coauthor_middle %||% "")
-  last <- trimws(input$coauthor_last %||% "")
-  if (!nzchar(first) && !nzchar(last)) return(invisible(NULL))
-
-  rid <- as.character(coauthor_next_id())
-  rows <- coauthor_rows()
-  rows[[rid]] <- list(first = first, middle = middle, last = last)
-  coauthor_rows(rows)
-  coauthor_next_id(coauthor_next_id() + 1L)
-
-  shiny::updateTextInput(session, "coauthor_first", value = "")
-  shiny::updateTextInput(session, "coauthor_middle", value = "")
-  shiny::updateTextInput(session, "coauthor_last", value = "")
-}, ignoreInit = TRUE)
-
-# Each row's Edit/Remove button is created dynamically (a fresh
-# render per add/remove), so a single static observeEvent per
-# button isn't possible; each button instead calls
-# Shiny.setInputValue() with its own row id via onclick, and these
-# two observers dispatch on whichever id comes through.
-observeEvent(input$coauthor_remove_click, {
-  rows <- coauthor_rows()
-  rows[[input$coauthor_remove_click]] <- NULL
-  coauthor_rows(rows)
-}, ignoreInit = TRUE)
-
-observeEvent(input$coauthor_edit_click, {
-  rid <- input$coauthor_edit_click
-  rows <- coauthor_rows()
-  row <- rows[[rid]]
-  if (is.null(row)) return(invisible(NULL))
-  rows[[rid]] <- NULL
-  coauthor_rows(rows)
-  shiny::updateTextInput(session, "coauthor_first", value = row$first)
-  shiny::updateTextInput(session, "coauthor_middle", value = row$middle)
-  shiny::updateTextInput(session, "coauthor_last", value = row$last)
-}, ignoreInit = TRUE)
-
-observeEvent(input$coauthor_apply, {
-  rows <- coauthor_rows()
-  fmt <- input$coauthor_format %||% "first_middle_last"
-  delim <- input$coauthor_delim %||% "comma"
-  formatted <- vapply(rows, function(r) {
-    zzedc:::format_author_name(r$first, r$middle, r$last, format = fmt)
-  }, character(1))
-  shiny::updateTextInput(session, "co_authors",
-                          value = zzedc:::join_author_names(formatted, delimiter = delim))
-  shiny::removeModal()
-}, ignoreInit = TRUE)
-
-# Parses the co_authors field's CURRENT text (using the selected
-# delimiter as the splitting rule) back into rows, loads them into
-# the builder for review/editing, and immediately writes the
-# reassembled text back -- a no-op round trip if the parse was
-# clean, and a starting point to fix up via Edit/Remove if it
-# wasn't (see parse_author_name()'s documented limitations).
-observeEvent(input$coauthor_reformat, {
-  delim <- input$coauthor_delim %||% "comma"
-  current <- shiny::isolate(crf_live_field_data())$co_authors
-  pieces <- zzedc:::split_author_list(current, delimiter = delim)
-  if (length(pieces) == 0) return(invisible(NULL))
-
-  parsed <- lapply(pieces, zzedc:::parse_author_name)
-  start_id <- coauthor_next_id()
-  ids <- as.character(seq(start_id, length.out = length(parsed)))
-  rows <- stats::setNames(parsed, ids)
-  coauthor_rows(rows)
-  coauthor_next_id(start_id + length(parsed))
-
-  fmt <- input$coauthor_format %||% "first_middle_last"
-  formatted <- vapply(parsed, function(r) {
-    zzedc:::format_author_name(r$first, r$middle, r$last, format = fmt)
-  }, character(1))
-  shiny::updateTextInput(session, "co_authors",
-                          value = zzedc:::join_author_names(formatted, delimiter = delim))
-}, ignoreInit = TRUE)
-
-output$coauthor_preview_ui <- renderUI({
-  rows <- coauthor_rows()
-  if (length(rows) == 0) {
-    return(div(class = "text-muted", "No authors added yet."))
-  }
-  fmt <- input$coauthor_format %||% "first_middle_last"
-  delim <- input$coauthor_delim %||% "comma"
-
-  formatted <- vapply(rows, function(r) {
-    zzedc:::format_author_name(r$first, r$middle, r$last, format = fmt)
-  }, character(1))
-
-  row_items <- Map(function(rid, label) {
-    tags$li(
-      class = "d-flex justify-content-between align-items-center mb-1",
-      span(label),
-      tags$span(
-        tags$button(
-          type = "button", class = "btn btn-sm btn-outline-secondary py-0 px-2",
-          style = "margin-right: 4px;",
-          onclick = sprintf(
-            "Shiny.setInputValue('coauthor_edit_click', '%s', {priority: 'event'})", rid
-          ),
-          "Edit"
-        ),
-        tags$button(
-          type = "button", class = "btn btn-sm btn-outline-danger py-0 px-2",
-          onclick = sprintf(
-            "Shiny.setInputValue('coauthor_remove_click', '%s', {priority: 'event'})", rid
-          ),
-          "Remove"
-        )
-      )
-    )
-  }, names(rows), formatted)
-
-  combined <- zzedc:::join_author_names(formatted, delimiter = delim)
-
-  tagList(
-    tags$ul(class = "list-unstyled mb-2", row_items),
-    tags$div(class = "text-muted mb-1", "Preview:"),
-    tags$div(class = "border rounded p-2 mb-2 bg-light", combined),
-    actionButton("coauthor_apply", "Apply to Co-authors field", class = "btn btn-sm btn-primary")
-  )
 })
 
 # The current form's field metadata, re-fetched whenever the form

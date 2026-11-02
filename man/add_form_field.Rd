@@ -16,7 +16,8 @@ add_form_field(
   is_required = FALSE,
   placeholder = NULL,
   help_text = NULL,
-  default_value = NULL
+  default_value = NULL,
+  widget_file = NULL
 )
 }
 \arguments{
@@ -43,6 +44,12 @@ add_form_field(
 \item{help_text}{Help text}
 
 \item{default_value}{Default value}
+
+\item{widget_file}{Name of a custom widget to attach to this
+field (e.g. \code{"coauthor_builder"}), or \code{NULL} for none. Resolved
+at render time by \code{\link[=resolve_widget_module]{resolve_widget_module()}} to a file under
+\verb{inst/app/widgets/}; only \verb{[a-zA-Z0-9_]+} is accepted as a
+widget name.}
 }
 \value{
 List with success status

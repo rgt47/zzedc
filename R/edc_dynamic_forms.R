@@ -89,7 +89,7 @@ get_crf_field_metadata <- function(conn, crf_id) {
     conn,
     paste(
       "SELECT field_id, field_code, field_label, field_type,",
-      "       is_required, placeholder, help_text, default_value",
+      "       is_required, placeholder, help_text, default_value, widget_file",
       "FROM designer_fields",
       "WHERE design_id = ?",
       "ORDER BY field_row, field_column, field_id"
@@ -134,7 +134,8 @@ get_crf_field_metadata <- function(conn, crf_id) {
       placeholder = if (!is.na(fr$placeholder)) fr$placeholder else NULL,
       help        = if (!is.na(fr$help_text)) fr$help_text else NULL,
       value       = if (!is.na(fr$default_value)) fr$default_value else NULL,
-      choices     = choices
+      choices     = choices,
+      widget      = if (!is.na(fr$widget_file)) fr$widget_file else NULL
     )
   })
   stats::setNames(metadata, fields$field_code)
