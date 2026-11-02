@@ -485,18 +485,27 @@ output$edc_crf_field_flags <- renderUI({
       message = sprintf('Tracking ID "%s" is already in use', field_data$tracking_id)
     )
   }
+  # Every cross-field/range rule authored in this form's data
+  # dictionary (dsl_validation_rules, imported from the study's
+  # Google Sheet) -- e.g. "acceptance date must be on or after
+  # submission date". Supersedes an earlier, manuscripts-only,
+  # hand-rolled version of just the one date-order rule: this runs
+  # whatever rules the sheet actually defines, for every form, not
+  # one hardcoded case.
+  live_errors <- utils::modifyList(
+    live_errors, zzedc:::validate_dsl_rules(db_pool, crf_code, field_data)
+  )
 
-  # Hover tooltip on tracking_id: its static format-hint help text
-  # (set in output$edc_crf_fields above) is always visible under the
-  # field, but the field's title attribute is additionally kept in
-  # sync with the live error's own message once there is one, as a
-  # second, more targeted cue right where the cursor already is.
-  # Runs every keystroke regardless of whether there are any errors
-  # to show, since the title must revert to the format hint once an
-  # error clears. jsonlite::toJSON() quotes/escapes the title safely
-  # for embedding in the script -- the error message it can carry
-  # includes the user's own just-typed tracking_id value, so this is
-  # untrusted text, not just the fixed hint string.
+  # Hover tooltip on tracking_id: the field's title attribute is
+  # kept in sync with the live error's own message once there is
+  # one, as a cue right where the cursor already is, reverting to
+  # the format hint once the error clears. Runs every keystroke
+  # regardless of whether there are any errors to show, since the
+  # title must revert once an error clears. jsonlite::toJSON()
+  # quotes/escapes the title safely for embedding in the script --
+  # the error message it can carry includes the user's own
+  # just-typed tracking_id value, so this is untrusted text, not
+  # just the fixed hint string.
   hint <- zzedc:::tracking_id_format_hint(crf_code)
   title_script <- if (!is.null(hint)) {
     tooltip_text <- if (!is.null(live_errors$tracking_id)) {
@@ -516,12 +525,22 @@ output$edc_crf_field_flags <- renderUI({
 
   # renderPanel() gives both a field's wrapper div AND its actual
   # <input>/<textarea>/<select> the field_code as their id, so a
-  # plain "#tracking_id" selector matches both and draws two nested
-  # outlines. Scoping the selector to the control tags themselves
-  # (not the wrapper div) keeps just the one, on the control.
+  # plain "#id" selector matches both and draws two nested outlines.
+  # Scoping to the control tags themselves (not the wrapper div)
+  # keeps just the one, on the control -- except shiny::dateInput()
+  # is the one type that puts its id ONLY on its own wrapper div
+  # (confirmed by reading shiny::dateInput()'s source: the id goes
+  # on tags$div(...), its inner tags$input() has none), so that one
+  # div also needs a scoped rule, via its own "shiny-date-input"
+  # class rather than its id alone -- renderPanel()'s outer wrapper
+  # div (which does share the id) has no such class, so this still
+  # can't double up on a date field either.
   outline_css <- paste(
     sprintf(
-      "input#%1$s, textarea#%1$s, select#%1$s { outline: 2px solid #dc3545; outline-offset: 2px; border-radius: 4px; }",
+      paste(
+        "input#%1$s, textarea#%1$s, select#%1$s, div.shiny-date-input#%1$s",
+        "{ outline: 2px solid #dc3545; outline-offset: 2px; border-radius: 4px; }"
+      ),
       names(live_errors)
     ),
     collapse = "\n"
@@ -554,13 +573,22 @@ observeEvent(input$submitcrf, {
   crf_code <- crf_row$crf_code[1]
 
   check <- zzedc:::validate_crf_submission(field_data, metadata, crf_code = crf_code)
-  if (check$valid &&
-        isTRUE(zzedc:::tracking_id_already_used(db_pool, crf_code, field_data$tracking_id))) {
-    check <- list(valid = FALSE, errors = list(tracking_id = list(
+  if (isTRUE(zzedc:::tracking_id_already_used(db_pool, crf_code, field_data$tracking_id))) {
+    check$errors$tracking_id <- list(
       kind = "duplicate",
       message = sprintf('Tracking ID "%s" is already in use', field_data$tracking_id)
-    )))
+    )
   }
+  # Every active rule from this form's data dictionary
+  # (dsl_validation_rules) -- the same check the live flags above
+  # already run, applied once more as the actual gate: a cross-field
+  # rule could in principle pass live (both dates filled in validly)
+  # and only fail here if the two reactives raced, so this is not
+  # purely redundant with the live view.
+  check$errors <- utils::modifyList(
+    check$errors, zzedc:::validate_dsl_rules(db_pool, crf_code, field_data)
+  )
+  check$valid <- length(check$errors) == 0
   if (!check$valid) {
     messages <- vapply(check$errors, function(e) e$message, character(1))
     shiny::showNotification(

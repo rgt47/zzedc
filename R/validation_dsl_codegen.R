@@ -401,7 +401,17 @@ evaluate_if_node <- function(node, value, form_values, field_name) {
     # Condition is false (or error), execute else branch
     return(evaluate_ast_node(node$else_expr, value, form_values, field_name))
   } else {
-    return("If condition was false and no else branch")
+    # No else branch means this rule simply doesn't apply when the
+    # guard is false -- e.g. "if acceptance_date != "" then ...
+    # endif" is how every real imported rule spells "only check
+    # this once the optional field is actually filled in". That is
+    # a pass, not a failure: returning anything other than TRUE here
+    # (this previously returned a literal string) makes every
+    # guarded rule reject the common, valid case of the guarded
+    # field being blank -- reproduced directly against the rules
+    # imported from this package's own data dictionaries, all six of
+    # which use exactly this guarded-with-no-else shape.
+    return(TRUE)
   }
 }
 

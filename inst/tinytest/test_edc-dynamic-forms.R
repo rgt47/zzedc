@@ -373,10 +373,9 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
   })
 
   local({
-    # tracking_id_format_hint() backs both the EDC tab's always-
-    # visible help text under tracking_id and its hover tooltip; it
-    # should describe the same pattern validate_tracking_id_format()'s
-    # error message does.
+    # tracking_id_format_hint() backs the EDC tab's hover tooltip on
+    # tracking_id; it should describe the same pattern
+    # validate_tracking_id_format()'s error message does.
     hint <- zzedc:::tracking_id_format_hint("manuscripts")
     expect_true(is.character(hint) && grepl("PUB-YYYY-N", hint, fixed = TRUE))
     expect_true(grepl("unique within its year", hint, fixed = TRUE))

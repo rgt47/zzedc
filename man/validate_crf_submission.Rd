@@ -40,9 +40,12 @@ flag mid-entry), and the full gate run once at submit time
 saving an incomplete or invalid record.
 }
 \details{
-Uniqueness of \code{tracking_id} within its year is a separate,
-database-backed check (see \code{\link[=tracking_id_already_used]{tracking_id_already_used()}}); it is
-not performed here since this function is deliberately pure and
-database-free.
+Uniqueness of \code{tracking_id} within its year, and every
+cross-field/range rule authored in the study's data dictionary
+(e.g. "acceptance date must be on or after submission date"), are
+separate, database-backed checks (see
+\code{\link[=tracking_id_already_used]{tracking_id_already_used()}} and \code{\link[=validate_dsl_rules]{validate_dsl_rules()}}
+respectively); neither is performed here since this function is
+deliberately pure and database-free.
 }
 \keyword{internal}
