@@ -287,6 +287,31 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
                  info = "courses has no tracking-ID convention, so uniqueness is not enforced there either")
   })
 
+  local({
+    # get_data_entries() must tolerate `data_entries` not existing
+    # yet -- it is only created lazily, on first submission, so a
+    # freshly initialized or freshly rebuilt database (e.g. via
+    # setup_zzedc_from_gsheets(overwrite = TRUE)) has no entries and
+    # no table, not an error. Deliberately does NOT call
+    # ensure_data_entries_table() here, unlike .make_reports_fixture().
+    conn <- DBI::dbConnect(RSQLite::SQLite(), tempfile(fileext = ".db"))
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    expect_false(DBI::dbExistsTable(conn, "data_entries"))
+
+    entries <- zzedc:::get_data_entries(conn)
+    expect_equal(nrow(entries), 0)
+    expect_true(all(c("entry_id", "subject_id", "form_name",
+                       "created_date", "created_by", "fields") %in%
+                       names(entries)))
+
+    flattened <- zzedc:::flatten_all_entries_for_explorer(conn)
+    expect_equal(nrow(flattened), 0,
+                 info = "Data Explorer's source query must not error on a table-less database")
+
+    expect_equal(zzedc:::.existing_tracking_ids(conn, "manuscripts"), character(0))
+  })
+
 } else {
   exit_file("RSQLite and/or jsonlite not installed")
 }

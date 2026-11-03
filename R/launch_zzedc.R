@@ -195,6 +195,25 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     }
   }
 
+  # `data_entries` is normally created lazily, on first submission
+  # (ensure_data_entries_table(), called from save_crf_entry()). A
+  # database that has never had a submission -- including one just
+  # rebuilt from setup_zzedc_from_gsheets(overwrite = TRUE) -- would
+  # otherwise reach the app with no `data_entries` table at all.
+  # get_data_entries() (R/edc_reports.R) now tolerates that itself,
+  # but several session-start reactives (Reports, Data Explorer, the
+  # EDC tab's own tracking-ID prefill) call it before anyone has
+  # necessarily submitted anything, so guaranteeing the table exists
+  # here -- once, before the app starts -- is cheap insurance against
+  # relying on every call site's own defensiveness.
+  tryCatch({
+    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    ensure_data_entries_table(conn)
+  }, error = function(e) {
+    message("Could not ensure data_entries table exists: ", e$message)
+  })
+
   # Run the app
   shiny::runApp(
     appDir = app_dir,

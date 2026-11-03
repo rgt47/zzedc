@@ -36,10 +36,31 @@ NULL
 #' @return A data frame with columns `entry_id`, `subject_id`,
 #'   `form_name`, `created_date`, `created_by`, plus a list-column
 #'   `fields` (one named list per row, the parsed `data_json`).
-#'   Zero rows (with the right columns) when nothing matches.
+#'   Zero rows (with the right columns) when nothing matches,
+#'   including when `data_entries` doesn't exist yet (it is only
+#'   created lazily, on first submission via
+#'   [ensure_data_entries_table()] -- a freshly initialized or
+#'   freshly `setup_zzedc_from_gsheets()`-rebuilt database has no
+#'   entries, and so no reason yet to have this table). Every
+#'   caller of this function (Reports, Data Explorer, the
+#'   tracking-ID prefill, the personal-statement draft) runs at
+#'   ordinary session start, before anyone has necessarily
+#'   submitted anything, so treating "table absent" as "zero
+#'   entries" here -- rather than letting `dbGetQuery()` error --
+#'   is the one fix point that protects all of them at once.
 #' @keywords internal
 get_data_entries <- function(conn, crf_code = NULL,
                               start_date = NULL, end_date = NULL) {
+  empty <- data.frame(
+    entry_id = character(0), subject_id = character(0),
+    form_name = character(0), created_date = character(0),
+    created_by = character(0), stringsAsFactors = FALSE
+  )
+  empty$fields <- list()
+  if (!DBI::dbExistsTable(conn, "data_entries")) {
+    return(empty)
+  }
+
   clauses <- character(0)
   params <- list()
   if (!is.null(crf_code)) {

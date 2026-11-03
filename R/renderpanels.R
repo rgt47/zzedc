@@ -267,12 +267,33 @@ renderPanel <- function(fields, field_metadata = NULL) {
     # Initial display can be overridden by branching_logic.R setup_branching_logic
     wrapper_style <- if (initial_hidden) "display: none;" else ""
 
+    # One small hover-icon slot per field, always rendered (even when
+    # there is no help text yet) so the EDC tab's live-validation
+    # reactive (inst/app/edc.R's edc_crf_field_flags) can toggle its
+    # tooltip/appearance via plain JS on every keystroke without
+    # re-rendering this field -- re-rendering the actual input on
+    # every keystroke would steal focus and reset cursor position.
+    # Holds both glyphs; CSS (www/style.css) shows only one at a
+    # time based on the field-hint-icon--error class. The id is
+    # `<field_name>__hint_icon`, distinct from field_name itself
+    # (already used by this wrapper div and by the input/select
+    # control shiny's own widgets generate) so document.getElementById()
+    # can target it unambiguously regardless of field type.
+    hint_icon <- tags$span(
+      id = paste0(field_name, "__hint_icon"),
+      class = "field-hint-icon",
+      title = help_text %||% "",
+      tags$span(class = "field-hint-icon__info", bsicons::bs_icon("info-circle")),
+      tags$span(class = "field-hint-icon__error", bsicons::bs_icon("exclamation-triangle-fill"))
+    )
+
     tags$div(
       id = field_name,
       `data-field` = field_name,
       style = wrapper_style,
       class = "form-field-wrapper mb-3",
-      field_input
+      field_input,
+      hint_icon
     )
   })
 }

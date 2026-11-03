@@ -19,7 +19,18 @@ case-insensitively against \code{data_entries.form_name}).}
 A data frame with columns \code{entry_id}, \code{subject_id},
 \code{form_name}, \code{created_date}, \code{created_by}, plus a list-column
 \code{fields} (one named list per row, the parsed \code{data_json}).
-Zero rows (with the right columns) when nothing matches.
+Zero rows (with the right columns) when nothing matches,
+including when \code{data_entries} doesn't exist yet (it is only
+created lazily, on first submission via
+\code{\link[=ensure_data_entries_table]{ensure_data_entries_table()}} -- a freshly initialized or
+freshly \code{setup_zzedc_from_gsheets()}-rebuilt database has no
+entries, and so no reason yet to have this table). Every
+caller of this function (Reports, Data Explorer, the
+tracking-ID prefill, the personal-statement draft) runs at
+ordinary session start, before anyone has necessarily
+submitted anything, so treating "table absent" as "zero
+entries" here -- rather than letting \code{dbGetQuery()} error --
+is the one fix point that protects all of them at once.
 }
 \description{
 All data_entries rows, with data_json parsed

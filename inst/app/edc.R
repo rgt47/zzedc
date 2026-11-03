@@ -106,6 +106,32 @@ viscode_rv <- shiny::reactiveVal(1L)
 .zzedc_crf_dynamic_panel <- function(forms) {
   choices <- stats::setNames(as.character(forms$crf_id), forms$crf_name)
   fluidPage(
+    # Styling for renderPanel()'s per-field hint/error icon (see
+    # R/renderpanels.R's `<field>__hint_icon` span). Injected inline
+    # here, not via www/style.css, since that file is .Rbuildignore'd
+    # out of the installed package (confirmed: a live deployment's
+    # request for /style.css 404s) and so never actually reaches a
+    # running app -- the same inline-tags$style() pattern already
+    # used a few lines down for #edc_crf_form's selectize sizing.
+    tags$style(shiny::HTML(
+      # 320px caps the wrapper at shiny's own default input width
+      # (.shiny-input-container is 300px; confirmed via the rendered
+      # DOM) plus a little clearance for the icon -- otherwise the
+      # wrapper div stretches to the full (much wider) column, and
+      # an icon pinned to *its* right edge lands far past the actual
+      # input box instead of beside it. A field type whose own
+      # widget renders wider than 300px (e.g. a long textarea) will
+      # still have the icon sit at 320px rather than past its true
+      # right edge; no worse than not having a cap at all, and the
+      # common text/numeric/select/date fields are the common case.
+      ".form-field-wrapper { position: relative; max-width: 320px;",
+      "  padding-right: 22px; }",
+      ".field-hint-icon { position: absolute; top: 2px; right: 2px;",
+      "  cursor: help; color: #6c757d; }",
+      ".field-hint-icon__error { display: none; color: #dc3545; }",
+      ".field-hint-icon--error .field-hint-icon__info { display: none; }",
+      ".field-hint-icon--error .field-hint-icon__error { display: inline; }"
+    )),
     fluidRow(
       column(2,
         wellPanel(
@@ -281,6 +307,36 @@ crf_field_metadata <- reactive({
 # those inputs, which is what drives the live flags panel below; it
 # is also called (via shiny::isolate()) from the submit handler so
 # the two never build field_data two different ways.
+# Bumped on every failed submit attempt so the live-flags panel
+# below re-evaluates even when the rejected field's own input value
+# hasn't changed (e.g. a duplicate tracking_id: the field was
+# prefilled with an ID that was still free when the form opened, but
+# another session claimed it before this submit). Without this, the
+# duplicate is caught by the submit-time gate and reported only via
+# the transient showNotification() toast -- the tracking_id field
+# itself stays unmarked, since nothing invalidated
+# crf_live_field_data() to re-run tracking_id_already_used() against
+# the now-current database state.
+crf_submit_attempt <- shiny::reactiveVal(0)
+
+# Set TRUE the first time a submit is rejected on the current form,
+# and back to FALSE once that form is successfully saved or the form
+# selector changes. Lets the live-flags reactive below switch from
+# "don't flag blank required fields, the user hasn't tried to submit
+# yet" to "flag them too" after a rejected submit -- the standard
+# validate-on-submit-then-live-validate pattern, so a user fixing up
+# a rejected entry gets the same inline icon/outline feedback on a
+# still-blank required field as on every other kind of error, instead
+# of only ever seeing that one via the submit-time toast.
+crf_submit_attempted <- shiny::reactiveVal(FALSE)
+
+# Switching forms starts a fresh entry on a different CRF; a rejected
+# submit on the previous form shouldn't carry over and flag that
+# form's blank required fields before anyone has tried to submit it.
+observeEvent(input$edc_crf_form, {
+  crf_submit_attempted(FALSE)
+}, ignoreInit = TRUE)
+
 crf_live_field_data <- reactive({
   metadata <- crf_field_metadata()
   field_codes <- names(metadata)
@@ -296,20 +352,27 @@ crf_live_field_data <- reactive({
 # field's defined choice set, or a tracking_id that breaks its
 # form's PUB-YYYY-N convention or duplicates another entry's) as
 # soon as it is made, but never disables the field or the submit
-# button. Required-but-blank fields are deliberately not flagged
-# here -- a field simply not filled in yet while the form is in
-# progress is not an invalid entry; that check still runs, and
-# blocks saving, at submit time below. Rendered in red (not the
-# calmer warning yellow used elsewhere) since every flag here is a
-# real error, not just an in-progress reminder.
+# button. Required-but-blank fields are not flagged here until a
+# submit has actually been rejected once (crf_submit_attempted()) --
+# a field simply not filled in yet, on a form nobody has tried to
+# submit, is not an invalid entry. After a rejected submit, a still-
+# blank required field gets the same live icon/outline feedback as
+# every other error kind, updating as the user fixes it. Rendered in
+# red (not the calmer warning yellow used elsewhere) since every flag
+# here is a real error, not just an in-progress reminder.
 output$edc_crf_field_flags <- renderUI({
+  crf_submit_attempt()
   metadata <- crf_field_metadata()
   if (length(metadata) == 0) return(NULL)
   crf_code <- crf_current_code()
   field_data <- crf_live_field_data()
 
   result <- zzedc:::validate_crf_submission(field_data, metadata, crf_code = crf_code)
-  live_errors <- Filter(function(e) e$kind != "required", result$errors)
+  live_errors <- if (isTRUE(crf_submit_attempted())) {
+    result$errors
+  } else {
+    Filter(function(e) e$kind != "required", result$errors)
+  }
   if (isTRUE(zzedc:::tracking_id_already_used(db_pool, crf_code, field_data$tracking_id))) {
     live_errors$tracking_id <- list(
       kind = "duplicate",
@@ -327,30 +390,45 @@ output$edc_crf_field_flags <- renderUI({
     live_errors, zzedc:::validate_dsl_rules(db_pool, crf_code, field_data)
   )
 
-  # Hover tooltip on tracking_id: the field's title attribute is
-  # kept in sync with the live error's own message once there is
-  # one, as a cue right where the cursor already is, reverting to
-  # the format hint once the error clears. Runs every keystroke
-  # regardless of whether there are any errors to show, since the
-  # title must revert once an error clears. jsonlite::toJSON()
-  # quotes/escapes the title safely for embedding in the script --
-  # the error message it can carry includes the user's own
-  # just-typed tracking_id value, so this is untrusted text, not
-  # just the fixed hint string.
-  hint <- zzedc:::tracking_id_format_hint(crf_code)
-  title_script <- if (!is.null(hint)) {
-    tooltip_text <- if (!is.null(live_errors$tracking_id)) {
-      live_errors$tracking_id$message
+  # Every field's hover icon (renderPanel()'s always-present
+  # `<field>__hint_icon` span, R/renderpanels.R) is kept in sync here
+  # -- its title attribute and its info/error visual state -- rather
+  # than being re-rendered, since this reactive reruns on every
+  # keystroke and swapping DOM nodes that often would steal focus
+  # off whatever the user is still typing into. Normally shows the
+  # field's own help text (tracking_id gets the richer
+  # tracking_id_format_hint() instead, since that already existed
+  # and says more than the plain CSV description); once a field has
+  # a live error, swaps to that error's message plus
+  # field_error_resolution_hint()'s kind-specific advice on how to
+  # fix it. jsonlite::toJSON() quotes/escapes the title safely for
+  # embedding in the script -- the tooltip text can include the
+  # user's own just-typed value, so this is untrusted text, not just
+  # a fixed hint string.
+  icon_updates <- vapply(names(metadata), function(f) {
+    err <- live_errors[[f]]
+    has_error <- !is.null(err)
+    tooltip <- if (has_error) {
+      advice <- zzedc:::field_error_resolution_hint(err$kind)
+      if (nzchar(advice)) paste0(err$message, ". ", advice) else err$message
+    } else if (f == "tracking_id" && !is.null(zzedc:::tracking_id_format_hint(crf_code))) {
+      zzedc:::tracking_id_format_hint(crf_code)
     } else {
-      hint
+      field_help <- metadata[[f]]$help
+      if (is.null(field_help)) "" else field_help
     }
-    tags$script(shiny::HTML(sprintf(
-      "(function(el) { if (el) el.title = %s; })(document.getElementById('tracking_id'));",
-      jsonlite::toJSON(tooltip_text, auto_unbox = TRUE)
-    )))
-  } else {
-    NULL
-  }
+    sprintf(
+      paste(
+        "(function(el) { if (!el) return;",
+        "el.title = %s; el.classList.toggle('field-hint-icon--error', %s); })",
+        "(document.getElementById(%s));"
+      ),
+      jsonlite::toJSON(tooltip, auto_unbox = TRUE),
+      if (has_error) "true" else "false",
+      jsonlite::toJSON(paste0(f, "__hint_icon"), auto_unbox = TRUE)
+    )
+  }, character(1))
+  title_script <- tags$script(shiny::HTML(paste(icon_updates, collapse = "\n")))
 
   if (length(live_errors) == 0) return(title_script)
 
@@ -426,6 +504,8 @@ observeEvent(input$submitcrf, {
       paste(messages, collapse = "; "),
       type = "error", duration = 8
     )
+    crf_submit_attempted(TRUE)
+    crf_submit_attempt(crf_submit_attempt() + 1)
     return(invisible(NULL))
   }
 
@@ -449,6 +529,10 @@ observeEvent(input$submitcrf, {
     )
     shinyjs::show("crf_results")
     crf_entries_refresh(crf_entries_refresh() + 1)
+    # Next entry on this form starts from a clean slate: a blank
+    # required field on the now-reset form is an unfilled-in field
+    # again, not a still-rejected one.
+    crf_submit_attempted(FALSE)
     # The just-saved tracking_id is now taken, so a plain blank
     # reset would invite the next entry to collide with it; recompute
     # the next free id (same convention used to prefill the form

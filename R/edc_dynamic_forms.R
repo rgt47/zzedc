@@ -290,6 +290,41 @@ validate_crf_submission <- function(field_data, metadata, crf_code = NULL) {
 }
 
 
+#' Short, kind-specific advice for resolving a live validation error
+#'
+#' Keyed on the same `kind` values [validate_crf_submission()],
+#' [tracking_id_already_used()], and [validate_dsl_rules()] already
+#' assign to an error -- this is purely presentation (what to tell
+#' the user to do about it), not a new error classification.
+#' Appended to the error's own message in the EDC tab's hint-icon
+#' tooltip (see `inst/app/edc.R`'s `edc_crf_field_flags` output), so
+#' hovering the icon gives both what is wrong and how to fix it, not
+#' the message alone.
+#'
+#' @param kind One of `"required"`, `"invalid_choice"`,
+#'   `"invalid_format"`, `"duplicate"`, `"dsl_rule"`, or any other
+#'   string (falls back to `""`, i.e. no advice added).
+#' @return A single string, possibly `""`.
+#' @keywords internal
+field_error_resolution_hint <- function(kind) {
+  switch(
+    kind,
+    required = "Fill in this field before submitting.",
+    invalid_choice = "Pick one of the listed options; free text is not accepted here.",
+    invalid_format = "Match the field's required format exactly, including punctuation.",
+    duplicate = paste(
+      "This ID is already used by another entry.",
+      "Use the next free ID, or confirm you are not re-entering an existing record."
+    ),
+    dsl_rule = paste(
+      "This value breaks a cross-field rule defined for this form;",
+      "check it against the related field(s)."
+    ),
+    ""
+  )
+}
+
+
 #' Live, non-blocking field flags for a CRF form in progress
 #'
 #' Filters [validate_crf_submission()]'s result down to the subset
