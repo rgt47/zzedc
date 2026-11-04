@@ -83,7 +83,8 @@ if (requireNamespace("RSQLite", quietly = TRUE)) {
         placeholder TEXT,
         help_text TEXT,
         default_value TEXT,
-        widget_file TEXT
+        widget_file TEXT,
+        help_detail TEXT
       )
     ")
     DBI::dbExecute(conn,

@@ -49,7 +49,8 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
         placeholder TEXT,
         help_text TEXT,
         default_value TEXT,
-        widget_file TEXT
+        widget_file TEXT,
+        help_detail TEXT
       )
     ")
     DBI::dbExecute(conn, "
@@ -160,6 +161,25 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     meta <- zzedc:::get_crf_field_metadata(conn, 2)
     expect_equal(meta$term$type, "radio")
     expect_equal(meta$term$choices, c(Fall = "FALL", Spring = "SPRING"))
+  })
+
+  # help_detail: present on a field that was given one, NULL for one
+  # that wasn't -- the hint icon's click-opens-modal-vs-just-tooltip
+  # distinction in inst/app/edc.R hinges entirely on this being
+  # correctly NULL/non-NULL.
+  local({
+    conn <- .make_crf_fixture()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    DBI::dbExecute(conn, "
+      UPDATE designer_fields SET help_detail = ?
+      WHERE field_code = 'tracking_id' AND design_id = 1
+    ", params = list("A much longer explanation than help_text allows."))
+
+    meta <- zzedc:::get_crf_field_metadata(conn, 1)
+    expect_equal(meta$tracking_id$help_detail,
+                 "A much longer explanation than help_text allows.")
+    expect_null(meta$status$help_detail)
   })
 
   local({

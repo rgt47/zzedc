@@ -130,16 +130,71 @@ viscode_rv <- shiny::reactiveVal(1L)
       "  cursor: help; color: #6c757d; }",
       ".field-hint-icon__error { display: none; color: #dc3545; }",
       ".field-hint-icon--error .field-hint-icon__info { display: none; }",
-      ".field-hint-icon--error .field-hint-icon__error { display: inline; }"
+      ".field-hint-icon--error .field-hint-icon__error { display: inline; }",
+      # Custom tooltip bubble, not a native `title` attribute: a
+      # browser's own hover-tooltip delay is an OS/browser default
+      # (Chrome is roughly 800ms) with no CSS/JS hook to shorten it.
+      # Reading content live off `data-tooltip` (kept in sync by the
+      # live-flags script below) gets a tooltip whose appear delay
+      # IS controllable -- set to 400ms here, half that ~800ms
+      # baseline, per request. `:not([data-tooltip=\"\"])` keeps a
+      # field with nothing to say from popping an empty bubble.
+      ".field-hint-icon:not([data-tooltip='']) { position: absolute; }",
+      ".field-hint-icon:not([data-tooltip=''])::after {",
+      "  content: attr(data-tooltip); position: absolute; top: 100%;",
+      "  right: 0; margin-top: 4px; background: #1f2937; color: #fff;",
+      "  padding: 4px 8px; border-radius: 4px; font-size: 0.78rem;",
+      "  line-height: 1.3; white-space: normal; width: max-content;",
+      "  max-width: 260px; opacity: 0; visibility: hidden;",
+      "  transition: opacity 0.1s ease; pointer-events: none; z-index: 1000;",
+      "}",
+      ".field-hint-icon:not([data-tooltip='']):hover::after {",
+      "  opacity: 1; visibility: visible; transition-delay: 0.4s;",
+      "}",
+      # Click-to-pin, in addition to hover: a tap on a touch device
+      # has no hover state at all, so hover-only would leave the
+      # tooltip unreachable there. Shown with no delay (0s) once
+      # pinned, since a click is a deliberate request to see it now.
+      ".field-hint-icon--pinned:not([data-tooltip=''])::after {",
+      "  opacity: 1; visibility: visible; transition-delay: 0s;",
+      "}"
+    )),
+    # One-time, document-level click handler (event delegation, not
+    # a per-icon listener: the field list can be re-rendered on form
+    # switch, and delegation keeps working for icons that don't
+    # exist yet at the time this script runs). Clicking a hint icon
+    # toggles its tooltip pinned open; clicking anything else, or a
+    # second click on the same icon, closes whichever one is pinned.
+    # Only one is ever pinned at a time. An icon with
+    # data-has-detail="true" (R/renderpanels.R) instead asks the
+    # server to open a modal with its full-page help_detail content
+    # (see the field_help_detail_click observer below) -- the detail
+    # text itself was never sent to the browser, so the click can
+    # only request it, not toggle a pin it doesn't have.
+    tags$script(shiny::HTML(
+      "document.addEventListener('click', function(e) {",
+      "  var icon = e.target.closest('.field-hint-icon');",
+      "  document.querySelectorAll('.field-hint-icon--pinned').forEach(function(el) {",
+      "    if (el !== icon) el.classList.remove('field-hint-icon--pinned');",
+      "  });",
+      "  if (icon && icon.getAttribute('data-has-detail') === 'true') {",
+      "    var fieldCode = icon.id.replace(/__hint_icon$/, '');",
+      "    Shiny.setInputValue('field_help_detail_click', fieldCode, {priority: 'event'});",
+      "    e.stopPropagation();",
+      "  } else if (icon) {",
+      "    icon.classList.toggle('field-hint-icon--pinned');",
+      "    e.stopPropagation();",
+      "  }",
+      "});"
     )),
     fluidRow(
       column(2,
         wellPanel(
-          # No per-user avatar images are shipped or uploaded
-          # anywhere in this app; a `<img src="<username>.jpg">`
-          # here always 404s and shows a broken-image icon. A
-          # generic person icon needs no such file.
-          bsicons::bs_icon("person-circle", size = "4rem"),
+          # No photo is collected or stored for any user (see
+          # R/user_avatar.R) -- an initials circle, colored
+          # deterministically per user, replaces the old generic
+          # bsicons::bs_icon("person-circle") placeholder.
+          zzedc:::user_avatar_tag(user_input$full_name, user_input$username),
           br(), br(), hr(),
           textOutput("usr"),
           hr(),
@@ -190,6 +245,13 @@ viscode_rv <- shiny::reactiveVal(1L)
 output$ui <- renderUI({
   if (user_input$authenticated == FALSE) {
     fluidPage(uiOutput("uiLogin"))
+  } else if (isTRUE(user_input$must_change_password)) {
+    # Blocks both the dynamic CRF panel and the demo-forms-scaffold
+    # branch below until the user replaces a password someone else
+    # chose for them (initial setup, an admin reset, or an admin
+    # directly setting one) -- see R/change_password_module.R and
+    # the change_password_server() call below.
+    zzedc:::change_password_ui("change_password")
   } else if (!is.null(.zzedc_crf_forms())) {
     .zzedc_crf_dynamic_panel(.zzedc_crf_forms())
   } else if (!.zzedc_forms_present()) {
@@ -199,7 +261,7 @@ output$ui <- renderUI({
     fluidRow(
       column(2,
     wellPanel(
-    bsicons::bs_icon("person-circle", size = "4rem"),
+    zzedc:::user_avatar_tag(user_input$full_name, user_input$username),
     br(), br(), hr(),
     textOutput("usr"),
     textOutput("studyid"),
@@ -219,6 +281,33 @@ output$ui <- renderUI({
            textOutput("messages"),
            hidden(uiOutput("results")),
            tableOutput("val"))))}})
+
+# Same salt resolution as authenticate_user() in auth.R (sourced
+# before this file, so its own helper isn't reachable here -- see
+# that file's comment on the cfg$auth$salt_env_var-absent-from-
+# scaffolded-configs bug this already works around): must hash a
+# changed password exactly the way login will verify it, or the
+# user would be locked out by their own password change.
+.edc_auth_salt <- local({
+  salt_env_var <- cfg$auth$salt_env_var
+  salt <- if (is.character(salt_env_var) && length(salt_env_var) == 1 &&
+                nzchar(salt_env_var)) {
+    Sys.getenv(salt_env_var)
+  } else {
+    ""
+  }
+  if (salt == "") salt <- cfg$auth$default_salt
+  salt
+})
+
+zzedc:::change_password_server(
+  "change_password", db_pool, user_input, salt = .edc_auth_salt,
+  min_length = if (!is.null(cfg$security$password_min_length)) {
+    cfg$security$password_min_length
+  } else {
+    8
+  }
+)
 
 output$messages <- renderText({"Messages"})
 output$crf_messages <- renderText({"Messages"})
@@ -300,6 +389,26 @@ output$edc_crf_fields <- renderUI({
 crf_field_metadata <- reactive({
   shiny::req(input$edc_crf_form)
   zzedc:::get_crf_field_metadata(db_pool, as.integer(input$edc_crf_form))
+})
+
+# Fired by the click handler in .zzedc_crf_dynamic_panel() (above)
+# when a field's hint icon has data-has-detail="true". Looks up that
+# field's full-page help_detail (never sent to the browser until
+# now, unlike the short data-tooltip text) and shows it in a modal.
+# shiny::tags$div()'s text content is escaped automatically, so
+# sheet-authored help_detail renders as plain text even if it
+# happens to contain characters that look like markup -- it is
+# someone's data-dictionary prose, not trusted HTML.
+observeEvent(input$field_help_detail_click, {
+  metadata <- crf_field_metadata()
+  field <- metadata[[input$field_help_detail_click]]
+  shiny::req(field, field$help_detail)
+  shiny::showModal(shiny::modalDialog(
+    title = field$label,
+    tags$div(style = "white-space: pre-wrap;", field$help_detail),
+    easyClose = TRUE,
+    size = "l"
+  ))
 })
 
 # Reads every current input value for the active form's fields. This
@@ -401,10 +510,12 @@ output$edc_crf_field_flags <- renderUI({
   # and says more than the plain CSV description); once a field has
   # a live error, swaps to that error's message plus
   # field_error_resolution_hint()'s kind-specific advice on how to
-  # fix it. jsonlite::toJSON() quotes/escapes the title safely for
-  # embedding in the script -- the tooltip text can include the
-  # user's own just-typed value, so this is untrusted text, not just
-  # a fixed hint string.
+  # fix it. Sets `data-tooltip` (the CSS tooltip in this panel's
+  # style block reads that attribute, not `title` -- see its comment
+  # on why) rather than the element's `title`. jsonlite::toJSON()
+  # quotes/escapes the text safely for embedding in the script -- it
+  # can include the user's own just-typed value, so this is
+  # untrusted text, not just a fixed hint string.
   icon_updates <- vapply(names(metadata), function(f) {
     err <- live_errors[[f]]
     has_error <- !is.null(err)
@@ -420,7 +531,8 @@ output$edc_crf_field_flags <- renderUI({
     sprintf(
       paste(
         "(function(el) { if (!el) return;",
-        "el.title = %s; el.classList.toggle('field-hint-icon--error', %s); })",
+        "el.setAttribute('data-tooltip', %s);",
+        "el.classList.toggle('field-hint-icon--error', %s); })",
         "(document.getElementById(%s));"
       ),
       jsonlite::toJSON(tooltip, auto_unbox = TRUE),

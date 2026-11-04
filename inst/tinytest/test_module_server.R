@@ -57,6 +57,53 @@ local({
       expect_equal(isolate(user_input$username),  "testuser")
       expect_equal(isolate(user_input$full_name), "Test User")
       expect_equal(isolate(user_input$role),      "Admin")
+      # testuser (create_test_db()'s fixture) is not flagged.
+      expect_false(isolate(user_input$must_change_password))
+    }
+  )
+
+  DBI::dbDisconnect(test_con)
+  rm("db_pool", "cfg", envir = .GlobalEnv)
+})
+
+# ----------------------------------------------------------------
+# auth_server: a flagged user's login sets must_change_password
+# ----------------------------------------------------------------
+
+local({
+  if (!exists("auth_server")) return(invisible())
+
+  test_con <- create_test_db()
+  DBI::dbExecute(test_con, "
+    INSERT INTO edc_users (username, password_hash, full_name,
+                            role, must_change_password)
+    VALUES (?, ?, ?, ?, 1)
+  ", params = list(
+    "flagged_user",
+    digest::digest(paste0("flaggedpass", "test_salt_123"), algo = "sha256"),
+    "Flagged User", "Coordinator"
+  ))
+  assign("db_pool", test_con, envir = .GlobalEnv)
+  assign("cfg",     create_test_config(), envir = .GlobalEnv)
+
+  user_input <- shiny::reactiveValues(
+    authenticated = FALSE,
+    user_id = NULL, username = NULL, full_name = NULL,
+    role = NULL, site_id = NULL, must_change_password = FALSE
+  )
+
+  shiny::testServer(
+    zzedc:::auth_server,
+    args = list(user_input = user_input),
+    {
+      session$setInputs(
+        username     = "flagged_user",
+        password     = "flaggedpass",
+        login_button = 1
+      )
+
+      expect_true(isolate(user_input$authenticated))
+      expect_true(isolate(user_input$must_change_password))
     }
   )
 

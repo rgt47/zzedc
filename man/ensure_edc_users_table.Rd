@@ -24,6 +24,18 @@ one table.
 }
 \details{
 Idempotent: calling this on a database where \code{edc_users}
-already exists is a no-op.
+already exists is a no-op, except for the \code{must_change_password}
+migration below.
+
+A database provisioned before \code{must_change_password} existed
+(any already-deployed study) will have \code{edc_users} but not this
+column; every subsequent call here checks for it and adds it if
+missing, so this doubles as the migration path, the same pattern
+used for \code{data_entries} in \code{launch_zzedc()}. The migrated column
+defaults to \code{0} (not \code{1}) for already-existing rows -- a user
+who has been logging in fine for weeks should not suddenly be
+locked into a forced password change by an unrelated upgrade;
+only freshly created accounts (see \code{\link[=db_insert_user]{db_insert_user()}} and the
+setup-wizard inserts) are meant to start at \code{1}.
 }
 \keyword{internal}

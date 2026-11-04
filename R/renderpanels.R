@@ -246,14 +246,6 @@ renderPanel <- function(fields, field_metadata = NULL) {
       )
     )
 
-    # Wrap with help text if provided
-    if (!is.null(help_text)) {
-      field_input <- shiny::tagList(
-        field_input,
-        tags$small(class = "form-text text-muted", help_text)
-      )
-    }
-
     # Determine initial visibility based on branching rules
     # (Server-side implementation uses setup_branching_logic to manage this)
     initial_hidden <- FALSE
@@ -279,10 +271,31 @@ renderPanel <- function(fields, field_metadata = NULL) {
     # (already used by this wrapper div and by the input/select
     # control shiny's own widgets generate) so document.getElementById()
     # can target it unambiguously regardless of field type.
+    # `data-tooltip` (read live by CSS's content: attr(data-tooltip),
+    # not a `title` attribute: a native browser tooltip's appear
+    # delay is an unstyleable OS/browser default (Chrome: ~500-
+    # 1000ms, not configurable from the page), so controlling how
+    # long a hover takes to show the tooltip -- as opposed to just
+    # what it says -- requires a CSS-driven one instead. See the
+    # `.field-hint-icon::after` rule (inst/app/edc.R) for the actual
+    # appear delay.
+    # `data-has-detail`: when the field's data dictionary row carries
+    # `help_detail` (a full-page explanation, too long for the hover
+    # tooltip), clicking the icon opens a modal with that content
+    # instead of just pinning the short tooltip open -- see the
+    # click handler and the field_help_detail_click observer in
+    # inst/app/edc.R. The detail text itself is never put in this
+    # markup (unlike data-tooltip's short text): it can be long, and
+    # the click handler only needs to know whether to ask the server
+    # for it, not what it says.
+    has_detail <- !is.null(field_config$help_detail) &&
+      nzchar(trimws(field_config$help_detail))
+
     hint_icon <- tags$span(
       id = paste0(field_name, "__hint_icon"),
       class = "field-hint-icon",
-      title = help_text %||% "",
+      `data-tooltip` = help_text %||% "",
+      `data-has-detail` = if (has_detail) "true" else "false",
       tags$span(class = "field-hint-icon__info", bsicons::bs_icon("info-circle")),
       tags$span(class = "field-hint-icon__error", bsicons::bs_icon("exclamation-triangle-fill"))
     )

@@ -15,9 +15,46 @@ local({
   cols <- DBI::dbListFields(conn, "edc_users")
   expected <- c("user_id", "username", "password_hash",
                  "full_name", "email", "role", "site_id",
-                 "active", "last_login", "created_date",
-                 "created_by", "modified_date", "modified_by")
+                 "active", "must_change_password", "last_login",
+                 "created_date", "created_by", "modified_date",
+                 "modified_by")
   expect_true(setequal(cols, expected))
+})
+
+
+# Test: ensure_edc_users_table() migrates an already-existing table
+# that predates must_change_password, and the migrated column
+# defaults existing rows to 0 (not forcing a surprise password
+# change on anyone already using the app)
+local({
+  conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  DBI::dbExecute(conn, "
+    CREATE TABLE edc_users (
+      user_id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL, full_name TEXT, email TEXT,
+      role TEXT, site_id TEXT, active INTEGER DEFAULT 1,
+      last_login TIMESTAMP,
+      created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_by TEXT, modified_date TIMESTAMP, modified_by TEXT
+    )
+  ")
+  DBI::dbExecute(conn, "
+    INSERT INTO edc_users (user_id, username, password_hash, active)
+    VALUES ('USER_PRE', 'pre_existing', 'h', 1)
+  ")
+
+  expect_false("must_change_password" %in%
+                 DBI::dbListFields(conn, "edc_users"))
+
+  zzedc:::ensure_edc_users_table(conn)
+
+  expect_true("must_change_password" %in%
+                DBI::dbListFields(conn, "edc_users"))
+  rows <- DBI::dbGetQuery(conn,
+    "SELECT must_change_password FROM edc_users WHERE username = 'pre_existing'")
+  expect_equal(rows$must_change_password[1], 0L)
 })
 
 
@@ -105,4 +142,23 @@ local({
   rows <- DBI::dbGetQuery(conn,
     "SELECT active FROM edc_users WHERE username = 'dave'")
   expect_equal(rows$active[1], 0L)
+})
+
+
+# Test: db_insert_user() defaults must_change_password to TRUE (1)
+# -- every account it creates starts with a password someone else
+# chose -- and honors an explicit FALSE
+local({
+  conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  zzedc:::ensure_edc_users_table(conn)
+
+  zzedc:::db_insert_user(conn, "erin", "h", created_by = "test")
+  zzedc:::db_insert_user(conn, "frank", "h", created_by = "test",
+                          must_change_password = FALSE)
+
+  rows <- DBI::dbGetQuery(conn,
+    "SELECT username, must_change_password FROM edc_users ORDER BY username")
+  expect_equal(rows$must_change_password[rows$username == "erin"], 1L)
+  expect_equal(rows$must_change_password[rows$username == "frank"], 0L)
 })

@@ -142,6 +142,46 @@ local({
     expect_true(!is.null(result$field_id))
 
 })
+# Test: add_form_field stores help_detail, and leaves it NULL when
+# not supplied
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    form <- create_designer_form(
+      form_code = "DETAIL_TEST",
+      form_name = "Detail Test",
+      created_by = "designer"
+    )
+
+    with_detail <- add_form_field(
+      design_id   = form$design_id,
+      field_code  = "LICENSE",
+      field_label = "License",
+      field_type  = "SELECT",
+      help_detail = "A long explanation of each license option."
+    )
+    without_detail <- add_form_field(
+      design_id   = form$design_id,
+      field_code  = "NOTES",
+      field_label = "Notes",
+      field_type  = "TEXT"
+    )
+
+    expect_true(with_detail$success)
+    expect_true(without_detail$success)
+
+    con <- connect_encrypted_db()
+    rows <- DBI::dbGetQuery(con,
+      "SELECT field_code, help_detail FROM designer_fields WHERE design_id = ?",
+      params = list(form$design_id))
+    DBI::dbDisconnect(con)
+
+    expect_equal(rows$help_detail[rows$field_code == "LICENSE"],
+                 "A long explanation of each license option.")
+    expect_true(is.na(rows$help_detail[rows$field_code == "NOTES"]))
+
+})
 # Test: add_form_field validates type
 local({
     result <- add_form_field(

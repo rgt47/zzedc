@@ -17,7 +17,8 @@ add_form_field(
   placeholder = NULL,
   help_text = NULL,
   default_value = NULL,
-  widget_file = NULL
+  widget_file = NULL,
+  help_detail = NULL
 )
 }
 \arguments{
@@ -50,6 +51,13 @@ field (e.g. \code{"coauthor_builder"}), or \code{NULL} for none. Resolved
 at render time by \code{\link[=resolve_widget_module]{resolve_widget_module()}} to a file under
 \verb{inst/app/widgets/}; only \verb{[a-zA-Z0-9_]+} is accepted as a
 widget name.}
+
+\item{help_detail}{Optional long-form help content for this
+field -- a full explanation, worked example, or convention
+description that would be too much for \code{help_text}'s one-line
+hover hint. Shown instead in a modal, opened by clicking the
+field's hint icon (see \code{inst/app/edc.R}); a field with no
+\code{help_detail} keeps the plain hover tooltip for that click.}
 }
 \value{
 List with success status

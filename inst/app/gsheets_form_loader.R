@@ -175,7 +175,15 @@ integrate_gsheets_forms <- function() {
 #' @param input Shiny input object
 #' @param output Shiny output object
 #' @param session Shiny session object
-generate_gsheets_form_server <- function(forms_data, input, output, session) {
+#' @param user_input The per-session authentication reactiveValues
+#'   (inst/app/server.R). Passed explicitly, not read via lexical
+#'   scoping: this file is sourced once, non-locally, from ui.R (see
+#'   gsheets_ui_integration.R), so a function defined here closes
+#'   over the global environment, not over any particular session's
+#'   server() call -- it can never see a per-session object unless
+#'   that object is handed to it as an argument.
+generate_gsheets_form_server <- function(forms_data, input, output, session,
+                                          user_input) {
 
   # Load validation cache at startup
   source("R/validation_cache.R", local = TRUE)

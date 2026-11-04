@@ -177,6 +177,37 @@ local({
 
     })
 })
+# Test: authenticate_user() surfaces must_change_password, and does
+# not force it on a user who was not flagged
+local({
+    if (exists("authenticate_user")) local({
+    test_con <- create_test_db()
+    assign("db_pool", test_con, envir = .GlobalEnv)
+    assign("cfg", create_test_config(), envir = .GlobalEnv)
+
+    test_salt <- "test_salt_123"
+    flagged_hash <- digest::digest(paste0("flaggedpass", test_salt),
+                                    algo = "sha256")
+    dbExecute(test_con, "
+      INSERT INTO edc_users (username, password_hash, full_name,
+                              role, must_change_password)
+      VALUES (?, ?, ?, ?, 1)
+    ", params = list("flagged_user", flagged_hash,
+                     "Flagged User", "Coordinator"))
+
+    flagged_result <- zzedc:::authenticate_user("flagged_user", "flaggedpass")
+    expect_true(flagged_result$success)
+    expect_true(flagged_result$must_change_password)
+
+    unflagged_result <- zzedc:::authenticate_user("testuser", "testpass")
+    expect_true(unflagged_result$success)
+    expect_false(unflagged_result$must_change_password)
+
+    dbDisconnect(test_con)
+    rm(db_pool, envir = .GlobalEnv)
+    rm(cfg, envir = .GlobalEnv)
+    })
+})
 # Test: authentication respects user active status
 local({
     if (exists("authenticate_user")) local({

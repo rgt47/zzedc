@@ -1,6 +1,30 @@
 
 server <- function(input, output, session) {
 
+  # Per-session authentication state. Previously created once in
+  # global.R, which runs once per R process and so was the same
+  # single reactiveValues object shared by every concurrent browser
+  # session -- one user's login was visible, unauthenticated, to
+  # every other open session. Creating it here, as a local binding
+  # of this per-session server() call, means everything sourced
+  # below (directly or transitively, all with local = TRUE: auth.R,
+  # edc.R, gsheets_server_integration.R, gsheets_form_loader.R) picks
+  # up THIS session's user_input via lexical scoping instead of
+  # falling through to a shared global one.
+  user_session <- shiny::reactiveValues(
+    authenticated = FALSE,
+    authentication_timestamp = NULL,
+    user_id = NULL,
+    username = NULL,
+    full_name = NULL,
+    role = NULL,
+    site_id = NULL,
+    must_change_password = FALSE,
+    last_activity = Sys.time(),
+    session_start = Sys.time()
+  )
+  user_input <- user_session
+
   # If enhanced server integration is present and loads successfully,
   # use it and short-circuit. The previous `return(NULL)` was inside
   # a `tryCatch` body and so returned only from the tryCatch, not

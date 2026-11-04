@@ -13,7 +13,7 @@ create_enhanced_server <- function(input, output, session) {
   # Check if Google Sheets integration is available
   if (exists("gsheets_integration_data")) {
     message("Initializing Google Sheets server integration")
-    initialize_gsheets_server(input, output, session)
+    initialize_gsheets_server(input, output, session, user_input)
   } else {
     message("No Google Sheets integration found, using traditional forms")
   }
@@ -31,7 +31,7 @@ create_enhanced_server <- function(input, output, session) {
 }
 
 #' Initialize Google Sheets server logic
-initialize_gsheets_server <- function(input, output, session) {
+initialize_gsheets_server <- function(input, output, session, user_input) {
 
   gsheets_data <- get("gsheets_integration_data", envir = .GlobalEnv)
 
@@ -72,7 +72,8 @@ initialize_gsheets_server <- function(input, output, session) {
   }
 
   # Generate form server logic (save handlers)
-  generate_gsheets_form_server(gsheets_data$forms_data, input, output, session)
+  generate_gsheets_form_server(gsheets_data$forms_data, input, output, session,
+                                user_input)
 
   # Forms overview outputs
   output$db_status <- renderText({

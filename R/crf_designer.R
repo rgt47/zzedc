@@ -73,18 +73,23 @@ init_crf_designer <- function() {
         default_value TEXT,
         css_class TEXT,
         widget_file TEXT,
+        help_detail TEXT,
         FOREIGN KEY (design_id) REFERENCES designer_forms(design_id),
         FOREIGN KEY (section_id) REFERENCES designer_sections(section_id)
       )
     ")
 
     # CREATE TABLE IF NOT EXISTS only takes effect for a brand-new
-    # database; a database initialized before widget_file existed
-    # (e.g. this package's own live promotion-tracker deployment)
-    # needs it added on to the table it already has.
+    # database; a database initialized before widget_file (or, later,
+    # help_detail) existed (e.g. this package's own live promotion-
+    # tracker deployment) needs each added on to the table it already
+    # has.
     existing_cols <- DBI::dbGetQuery(con, "PRAGMA table_info(designer_fields)")$name
     if (!"widget_file" %in% existing_cols) {
       DBI::dbExecute(con, "ALTER TABLE designer_fields ADD COLUMN widget_file TEXT")
+    }
+    if (!"help_detail" %in% existing_cols) {
+      DBI::dbExecute(con, "ALTER TABLE designer_fields ADD COLUMN help_detail TEXT")
     }
 
     DBI::dbExecute(con, "
@@ -272,6 +277,12 @@ add_form_section <- function(design_id, section_code, section_name,
 #'   at render time by [resolve_widget_module()] to a file under
 #'   `inst/app/widgets/`; only `[a-zA-Z0-9_]+` is accepted as a
 #'   widget name.
+#' @param help_detail Optional long-form help content for this
+#'   field -- a full explanation, worked example, or convention
+#'   description that would be too much for `help_text`'s one-line
+#'   hover hint. Shown instead in a modal, opened by clicking the
+#'   field's hint icon (see `inst/app/edc.R`); a field with no
+#'   `help_detail` keeps the plain hover tooltip for that click.
 #' @return List with success status
 #'
 #' @examples
@@ -294,7 +305,8 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
                             section_id = NULL, field_row = 1, field_column = 1,
                             field_width = 100, is_required = FALSE,
                             placeholder = NULL, help_text = NULL,
-                            default_value = NULL, widget_file = NULL) {
+                            default_value = NULL, widget_file = NULL,
+                            help_detail = NULL) {
   tryCatch({
     valid_types <- names(get_designer_field_types())
     if (!field_type %in% valid_types) {
@@ -309,8 +321,8 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
       INSERT INTO designer_fields (
         design_id, section_id, field_code, field_label, field_type,
         field_row, field_column, field_width, is_required,
-        placeholder, help_text, default_value, widget_file
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        placeholder, help_text, default_value, widget_file, help_detail
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ", params = list(
       design_id,
       if (is.null(section_id)) NA_integer_ else as.integer(section_id),
@@ -318,7 +330,8 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
       as.integer(field_row), as.integer(field_column),
       as.integer(field_width), as.integer(is_required),
       safe_scalar_cd(placeholder), safe_scalar_cd(help_text),
-      safe_scalar_cd(default_value), safe_scalar_cd(widget_file)
+      safe_scalar_cd(default_value), safe_scalar_cd(widget_file),
+      safe_scalar_cd(help_detail)
     ))
 
     field_id <- DBI::dbGetQuery(con,

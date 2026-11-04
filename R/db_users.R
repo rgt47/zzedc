@@ -37,7 +37,19 @@ NULL
 #' one table.
 #'
 #' Idempotent: calling this on a database where `edc_users`
-#' already exists is a no-op.
+#' already exists is a no-op, except for the `must_change_password`
+#' migration below.
+#'
+#' A database provisioned before `must_change_password` existed
+#' (any already-deployed study) will have `edc_users` but not this
+#' column; every subsequent call here checks for it and adds it if
+#' missing, so this doubles as the migration path, the same pattern
+#' used for `data_entries` in `launch_zzedc()`. The migrated column
+#' defaults to `0` (not `1`) for already-existing rows -- a user
+#' who has been logging in fine for weeks should not suddenly be
+#' locked into a forced password change by an unrelated upgrade;
+#' only freshly created accounts (see [db_insert_user()] and the
+#' setup-wizard inserts) are meant to start at `1`.
 #'
 #' @param conn A DBI connection (or pool object that delegates
 #'   DBI methods).
@@ -54,6 +66,7 @@ ensure_edc_users_table <- function(conn) {
       role           TEXT,
       site_id        TEXT,
       active         INTEGER DEFAULT 1,
+      must_change_password INTEGER DEFAULT 0,
       last_login     TIMESTAMP,
       created_date   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       created_by     TEXT,
@@ -61,6 +74,10 @@ ensure_edc_users_table <- function(conn) {
       modified_by    TEXT
     )
   ")
+  if (!"must_change_password" %in% DBI::dbListFields(conn, "edc_users")) {
+    DBI::dbExecute(conn,
+      "ALTER TABLE edc_users ADD COLUMN must_change_password INTEGER DEFAULT 0")
+  }
   invisible(NULL)
 }
 
@@ -94,6 +111,14 @@ ensure_edc_users_table <- function(conn) {
 #'   `"redcap_import"`, `"admin_ui"`).
 #' @param user_id Optional pre-generated identifier; auto-
 #'   generated if `NULL`.
+#' @param must_change_password `TRUE` / `FALSE` or an integer
+#'   flag; coerced to `0L` / `1L`. Defaults to `TRUE`: every path
+#'   that creates a new account through this helper hands the user
+#'   a password someone else chose (an admin-typed password, a
+#'   generated temp password, or a Sheet-provisioned placeholder),
+#'   so forcing a change on first login is the safe default. Pass
+#'   `FALSE` explicitly for a caller that has a real reason not to
+#'   (there is none among the current callers).
 #' @return Named list with `success` (logical) and either
 #'   `user_id` (on success) or `error` (the DBI error message).
 #' @keywords internal
@@ -106,19 +131,21 @@ db_insert_user <- function(conn,
                             site_id = "001",
                             active = TRUE,
                             created_by = "programmatic",
-                            user_id = NULL) {
+                            user_id = NULL,
+                            must_change_password = TRUE) {
   if (is.null(user_id) || !nzchar(as.character(user_id))) {
     user_id <- paste0("USER_", as.integer(Sys.time()), "_",
                        sample(1e6, 1L))
   }
   active_int <- if (isTRUE(as.logical(active))) 1L else 0L
+  must_change_int <- if (isTRUE(as.logical(must_change_password))) 1L else 0L
 
   tryCatch({
     DBI::dbExecute(conn, "
       INSERT INTO edc_users
         (user_id, username, password_hash, full_name, email,
-         role, site_id, active, created_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+         role, site_id, active, must_change_password, created_date, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
     ", list(
       as.character(user_id),
       as.character(username),
@@ -128,6 +155,7 @@ db_insert_user <- function(conn,
       as.character(role),
       as.character(site_id),
       active_int,
+      must_change_int,
       as.character(created_by)
     ))
     list(success = TRUE, user_id = user_id)

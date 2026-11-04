@@ -214,6 +214,20 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     message("Could not ensure data_entries table exists: ", e$message)
   })
 
+  # Same reasoning as data_entries above: `edc_users` may exist but
+  # predate the `must_change_password` column (any study database
+  # provisioned before this feature), and ensure_edc_users_table()
+  # both creates the table if missing and migrates an existing one
+  # that lacks the column (see its own roxygen for why the migrated
+  # default is 0, not 1).
+  tryCatch({
+    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    ensure_edc_users_table(conn)
+  }, error = function(e) {
+    message("Could not ensure edc_users table is current: ", e$message)
+  })
+
   # Run the app
   shiny::runApp(
     appDir = app_dir,

@@ -466,8 +466,12 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
 
       tryCatch({
         if (!is.null(db_pool)) {
+          # A forced reset hands the user a password they didn't
+          # choose, same as a brand-new account -- force them to
+          # replace it on next login, same as db_insert_user()'s
+          # default for new users.
           pool::dbExecute(db_pool,
-            "UPDATE edc_users SET password_hash = ? WHERE user_id = ?",
+            "UPDATE edc_users SET password_hash = ?, must_change_password = 1 WHERE user_id = ?",
             params = list(password_hash, user_state$edit_user_id)
           )
         }
@@ -594,14 +598,18 @@ save_user_to_db <- function(db_pool, user_id, username, full_name, email, role, 
     } else if (mode == "edit") {
       # Update existing user
       if (password != "") {
-        # Update password
+        # Update password. Same rationale as the "Reset password"
+        # button: an admin setting a user's password directly hands
+        # them a password they didn't choose, so force a change on
+        # next login.
         salt <- Sys.getenv("ZZEDC_SALT")
         if (salt == "") salt <- "default_salt"
         password_hash <- digest::digest(paste0(password, salt), algo = "sha256")
 
         pool::dbExecute(db_pool, "
           UPDATE edc_users
-          SET full_name = ?, email = ?, role = ?, active = ?, password_hash = ?, modified_date = datetime('now')
+          SET full_name = ?, email = ?, role = ?, active = ?, password_hash = ?,
+              must_change_password = 1, modified_date = datetime('now')
           WHERE user_id = ?
         ", params = list(full_name, email, role, active, password_hash, user_id))
       } else {

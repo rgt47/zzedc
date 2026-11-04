@@ -14,7 +14,8 @@ db_insert_user(
   site_id = "001",
   active = TRUE,
   created_by = "programmatic",
-  user_id = NULL
+  user_id = NULL,
+  must_change_password = TRUE
 )
 }
 \arguments{
@@ -38,6 +39,15 @@ the user (e.g., \code{"setup_wizard"}, \code{"gsheets_setup"},
 
 \item{user_id}{Optional pre-generated identifier; auto-
 generated if \code{NULL}.}
+
+\item{must_change_password}{\code{TRUE} / \code{FALSE} or an integer
+flag; coerced to \code{0L} / \code{1L}. Defaults to \code{TRUE}: every path
+that creates a new account through this helper hands the user
+a password someone else chose (an admin-typed password, a
+generated temp password, or a Sheet-provisioned placeholder),
+so forcing a change on first login is the safe default. Pass
+\code{FALSE} explicitly for a caller that has a real reason not to
+(there is none among the current callers).}
 }
 \value{
 Named list with \code{success} (logical) and either

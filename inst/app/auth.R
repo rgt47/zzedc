@@ -40,12 +40,16 @@ authenticate_user <- function(username, password) {
                      params = list(Sys.time(), user_record$user_id))
       
       return(list(
-        success = TRUE, 
+        success = TRUE,
         user_id = user_record$user_id,
         username = user_record$username,
         full_name = user_record$full_name,
         role = user_record$role,
-        site_id = user_record$site_id
+        site_id = user_record$site_id,
+        # NULL (not FALSE) on a database that predates this column
+        # and has not yet been migrated by ensure_edc_users_table();
+        # isTRUE() downstream treats that the same as FALSE.
+        must_change_password = isTRUE(as.logical(user_record$must_change_password))
       ))
     } else {
       return(list(success = FALSE, message = "Invalid password"))
@@ -77,7 +81,8 @@ observeEvent(input$login_button, {
     user_input$full_name <- auth_result$full_name
     user_input$role <- auth_result$role
     user_input$site_id <- auth_result$site_id
-    
+    user_input$must_change_password <- isTRUE(auth_result$must_change_password)
+
     removeModal()
     
     shinyalert("Welcome!", 
@@ -143,4 +148,6 @@ composeLoginModalenroll <- function(...){
 
 num_fails_to_lockout <- 3
 
-# user_input reactive values now defined in global.R to avoid duplication
+# user_input reactive values now defined per-session in server.R
+# (not global.R -- see global.R's comment on why), before this file
+# is sourced

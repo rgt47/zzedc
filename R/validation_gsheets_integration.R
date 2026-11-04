@@ -1195,7 +1195,11 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   on the form; defaults to the field's own row position within
 #'   its form when omitted), `widget` (the name of a custom widget
 #'   to attach to this field, e.g. `"coauthor_builder"` -- see
-#'   `resolve_widget_module()`). For a `select`, `radio`, or
+#'   `resolve_widget_module()`), `help_detail` (a full-page
+#'   explanation too long for `description`'s one-line hover hint;
+#'   shown in a modal instead, opened by clicking the field's hint
+#'   icon -- a field with a blank `help_detail` cell keeps the plain
+#'   hover tooltip there). For a `select`, `radio`, or
 #'   `multiselect` field, `validation` may hold a choice list as
 #'   `in(value1,value2,...)` (bare, unquoted values, e.g.
 #'   `in(Fall,Winter,Spring,Summer)`); each value is imported as a
@@ -1466,6 +1470,11 @@ setup_zzedc_from_gsheets <- function(
         }
         help_text <- .gsheets_cell(fields, "description", j)
         widget_file <- .gsheets_cell(fields, "widget", j)
+        # Optional, like the others above: a full-page explanation
+        # too long for help_text's one-line hover hint, shown
+        # instead in a modal when the field's hint icon is clicked
+        # (see help_detail's own docs on add_form_field()).
+        help_detail <- .gsheets_cell(fields, "help_detail", j)
 
         added <- tryCatch(
           add_form_field(
@@ -1476,7 +1485,8 @@ setup_zzedc_from_gsheets <- function(
             is_required = isTRUE(as.logical(fields$required[j])),
             field_row   = field_row,
             help_text   = help_text,
-            widget_file = widget_file
+            widget_file = widget_file,
+            help_detail = help_detail
           ),
           error = function(e) list(success = FALSE, error = e$message)
         )

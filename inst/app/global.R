@@ -127,28 +127,17 @@ if (requireNamespace("pool", quietly = TRUE) && requireNamespace("RSQLite", quie
 
 trial_name <- "trial0"
 
-# Consolidated session state management
-# Single source of truth for all authenticated user information
-user_session <- reactiveValues(
-  # Authentication state
-  authenticated = FALSE,
-  authentication_timestamp = NULL,
-
-  # User identity
-  user_id = NULL,
-  username = NULL,
-  full_name = NULL,
-  role = NULL,
-  site_id = NULL,
-
-  # Session tracking
-  last_activity = Sys.time(),
-  session_start = NULL
-)
-
-# Legacy name for backward compatibility (deprecated - use user_session instead)
-# TODO: Refactor references from user_input to user_session
-user_input <- user_session
+# `user_session`/`user_input` (authenticated, username, full_name,
+# role, ...) is deliberately NOT created here. global.R runs once per
+# R process, shared by every concurrent browser session -- a
+# reactiveValues object created here would be that same single
+# shared object for every session, not one per logged-in user.
+# Confirmed empirically: a brand-new browser tab landed on the EDC
+# tab already "logged in" as whoever had last authenticated in any
+# other tab, with no login step of its own. It is created fresh
+# inside server() instead (inst/app/server.R), once per session,
+# before auth.R/edc.R and the rest of the per-session chain are
+# sourced, so each session gets its own authentication state.
 
 # Modules and utilities are now part of the zzedc package namespace
 # They are loaded automatically when library(zzedc) is called

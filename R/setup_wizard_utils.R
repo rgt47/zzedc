@@ -90,10 +90,14 @@ create_wizard_database <- function(config_list, db_path = NULL,
     salt <- config_list$security_salt
     password_hash <- digest::digest(paste0(config_list$admin_password, salt), algo = "sha256")
 
+    # must_change_password = 1: config_list$admin_password is
+    # whatever the caller typed (often the documented default,
+    # "admin123") -- previously launch_zzedc() only printed a
+    # reminder to change it, with nothing enforcing that.
     DBI::dbExecute(conn, "
       INSERT INTO edc_users
-      (user_id, username, password_hash, full_name, email, role, active, created_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), ?)
+      (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 1, datetime('now'), ?)
     ", params = list(
       admin_id,
       config_list$admin_username,
@@ -116,8 +120,8 @@ create_wizard_database <- function(config_list, db_path = NULL,
       DBI::dbExecute(conn, "
         INSERT INTO edc_users
           (user_id, username, password_hash, full_name, email,
-           role, active, created_date, created_by)
-        VALUES (?, ?, ?, ?, ?, 'PI', 1, datetime('now'), ?)
+           role, active, must_change_password, created_date, created_by)
+        VALUES (?, ?, ?, ?, ?, 'PI', 1, 1, datetime('now'), ?)
       ", params = list(
         pi_id,
         config_list$pi_username,
@@ -162,8 +166,8 @@ create_wizard_database <- function(config_list, db_path = NULL,
 
         DBI::dbExecute(conn, "
           INSERT INTO edc_users
-          (user_id, username, password_hash, full_name, email, role, active, created_date, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), ?)
+          (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, 1, 1, datetime('now'), ?)
         ", params = list(
           member_id,
           member$username,
@@ -689,6 +693,7 @@ create_core_tables <- function(conn, dialect, backend) {
         role %s,
         site_id %s,
         active %s DEFAULT %s,
+        must_change_password %s DEFAULT %s,
         last_login %s,
         created_date %s,
         created_by %s,
@@ -697,6 +702,7 @@ create_core_tables <- function(conn, dialect, backend) {
       ) ENGINE = MergeTree() ORDER BY user_id
     ", text_type, text_type, text_type, text_type, text_type,
        text_type, text_type, bool_type, bool_default_true,
+       bool_type, bool_default_false,
        ts_type, ts_type, text_type, ts_type, text_type))
   } else {
     DBI::dbExecute(conn, sprintf("
@@ -709,6 +715,7 @@ create_core_tables <- function(conn, dialect, backend) {
         role %s,
         site_id %s,
         active %s DEFAULT %s,
+        must_change_password %s DEFAULT %s,
         last_login %s,
         created_date %s DEFAULT CURRENT_TIMESTAMP,
         created_by %s,
@@ -717,6 +724,7 @@ create_core_tables <- function(conn, dialect, backend) {
       )
     ", text_type, text_type, text_type, text_type, text_type,
        text_type, text_type, bool_type, bool_default_true,
+       bool_type, bool_default_false,
        ts_type, ts_type, text_type, ts_type, text_type))
   }
 

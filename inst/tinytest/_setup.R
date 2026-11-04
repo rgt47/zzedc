@@ -46,8 +46,11 @@ create_test_db <- function() {
       role TEXT DEFAULT 'User',
       site_id TEXT DEFAULT '001',
       active INTEGER DEFAULT 1,
+      must_change_password INTEGER DEFAULT 0,
       created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      last_login TIMESTAMP
+      last_login TIMESTAMP,
+      modified_date TIMESTAMP,
+      modified_by TEXT
     )
   ")
   test_salt <- "test_salt_123"

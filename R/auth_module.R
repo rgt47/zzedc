@@ -113,6 +113,7 @@ auth_server <- function(id, user_input) {
         user_input$full_name <- auth_result$full_name
         user_input$role <- auth_result$role
         user_input$site_id <- auth_result$site_id
+        user_input$must_change_password <- isTRUE(auth_result$must_change_password)
 
         removeModal()
 
@@ -190,7 +191,11 @@ authenticate_user <- function(username, password) {
         username = user_record$username[1],
         full_name = user_record$full_name[1],
         role = user_record$role[1],
-        site_id = user_record$site_id[1]
+        site_id = user_record$site_id[1],
+        # NULL (not FALSE) on a database that predates this column
+        # and has not yet been migrated by ensure_edc_users_table();
+        # isTRUE() downstream treats that the same as FALSE.
+        must_change_password = isTRUE(as.logical(user_record$must_change_password[1]))
       ))
     } else {
       return(list(success = FALSE, message = "Invalid password"))
