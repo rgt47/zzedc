@@ -5,8 +5,7 @@ on:
     branches: [ main, master ]
     paths:
       - 'R/db_*.R'
-      - 'tests/testthat/test-db-*.R'
-      - 'tests/testthat/helper-db-*.R'
+      - 'inst/tinytest/test_db-*.R'
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -35,7 +34,8 @@ jobs:
           apt-get update && apt-get install -y \
             libcurl4-openssl-dev \
             libssl-dev \
-            libxml2-dev
+            libxml2-dev \
+            zlib1g-dev
 
       - name: Cache R packages
         uses: actions/cache@v3
@@ -46,14 +46,17 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          Rscript -e "install.packages(c('remotes', 'testthat', 'RSQLite', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
-          Rscript -e "remotes::install_deps(dependencies = TRUE)"
+          Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'RSQLite', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
 
       - name: Run SQLite tests
         env:
           ZZEDC_TEST_BACKENDS: sqlite
         run: |
-          Rscript -e "testthat::test_local(filter = 'db-')"
+          Rscript -e "pkgload::load_all('.', quiet = TRUE)" \
+                   -e "res <- tinytest::run_test_dir('inst/tinytest', pattern = '^test_db-')" \
+                   -e "print(res)" \
+                   -e "if (!all(sapply(res, isTRUE))) quit(status = 1, save = 'no')"
 
   # ===========================================
   # DuckDB Tests
@@ -70,7 +73,8 @@ jobs:
           apt-get update && apt-get install -y \
             libcurl4-openssl-dev \
             libssl-dev \
-            libxml2-dev
+            libxml2-dev \
+            zlib1g-dev
 
       - name: Cache R packages
         uses: actions/cache@v3
@@ -81,14 +85,17 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          Rscript -e "install.packages(c('remotes', 'testthat', 'duckdb', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
-          Rscript -e "remotes::install_deps(dependencies = TRUE)"
+          Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'duckdb', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
 
       - name: Run DuckDB tests
         env:
           ZZEDC_TEST_BACKENDS: duckdb
         run: |
-          Rscript -e "testthat::test_local(filter = 'db-')"
+          Rscript -e "pkgload::load_all('.', quiet = TRUE)" \
+                   -e "res <- tinytest::run_test_dir('inst/tinytest', pattern = '^test_db-')" \
+                   -e "print(res)" \
+                   -e "if (!all(sapply(res, isTRUE))) quit(status = 1, save = 'no')"
 
   # ===========================================
   # PostgreSQL Tests (with service container)
@@ -124,7 +131,8 @@ jobs:
             libcurl4-openssl-dev \
             libssl-dev \
             libxml2-dev \
-            libpq-dev
+            libpq-dev \
+            zlib1g-dev
 
       - name: Cache R packages
         uses: actions/cache@v3
@@ -135,8 +143,8 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          Rscript -e "install.packages(c('remotes', 'testthat', 'RPostgres', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
-          Rscript -e "remotes::install_deps(dependencies = TRUE)"
+          Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'RPostgres', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
 
       - name: Run PostgreSQL tests
         env:
@@ -147,7 +155,10 @@ jobs:
           ZZEDC_TEST_PG_USER: postgres
           ZZEDC_TEST_PG_PASSWORD: postgres
         run: |
-          Rscript -e "testthat::test_local(filter = 'db-')"
+          Rscript -e "pkgload::load_all('.', quiet = TRUE)" \
+                   -e "res <- tinytest::run_test_dir('inst/tinytest', pattern = '^test_db-')" \
+                   -e "print(res)" \
+                   -e "if (!all(sapply(res, isTRUE))) quit(status = 1, save = 'no')"
 
   # ===========================================
   # Combined Test Summary
@@ -218,7 +229,8 @@ jobs:
           apt-get update && apt-get install -y \
             libcurl4-openssl-dev \
             libssl-dev \
-            libxml2-dev
+            libxml2-dev \
+            zlib1g-dev
 
       - name: Cache R packages
         uses: actions/cache@v3
@@ -229,9 +241,9 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          Rscript -e "install.packages(c('remotes', 'testthat', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
           Rscript -e "install.packages('RClickhouse', repos = 'https://cloud.r-project.org')"
-          Rscript -e "remotes::install_deps(dependencies = TRUE)"
+          Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
 
       - name: Create test database
         run: |
@@ -247,4 +259,7 @@ jobs:
           ZZEDC_TEST_CH_USER: default
           ZZEDC_TEST_CH_PASSWORD: ""
         run: |
-          Rscript -e "testthat::test_local(filter = 'db-')"
+          Rscript -e "pkgload::load_all('.', quiet = TRUE)" \
+                   -e "res <- tinytest::run_test_dir('inst/tinytest', pattern = '^test_db-')" \
+                   -e "print(res)" \
+                   -e "if (!all(sapply(res, isTRUE))) quit(status = 1, save = 'no')"
