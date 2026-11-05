@@ -35,7 +35,8 @@ jobs:
             libcurl4-openssl-dev \
             libssl-dev \
             libxml2-dev \
-            zlib1g-dev
+            zlib1g-dev \
+            libuv1-dev
 
       - name: Cache R packages
         uses: actions/cache@v3
@@ -74,7 +75,8 @@ jobs:
             libcurl4-openssl-dev \
             libssl-dev \
             libxml2-dev \
-            zlib1g-dev
+            zlib1g-dev \
+            libuv1-dev
 
       - name: Cache R packages
         uses: actions/cache@v3
@@ -132,7 +134,8 @@ jobs:
             libssl-dev \
             libxml2-dev \
             libpq-dev \
-            zlib1g-dev
+            zlib1g-dev \
+            libuv1-dev
 
       - name: Cache R packages
         uses: actions/cache@v3
@@ -230,7 +233,8 @@ jobs:
             libcurl4-openssl-dev \
             libssl-dev \
             libxml2-dev \
-            zlib1g-dev
+            zlib1g-dev \
+            libuv1-dev
 
       - name: Cache R packages
         uses: actions/cache@v3
