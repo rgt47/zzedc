@@ -44,6 +44,7 @@ Configuration options (in config$sqlite):
     \item \href{#method-SQLiteAdapter-pool}{\code{SQLiteAdapter$pool()}}
     \item \href{#method-SQLiteAdapter-dialect}{\code{SQLiteAdapter$dialect()}}
     \item \href{#method-SQLiteAdapter-supports_encryption}{\code{SQLiteAdapter$supports_encryption()}}
+    \item \href{#method-SQLiteAdapter-describe_table}{\code{SQLiteAdapter$describe_table()}}
     \item \href{#method-SQLiteAdapter-backend_name}{\code{SQLiteAdapter$backend_name()}}
     \item \href{#method-SQLiteAdapter-enable_wal}{\code{SQLiteAdapter$enable_wal()}}
     \item \href{#method-SQLiteAdapter-optimize}{\code{SQLiteAdapter$optimize()}}
@@ -53,12 +54,14 @@ Configuration options (in config$sqlite):
 }
 \if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="auto_increment_column"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-auto_increment_column'><code>DatabaseAdapter$auto_increment_column()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>DatabaseAdapter$begin()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>DatabaseAdapter$commit()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="prepare_auto_increment"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-prepare_auto_increment'><code>DatabaseAdapter$prepare_auto_increment()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
@@ -141,6 +144,29 @@ Configuration options (in config$sqlite):
   }
   \subsection{Returns}{
     Logical TRUE if RSQLCipher is available
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-SQLiteAdapter-describe_table"></a>}}
+\if{latex}{\out{\hypertarget{method-SQLiteAdapter-describe_table}{}}}
+\subsection{\code{SQLiteAdapter$describe_table()}}{
+  Describe a table's columns via \verb{PRAGMA table_info}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{SQLiteAdapter$describe_table(conn, table_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Name of table to describe}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with columns \code{name}, \code{type}, \code{notnull}, \code{pk}
   }
 }
 

@@ -4,7 +4,7 @@
 \alias{create_core_tables}
 \title{Create Core Database Tables}
 \usage{
-create_core_tables(conn, dialect, backend)
+create_core_tables(conn, dialect, backend, adapter)
 }
 \arguments{
 \item{conn}{Database connection}
@@ -12,6 +12,15 @@ create_core_tables(conn, dialect, backend)
 \item{dialect}{Dialect object from adapter}
 
 \item{backend}{Backend name for engine-specific syntax}
+
+\item{adapter}{DatabaseAdapter instance \code{conn} was created from.
+Required for the \code{edc_roles.role_id} auto-increment column,
+which goes through \code{adapter$auto_increment_column()} /
+\code{adapter$prepare_auto_increment()} instead of the raw
+\code{dialect$auto_increment} string, because DuckDB needs a
+companion \verb{CREATE SEQUENCE} that only those methods know how to
+name and create (see
+\verb{docs/db-adapter-remediation-plan-2026-11-07.md} Phase B).}
 }
 \value{
 Invisible NULL

@@ -4,7 +4,13 @@
 \alias{build_create_table}
 \title{Build CREATE TABLE Statement}
 \usage{
-build_create_table(adapter, table_name, columns, if_not_exists = TRUE)
+build_create_table(
+  adapter,
+  table_name,
+  columns,
+  if_not_exists = TRUE,
+  conn = NULL
+)
 }
 \arguments{
 \item{adapter}{DatabaseAdapter instance}
@@ -22,6 +28,12 @@ build_create_table(adapter, table_name, columns, if_not_exists = TRUE)
 }}
 
 \item{if_not_exists}{Add IF NOT EXISTS clause (default TRUE)}
+
+\item{conn}{Database connection, required only when \code{columns}
+includes an auto-increment primary key on a backend that needs
+companion DDL first (currently DuckDB's \verb{CREATE SEQUENCE}; see
+\code{DatabaseAdapter$prepare_auto_increment()}). Omit it for backends
+where auto-increment is a self-contained keyword.}
 }
 \value{
 Character string with CREATE TABLE SQL
@@ -33,6 +45,7 @@ current database backend.
 \examples{
 \dontrun{
   adapter <- create_db_adapter(config)
+  conn <- adapter$connect()
   sql <- build_create_table(adapter, "users", list(
     list(name = "id", type = "integer", primary_key = TRUE,
          auto_increment = TRUE),
@@ -40,7 +53,7 @@ current database backend.
     list(name = "active", type = "boolean", default = TRUE),
     list(name = "created_at", type = "timestamp",
          default = "CURRENT_TIMESTAMP")
-  ))
+  ), conn = conn)
 }
 
 }

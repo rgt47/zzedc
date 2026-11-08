@@ -684,12 +684,21 @@ init_encrypted_duckdb_database <- function(adapter, overwrite = FALSE,
       verify_db_key(key)
     }
 
-    # Connect with the key set for this one connection only, without
-    # altering the cached adapter -- same pattern connect_encrypted_db()
-    # uses for an explicit `key` argument.
+    # Build an adapter whose config carries the encryption key, and
+    # cache it: unlike connect_encrypted_db()'s explicit-`key`
+    # argument (a deliberately one-off connection), this function's
+    # whole purpose is to leave the database usable afterward.
+    # connect_encrypted_db()'s non-SQLite path reads the key from
+    # the *cached* adapter's config, not from an env var the way the
+    # SQLite path reads DB_ENCRYPTION_KEY -- so without updating the
+    # cache here, every call after this one (add_form_field(), etc.)
+    # would fail with "Cannot open encrypted database ... without a
+    # key", even with the right key in hand, because nothing told the
+    # cached adapter about it.
     config <- adapter$config
     config$duckdb$encryption_key <- key
     encrypted_adapter <- create_db_adapter(config)
+    .db_adapter_cache$adapter <- encrypted_adapter
     conn <- encrypted_adapter$connect()
     on.exit(encrypted_adapter$disconnect(conn), add = TRUE)
 

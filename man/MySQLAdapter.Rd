@@ -89,17 +89,20 @@ machinery; these are present in all supported versions.
     \item \href{#method-MySQLAdapter-backend_name}{\code{MySQLAdapter$backend_name()}}
     \item \href{#method-MySQLAdapter-server_version}{\code{MySQLAdapter$server_version()}}
     \item \href{#method-MySQLAdapter-is_ssl_connected}{\code{MySQLAdapter$is_ssl_connected()}}
+    \item \href{#method-MySQLAdapter-describe_table}{\code{MySQLAdapter$describe_table()}}
     \item \href{#method-MySQLAdapter-clone}{\code{MySQLAdapter$clone()}}
   }
 }
 \if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="auto_increment_column"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-auto_increment_column'><code>DatabaseAdapter$auto_increment_column()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>DatabaseAdapter$begin()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>DatabaseAdapter$commit()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="prepare_auto_increment"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-prepare_auto_increment'><code>DatabaseAdapter$prepare_auto_increment()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
@@ -248,6 +251,30 @@ using TLS, by inspecting \verb{SHOW STATUS LIKE 'Ssl_cipher'}.
   }
   \subsection{Returns}{
     Logical TRUE if a non-empty cipher is in use.
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-MySQLAdapter-describe_table"></a>}}
+\if{latex}{\out{\hypertarget{method-MySQLAdapter-describe_table}{}}}
+\subsection{\code{MySQLAdapter$describe_table()}}{
+  Describe a table's columns via \code{information_schema.columns}
+(MySQL/MariaDB have no \verb{PRAGMA table_info} equivalent).
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{MySQLAdapter$describe_table(conn, table_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection.}
+      \item{\code{table_name}}{Name of table to describe.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with columns \code{name}, \code{type}, \code{notnull}, \code{pk}.
   }
 }
 

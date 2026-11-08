@@ -111,6 +111,7 @@ MySQLAdapter <- R6::R6Class(
     #' Create a new MySQL / MariaDB connection.
     #' @return DBI connection object.
     connect = function() {
+      install_mysql_returning_shim()
       my <- self$config$mysql
       driver_pkg <- "RMariaDB"
       MariaDB <- utils::getFromNamespace("MariaDB", driver_pkg)
@@ -136,6 +137,7 @@ MySQLAdapter <- R6::R6Class(
         stop("pool package required for connection pooling.\n",
              "Install with: install.packages('pool')")
       }
+      install_mysql_returning_shim()
 
       my <- self$config$mysql
       driver_pkg <- "RMariaDB"
@@ -302,3 +304,130 @@ MySQLAdapter <- R6::R6Class(
     }
   )
 )
+
+
+#' Parse and Strip a Trailing `RETURNING col AS alias` Clause
+#'
+#' Every one of this package's ~40 "legacy API" files that needs the
+#' auto-generated primary key back from an `INSERT` uses the single
+#' shape `INSERT ... RETURNING <col> AS <alias>` via `DBI::dbGetQuery()`
+#' (confirmed: no multi-column or `RETURNING *` shape exists anywhere
+#' in the codebase, and `RETURNING` is never used with `dbExecute()`).
+#' `RETURNING` is valid syntax on MariaDB 10.5+ but not on MySQL
+#' proper, and confirmed directly against a live MariaDB 11.4
+#' container that `RMariaDB`'s `dbGetQuery()` runs it without error
+#' yet returns a 0-column result -- the generated id is silently lost,
+#' not an error. See `install_mysql_returning_shim()` for how this is
+#' used.
+#'
+#' @param statement Character: a SQL statement, possibly ending in
+#'   `RETURNING <col> AS <alias>`
+#' @return A list with `has_returning` (logical), `statement` (the
+#'   input with any `RETURNING` clause removed), and `alias` (the
+#'   column alias, or `NULL` if `has_returning` is `FALSE`)
+#' @keywords internal
+strip_mysql_returning <- function(statement) {
+  pattern <- "RETURNING\\s+[A-Za-z_][A-Za-z0-9_]*\\s+AS\\s+([A-Za-z_][A-Za-z0-9_]*)"
+  m <- regexec(pattern, statement, ignore.case = TRUE, perl = TRUE)
+  groups <- regmatches(statement, m)[[1]]
+
+  if (length(groups) == 0) {
+    return(list(has_returning = FALSE, statement = statement, alias = NULL))
+  }
+
+  list(
+    has_returning = TRUE,
+    statement = sub(paste0(pattern, "\\s*"), "", statement,
+                     ignore.case = TRUE, perl = TRUE),
+    alias = groups[2]
+  )
+}
+
+
+#' Install the MySQL/MariaDB `RETURNING` Shim
+#'
+#' Overrides `DBI::dbGetQuery()` for RMariaDB's `MariaDBConnection`
+#' class so that a statement ending in `RETURNING <col> AS <alias>`
+#' (see `strip_mysql_returning()`) is run instead as a plain
+#' `dbExecute()` of the statement with that clause removed, followed
+#' by `SELECT LAST_INSERT_ID() AS <alias>` -- giving back exactly the
+#' single-row, single-column result the call site expects
+#' (`result$id[1]` or equivalent), on both MariaDB (where the
+#' original `RETURNING` SQL runs but RMariaDB drops its result) and
+#' genuine MySQL (where `RETURNING` is not valid syntax at all).
+#' Every other statement passes through to RMariaDB's own original
+#' `dbGetQuery()` method untouched.
+#'
+#' This is a session-wide override of a generic/class combination
+#' owned by another package (the standard R mechanism for extending a
+#' method you do not own), for the same reason
+#' `install_pg_placeholder_shim()` is: the ~83 `RETURNING` call sites
+#' connect via `connect_encrypted_db()` and call
+#' `DBI::dbGetQuery()` directly on the raw connection, never through
+#' `MySQLAdapter`'s own `query()` wrapper.
+#'
+#' Idempotent and safe to call on every `connect()`/`pool()`: it
+#' installs at most once per session, and does nothing if `RMariaDB`
+#' is not installed or does not define the expected method.
+#'
+#' @return `invisible(NULL)`
+#' @keywords internal
+install_mysql_returning_shim <- function() {
+  if (isTRUE(.mysql_returning_shim_env$done)) return(invisible(NULL))
+  if (!requireNamespace("RMariaDB", quietly = TRUE)) return(invisible(NULL))
+  if (!requireNamespace("methods", quietly = TRUE)) return(invisible(NULL))
+
+  # RMariaDB has no MariaDBConnection-specific dbGetQuery of its own;
+  # DBI's own default method (signature "DBIConnection") is what
+  # actually runs, composed from dbSendQuery + dbFetch +
+  # dbClearResult. S4 lets a new, more specific method be defined
+  # for a subclass even when only the superclass method exists --
+  # dispatch always prefers the more specific match -- so this adds
+  # a MariaDBConnection-specific dbGetQuery rather than overriding
+  # anything RMariaDB itself defined. Using dbGetQuery here, not
+  # dbSendQuery (as install_pg_placeholder_shim() does), is
+  # deliberate: this method needs the *fetched* result (the
+  # LAST_INSERT_ID() value) in hand to fix its type (see below),
+  # which dbSendQuery's result-set handle does not yet have.
+  default_sig <- c("DBIConnection", "character")
+  if (!methods::existsMethod("dbGetQuery", default_sig)) return(invisible(NULL))
+
+  orig <- methods::getMethod("dbGetQuery", default_sig)
+  # `where = globalenv()` avoids "the environment 'zzedc' is locked":
+  # setMethod() needs a method-table environment it can write to, and
+  # a loaded package's own namespace is locked once attached (whether
+  # loaded via library() or pkgload::load_all()). Passing the generic
+  # as a function object (DBI::dbGetQuery), not its name, avoids a
+  # second error ("no existing definition for function
+  # 'dbGetQuery'") that setMethod raises when looking the name up
+  # relative to `where` and DBI is only loaded via requireNamespace(),
+  # not attached to the search path.
+  methods::setMethod(DBI::dbGetQuery, c("MariaDBConnection", "character"),
+    function(conn, statement, ...) {
+      parsed <- strip_mysql_returning(statement)
+      if (!parsed$has_returning) {
+        return(orig(conn, statement, ...))
+      }
+      DBI::dbExecute(conn, parsed$statement, ...)
+      result <- orig(conn, sprintf("SELECT LAST_INSERT_ID() AS %s", parsed$alias))
+      # LAST_INSERT_ID() is BIGINT UNSIGNED, which RMariaDB maps to
+      # bit64::integer64 regardless of an explicit CAST -- confirmed
+      # directly (CAST(... AS SIGNED) still comes back integer64).
+      # Every other backend's RETURNING gives back a plain integer
+      # for these PK columns (none of which need more than 32 bits in
+      # this application), so cast here to keep the type consistent
+      # with SQLite/DuckDB/PostgreSQL rather than surprise a caller
+      # with integer64 (which prints as nonsense, e.g.
+      # "4.940656e-324", under naive numeric coercion).
+      result[[parsed$alias]] <- as.integer(result[[parsed$alias]])
+      result
+    },
+    where = globalenv()
+  )
+
+  .mysql_returning_shim_env$done <- TRUE
+  invisible(NULL)
+}
+
+.mysql_returning_shim_env <- new.env(parent = emptyenv())
+.mysql_returning_shim_env$done <- FALSE

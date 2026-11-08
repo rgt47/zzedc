@@ -87,7 +87,7 @@ init_crf_designer <- function() {
     # help_detail) existed (e.g. this package's own live promotion-
     # tracker deployment) needs each added on to the table it already
     # has.
-    existing_cols <- DBI::dbGetQuery(con, "PRAGMA table_info(designer_fields)")$name
+    existing_cols <- get_db_adapter()$describe_table(con, "designer_fields")$name
     if (!"widget_file" %in% existing_cols) {
       DBI::dbExecute(con, "ALTER TABLE designer_fields ADD COLUMN widget_file TEXT")
     }
@@ -336,6 +336,186 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
     ))$id[1]
 
     list(success = TRUE, field_id = field_id)
+  }, error = function(e) {
+    list(success = FALSE, error = e$message)
+  })
+}
+
+#' Add a Form Field Identified by Form Code
+#'
+#' Combines the manual steps
+#' `vignette('promotion-tracker-add-field-walkthrough')` describes for
+#' applying a Data Dictionary addition to the live database into one
+#' call: look up `design_id` from `form_code`, check for a duplicate
+#' `field_code` on that form, insert the field via `add_form_field()`,
+#' and read the row back to confirm it was written with the requested
+#' label/type/position/required-flag/help text. `field_type` must
+#' still be one of the upper-case constants from
+#' `get_designer_field_types()` (e.g. `"DATE"`), the same requirement
+#' `add_form_field()` has -- this function does not upper-case a
+#' Sheet-style lower-case value for you, since that translation is the
+#' Google Sheets importer's job, not this one's.
+#'
+#' This does not remove every manual step: you still need
+#' `DB_ENCRYPTION_KEY`/`ZZEDC_SALT` exported in the current R session
+#' before calling this (same precondition `connect_encrypted_db()`
+#' always enforces). The returned `verified` flag confirms the
+#' database side only; it cannot detect a stale reactive cache in an
+#' already-open browser tab, so a hard reload of the running app is
+#' still worth doing, but a `verified = TRUE` result does mean that if
+#' the field still does not appear there, the cause is the browser
+#' tab, not the data.
+#'
+#' @param form_code Character: the form's code, matched
+#'   case-insensitively against `designer_forms$form_code` (e.g.
+#'   `"journal_reviews"` or `"JOURNAL_REVIEWS"` both match the stored
+#'   `"JOURNAL_REVIEWS"`).
+#' @param field_code Field's unique code within the form
+#' @param field_label Display label
+#' @param field_type Field type (upper-case constant from
+#'   `get_designer_field_types()`, e.g. `"DATE"`)
+#' @param field_row Display row/position (matches the Data Dictionary's
+#'   `field_order`)
+#' @param field_column Display column
+#' @param field_width Width percentage
+#' @param is_required Whether required
+#' @param placeholder Placeholder text
+#' @param help_text Help text
+#' @param default_value Default value
+#' @param widget_file Name of a custom widget to attach to this field,
+#'   or `NULL` for none (see `add_form_field()`)
+#' @param help_detail Optional long-form help content (see
+#'   `add_form_field()`)
+#' @return List with `success`. On success, also `design_id`,
+#'   `field_id`, `verified` (logical: `TRUE` if the row read back from
+#'   `designer_fields` matches every argument passed in), `mismatches`
+#'   (character vector naming which fields did not match, empty when
+#'   `verified` is `TRUE`), and `field` (the row as read back). On
+#'   failure, `error` and (once `form_code` resolves) `design_id`,
+#'   describing which step failed: the form code did not resolve to a
+#'   `designer_forms` row, the field already exists on that form (not
+#'   re-added), or `add_form_field()` itself failed (invalid
+#'   `field_type`, missing encryption key, etc.).
+#'
+#' @examples
+#' \dontrun{
+#' add_form_field_by_code(
+#'   form_code    = "journal_reviews",
+#'   field_code   = "review_assigned_date",
+#'   field_label  = "Review Assigned Date",
+#'   field_type   = "DATE",
+#'   field_row    = 35,
+#'   is_required  = FALSE,
+#'   help_text    = "Date the editor assigned this manuscript for review"
+#' )
+#' }
+#' @export
+add_form_field_by_code <- function(form_code, field_code, field_label,
+                                   field_type, field_row = 1,
+                                   field_column = 1, field_width = 100,
+                                   is_required = FALSE, placeholder = NULL,
+                                   help_text = NULL, default_value = NULL,
+                                   widget_file = NULL, help_detail = NULL) {
+  tryCatch({
+    # Each step below opens and closes its own connection rather than
+    # holding one open across add_form_field()'s own connect() call.
+    # On DuckDB, a connection's snapshot is fixed when it starts; a
+    # connection opened before add_form_field()'s write and reused
+    # afterward does not see that write (confirmed directly: a stale
+    # connection held open across the insert reports 0 rows where a
+    # fresh connection reports 1), even though auto-commit elsewhere
+    # makes the write immediately visible to any new connection.
+    # SQLite does not have this failure mode, but the fix (never
+    # span a connection across another connection's write) is cheap
+    # enough to apply unconditionally rather than special-casing it
+    # per backend.
+    design_id <- local({
+      con <- connect_encrypted_db()
+      on.exit(DBI::dbDisconnect(con))
+      DBI::dbGetQuery(con, "
+        SELECT design_id FROM designer_forms WHERE UPPER(form_code) = UPPER(?)
+      ", params = list(form_code))
+    })
+
+    if (nrow(design_id) == 0) {
+      return(list(success = FALSE,
+                  error = paste("No form found with form_code:", form_code)))
+    }
+    design_id <- design_id$design_id[1]
+
+    existing <- local({
+      con <- connect_encrypted_db()
+      on.exit(DBI::dbDisconnect(con))
+      DBI::dbGetQuery(con, "
+        SELECT field_id FROM designer_fields
+        WHERE design_id = ? AND field_code = ?
+      ", params = list(design_id, field_code))
+    })
+
+    if (nrow(existing) > 0) {
+      return(list(
+        success = FALSE, design_id = design_id,
+        field_id = existing$field_id[1],
+        error = paste0("Field '", field_code, "' already exists on ",
+                        form_code, " (field_id ", existing$field_id[1],
+                        ") -- not re-added")
+      ))
+    }
+
+    result <- add_form_field(
+      design_id = design_id, field_code = field_code,
+      field_label = field_label, field_type = field_type,
+      field_row = field_row, field_column = field_column,
+      field_width = field_width, is_required = is_required,
+      placeholder = placeholder, help_text = help_text,
+      default_value = default_value, widget_file = widget_file,
+      help_detail = help_detail
+    )
+
+    if (!isTRUE(result$success)) {
+      return(list(success = FALSE, design_id = design_id,
+                  error = result$error))
+    }
+
+    # Re-read the row we just wrote and compare it against what was
+    # requested. This is the data-layer equivalent of the
+    # walkthrough's manual browser check (field present, right type/
+    # position, required flag, help text) -- it cannot catch a stale
+    # reactive cache in an already-open browser tab (that is a
+    # client-side rendering concern, not a database one), but it does
+    # rule the database out as the cause if the field still does not
+    # appear live, narrowing that check to "reload the browser" rather
+    # than "re-check the data".
+    written <- local({
+      con <- connect_encrypted_db()
+      on.exit(DBI::dbDisconnect(con))
+      DBI::dbGetQuery(con, "
+        SELECT field_label, field_type, field_row, field_column,
+               field_width, is_required, help_text
+        FROM designer_fields WHERE field_id = ?
+      ", params = list(result$field_id))
+    })
+
+    mismatches <- character(0)
+    check_field <- function(expected, actual, label) {
+      if (!identical(expected, actual)) {
+        mismatches <<- c(mismatches, sprintf(
+          "%s: expected %s, got %s", label, format(expected), format(actual)
+        ))
+      }
+    }
+    check_field(field_label, written$field_label[1], "field_label")
+    check_field(field_type, written$field_type[1], "field_type")
+    check_field(as.integer(field_row), as.integer(written$field_row[1]), "field_row")
+    check_field(as.integer(is_required), as.integer(written$is_required[1]), "is_required")
+    check_field(safe_scalar_cd(help_text), written$help_text[1], "help_text")
+
+    list(
+      success = TRUE, design_id = design_id, field_id = result$field_id,
+      verified = length(mismatches) == 0,
+      mismatches = mismatches,
+      field = written
+    )
   }, error = function(e) {
     list(success = FALSE, error = e$message)
   })

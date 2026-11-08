@@ -52,6 +52,7 @@ Configuration options (in config$postgresql):
     \item \href{#method-PostgreSQLAdapter-pool}{\code{PostgreSQLAdapter$pool()}}
     \item \href{#method-PostgreSQLAdapter-dialect}{\code{PostgreSQLAdapter$dialect()}}
     \item \href{#method-PostgreSQLAdapter-supports_encryption}{\code{PostgreSQLAdapter$supports_encryption()}}
+    \item \href{#method-PostgreSQLAdapter-describe_table}{\code{PostgreSQLAdapter$describe_table()}}
     \item \href{#method-PostgreSQLAdapter-backend_name}{\code{PostgreSQLAdapter$backend_name()}}
     \item \href{#method-PostgreSQLAdapter-is_ssl_connected}{\code{PostgreSQLAdapter$is_ssl_connected()}}
     \item \href{#method-PostgreSQLAdapter-server_version}{\code{PostgreSQLAdapter$server_version()}}
@@ -63,12 +64,14 @@ Configuration options (in config$postgresql):
 }
 \if{html}{\out{<details><summary>Inherited methods</summary>
 <ul>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="auto_increment_column"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-auto_increment_column'><code>DatabaseAdapter$auto_increment_column()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>DatabaseAdapter$begin()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>DatabaseAdapter$commit()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="prepare_auto_increment"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-prepare_auto_increment'><code>DatabaseAdapter$prepare_auto_increment()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
@@ -151,6 +154,30 @@ Configuration options (in config$postgresql):
   }
   \subsection{Returns}{
     Logical TRUE (PostgreSQL supports SSL/TLS)
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-PostgreSQLAdapter-describe_table"></a>}}
+\if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-describe_table}{}}}
+\subsection{\code{PostgreSQLAdapter$describe_table()}}{
+  Describe a table's columns via \code{information_schema.columns}
+(PostgreSQL has no \verb{PRAGMA table_info} equivalent)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{PostgreSQLAdapter$describe_table(conn, table_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Name of table to describe}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with columns \code{name}, \code{type}, \code{notnull}, \code{pk}
   }
 }
 

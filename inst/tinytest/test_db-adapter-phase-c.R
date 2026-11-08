@@ -266,6 +266,69 @@ if (requireNamespace("duckdb", quietly = TRUE)) {
   expect_true(is.na(user_row$full_name[1]), info = "NULL admin_fullname became a real SQL NULL")
 }
 
+# ============================================================================
+# DuckDB encrypted database stays usable after initialize_encrypted_database()
+# (fixed 2026-11-08)
+# ============================================================================
+#
+# Two bugs, both specific to DuckDB, both invisible on SQLite:
+#
+# 1. init_encrypted_duckdb_database() generated a key and used it to
+#    build a one-off adapter for the CREATE TABLE statements, but
+#    never updated the cached adapter get_db_adapter() returns.
+#    Every later connect_encrypted_db() call (the normal way
+#    add_form_field() etc. connect) resolved the cached, key-less
+#    adapter and failed with "Cannot open encrypted database ...
+#    without a key" -- even with the right key in hand, because
+#    nothing told the cache about it. Fixed by caching the
+#    key-carrying adapter.
+# 2. Holding one connection open across a second connection's write to
+#    the same encrypted file: DuckDB's first connection does not see
+#    the second connection's write, even though a third, freshly
+#    opened connection does (confirmed directly: a stale connection
+#    reports 0 rows where a fresh one reports 1). This is why
+#    add_form_field_by_code() opens and closes a separate connection
+#    for each step instead of holding one open across
+#    add_form_field()'s own connect() call.
+
+if (requireNamespace("duckdb", quietly = TRUE)) {
+  message("[DUCKDB] encrypted database stays usable across connections after init")
+  db_path <- tempfile(fileext = ".duckdb")
+  on.exit(unlink(db_path), add = TRUE)
+  get_db_adapter(config = list(db_backend = "duckdb", duckdb = list(path = db_path)), force_new = TRUE)
+
+  init_res <- initialize_encrypted_database()
+  expect_true(isTRUE(init_res$success), info = paste("duckdb init:", init_res$error %||% ""))
+
+  # Bug 1's regression guard: a later connect_encrypted_db() call (no
+  # key passed explicitly) must resolve the cached, key-carrying
+  # adapter, not the original key-less one.
+  conn <- connect_encrypted_db()
+  tables <- DBI::dbListTables(conn)
+  DBI::dbDisconnect(conn)
+  expect_true("study_info" %in% tables,
+              info = "a later connect_encrypted_db() call can still open the encrypted file")
+
+  init_crf_designer()
+  create_designer_form(form_code = "JOURNAL_REVIEWS", form_name = "Journal Reviews",
+                        created_by = "admin")
+
+  # Bug 2's regression guard: add_form_field_by_code() does lookup,
+  # duplicate-check, insert, and verify-reread as four short-lived
+  # connections; if any of them were held open across another's
+  # write, this would come back unverified or with a spurious
+  # "already exists" on the first call.
+  result <- add_form_field_by_code(
+    form_code = "journal_reviews", field_code = "review_assigned_date",
+    field_label = "Review Assigned Date", field_type = "DATE",
+    field_row = 35, is_required = FALSE,
+    help_text = "Date the editor assigned this manuscript for review"
+  )
+  expect_true(isTRUE(result$success), info = paste("duckdb add_form_field_by_code:", result$error %||% ""))
+  expect_true(isTRUE(result$verified), info = "duckdb add_form_field_by_code verifies its own write")
+  expect_equal(length(result$mismatches), 0)
+}
+
 # Reset the adapter cache so later test files in the same session
 # resolve a plain sqlite backend again rather than whichever backend
 # this file's loop last configured. Pass an explicit config instead

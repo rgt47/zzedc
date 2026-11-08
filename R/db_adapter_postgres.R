@@ -71,6 +71,7 @@ PostgreSQLAdapter <- R6::R6Class(
     #' Create a new PostgreSQL connection
     #' @return DBI connection object
     connect = function() {
+      install_pg_placeholder_shim()
       pg <- self$config$postgresql
 
       conn <- DBI::dbConnect(
@@ -94,6 +95,7 @@ PostgreSQLAdapter <- R6::R6Class(
         stop("pool package required for connection pooling.\n",
              "Install with: install.packages('pool')")
       }
+      install_pg_placeholder_shim()
 
       pg <- self$config$postgresql
 
@@ -273,3 +275,130 @@ PostgreSQLAdapter <- R6::R6Class(
     }
   )
 )
+
+
+#' Translate Positional `?` Placeholders to PostgreSQL's `$n` Syntax
+#'
+#' Every one of this package's ~40 "legacy API" files (everything
+#' that writes to the database outside the `DatabaseAdapter` classes
+#' themselves) was written using the `?` placeholder convention --
+#' the one SQLite, DuckDB, and MySQL/MariaDB all accept natively via
+#' DBI. PostgreSQL's driver (`RPostgres`) does not translate `?`; it
+#' requires `$1, $2, ...` and raises a syntax error otherwise
+#' ("syntax error at or near ','"), confirmed directly against a live
+#' PostgreSQL 15 container with a minimal repro outside this
+#' package's own code. Rewriting several thousand call sites across
+#' ~34 files to use `$n` directly was judged not worth the risk/churn
+#' when the translation can instead be applied once, at the
+#' connection boundary -- see `install_pg_placeholder_shim()`.
+#'
+#' This walks the SQL string once, replacing each `?` that is not
+#' inside a single-quoted string literal with the next `$n`, left to
+#' right (handling a doubled `''` as an escaped quote inside a
+#' literal, so a help-text value like `'it''s required'` is not
+#' mistaken for the end of a string). It relies on the same
+#' assumption DBI's own positional-parameter binding already makes:
+#' the number of `?` outside string literals equals `length(params)`.
+#'
+#' @param sql Character: SQL text using `?` placeholders
+#' @return Character: the same SQL with `$1, $2, ...` in their place
+#' @keywords internal
+translate_pg_placeholders <- function(sql) {
+  if (!grepl("?", sql, fixed = TRUE)) return(sql)
+
+  chars <- strsplit(sql, "", fixed = TRUE)[[1]]
+  out <- character(length(chars))
+  in_string <- FALSE
+  n <- 0L
+  i <- 1L
+  len <- length(chars)
+
+  while (i <= len) {
+    ch <- chars[i]
+    if (ch == "'") {
+      if (in_string && i < len && chars[i + 1] == "'") {
+        out[i] <- "''"
+        i <- i + 2L
+        next
+      }
+      in_string <- !in_string
+      out[i] <- ch
+      i <- i + 1L
+      next
+    }
+    if (ch == "?" && !in_string) {
+      n <- n + 1L
+      out[i] <- paste0("$", n)
+    } else {
+      out[i] <- ch
+    }
+    i <- i + 1L
+  }
+
+  paste(out, collapse = "")
+}
+
+
+#' Install the PostgreSQL Placeholder-Translation Shim
+#'
+#' Overrides `DBI::dbExecute()`/`dbGetQuery()`/`dbSendQuery()`/
+#' `dbSendStatement()` for RPostgres's `PqConnection` class so that
+#' every call through them translates `?` placeholders to `$n` first
+#' (see `translate_pg_placeholders()`), then delegates to RPostgres's
+#' own original method. This is a deliberate, session-wide override
+#' of a generic/class combination owned by another package (the
+#' standard R mechanism for extending a method you do not own) rather
+#' than a `PostgreSQLAdapter`-local fix, because the ~2,100 call
+#' sites that need this connect via `connect_encrypted_db()` and call
+#' `DBI::dbExecute()`/`dbGetQuery()` directly on the raw connection,
+#' never through the adapter's own `execute()`/`query()` wrappers.
+#'
+#' Idempotent and safe to call on every `connect()`/`pool()`: it
+#' installs at most once per session (`.pg_placeholder_shim_env$done`
+#' guards it), and does nothing if `RPostgres` is not installed or
+#' does not define the expected methods (a version mismatch would
+#' make this a no-op rather than an error, leaving the pre-shim
+#' "syntax error at or near ..." failure mode, not a new one).
+#'
+#' @return `invisible(NULL)`
+#' @keywords internal
+install_pg_placeholder_shim <- function() {
+  if (isTRUE(.pg_placeholder_shim_env$done)) return(invisible(NULL))
+  if (!requireNamespace("RPostgres", quietly = TRUE)) return(invisible(NULL))
+  if (!requireNamespace("methods", quietly = TRUE)) return(invisible(NULL))
+
+  # RPostgres defines a PqConnection-specific method only for
+  # dbSendQuery(conn) (dispatching on `conn` alone, signature
+  # "PqConnection" -- confirmed via showMethods(); RPostgres does not
+  # define PqConnection-specific dbExecute/dbGetQuery/dbSendStatement
+  # methods at all). DBI's own default dbGetQuery/dbExecute methods
+  # for DBIConnection are composed from dbSendQuery (or
+  # dbSendStatement, which for Postgres resolves the same way) +
+  # dbBind + dbFetch/dbGetRowsAffected + dbClearResult, so overriding
+  # this one hook point covers every call site that goes through
+  # dbExecute() or dbGetQuery() too -- confirmed directly against a
+  # live PostgreSQL container, not just inferred from the dispatch
+  # chain.
+  if (!methods::existsMethod("dbSendQuery", "PqConnection")) {
+    return(invisible(NULL))
+  }
+  orig <- methods::getMethod("dbSendQuery", "PqConnection")
+  # `where = globalenv()` avoids "the environment 'zzedc' is locked":
+  # setMethod() needs a method-table environment it can write to,
+  # and a loaded package's own namespace is locked once attached
+  # (whether loaded via library() or pkgload::load_all()). Passing
+  # the generic as a function object (DBI::dbSendQuery), not its
+  # name, avoids a second error ("no existing definition for
+  # function 'dbSendQuery'") that setMethod raises when looking the
+  # name up relative to `where` and DBI is only loaded via
+  # requireNamespace(), not attached to the search path.
+  methods::setMethod(DBI::dbSendQuery, "PqConnection", function(conn, statement, ...) {
+    orig(conn, translate_pg_placeholders(statement), ...)
+  }, where = globalenv())
+
+  .pg_placeholder_shim_env$done <- TRUE
+  invisible(NULL)
+}
+
+.pg_placeholder_shim_env <- new.env(parent = emptyenv())
+.pg_placeholder_shim_env$done <- FALSE

@@ -35,6 +35,40 @@ This function:
 }
 
 Encryption is transparent - all existing SQL queries work unchanged.
+
+On non-SQLite backends (\code{config.yml}'s \code{db_backend} set to
+\code{"duckdb"}, \code{"postgresql"}, or \code{"mysql"}/\code{"mariadb"}), this
+delegates to \code{get_db_adapter()$connect()} instead of the SQLite-only
+path below, so that setting changes the backend this function
+actually connects to. \code{db_path} and \code{aws_kms_key_id} are SQLite-path
+arguments and are ignored on those backends; \code{key}, if supplied, is
+passed through to the backend's own encryption-key config slot
+(currently only \code{DuckDBAdapter} acts on it; see
+\verb{docs/db-adapter-remediation-plan-2026-11-07.md} Phase B) for this
+one connection, without altering the cached adapter.
+
+This does not change behavior for the default and still most
+common case (\code{db_backend} unset or \code{"sqlite"}): that path is
+untouched, including the known SQLCipher-PRAGMA no-op documented in
+\verb{docs/edc-encryption-decision-2026-10-29.md}. It also does not make
+every caller of this function safe on a non-SQLite backend by
+itself -- the 40 files that call it still embed some SQLite-dialect
+SQL not yet ported (Phase C of the remediation plan); switching
+\code{db_backend} away from \code{sqlite} before that work lands will surface
+those as query errors, not silently return wrong data.
+
+A \code{config.yml} written for the Shiny app's own \code{config::get()}
+settings (a top-level \verb{default:} environment key, as shipped with
+this package and with the live Promotion Review Tracker deployment)
+is a different schema than \code{load_db_config()} expects (a top-level
+\verb{database:} key with no environment wrapper) and will not parse as
+a backend selection. \code{get_db_adapter()} failing to resolve a
+backend from such a file -- or from no file at all -- is treated
+the same as "no backend configured": this function falls back to
+the sqlite path below rather than propagating that error, so an
+app-config-only \code{config.yml} cannot change this function's
+behavior. A \code{message()} reports the fallback so it is visible to
+someone debugging a \code{config.yml} that was meant to pick a backend.
 }
 \examples{
 \dontrun{

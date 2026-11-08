@@ -69,7 +69,7 @@ anything else.
 automatic sync from the Sheet to the running form -- the Sheet is the
 durable record of what the form *should* contain, but someone with
 database access still has to apply the matching change to the live
-database (Sections 2-4 below). That step takes an admin under a
+database (Sections 2-3 below). That step takes an admin under a
 minute. In practice: update the Sheet for recordkeeping and audit
 purposes, then hand off to whoever manages the deployment to apply it
 live.
@@ -85,7 +85,7 @@ not in the Sheet will be silently lost the next time someone
 provisions a new copy of this study from scratch. Always update the
 Sheet, even though (as of this writing) there is no supported
 re-import path that would pick the change up automatically on a live
-database -- Section 3 below is still a separate, manual step.
+database -- Section 2 below is still a separate step.
 
 Open the Sheet (Section 6.1 of the technical guide has the URL and
 tab-naming rules) and add one row to `Data_Dictionary`:
@@ -106,8 +106,9 @@ Two things about this row that are easy to get wrong:
   not require renumbering anything else.
 - **`field_type` in the Sheet is lower case** (`date`), matching
   every other row. The importer upper-cases it internally before
-  storing it. This matters in Section 3 below, where the direct
-  database path requires the upper-case form explicitly.
+  storing it. This matters in Section 2 below, where
+  `add_form_field_by_code()` requires the upper-case form
+  explicitly.
 
 If you maintain a local mirror of the Data Dictionary (this
 package's own demonstration study keeps one at
@@ -148,55 +149,26 @@ sheet_write(dd2, ss = 'YOUR_SHEET_ID', sheet = 'Data_Dictionary')
 
 ---
 
-## 2. Find the form's `design_id`
+## 2. Add the field to the live database
 
-`add_form_field()` (Section 3) identifies the target form by
-`design_id`, not by `form_code`. Look it up once:
-
-```{r}
-library(zzedc)
-
-conn <- DBI::dbConnect(RSQLite::SQLite(), 'data/zzedc.db')
-DBI::dbGetQuery(conn, 'SELECT crf_id, crf_code FROM crf_definitions')
-DBI::dbDisconnect(conn)
-```
-
-```
-  crf_id        crf_code
-1      1     MANUSCRIPTS
-2      2         COURSES
-3      3       MENTORING
-4      4   GRANT_REVIEWS
-5      5      COMMITTEES
-6      6 JOURNAL_REVIEWS
-7      7            DSMB
-8      8       TEXTBOOKS
-```
-
-`crf_id` and `design_id` are the same value -- `design_id = 6` for
-`JOURNAL_REVIEWS`. (`get_designer_forms()` returns the same mapping
-through the package API, if you would rather not query the table
-directly.)
-
----
-
-## 3. Add the field to the live database
-
-### The normal path
+### The normal path: `add_form_field_by_code()`
 
 With `DB_ENCRYPTION_KEY` and `ZZEDC_SALT` exported for this session
-(Section 8 of the technical guide), call `add_form_field()`
-directly. **`field_type` must be the upper-case constant**, from
-`get_designer_field_types()` -- `"DATE"`, not `"date"`. Passing the
-lower-case Sheet spelling fails with `Invalid field_type: date`; the
-Google Sheets importer upper-cases it for you on the way in, but
-this direct call does not.
+(Section 8 of the technical guide), `add_form_field_by_code()` does
+the rest of this section in one call: it resolves `form_code` to the
+form's `design_id`, checks for a duplicate `field_code` on that form,
+inserts the field, and reads the row back to confirm it was written
+exactly as requested. **`field_type` must still be the upper-case
+constant**, from `get_designer_field_types()` -- `"DATE"`, not
+`"date"`. Passing the lower-case Sheet spelling fails with `Invalid
+field_type: date`; the Google Sheets importer upper-cases it for you
+on the way in, but this direct call does not.
 
 ```{r}
 library(zzedc)
 
-result <- add_form_field(
-  design_id    = 6,                       # JOURNAL_REVIEWS
+result <- add_form_field_by_code(
+  form_code    = 'journal_reviews',       # matched case-insensitively
   field_code   = 'review_assigned_date',
   field_label  = 'Review Assigned Date',
   field_type   = 'DATE',
@@ -205,7 +177,9 @@ result <- add_form_field(
   is_required  = FALSE,
   help_text    = 'Date the editor assigned this manuscript for review'
 )
-result$success
+result$success    # TRUE if the field was added
+result$verified    # TRUE if the row read back matches every argument
+result$design_id   # resolved from form_code -- no manual lookup needed
 ```
 
 `field_row` here plays the same role as `field_order` in the
@@ -214,26 +188,30 @@ fields, not a literal UI grid row. Giving it the same value you put
 in the Sheet keeps the two in agreement, which matters if you ever
 import a fresh copy of this study and compare the two field lists.
 
-`add_form_field()` has no duplicate check. If you re-run this block
-by accident, check first:
+Re-running this block by accident is safe: `add_form_field_by_code()`
+checks for a `field_code` already on that `design_id` before
+inserting, and returns `result$success == FALSE` with
+`result$error` naming the existing `field_id` rather than creating a
+second copy.
 
 ```{r}
-conn <- DBI::dbConnect(RSQLite::SQLite(), 'data/zzedc.db')
-existing <- DBI::dbGetQuery(conn, "
-  SELECT field_id FROM designer_fields
-  WHERE design_id = 6 AND field_code = 'review_assigned_date'
-")
-DBI::dbDisconnect(conn)
-nrow(existing) > 0   # TRUE means it is already there -- do not re-add
+result$success    # FALSE on a repeat call
+result$error       # "Field 'review_assigned_date' already exists on ..."
+result$field_id    # the id of the field that already exists
 ```
 
-### If `add_form_field()` fails with "Database encryption key not found"
+An unrecognized `form_code` fails the same way, before anything is
+written: `result$success == FALSE` with `result$error` reading `"No
+form found with form_code: ..."`.
 
-`add_form_field()` connects through `connect_encrypted_db()`, which
-hard-stops if `DB_ENCRYPTION_KEY` is not set in the current R
-session -- by design, so a stray script can never silently touch an
-encrypted database it has no business opening. Re-export the key
-(Section 8) and retry.
+### If it fails with "Database encryption key not found"
+
+`add_form_field_by_code()` connects through `connect_encrypted_db()`
+(the same path `add_form_field()` uses), which hard-stops if
+`DB_ENCRYPTION_KEY` is not set in the current R session -- by
+design, so a stray script can never silently touch an encrypted
+database it has no business opening. Re-export the key (Section 8)
+and retry.
 
 If your deployment is one where the database's "encryption" is
 known not to be doing anything (flagged in
@@ -241,16 +219,23 @@ known not to be doing anything (flagged in
 mode of operation -- track the real fix there, do not treat the
 workaround below as a substitute for it), a direct `RSQLite`
 connection reaches the same file without the key check, and you can
-insert the row by hand with the identical shape `add_form_field()`
-would have written:
+insert the row by hand with the identical shape
+`add_form_field_by_code()` would have written. This requires the
+form's `design_id`, which the escape hatch has no way to resolve for
+you (that lookup is the part of `add_form_field_by_code()` that
+needs the key-checked connection):
 
 ```{r}
 conn <- DBI::dbConnect(RSQLite::SQLite(), 'data/zzedc.db')
 
+design_id <- DBI::dbGetQuery(conn,
+  "SELECT design_id FROM designer_forms WHERE UPPER(form_code) = 'JOURNAL_REVIEWS'"
+)$design_id[1]
+
 existing <- DBI::dbGetQuery(conn, "
   SELECT field_id FROM designer_fields
-  WHERE design_id = 6 AND field_code = 'review_assigned_date'
-")
+  WHERE design_id = ? AND field_code = 'review_assigned_date'
+", params = list(design_id))
 
 if (nrow(existing) == 0) {
   DBI::dbExecute(conn, "
@@ -258,9 +243,9 @@ if (nrow(existing) == 0) {
       (design_id, field_code, field_label, field_type, field_row,
        field_column, field_width, is_required, is_visible, help_text)
     VALUES
-      (6, 'review_assigned_date', 'Review Assigned Date', 'DATE', 35, 1,
+      (?, 'review_assigned_date', 'Review Assigned Date', 'DATE', 35, 1,
        100, 0, 1, 'Date the editor assigned this manuscript for review')
-  ")
+  ", params = list(design_id))
 }
 
 DBI::dbDisconnect(conn)
@@ -274,7 +259,16 @@ encryption key is actually available to you.
 
 ---
 
-## 4. Verify
+## 3. Verify
+
+`result$verified` from Section 2 already confirms the database side:
+it is `TRUE` only when the row read back from `designer_fields`
+matches every argument passed in (label, type, position, required
+flag, help text), and `result$mismatches` names exactly which ones
+did not match on the rare occasion it is `FALSE`. That rules the
+database out as a cause if the field still does not show up live --
+at that point the cause is the running browser tab, not the data, so
+the one thing left to check by hand is the UI rendering itself.
 
 No application restart and no package reinstall are needed. Unlike
 an R code change (which requires `R CMD INSTALL` and a fresh R
@@ -300,7 +294,7 @@ the form tab) forces the metadata query to re-run.
 
 ---
 
-## 5. What this walkthrough deliberately did not do
+## 4. What this walkthrough deliberately did not do
 
 - **No validation rule was added** (e.g. requiring
   `review_date >= review_assigned_date`). Nothing in the original

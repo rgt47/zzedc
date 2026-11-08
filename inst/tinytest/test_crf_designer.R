@@ -491,3 +491,82 @@ local({
     expect_true("by_type" %in% names(result))
 
 })
+# Test: add_form_field_by_code resolves design_id, adds, and verifies
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    create_designer_form(
+      form_code = "JOURNAL_REVIEWS",
+      form_name = "Journal Reviews",
+      created_by = "designer"
+    )
+
+    result <- add_form_field_by_code(
+      form_code = "journal_reviews",
+      field_code = "review_assigned_date",
+      field_label = "Review Assigned Date",
+      field_type = "DATE",
+      field_row = 35,
+      is_required = FALSE,
+      help_text = "Date the editor assigned this manuscript for review"
+    )
+
+    expect_true(result$success)
+    expect_true(result$verified)
+    expect_equal(length(result$mismatches), 0)
+    expect_equal(result$field$field_label, "Review Assigned Date")
+    expect_equal(result$field$field_type, "DATE")
+    expect_equal(result$field$field_row, 35)
+
+})
+# Test: add_form_field_by_code rejects an unknown form_code
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    result <- add_form_field_by_code(
+      form_code = "NOT_A_REAL_FORM",
+      field_code = "x",
+      field_label = "X",
+      field_type = "TEXT"
+    )
+
+    expect_false(result$success)
+    expect_match(result$error, "No form found")
+
+})
+# Test: add_form_field_by_code refuses to re-add a duplicate field_code
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    form <- create_designer_form(
+      form_code = "DUPLICATE_TEST",
+      form_name = "Duplicate Test",
+      created_by = "designer"
+    )
+
+    first <- add_form_field_by_code(
+      form_code = "DUPLICATE_TEST",
+      field_code = "dup_field",
+      field_label = "Dup Field",
+      field_type = "TEXT"
+    )
+    expect_true(first$success)
+
+    second <- add_form_field_by_code(
+      form_code = "DUPLICATE_TEST",
+      field_code = "dup_field",
+      field_label = "Dup Field Again",
+      field_type = "TEXT"
+    )
+    expect_false(second$success)
+    expect_equal(second$field_id, first$field_id)
+    expect_match(second$error, "already exists")
+
+    # confirm it really was not re-added
+    form_data <- get_designer_form(form$design_id)
+    expect_equal(sum(form_data$fields$field_code == "dup_field"), 1)
+
+})

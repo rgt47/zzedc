@@ -42,6 +42,31 @@ This function:
 \item Returns the encryption key in the result list
 \item Verifies encryption is working
 }
+
+On non-SQLite backends (\code{config.yml}'s \code{db_backend} set to
+\code{"duckdb"}, \code{"postgresql"}, or \code{"mysql"}/\code{"mariadb"}), this
+delegates to backend-specific initialization instead of the
+SQLite-only path below, mirroring \code{connect_encrypted_db()}'s
+dispatch (see \verb{docs/db-adapter-remediation-plan-2026-11-07.md}
+Phase B/D). \code{db_path} is a SQLite/DuckDB-path argument; on DuckDB
+it is ignored in favor of \code{config$duckdb$path} (the adapter already
+resolved that path when it was constructed), and on
+PostgreSQL/MySQL/MariaDB it is ignored entirely, since those
+backends have no file to create. \code{overwrite} means "delete the
+existing file" on SQLite/DuckDB, and "drop and recreate the
+\code{study_info}/\code{subjects} tables" (not the whole database) on
+PostgreSQL/MySQL/MariaDB -- those are server-hosted databases
+expected to already exist, created by a DBA, with other modules'
+tables alongside these two.
+
+\code{key}/the returned \code{key} only has meaning for SQLite and DuckDB
+(SQLCipher-style, application-level encryption of the database
+file). PostgreSQL/MySQL/MariaDB have no equivalent at this layer;
+on those backends \code{key} is ignored and the returned \code{key} is
+\code{NA_character_}, with the result \code{message} noting that
+encryption-at-rest is a server/infrastructure concern there, not
+something this function manages (see
+\verb{docs/edc-encryption-decision-2026-10-29.md}).
 }
 \examples{
 \dontrun{

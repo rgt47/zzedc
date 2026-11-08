@@ -44,6 +44,9 @@ Configuration options (in config$duckdb):
     \item \href{#method-DuckDBAdapter-connect}{\code{DuckDBAdapter$connect()}}
     \item \href{#method-DuckDBAdapter-pool}{\code{DuckDBAdapter$pool()}}
     \item \href{#method-DuckDBAdapter-dialect}{\code{DuckDBAdapter$dialect()}}
+    \item \href{#method-DuckDBAdapter-auto_increment_column}{\code{DuckDBAdapter$auto_increment_column()}}
+    \item \href{#method-DuckDBAdapter-prepare_auto_increment}{\code{DuckDBAdapter$prepare_auto_increment()}}
+    \item \href{#method-DuckDBAdapter-describe_table}{\code{DuckDBAdapter$describe_table()}}
     \item \href{#method-DuckDBAdapter-supports_encryption}{\code{DuckDBAdapter$supports_encryption()}}
     \item \href{#method-DuckDBAdapter-backend_name}{\code{DuckDBAdapter$backend_name()}}
     \item \href{#method-DuckDBAdapter-export_parquet}{\code{DuckDBAdapter$export_parquet()}}
@@ -91,7 +94,13 @@ Configuration options (in config$duckdb):
 \if{html}{\out{<a id="method-DuckDBAdapter-connect"></a>}}
 \if{latex}{\out{\hypertarget{method-DuckDBAdapter-connect}{}}}
 \subsection{\code{DuckDBAdapter$connect()}}{
-  Create a new DuckDB connection
+  Create a new DuckDB connection. If \code{config$duckdb$encryption_key}
+is set, the database file is opened encrypted via
+\verb{ATTACH ... (ENCRYPTION_KEY ...)} rather than a direct \code{dbdir}
+connection: DuckDB rejects a wrong key with an error (verified
+in \verb{docs/db-adapter-remediation-plan-2026-11-07.md}), and all
+existing unqualified table references resolve against the
+attached database with no call-site changes.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{DuckDBAdapter$connect()}
@@ -106,7 +115,10 @@ Configuration options (in config$duckdb):
 \if{html}{\out{<a id="method-DuckDBAdapter-pool"></a>}}
 \if{latex}{\out{\hypertarget{method-DuckDBAdapter-pool}{}}}
 \subsection{\code{DuckDBAdapter$pool()}}{
-  Create a connection pool
+  Create a connection pool. Honors \code{config$duckdb$encryption_key}
+the same way \code{connect()} does, via a pool-wide \code{onCreate} hook
+that runs the \verb{ATTACH ... (ENCRYPTION_KEY ...)} + \code{USE} pair on
+every connection the pool opens.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{DuckDBAdapter$pool()}
@@ -133,6 +145,81 @@ Configuration options (in config$duckdb):
 }
 
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DuckDBAdapter-auto_increment_column"></a>}}
+\if{latex}{\out{\hypertarget{method-DuckDBAdapter-auto_increment_column}{}}}
+\subsection{\code{DuckDBAdapter$auto_increment_column()}}{
+  Get the DDL fragment for an auto-increment primary key column.
+DuckDB's plain \verb{INTEGER PRIMARY KEY} (the \code{dialect()$auto_increment}
+value) has no default value generator and fails with a
+\verb{NOT NULL constraint failed} error on an INSERT that omits the
+column (verified in
+\verb{docs/db-adapter-remediation-plan-2026-11-07.md}); it needs a
+named sequence instead. Call \code{prepare_auto_increment()} before
+the \verb{CREATE TABLE} statement that uses this fragment.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DuckDBAdapter$auto_increment_column(table_name, column_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{table_name}}{Name of the table the column belongs to}
+      \item{\code{column_name}}{Name of the auto-increment column}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string with the column's DDL fragment
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DuckDBAdapter-prepare_auto_increment"></a>}}
+\if{latex}{\out{\hypertarget{method-DuckDBAdapter-prepare_auto_increment}{}}}
+\subsection{\code{DuckDBAdapter$prepare_auto_increment()}}{
+  Create the sequence that \code{auto_increment_column()}'s DEFAULT
+references, if it does not already exist.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DuckDBAdapter$prepare_auto_increment(conn, table_name, column_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Name of the table the column belongs to}
+      \item{\code{column_name}}{Name of the auto-increment column}
+    }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DuckDBAdapter-describe_table"></a>}}
+\if{latex}{\out{\hypertarget{method-DuckDBAdapter-describe_table}{}}}
+\subsection{\code{DuckDBAdapter$describe_table()}}{
+  Describe a table's columns via \verb{PRAGMA table_info}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DuckDBAdapter$describe_table(conn, table_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Name of table to describe}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with columns \code{name}, \code{type}, \code{notnull}, \code{pk}
+  }
+}
+
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DuckDBAdapter-supports_encryption"></a>}}
 \if{latex}{\out{\hypertarget{method-DuckDBAdapter-supports_encryption}{}}}
 \subsection{\code{DuckDBAdapter$supports_encryption()}}{
@@ -143,7 +230,8 @@ Configuration options (in config$duckdb):
     \if{html}{\out{</div>}}
   }
   \subsection{Returns}{
-    Logical FALSE (DuckDB does not support native encryption)
+    Logical TRUE via \verb{ATTACH ... (ENCRYPTION_KEY ...)},
+when \code{config$duckdb$encryption_key} is set (see \code{connect()})
   }
 }
 

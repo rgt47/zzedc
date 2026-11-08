@@ -59,6 +59,9 @@ The adapter pattern enables zzedc to support multiple database backends:
     \item \href{#method-DatabaseAdapter-rollback}{\code{DatabaseAdapter$rollback()}}
     \item \href{#method-DatabaseAdapter-transaction}{\code{DatabaseAdapter$transaction()}}
     \item \href{#method-DatabaseAdapter-dialect}{\code{DatabaseAdapter$dialect()}}
+    \item \href{#method-DatabaseAdapter-auto_increment_column}{\code{DatabaseAdapter$auto_increment_column()}}
+    \item \href{#method-DatabaseAdapter-prepare_auto_increment}{\code{DatabaseAdapter$prepare_auto_increment()}}
+    \item \href{#method-DatabaseAdapter-describe_table}{\code{DatabaseAdapter$describe_table()}}
     \item \href{#method-DatabaseAdapter-supports_encryption}{\code{DatabaseAdapter$supports_encryption()}}
     \item \href{#method-DatabaseAdapter-table_exists}{\code{DatabaseAdapter$table_exists()}}
     \item \href{#method-DatabaseAdapter-list_tables}{\code{DatabaseAdapter$list_tables()}}
@@ -293,6 +296,86 @@ The adapter pattern enables zzedc to support multiple database backends:
   }
   \subsection{Returns}{
     List with dialect-specific SQL fragments
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DatabaseAdapter-auto_increment_column"></a>}}
+\if{latex}{\out{\hypertarget{method-DatabaseAdapter-auto_increment_column}{}}}
+\subsection{\code{DatabaseAdapter$auto_increment_column()}}{
+  Get the DDL fragment for an auto-increment primary key column.
+Most backends have a self-contained keyword (e.g. PostgreSQL's
+\verb{SERIAL PRIMARY KEY}) and can ignore \code{table_name}/\code{column_name};
+DuckDB needs them to name a companion sequence (see
+\code{DuckDBAdapter$auto_increment_column()}). Always call this
+instead of reading \code{dialect()$auto_increment} directly, so
+backends that need per-column context get it.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$auto_increment_column(table_name, column_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{table_name}}{Name of the table the column belongs to}
+      \item{\code{column_name}}{Name of the auto-increment column}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character string with the column's DDL fragment
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DatabaseAdapter-prepare_auto_increment"></a>}}
+\if{latex}{\out{\hypertarget{method-DatabaseAdapter-prepare_auto_increment}{}}}
+\subsection{\code{DatabaseAdapter$prepare_auto_increment()}}{
+  Run any DDL a backend needs before creating a table with an
+auto-increment column from \code{auto_increment_column()} (e.g.
+DuckDB's companion \verb{CREATE SEQUENCE}). No-op for backends
+whose \code{auto_increment_column()} is self-contained. Call this
+immediately before the \verb{CREATE TABLE} statement.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$prepare_auto_increment(conn, table_name, column_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Name of the table the column belongs to}
+      \item{\code{column_name}}{Name of the auto-increment column}
+    }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DatabaseAdapter-describe_table"></a>}}
+\if{latex}{\out{\hypertarget{method-DatabaseAdapter-describe_table}{}}}
+\subsection{\code{DatabaseAdapter$describe_table()}}{
+  Describe a table's columns in a normalized shape across
+backends (the \verb{PRAGMA table_info} / \code{information_schema.columns}
+divergence documented in
+\verb{docs/db-adapter-remediation-plan-2026-11-07.md}).
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$describe_table(conn, table_name)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+      \item{\code{table_name}}{Name of table to describe}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with columns \code{name}, \code{type}, \code{notnull}, \code{pk}
   }
 }
 
