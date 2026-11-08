@@ -521,18 +521,16 @@ log_audit_event_extended <- function(event_type, event_category = "DATA",
     )
     audit_hash <- digest::digest(record_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    audit_id <- DBI::dbGetQuery(conn, "
       INSERT INTO audit_log
       (timestamp, event_type, table_name, record_id, operation, details,
        user_id, ip_address, session_id, audit_hash, previous_hash)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING audit_id AS id
     ", list(
       timestamp, event_type, table_name, record_id, operation, details,
       user_id, ip_address, session_id, audit_hash, previous_hash
-    ))
-
-    audit_id <- DBI::dbGetQuery(conn,
-                                 "SELECT last_insert_rowid() as id")[1, 1]
+    ))[1, 1]
 
     chain_order <- DBI::dbGetQuery(conn,
                                     "SELECT COUNT(*) FROM audit_chain")[1, 1] + 1

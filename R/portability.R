@@ -87,9 +87,10 @@ init_portability <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "portability_requests", "request_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS portability_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         request_number TEXT UNIQUE NOT NULL,
         dsar_request_id INTEGER,
         subject_id TEXT,
@@ -112,14 +113,15 @@ init_portability <- function() {
         exception_ground TEXT,
         request_hash TEXT NOT NULL,
         previous_hash TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (dsar_request_id) REFERENCES dsar_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("portability_requests", "request_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "portability_datasets", "dataset_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS portability_datasets (
-        dataset_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dataset_id %s,
         request_id INTEGER NOT NULL,
         table_name TEXT NOT NULL,
         data_category TEXT NOT NULL,
@@ -132,14 +134,15 @@ init_portability <- function() {
         status TEXT DEFAULT 'PENDING',
         included_in_export INTEGER DEFAULT 0,
         dataset_hash TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (request_id) REFERENCES portability_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("portability_datasets", "dataset_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "portability_exports", "export_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS portability_exports (
-        export_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        export_id %s,
         request_id INTEGER NOT NULL,
         export_format TEXT NOT NULL,
         file_name TEXT NOT NULL,
@@ -156,14 +159,15 @@ init_portability <- function() {
         encryption_method TEXT,
         checksum TEXT NOT NULL,
         export_hash TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (request_id) REFERENCES portability_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("portability_exports", "export_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "portability_transfers", "transfer_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS portability_transfers (
-        transfer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        transfer_id %s,
         request_id INTEGER NOT NULL,
         export_id INTEGER,
         target_controller TEXT NOT NULL,
@@ -178,15 +182,16 @@ init_portability <- function() {
         confirmation_reference TEXT,
         failure_reason TEXT,
         transfer_hash TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (request_id) REFERENCES portability_requests(request_id),
         FOREIGN KEY (export_id) REFERENCES portability_exports(export_id)
       )
-    ")
+    ", auto_increment_ddl("portability_transfers", "transfer_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "portability_history", "history_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS portability_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         request_id INTEGER NOT NULL,
         dataset_id INTEGER,
         export_id INTEGER,
@@ -194,12 +199,12 @@ init_portability <- function() {
         action TEXT NOT NULL,
         action_details TEXT,
         performed_by TEXT NOT NULL,
-        performed_at TEXT DEFAULT (datetime('now')),
+        performed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         history_hash TEXT NOT NULL,
         previous_history_hash TEXT,
         FOREIGN KEY (request_id) REFERENCES portability_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("portability_history", "history_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_portability_requests_status
                          ON portability_requests(status)")
@@ -479,13 +484,14 @@ create_portability_request <- function(subject_email,
     )
     request_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    request_id <- DBI::dbGetQuery(con, "
       INSERT INTO portability_requests (
         request_number, dsar_request_id, subject_id, subject_email,
         subject_name, request_type, legal_basis, target_controller,
         target_controller_contact, preferred_format, status,
         received_date, due_date, requested_by, request_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", params = list(
       request_number,
       safe_int_portability(dsar_request_id),
@@ -503,9 +509,7 @@ create_portability_request <- function(subject_email,
       requested_by,
       request_hash,
       safe_scalar_portability(previous_hash)
-    ))
-
-    request_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_portability_action(
       request_id = request_id,
@@ -703,12 +707,13 @@ add_portability_dataset <- function(request_id,
     )
     dataset_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    dataset_id <- DBI::dbGetQuery(con, "
       INSERT INTO portability_datasets (
         request_id, table_name, data_category, record_count, data_source,
         is_provided_by_subject, is_derived, is_eligible, ineligibility_reason,
         dataset_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING dataset_id AS id
     ", params = list(
       request_id,
       table_name,
@@ -720,9 +725,7 @@ add_portability_dataset <- function(request_id,
       as.integer(is_eligible),
       safe_scalar_portability(ineligibility_reason),
       dataset_hash
-    ))
-
-    dataset_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_portability_action(
       request_id = request_id,
@@ -996,12 +999,13 @@ generate_portability_export <- function(request_id,
 
     datasets_list <- paste(datasets$table_name, collapse = ";")
 
-    DBI::dbExecute(con, "
+    export_id <- DBI::dbGetQuery(con, "
       INSERT INTO portability_exports (
         request_id, export_format, file_name, file_path, file_size_bytes,
         record_count, datasets_included, generated_at, generated_by,
         expires_at, is_encrypted, checksum, export_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING export_id AS id
     ", params = list(
       request_id,
       export_format,
@@ -1016,9 +1020,7 @@ generate_portability_export <- function(request_id,
       as.integer(encrypt),
       checksum,
       export_hash
-    ))
-
-    export_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     DBI::dbExecute(con, "
       UPDATE portability_datasets
@@ -1204,12 +1206,13 @@ initiate_controller_transfer <- function(request_id,
     )
     transfer_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    transfer_id <- DBI::dbGetQuery(con, "
       INSERT INTO portability_transfers (
         request_id, export_id, target_controller, target_contact,
         transfer_method, transfer_status, initiated_at, initiated_by,
         transfer_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING transfer_id AS id
     ", params = list(
       request_id,
       safe_int_portability(export_id),
@@ -1220,9 +1223,7 @@ initiate_controller_transfer <- function(request_id,
       initiated_at,
       initiated_by,
       transfer_hash
-    ))
-
-    transfer_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     DBI::dbExecute(con, "
       UPDATE portability_requests

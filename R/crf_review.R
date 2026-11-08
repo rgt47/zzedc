@@ -48,9 +48,10 @@ init_crf_review <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_review_cycles", "cycle_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_review_cycles (
-        cycle_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cycle_id %s,
         crf_id INTEGER NOT NULL,
         version_id INTEGER,
         cycle_number INTEGER NOT NULL,
@@ -60,7 +61,7 @@ init_crf_review <- function() {
         cycle_description TEXT,
         target_completion_date TEXT,
         priority TEXT DEFAULT 'NORMAL',
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         started_at TEXT,
         completed_at TEXT,
@@ -69,11 +70,12 @@ init_crf_review <- function() {
         FOREIGN KEY (crf_id) REFERENCES crf_definitions(crf_id),
         FOREIGN KEY (version_id) REFERENCES crf_versions(version_id)
       )
-    ")
+    ", auto_increment_ddl("crf_review_cycles", "cycle_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_review_stages", "stage_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_review_stages (
-        stage_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stage_id %s,
         cycle_id INTEGER NOT NULL,
         stage_order INTEGER NOT NULL,
         stage_name TEXT NOT NULL,
@@ -87,17 +89,18 @@ init_crf_review <- function() {
         stage_hash TEXT NOT NULL,
         FOREIGN KEY (cycle_id) REFERENCES crf_review_cycles(cycle_id)
       )
-    ")
+    ", auto_increment_ddl("crf_review_stages", "stage_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_reviewers", "assignment_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_reviewers (
-        assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assignment_id %s,
         stage_id INTEGER NOT NULL,
         reviewer_id TEXT NOT NULL,
         reviewer_name TEXT NOT NULL,
         reviewer_role TEXT NOT NULL,
         assignment_status TEXT DEFAULT 'ASSIGNED',
-        assigned_at TEXT DEFAULT (datetime('now')),
+        assigned_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         assigned_by TEXT NOT NULL,
         response_due_date TEXT,
         started_at TEXT,
@@ -107,11 +110,12 @@ init_crf_review <- function() {
         assignment_hash TEXT NOT NULL,
         FOREIGN KEY (stage_id) REFERENCES crf_review_stages(stage_id)
       )
-    ")
+    ", auto_increment_ddl("crf_reviewers", "assignment_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_review_comments", "comment_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_review_comments (
-        comment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        comment_id %s,
         cycle_id INTEGER NOT NULL,
         stage_id INTEGER,
         assignment_id INTEGER,
@@ -126,7 +130,7 @@ init_crf_review <- function() {
         resolution TEXT,
         resolved_at TEXT,
         resolved_by TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         comment_hash TEXT NOT NULL,
         FOREIGN KEY (cycle_id) REFERENCES crf_review_cycles(cycle_id),
@@ -134,11 +138,12 @@ init_crf_review <- function() {
         FOREIGN KEY (assignment_id) REFERENCES crf_reviewers(assignment_id),
         FOREIGN KEY (parent_comment_id) REFERENCES crf_review_comments(comment_id)
       )
-    ")
+    ", auto_increment_ddl("crf_review_comments", "comment_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_review_decisions", "decision_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_review_decisions (
-        decision_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        decision_id %s,
         cycle_id INTEGER NOT NULL,
         stage_id INTEGER NOT NULL,
         assignment_id INTEGER NOT NULL,
@@ -147,14 +152,14 @@ init_crf_review <- function() {
         conditions TEXT,
         follow_up_required INTEGER DEFAULT 0,
         follow_up_description TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         decision_hash TEXT NOT NULL,
         FOREIGN KEY (cycle_id) REFERENCES crf_review_cycles(cycle_id),
         FOREIGN KEY (stage_id) REFERENCES crf_review_stages(stage_id),
         FOREIGN KEY (assignment_id) REFERENCES crf_reviewers(assignment_id)
       )
-    ")
+    ", auto_increment_ddl("crf_review_decisions", "decision_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_review_cycles_crf
                          ON crf_review_cycles(crf_id)")
@@ -337,12 +342,13 @@ create_review_cycle <- function(crf_id,
     )
     cycle_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    cycle_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_review_cycles (
         crf_id, version_id, cycle_number, cycle_type, cycle_title,
         cycle_description, target_completion_date, priority,
         created_by, cycle_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING cycle_id AS id
     ", params = list(
       crf_id,
       safe_int_rev(version_id),
@@ -354,9 +360,7 @@ create_review_cycle <- function(crf_id,
       priority,
       created_by,
       cycle_hash
-    ))
-
-    cycle_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -538,11 +542,12 @@ add_review_stage <- function(cycle_id,
     )
     stage_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    stage_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_review_stages (
         cycle_id, stage_order, stage_name, stage_type,
         required_approvers, instructions, stage_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      RETURNING stage_id AS id
     ", params = list(
       cycle_id,
       as.integer(stage_order),
@@ -551,9 +556,7 @@ add_review_stage <- function(cycle_id,
       as.integer(required_approvers),
       safe_scalar_rev(instructions),
       stage_hash
-    ))
-
-    stage_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -693,11 +696,12 @@ assign_reviewer <- function(stage_id,
     )
     assignment_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    assignment_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_reviewers (
         stage_id, reviewer_id, reviewer_name, reviewer_role,
         assigned_by, response_due_date, assignment_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      RETURNING assignment_id AS id
     ", params = list(
       stage_id,
       reviewer_id,
@@ -706,10 +710,7 @@ assign_reviewer <- function(stage_id,
       assigned_by,
       safe_scalar_rev(response_due_date),
       assignment_hash
-    ))
-
-    assignment_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -928,12 +929,13 @@ add_review_comment <- function(cycle_id,
     )
     comment_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    comment_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_review_comments (
         cycle_id, stage_id, assignment_id, parent_comment_id,
         comment_type, comment_category, field_reference, section_reference,
         comment_text, severity, created_by, comment_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING comment_id AS id
     ", params = list(
       cycle_id,
       safe_int_rev(stage_id),
@@ -947,9 +949,7 @@ add_review_comment <- function(cycle_id,
       severity,
       created_by,
       comment_hash
-    ))
-
-    comment_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,

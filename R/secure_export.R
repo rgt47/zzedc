@@ -466,9 +466,10 @@ log_export_activity <- function(file_path, query, format, hash_verified) {
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     # Create export_audit table if doesn't exist
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "export_audit", "export_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS export_audit (
-        export_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        export_id %s,
         export_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         user_id TEXT,
         file_path TEXT NOT NULL,
@@ -478,7 +479,7 @@ log_export_activity <- function(file_path, query, format, hash_verified) {
         hash_verified BOOLEAN,
         status TEXT DEFAULT 'success'
       )
-    ")
+    ", auto_increment_ddl("export_audit", "export_id")))
 
     # Insert audit record
     DBI::dbExecute(conn, "

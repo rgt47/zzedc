@@ -42,9 +42,10 @@ init_electronic_signatures <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "electronic_signatures", "signature_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS electronic_signatures (
-        signature_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        signature_id %s,
         signature_code TEXT NOT NULL UNIQUE,
         signer_user_id TEXT NOT NULL,
         signer_full_name TEXT NOT NULL,
@@ -67,11 +68,12 @@ init_electronic_signatures <- function(db_path = NULL) {
         superseded_by INTEGER REFERENCES electronic_signatures(signature_id),
         metadata TEXT
       )
-    ")
+    ", auto_increment_ddl("electronic_signatures", "signature_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "signature_attempts", "attempt_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS signature_attempts (
-        attempt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id %s,
         user_id TEXT NOT NULL,
         table_name TEXT NOT NULL,
         record_id TEXT NOT NULL,
@@ -84,11 +86,12 @@ init_electronic_signatures <- function(db_path = NULL) {
         ip_address TEXT,
         session_id TEXT
       )
-    ")
+    ", auto_increment_ddl("signature_attempts", "attempt_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "signature_requirements", "requirement_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS signature_requirements (
-        requirement_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        requirement_id %s,
         table_name TEXT NOT NULL,
         form_type TEXT,
         required_meanings TEXT NOT NULL,
@@ -102,11 +105,12 @@ init_electronic_signatures <- function(db_path = NULL) {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(table_name, form_type, effective_from)
       )
-    ")
+    ", auto_increment_ddl("signature_requirements", "requirement_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "signature_delegations", "delegation_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS signature_delegations (
-        delegation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        delegation_id %s,
         delegator_user_id TEXT NOT NULL,
         delegate_user_id TEXT NOT NULL,
         signature_meanings TEXT NOT NULL,
@@ -119,7 +123,7 @@ init_electronic_signatures <- function(db_path = NULL) {
         revoked_at TIMESTAMP,
         revoked_by TEXT
       )
-    ")
+    ", auto_increment_ddl("signature_delegations", "delegation_id")))
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_signatures_record
@@ -322,13 +326,14 @@ apply_electronic_signature <- function(table_name,
     )
     signature_hash <- digest::digest(sig_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    signature_id <- DBI::dbGetQuery(conn, "
       INSERT INTO electronic_signatures (
         signature_code, signer_user_id, signer_full_name,
         table_name, record_id, signature_meaning, signature_statement,
         record_hash, signature_hash, previous_signature_hash,
         signed_at, ip_address, session_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING signature_id AS id
     ", list(
       signature_code,
       safe_scalar_sig(signer_user_id),
@@ -343,9 +348,7 @@ apply_electronic_signature <- function(table_name,
       timestamp,
       safe_scalar_sig(ip_address),
       safe_scalar_sig(session_id)
-    ))
-
-    signature_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id[1]
 
     log_signature_attempt(
       user_id = signer_user_id,
@@ -427,10 +430,12 @@ compute_record_hash <- function(conn, table_name, record_id) {
       return(digest::digest(paste(table_name, record_id, sep = "|"), algo = "sha256"))
     }
 
+    pk_col <- resolve_table_pk_column(conn, table_name)
     record <- DBI::dbGetQuery(conn, sprintf(
-      "SELECT * FROM %s WHERE rowid = ? OR id = ? LIMIT 1",
-      DBI::dbQuoteIdentifier(conn, table_name)
-    ), list(record_id, record_id))
+      "SELECT * FROM %s WHERE %s = ? LIMIT 1",
+      DBI::dbQuoteIdentifier(conn, table_name),
+      DBI::dbQuoteIdentifier(conn, pk_col)
+    ), list(record_id))
 
     if (nrow(record) == 0) {
       return(digest::digest(paste(table_name, record_id, "NOT_FOUND", sep = "|"),

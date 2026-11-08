@@ -72,9 +72,10 @@ init_objection <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "objection_requests", "request_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS objection_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         request_number TEXT UNIQUE NOT NULL,
         dsar_request_id INTEGER,
         subject_id TEXT,
@@ -98,14 +99,15 @@ init_objection <- function() {
         compelling_grounds TEXT,
         request_hash TEXT NOT NULL,
         previous_hash TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (dsar_request_id) REFERENCES dsar_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("objection_requests", "request_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "objection_processing_activities", "activity_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS objection_processing_activities (
-        activity_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        activity_id %s,
         request_id INTEGER NOT NULL,
         activity_name TEXT NOT NULL,
         activity_description TEXT,
@@ -120,29 +122,31 @@ init_objection <- function() {
         resumed_by TEXT,
         resume_reason TEXT,
         activity_hash TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (request_id) REFERENCES objection_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("objection_processing_activities", "activity_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "objection_history", "history_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS objection_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         request_id INTEGER NOT NULL,
         activity_id INTEGER,
         action TEXT NOT NULL,
         action_details TEXT,
         performed_by TEXT NOT NULL,
-        performed_at TEXT DEFAULT (datetime('now')),
+        performed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         history_hash TEXT NOT NULL,
         previous_history_hash TEXT,
         FOREIGN KEY (request_id) REFERENCES objection_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("objection_history", "history_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "marketing_preferences", "preference_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS marketing_preferences (
-        preference_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        preference_id %s,
         subject_id TEXT,
         subject_email TEXT NOT NULL,
         channel TEXT NOT NULL,
@@ -150,11 +154,11 @@ init_objection <- function() {
         opted_out_at TEXT,
         opted_out_by TEXT,
         objection_request_id INTEGER,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         updated_at TEXT,
         FOREIGN KEY (objection_request_id) REFERENCES objection_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("marketing_preferences", "preference_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_objection_requests_status
                          ON objection_requests(status)")
@@ -339,13 +343,14 @@ create_objection_request <- function(subject_email,
     )
     request_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    request_id <- DBI::dbGetQuery(con, "
       INSERT INTO objection_requests (
         request_number, dsar_request_id, subject_id, subject_email,
         subject_name, objection_type, processing_purpose, objection_grounds,
         situation_details, status, is_direct_marketing, received_date,
         due_date, requested_by, request_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", params = list(
       request_number,
       safe_int_objection(dsar_request_id),
@@ -363,9 +368,7 @@ create_objection_request <- function(subject_email,
       requested_by,
       request_hash,
       safe_scalar_objection(previous_hash)
-    ))
-
-    request_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_objection_action(
       request_id = request_id,
@@ -520,11 +523,12 @@ add_objection_activity <- function(request_id,
     )
     activity_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    activity_id <- DBI::dbGetQuery(con, "
       INSERT INTO objection_processing_activities (
         request_id, activity_name, activity_description, legal_basis,
         data_categories, activity_hash
       ) VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING activity_id AS id
     ", params = list(
       request_id,
       activity_name,
@@ -532,9 +536,7 @@ add_objection_activity <- function(request_id,
       legal_basis,
       safe_scalar_objection(data_categories),
       activity_hash
-    ))
-
-    activity_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_objection_action(
       request_id = request_id,

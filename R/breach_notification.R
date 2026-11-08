@@ -23,15 +23,16 @@ init_breach_notification <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "breach_incidents", "incident_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS breach_incidents (
-        incident_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        incident_id %s,
         incident_code TEXT UNIQUE NOT NULL,
         incident_title TEXT NOT NULL,
         breach_type TEXT NOT NULL,
         severity TEXT NOT NULL,
         status TEXT DEFAULT 'DETECTED',
-        detected_at TEXT DEFAULT (datetime('now')),
+        detected_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         detected_by TEXT NOT NULL,
         breach_start TEXT,
         breach_end TEXT,
@@ -54,49 +55,52 @@ init_breach_notification <- function() {
         closed_at TEXT,
         closed_by TEXT
       )
-    ")
+    ", auto_increment_ddl("breach_incidents", "incident_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "breach_timeline", "timeline_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS breach_timeline (
-        timeline_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timeline_id %s,
         incident_id INTEGER NOT NULL,
         event_type TEXT NOT NULL,
         event_description TEXT NOT NULL,
-        event_timestamp TEXT DEFAULT (datetime('now')),
+        event_timestamp TEXT DEFAULT (CURRENT_TIMESTAMP),
         recorded_by TEXT NOT NULL,
         FOREIGN KEY (incident_id) REFERENCES breach_incidents(incident_id)
       )
-    ")
+    ", auto_increment_ddl("breach_timeline", "timeline_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "breach_notifications", "notification_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS breach_notifications (
-        notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        notification_id %s,
         incident_id INTEGER NOT NULL,
         notification_type TEXT NOT NULL,
         recipient_type TEXT NOT NULL,
         recipient_details TEXT,
         notification_method TEXT,
         notification_content TEXT,
-        sent_at TEXT DEFAULT (datetime('now')),
+        sent_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         sent_by TEXT NOT NULL,
         acknowledgement_received INTEGER DEFAULT 0,
         acknowledgement_at TEXT,
         FOREIGN KEY (incident_id) REFERENCES breach_incidents(incident_id)
       )
-    ")
+    ", auto_increment_ddl("breach_notifications", "notification_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "breach_risk_assessment", "assessment_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS breach_risk_assessment (
-        assessment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assessment_id %s,
         incident_id INTEGER NOT NULL,
         risk_factor TEXT NOT NULL,
         risk_level TEXT NOT NULL,
         risk_description TEXT,
         assessed_by TEXT NOT NULL,
-        assessed_at TEXT DEFAULT (datetime('now')),
+        assessed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (incident_id) REFERENCES breach_incidents(incident_id)
       )
-    ")
+    ", auto_increment_ddl("breach_risk_assessment", "assessment_id")))
 
     list(success = TRUE, message = "Breach notification system initialized")
   }, error = function(e) {
@@ -201,21 +205,19 @@ report_breach_incident <- function(incident_title, breach_type, severity,
 
     incident_code <- paste0("BRE-", format(Sys.time(), "%Y%m%d-%H%M%S"))
 
-    DBI::dbExecute(con, "
+    incident_id <- DBI::dbGetQuery(con, "
       INSERT INTO breach_incidents (
         incident_code, incident_title, breach_type, severity, description,
         detected_by, breach_start, data_categories_affected,
         subjects_affected, records_affected
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING incident_id AS id
     ", params = list(
       incident_code, incident_title, breach_type, severity, description,
       detected_by, safe_scalar_bn(breach_start),
       safe_scalar_bn(data_categories_affected),
       as.integer(subjects_affected), as.integer(records_affected)
-    ))
-
-    incident_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     DBI::dbExecute(con, "
       INSERT INTO breach_timeline (

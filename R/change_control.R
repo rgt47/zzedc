@@ -23,9 +23,10 @@ init_change_control <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "change_requests", "request_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS change_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         request_number TEXT UNIQUE NOT NULL,
         request_title TEXT NOT NULL,
         request_type TEXT NOT NULL,
@@ -33,7 +34,7 @@ init_change_control <- function() {
         priority TEXT DEFAULT 'MEDIUM',
         status TEXT DEFAULT 'DRAFT',
         requested_by TEXT NOT NULL,
-        requested_at TEXT DEFAULT (datetime('now')),
+        requested_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         target_entity_type TEXT,
         target_entity_id INTEGER,
         description TEXT NOT NULL,
@@ -43,11 +44,12 @@ init_change_control <- function() {
         estimated_effort TEXT,
         target_date TEXT
       )
-    ")
+    ", auto_increment_ddl("change_requests", "request_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "change_impact_assessment", "assessment_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS change_impact_assessment (
-        assessment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assessment_id %s,
         request_id INTEGER NOT NULL,
         impact_area TEXT NOT NULL,
         impact_level TEXT NOT NULL,
@@ -57,28 +59,30 @@ init_change_control <- function() {
         affected_records INTEGER DEFAULT 0,
         requires_revalidation INTEGER DEFAULT 0,
         assessed_by TEXT NOT NULL,
-        assessed_at TEXT DEFAULT (datetime('now')),
+        assessed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (request_id) REFERENCES change_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("change_impact_assessment", "assessment_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "change_approvals", "approval_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS change_approvals (
-        approval_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        approval_id %s,
         request_id INTEGER NOT NULL,
         approval_role TEXT NOT NULL,
         approver_name TEXT NOT NULL,
         decision TEXT NOT NULL,
-        decision_date TEXT DEFAULT (datetime('now')),
+        decision_date TEXT DEFAULT (CURRENT_TIMESTAMP),
         comments TEXT,
         conditions TEXT,
         FOREIGN KEY (request_id) REFERENCES change_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("change_approvals", "approval_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "change_implementation", "implementation_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS change_implementation (
-        implementation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        implementation_id %s,
         request_id INTEGER NOT NULL,
         implementation_step TEXT NOT NULL,
         step_order INTEGER DEFAULT 1,
@@ -91,7 +95,7 @@ init_change_control <- function() {
         notes TEXT,
         FOREIGN KEY (request_id) REFERENCES change_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("change_implementation", "implementation_id")))
 
     list(success = TRUE, message = "Change control system initialized")
   }, error = function(e) {
@@ -217,13 +221,14 @@ create_change_request <- function(request_title, request_type, change_category,
 
     request_number <- paste0("CR-", format(Sys.time(), "%Y%m%d-%H%M%S"))
 
-    DBI::dbExecute(con, "
+    request_id <- DBI::dbGetQuery(con, "
       INSERT INTO change_requests (
         request_number, request_title, request_type, change_category,
         priority, description, justification, requested_by,
         target_entity_type, target_entity_id, implementation_plan,
         rollback_plan, estimated_effort, target_date
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", params = list(
       request_number, request_title, request_type, change_category,
       priority, description, safe_scalar_cc(justification), requested_by,
@@ -232,10 +237,7 @@ create_change_request <- function(request_title, request_type, change_category,
         else as.integer(target_entity_id),
       safe_scalar_cc(implementation_plan), safe_scalar_cc(rollback_plan),
       safe_scalar_cc(estimated_effort), safe_scalar_cc(target_date)
-    ))
-
-    request_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, request_id = request_id,
          request_number = request_number)

@@ -23,9 +23,10 @@ init_validation_rules <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "validation_rules", "rule_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS validation_rules (
-        rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rule_id %s,
         rule_code TEXT UNIQUE NOT NULL,
         rule_name TEXT NOT NULL,
         rule_category TEXT NOT NULL,
@@ -37,16 +38,17 @@ init_validation_rules <- function() {
         error_message TEXT NOT NULL,
         is_active INTEGER DEFAULT 1,
         execution_order INTEGER DEFAULT 100,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         updated_at TEXT,
         updated_by TEXT
       )
-    ")
+    ", auto_increment_ddl("validation_rules", "rule_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "validation_results", "result_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS validation_results (
-        result_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        result_id %s,
         rule_id INTEGER NOT NULL,
         record_id TEXT,
         subject_id TEXT,
@@ -55,7 +57,7 @@ init_validation_rules <- function() {
         field_value TEXT,
         validation_status TEXT NOT NULL,
         error_message TEXT,
-        validated_at TEXT DEFAULT (datetime('now')),
+        validated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         validated_by TEXT,
         resolved INTEGER DEFAULT 0,
         resolved_at TEXT,
@@ -63,23 +65,25 @@ init_validation_rules <- function() {
         resolution_notes TEXT,
         FOREIGN KEY (rule_id) REFERENCES validation_rules(rule_id)
       )
-    ")
+    ", auto_increment_ddl("validation_results", "result_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "validation_rule_sets", "set_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS validation_rule_sets (
-        set_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        set_id %s,
         set_code TEXT UNIQUE NOT NULL,
         set_name TEXT NOT NULL,
         set_description TEXT,
         is_active INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("validation_rule_sets", "set_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "validation_set_rules", "id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS validation_set_rules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id %s,
         set_id INTEGER NOT NULL,
         rule_id INTEGER NOT NULL,
         execution_order INTEGER,
@@ -87,7 +91,7 @@ init_validation_rules <- function() {
         FOREIGN KEY (rule_id) REFERENCES validation_rules(rule_id),
         UNIQUE(set_id, rule_id)
       )
-    ")
+    ", auto_increment_ddl("validation_set_rules", "id")))
 
     list(success = TRUE, message = "Validation rules system initialized")
   }, error = function(e) {
@@ -199,20 +203,19 @@ create_validation_rule <- function(rule_code, rule_name, rule_category,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    rule_id <- DBI::dbGetQuery(con, "
       INSERT INTO validation_rules (
         rule_code, rule_name, rule_category, rule_type, severity,
         target_field, target_form, condition_expression, error_message,
         execution_order, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING rule_id AS id
     ", params = list(
       rule_code, rule_name, rule_category, rule_type, severity,
       safe_scalar_val(target_field), safe_scalar_val(target_form),
       condition_expression, error_message, as.integer(execution_order),
       created_by
-    ))
-
-    rule_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, rule_id = rule_id, message = "Rule created")
   }, error = function(e) {
@@ -412,14 +415,13 @@ create_validation_rule_set <- function(set_code, set_name, created_by,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    set_id <- DBI::dbGetQuery(con, "
       INSERT INTO validation_rule_sets (set_code, set_name, set_description,
                                         created_by)
       VALUES (?, ?, ?, ?)
+      RETURNING set_id AS id
     ", params = list(set_code, set_name, safe_scalar_val(set_description),
-                     created_by))
-
-    set_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+                     created_by))$id[1]
 
     list(success = TRUE, set_id = set_id, message = "Rule set created")
   }, error = function(e) {

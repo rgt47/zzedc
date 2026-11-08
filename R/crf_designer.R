@@ -23,9 +23,10 @@ init_crf_designer <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "designer_forms", "design_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS designer_forms (
-        design_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        design_id %s,
         form_code TEXT UNIQUE NOT NULL,
         form_name TEXT NOT NULL,
         form_category TEXT,
@@ -33,16 +34,17 @@ init_crf_designer <- function() {
         layout_type TEXT DEFAULT 'SINGLE_COLUMN',
         status TEXT DEFAULT 'DRAFT',
         is_locked INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         updated_at TEXT,
         updated_by TEXT
       )
-    ")
+    ", auto_increment_ddl("designer_forms", "design_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "designer_sections", "section_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS designer_sections (
-        section_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        section_id %s,
         design_id INTEGER NOT NULL,
         section_code TEXT NOT NULL,
         section_name TEXT NOT NULL,
@@ -53,11 +55,12 @@ init_crf_designer <- function() {
         columns INTEGER DEFAULT 1,
         FOREIGN KEY (design_id) REFERENCES designer_forms(design_id)
       )
-    ")
+    ", auto_increment_ddl("designer_sections", "section_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "designer_fields", "field_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS designer_fields (
-        field_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        field_id %s,
         design_id INTEGER NOT NULL,
         section_id INTEGER,
         field_code TEXT NOT NULL,
@@ -77,7 +80,7 @@ init_crf_designer <- function() {
         FOREIGN KEY (design_id) REFERENCES designer_forms(design_id),
         FOREIGN KEY (section_id) REFERENCES designer_sections(section_id)
       )
-    ")
+    ", auto_increment_ddl("designer_fields", "field_id")))
 
     # CREATE TABLE IF NOT EXISTS only takes effect for a brand-new
     # database; a database initialized before widget_file (or, later,
@@ -92,9 +95,10 @@ init_crf_designer <- function() {
       DBI::dbExecute(con, "ALTER TABLE designer_fields ADD COLUMN help_detail TEXT")
     }
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "designer_field_options", "option_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS designer_field_options (
-        option_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        option_id %s,
         field_id INTEGER NOT NULL,
         option_value TEXT NOT NULL,
         option_label TEXT NOT NULL,
@@ -102,7 +106,7 @@ init_crf_designer <- function() {
         is_default INTEGER DEFAULT 0,
         FOREIGN KEY (field_id) REFERENCES designer_fields(field_id)
       )
-    ")
+    ", auto_increment_ddl("designer_field_options", "option_id")))
 
     list(success = TRUE, message = "CRF designer system initialized")
   }, error = function(e) {
@@ -190,18 +194,16 @@ create_designer_form <- function(form_code, form_name, created_by,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    design_id <- DBI::dbGetQuery(con, "
       INSERT INTO designer_forms (
         form_code, form_name, form_category, form_description,
         layout_type, created_by
       ) VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING design_id AS id
     ", params = list(
       form_code, form_name, safe_scalar_cd(form_category),
       safe_scalar_cd(form_description), layout_type, created_by
-    ))
-
-    design_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, design_id = design_id)
   }, error = function(e) {
@@ -240,18 +242,16 @@ add_form_section <- function(design_id, section_code, section_name,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    section_id <- DBI::dbGetQuery(con, "
       INSERT INTO designer_sections (
         design_id, section_code, section_name, section_order,
         is_repeating, columns
       ) VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING section_id AS id
     ", params = list(
       design_id, section_code, section_name, as.integer(section_order),
       as.integer(is_repeating), as.integer(columns)
-    ))
-
-    section_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, section_id = section_id)
   }, error = function(e) {
@@ -317,12 +317,13 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    field_id <- DBI::dbGetQuery(con, "
       INSERT INTO designer_fields (
         design_id, section_id, field_code, field_label, field_type,
         field_row, field_column, field_width, is_required,
         placeholder, help_text, default_value, widget_file, help_detail
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING field_id AS id
     ", params = list(
       design_id,
       if (is.null(section_id)) NA_integer_ else as.integer(section_id),
@@ -332,10 +333,7 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
       safe_scalar_cd(placeholder), safe_scalar_cd(help_text),
       safe_scalar_cd(default_value), safe_scalar_cd(widget_file),
       safe_scalar_cd(help_detail)
-    ))
-
-    field_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, field_id = field_id)
   }, error = function(e) {

@@ -42,9 +42,10 @@ init_dsar <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "dsar_requests", "request_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS dsar_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         request_number TEXT NOT NULL UNIQUE,
         request_type TEXT NOT NULL CHECK(request_type IN
           ('ACCESS', 'RECTIFICATION', 'ERASURE', 'RESTRICTION',
@@ -85,11 +86,12 @@ init_dsar <- function(db_path = NULL) {
         previous_hash TEXT,
         metadata TEXT
       )
-    ")
+    ", auto_increment_ddl("dsar_requests", "request_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "dsar_identity_documents", "document_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS dsar_identity_documents (
-        document_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id %s,
         request_id INTEGER NOT NULL REFERENCES dsar_requests(request_id),
         document_type TEXT NOT NULL CHECK(document_type IN
           ('PASSPORT', 'DRIVERS_LICENSE', 'NATIONAL_ID', 'OTHER')),
@@ -100,11 +102,12 @@ init_dsar <- function(db_path = NULL) {
         verified_by TEXT,
         verified_at TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("dsar_identity_documents", "document_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "dsar_data_sources", "source_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS dsar_data_sources (
-        source_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id %s,
         request_id INTEGER NOT NULL REFERENCES dsar_requests(request_id),
         source_name TEXT NOT NULL,
         source_type TEXT NOT NULL CHECK(source_type IN
@@ -116,11 +119,12 @@ init_dsar <- function(db_path = NULL) {
         collected_by TEXT,
         notes TEXT
       )
-    ")
+    ", auto_increment_ddl("dsar_data_sources", "source_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "dsar_collected_data", "collection_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS dsar_collected_data (
-        collection_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        collection_id %s,
         request_id INTEGER NOT NULL REFERENCES dsar_requests(request_id),
         source_id INTEGER REFERENCES dsar_data_sources(source_id),
         data_category TEXT NOT NULL,
@@ -137,11 +141,12 @@ init_dsar <- function(db_path = NULL) {
         redacted BOOLEAN DEFAULT 0,
         redaction_reason TEXT
       )
-    ")
+    ", auto_increment_ddl("dsar_collected_data", "collection_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "dsar_responses", "response_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS dsar_responses (
-        response_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        response_id %s,
         request_id INTEGER NOT NULL REFERENCES dsar_requests(request_id),
         response_type TEXT NOT NULL CHECK(response_type IN
           ('FULL_DISCLOSURE', 'PARTIAL_DISCLOSURE', 'NO_DATA_FOUND',
@@ -158,11 +163,12 @@ init_dsar <- function(db_path = NULL) {
         approved_at TIMESTAMP,
         response_hash TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("dsar_responses", "response_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "dsar_audit_log", "log_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS dsar_audit_log (
-        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        log_id %s,
         request_id INTEGER NOT NULL REFERENCES dsar_requests(request_id),
         action TEXT NOT NULL,
         action_details TEXT,
@@ -172,7 +178,7 @@ init_dsar <- function(db_path = NULL) {
         log_hash TEXT NOT NULL,
         previous_log_hash TEXT
       )
-    ")
+    ", auto_increment_ddl("dsar_audit_log", "log_id")))
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_dsar_status
@@ -397,13 +403,14 @@ create_dsar_request <- function(request_type,
       NA_character_
     }
 
-    DBI::dbExecute(conn, "
+    request_id <- DBI::dbGetQuery(conn, "
       INSERT INTO dsar_requests (
         request_number, request_type, subject_id, subject_email, subject_name,
         subject_phone, subject_address, request_details, data_categories,
         status, received_date, due_date, priority, created_by,
         request_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'RECEIVED', ?, ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", list(
       request_number,
       safe_scalar_dsar(request_type),
@@ -420,9 +427,7 @@ create_dsar_request <- function(request_type,
       safe_scalar_dsar(created_by),
       request_hash,
       previous_hash
-    ))
-
-    request_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id[1]
 
     log_dsar_action(
       request_id = request_id,
@@ -664,18 +669,17 @@ add_dsar_data_source <- function(request_id,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    source_id <- DBI::dbGetQuery(conn, "
       INSERT INTO dsar_data_sources (
         request_id, source_name, source_type, table_name
       ) VALUES (?, ?, ?, ?)
+      RETURNING source_id AS id
     ", list(
       request_id,
       safe_scalar_dsar(source_name),
       safe_scalar_dsar(source_type),
       safe_scalar_dsar(table_name)
-    ))
-
-    source_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -726,11 +730,12 @@ record_data_collection <- function(request_id,
       NA_character_
     }
 
-    DBI::dbExecute(conn, "
+    collection_id <- DBI::dbGetQuery(conn, "
       INSERT INTO dsar_collected_data (
         request_id, source_id, data_category, data_description,
         record_count, data_format, file_path, file_hash, collected_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING collection_id AS id
     ", list(
       request_id,
       source_id,
@@ -741,9 +746,7 @@ record_data_collection <- function(request_id,
       safe_scalar_dsar(file_path),
       safe_scalar_dsar(file_hash),
       safe_scalar_dsar(collected_by)
-    ))
-
-    collection_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id[1]
 
     if (!is.null(source_id)) {
       DBI::dbExecute(conn, "
@@ -889,11 +892,12 @@ create_dsar_response <- function(request_id,
     )
     response_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    response_id <- DBI::dbGetQuery(conn, "
       INSERT INTO dsar_responses (
         request_id, response_type, response_date, response_content,
         attachments, delivery_method, prepared_by, response_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING response_id AS id
     ", list(
       request_id,
       safe_scalar_dsar(response_type),
@@ -903,9 +907,7 @@ create_dsar_response <- function(request_id,
       safe_scalar_dsar(delivery_method),
       safe_scalar_dsar(prepared_by),
       response_hash
-    ))
-
-    response_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id[1]
 
     log_dsar_action(
       request_id = request_id,
@@ -1218,8 +1220,8 @@ get_pending_dsar_requests <- function(include_overdue = FALSE,
 
     if (include_overdue) {
       query <- paste(query, "AND (
-        (extended_due_date IS NOT NULL AND extended_due_date < date('now'))
-        OR (extended_due_date IS NULL AND due_date < date('now'))
+        (extended_due_date IS NOT NULL AND extended_due_date < CURRENT_DATE)
+        OR (extended_due_date IS NULL AND due_date < CURRENT_DATE)
       )")
     }
 
@@ -1341,16 +1343,16 @@ get_dsar_statistics <- function(db_path = NULL) {
       FROM dsar_requests
       WHERE status NOT IN ('COMPLETED', 'REJECTED', 'CLOSED')
         AND (
-          (extended_due_date IS NOT NULL AND extended_due_date < date('now'))
-          OR (extended_due_date IS NULL AND due_date < date('now'))
+          (extended_due_date IS NOT NULL AND extended_due_date < CURRENT_DATE)
+          OR (extended_due_date IS NULL AND due_date < CURRENT_DATE)
         )
     ")
 
-    avg_response <- DBI::dbGetQuery(conn, "
-      SELECT AVG(julianday(completed_date) - julianday(received_date)) as avg_days
+    avg_response <- DBI::dbGetQuery(conn, sprintf("
+      SELECT AVG(%s) as avg_days
       FROM dsar_requests
       WHERE status = 'COMPLETED' AND completed_date IS NOT NULL
-    ")
+    ", sql_date_diff_days("completed_date", "received_date")))
 
     list(
       success = TRUE,

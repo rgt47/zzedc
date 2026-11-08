@@ -24,9 +24,10 @@ add_gdpr_tables <- function(db_connection) {
 
   # 1. Consent Management Table
   cat("Creating consent management table...\n")
-  dbExecute(db_connection, "
+  prepare_auto_increment(db_connection, "consent_log", "consent_id")
+  dbExecute(db_connection, sprintf("
     CREATE TABLE IF NOT EXISTS consent_log (
-      consent_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      consent_id %s,
       user_id TEXT,
       subject_id TEXT,
       consent_type TEXT NOT NULL CHECK(consent_type IN (
@@ -52,7 +53,7 @@ add_gdpr_tables <- function(db_connection) {
       FOREIGN KEY (user_id) REFERENCES edc_users(user_id),
       FOREIGN KEY (subject_id) REFERENCES subjects(subject_id)
     )
-  ")
+  ", auto_increment_ddl("consent_log", "consent_id")))
 
   # Create indexes for consent log
   dbExecute(db_connection, "CREATE INDEX IF NOT EXISTS idx_consent_subject_id ON consent_log(subject_id)")
@@ -61,9 +62,10 @@ add_gdpr_tables <- function(db_connection) {
 
   # 2. Data Subject Requests Table (Articles 15-22 GDPR)
   cat("Creating data subject requests table...\n")
-  dbExecute(db_connection, "
+  prepare_auto_increment(db_connection, "data_subject_requests", "request_id")
+  dbExecute(db_connection, sprintf("
     CREATE TABLE IF NOT EXISTS data_subject_requests (
-      request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_id %s,
       user_id TEXT,
       subject_id TEXT,
       request_type TEXT NOT NULL CHECK(request_type IN (
@@ -91,13 +93,14 @@ add_gdpr_tables <- function(db_connection) {
       FOREIGN KEY (subject_id) REFERENCES subjects(subject_id),
       FOREIGN KEY (assigned_to) REFERENCES edc_users(user_id)
     )
-  ")
+  ", auto_increment_ddl("data_subject_requests", "request_id")))
 
   # 3. Data Processing Activities (Article 30 GDPR)
   cat("Creating processing activities register...\n")
-  dbExecute(db_connection, "
+  prepare_auto_increment(db_connection, "processing_activities", "activity_id")
+  dbExecute(db_connection, sprintf("
     CREATE TABLE IF NOT EXISTS processing_activities (
-      activity_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id %s,
       activity_name TEXT NOT NULL,
       description TEXT NOT NULL,
       controller_name TEXT NOT NULL,
@@ -124,13 +127,14 @@ add_gdpr_tables <- function(db_connection) {
       last_reviewed DATE,
       status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'archived'))
     )
-  ")
+  ", auto_increment_ddl("processing_activities", "activity_id")))
 
   # 4. Breach Incidents (Articles 33-34 GDPR)
   cat("Creating breach incident tracking table...\n")
-  dbExecute(db_connection, "
+  prepare_auto_increment(db_connection, "breach_incidents", "incident_id")
+  dbExecute(db_connection, sprintf("
     CREATE TABLE IF NOT EXISTS breach_incidents (
-      incident_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      incident_id %s,
       incident_ref TEXT UNIQUE NOT NULL,
       severity_level TEXT CHECK(severity_level IN ('low', 'medium', 'high', 'critical')),
       breach_type TEXT CHECK(breach_type IN (
@@ -159,13 +163,14 @@ add_gdpr_tables <- function(db_connection) {
       FOREIGN KEY (created_by) REFERENCES edc_users(user_id),
       FOREIGN KEY (assigned_to) REFERENCES edc_users(user_id)
     )
-  ")
+  ", auto_increment_ddl("breach_incidents", "incident_id")))
 
   # 5. Data Retention Schedule
   cat("Creating data retention schedule table...\n")
-  dbExecute(db_connection, "
+  prepare_auto_increment(db_connection, "data_retention_schedule", "retention_id")
+  dbExecute(db_connection, sprintf("
     CREATE TABLE IF NOT EXISTS data_retention_schedule (
-      retention_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      retention_id %s,
       table_name TEXT NOT NULL,
       data_category TEXT NOT NULL,
       legal_basis TEXT NOT NULL,
@@ -184,13 +189,14 @@ add_gdpr_tables <- function(db_connection) {
       status TEXT DEFAULT 'active' CHECK(status IN ('active', 'suspended', 'archived')),
       created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  ")
+  ", auto_increment_ddl("data_retention_schedule", "retention_id")))
 
   # 6. Privacy Impact Assessments (Article 35 GDPR)
   cat("Creating privacy impact assessment table...\n")
-  dbExecute(db_connection, "
+  prepare_auto_increment(db_connection, "privacy_impact_assessments", "pia_id")
+  dbExecute(db_connection, sprintf("
     CREATE TABLE IF NOT EXISTS privacy_impact_assessments (
-      pia_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pia_id %s,
       assessment_name TEXT NOT NULL,
       description TEXT NOT NULL,
       processing_activity_id INTEGER,
@@ -215,13 +221,14 @@ add_gdpr_tables <- function(db_connection) {
       FOREIGN KEY (processing_activity_id) REFERENCES processing_activities(activity_id),
       FOREIGN KEY (approved_by) REFERENCES edc_users(user_id)
     )
-  ")
+  ", auto_increment_ddl("privacy_impact_assessments", "pia_id")))
 
   # 7. Data Minimization Tracking
   cat("Creating data minimization tracking table...\n")
-  dbExecute(db_connection, "
+  prepare_auto_increment(db_connection, "data_minimization_log", "log_id")
+  dbExecute(db_connection, sprintf("
     CREATE TABLE IF NOT EXISTS data_minimization_log (
-      log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      log_id %s,
       table_name TEXT NOT NULL,
       field_name TEXT NOT NULL,
       action_type TEXT CHECK(action_type IN (
@@ -239,7 +246,7 @@ add_gdpr_tables <- function(db_connection) {
       FOREIGN KEY (responsible_person) REFERENCES edc_users(user_id),
       FOREIGN KEY (approved_by) REFERENCES edc_users(user_id)
     )
-  ")
+  ", auto_increment_ddl("data_minimization_log", "log_id")))
 
   # Insert default processing activities
   cat("Inserting default processing activities...\n")

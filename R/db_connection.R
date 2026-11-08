@@ -295,6 +295,76 @@ get_db_dialect <- function() {
 }
 
 
+#' Get Auto-Increment Column DDL for the Current Backend
+#'
+#' Thin wrapper around `get_db_adapter()$auto_increment_column()`, for
+#' call sites that only hold a raw `conn` (from `connect_db()` or
+#' `connect_encrypted_db()`), not an adapter instance. Use this
+#' instead of hardcoding `INTEGER PRIMARY KEY AUTOINCREMENT` in a
+#' `CREATE TABLE` statement: that spelling is SQLite-only and fails on
+#' every other backend (see
+#' `docs/db-adapter-remediation-plan-2026-11-07.md` Section 1). Call
+#' `prepare_auto_increment()` with the same `table_name`/`column_name`
+#' immediately before the `CREATE TABLE` statement that uses this.
+#'
+#' @param table_name Name of the table the column belongs to
+#' @param column_name Name of the auto-increment column
+#' @return Character string with the column's DDL fragment
+#'
+#' @keywords internal
+#' @export
+auto_increment_ddl <- function(table_name, column_name) {
+  adapter <- get_db_adapter()
+  adapter$auto_increment_column(table_name, column_name)
+}
+
+
+#' Prepare Auto-Increment Column for the Current Backend
+#'
+#' Thin wrapper around `get_db_adapter()$prepare_auto_increment()`.
+#' Runs any DDL a backend needs before a `CREATE TABLE` statement that
+#' uses `auto_increment_ddl(table_name, column_name)` (DuckDB's
+#' companion `CREATE SEQUENCE`; a no-op on every other in-scope
+#' backend).
+#'
+#' @param conn Database connection
+#' @param table_name Name of the table the column belongs to
+#' @param column_name Name of the auto-increment column
+#' @return `invisible(NULL)`
+#'
+#' @keywords internal
+#' @export
+prepare_auto_increment <- function(conn, table_name, column_name) {
+  adapter <- get_db_adapter()
+  adapter$prepare_auto_increment(conn, table_name, column_name)
+}
+
+
+#' Get a Date-Difference SQL Expression for the Current Backend
+#'
+#' Returns a SQL expression for `col_a - col_b` in whole days, using
+#' whichever construct the currently configured backend needs:
+#' `julianday(col_a) - julianday(col_b)` on SQLite, `date_diff('day',
+#' col_b, col_a)` on DuckDB, `col_a::date - col_b::date` on
+#' PostgreSQL, `DATEDIFF(col_a, col_b)` on MariaDB. `julianday()` is
+#' SQLite-only and errors on every other backend (see
+#' `docs/db-adapter-remediation-plan-2026-11-07.md` Section 1); use
+#' this instead of hardcoding it. Takes plain column-name strings, not
+#' a connection, so it can be called from pure SQL-generation code
+#' that has no `conn` in scope.
+#'
+#' @param col_a Column or expression for the later/minuend date
+#' @param col_b Column or expression for the earlier/subtrahend date
+#' @return Character string with the date-difference SQL expression
+#'
+#' @keywords internal
+#' @export
+sql_date_diff_days <- function(col_a, col_b) {
+  adapter <- get_db_adapter()
+  adapter$dialect()$date_diff_days(col_a, col_b)
+}
+
+
 #' Connect to Encrypted Database
 #'
 #' Main wrapper function for encrypted database connections.
@@ -334,10 +404,62 @@ get_db_dialect <- function() {
 #'   you already have it in hand (for example from
 #'   `initialize_encrypted_database()$key`) to avoid relying on the
 #'   process environment.
+#'
+#' @details
+#' On non-SQLite backends (`config.yml`'s `db_backend` set to
+#' `"duckdb"`, `"postgresql"`, or `"mysql"`/`"mariadb"`), this
+#' delegates to `get_db_adapter()$connect()` instead of the SQLite-only
+#' path below, so that setting changes the backend this function
+#' actually connects to. `db_path` and `aws_kms_key_id` are SQLite-path
+#' arguments and are ignored on those backends; `key`, if supplied, is
+#' passed through to the backend's own encryption-key config slot
+#' (currently only `DuckDBAdapter` acts on it; see
+#' `docs/db-adapter-remediation-plan-2026-11-07.md` Phase B) for this
+#' one connection, without altering the cached adapter.
+#'
+#' This does not change behavior for the default and still most
+#' common case (`db_backend` unset or `"sqlite"`): that path is
+#' untouched, including the known SQLCipher-PRAGMA no-op documented in
+#' `docs/edc-encryption-decision-2026-10-29.md`. It also does not make
+#' every caller of this function safe on a non-SQLite backend by
+#' itself -- the 40 files that call it still embed some SQLite-dialect
+#' SQL not yet ported (Phase C of the remediation plan); switching
+#' `db_backend` away from `sqlite` before that work lands will surface
+#' those as query errors, not silently return wrong data.
+#'
+#' A `config.yml` written for the Shiny app's own `config::get()`
+#' settings (a top-level `default:` environment key, as shipped with
+#' this package and with the live Promotion Review Tracker deployment)
+#' is a different schema than `load_db_config()` expects (a top-level
+#' `database:` key with no environment wrapper) and will not parse as
+#' a backend selection. `get_db_adapter()` failing to resolve a
+#' backend from such a file -- or from no file at all -- is treated
+#' the same as "no backend configured": this function falls back to
+#' the sqlite path below rather than propagating that error, so an
+#' app-config-only `config.yml` cannot change this function's
+#' behavior. A `message()` reports the fallback so it is visible to
+#' someone debugging a `config.yml` that was meant to pick a backend.
 #' @export
 connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
                                  key = NULL) {
   tryCatch({
+    adapter <- tryCatch(get_db_adapter(), error = function(e) {
+      message("connect_encrypted_db(): could not resolve a database ",
+               "backend from config.yml (", e$message, "); using the ",
+               "sqlite legacy path.")
+      NULL
+    })
+    backend <- if (!is.null(adapter)) adapter$backend_name() else "sqlite"
+
+    if (!is.null(adapter) && backend != "sqlite") {
+      if (!is.null(key)) {
+        config <- adapter$config
+        config[[backend]]$encryption_key <- key
+        return(create_db_adapter(config)$connect())
+      }
+      return(adapter$connect())
+    }
+
     # Get database path
     if (is.null(db_path)) {
       db_path <- get_db_path()
@@ -410,9 +532,57 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
 #'   }
 #' }
 #'
+#' @details
+#' On non-SQLite backends (`config.yml`'s `db_backend` set to
+#' `"duckdb"`, `"postgresql"`, or `"mysql"`/`"mariadb"`), this
+#' delegates to backend-specific initialization instead of the
+#' SQLite-only path below, mirroring `connect_encrypted_db()`'s
+#' dispatch (see `docs/db-adapter-remediation-plan-2026-11-07.md`
+#' Phase B/D). `db_path` is a SQLite/DuckDB-path argument; on DuckDB
+#' it is ignored in favor of `config$duckdb$path` (the adapter already
+#' resolved that path when it was constructed), and on
+#' PostgreSQL/MySQL/MariaDB it is ignored entirely, since those
+#' backends have no file to create. `overwrite` means "delete the
+#' existing file" on SQLite/DuckDB, and "drop and recreate the
+#' `study_info`/`subjects` tables" (not the whole database) on
+#' PostgreSQL/MySQL/MariaDB -- those are server-hosted databases
+#' expected to already exist, created by a DBA, with other modules'
+#' tables alongside these two.
+#'
+#' `key`/the returned `key` only has meaning for SQLite and DuckDB
+#' (SQLCipher-style, application-level encryption of the database
+#' file). PostgreSQL/MySQL/MariaDB have no equivalent at this layer;
+#' on those backends `key` is ignored and the returned `key` is
+#' `NA_character_`, with the result `message` noting that
+#' encryption-at-rest is a server/infrastructure concern there, not
+#' something this function manages (see
+#' `docs/edc-encryption-decision-2026-10-29.md`).
 #' @export
 initialize_encrypted_database <- function(db_path = NULL, overwrite = FALSE,
                                           key = NULL) {
+  adapter <- tryCatch(get_db_adapter(), error = function(e) NULL)
+  backend <- if (!is.null(adapter)) adapter$backend_name() else "sqlite"
+
+  if (is.null(adapter) || backend == "sqlite") {
+    return(init_encrypted_sqlite_database(db_path, overwrite, key))
+  }
+  if (backend == "duckdb") {
+    return(init_encrypted_duckdb_database(adapter, overwrite, key))
+  }
+  init_server_backend_database(adapter, backend, overwrite)
+}
+
+
+#' Initialize an Encrypted SQLite Database (Legacy Path)
+#'
+#' The original, SQLite-only body of `initialize_encrypted_database()`,
+#' extracted unchanged so the exported function can dispatch to it or
+#' to the DuckDB/server-backend paths added alongside it.
+#'
+#' @inheritParams initialize_encrypted_database
+#' @keywords internal
+init_encrypted_sqlite_database <- function(db_path = NULL, overwrite = FALSE,
+                                           key = NULL) {
   tryCatch({
     # Get database path
     if (is.null(db_path)) {
@@ -442,29 +612,28 @@ initialize_encrypted_database <- function(db_path = NULL, overwrite = FALSE,
     # environment here. Callers who want it in the environment can do
     # so themselves with the key returned in the result list.
     conn <- connect_encrypted(db_path, key)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     # Create base tables
     # (You would add actual schema creation here)
     DBI::dbExecute(conn, "
       CREATE TABLE IF NOT EXISTS study_info (
-        study_id TEXT PRIMARY KEY,
+        study_id VARCHAR(64) PRIMARY KEY,
         study_name TEXT NOT NULL,
-        protocol_id TEXT UNIQUE NOT NULL,
+        protocol_id VARCHAR(64) UNIQUE NOT NULL,
         created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     ")
 
     DBI::dbExecute(conn, "
       CREATE TABLE IF NOT EXISTS subjects (
-        subject_id TEXT PRIMARY KEY,
-        study_id TEXT NOT NULL REFERENCES study_info(study_id),
+        subject_id VARCHAR(64) PRIMARY KEY,
+        study_id VARCHAR(64) NOT NULL REFERENCES study_info(study_id),
         enrollment_date TIMESTAMP,
         status TEXT,
         created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     ")
-
-    DBI::dbDisconnect(conn)
 
     return(list(
       success = TRUE,
@@ -478,6 +647,154 @@ initialize_encrypted_database <- function(db_path = NULL, overwrite = FALSE,
       success = FALSE,
       error = paste("Initialization failed:", e$message)
     ))
+  })
+}
+
+
+#' Initialize an Encrypted DuckDB Database
+#'
+#' DuckDB analogue of `init_encrypted_sqlite_database()`: creates a new
+#' DuckDB file attached with `ENCRYPTION_KEY` (see `DuckDBAdapter$connect()`),
+#' rather than SQLCipher. The path comes from `adapter$config$duckdb$path`,
+#' not from a `db_path` argument -- the adapter already resolved that
+#' path when it was constructed from `config.yml`.
+#'
+#' @param adapter A `DuckDBAdapter` instance, as returned by `get_db_adapter()`.
+#' @inheritParams initialize_encrypted_database
+#' @keywords internal
+init_encrypted_duckdb_database <- function(adapter, overwrite = FALSE,
+                                           key = NULL) {
+  tryCatch({
+    db_path <- adapter$config$duckdb$path
+    if (is.null(db_path) || !nzchar(db_path)) {
+      stop("DuckDB configuration has no 'duckdb.path' set")
+    }
+
+    if (file.exists(db_path) && !overwrite) {
+      stop("Database already exists at: ", db_path,
+           "\nSet overwrite=TRUE to replace it")
+    }
+    if (file.exists(db_path) && overwrite) {
+      file.remove(db_path)
+    }
+
+    if (is.null(key)) {
+      key <- generate_db_key()
+    } else {
+      verify_db_key(key)
+    }
+
+    # Connect with the key set for this one connection only, without
+    # altering the cached adapter -- same pattern connect_encrypted_db()
+    # uses for an explicit `key` argument.
+    config <- adapter$config
+    config$duckdb$encryption_key <- key
+    encrypted_adapter <- create_db_adapter(config)
+    conn <- encrypted_adapter$connect()
+    on.exit(encrypted_adapter$disconnect(conn), add = TRUE)
+
+    DBI::dbExecute(conn, "
+      CREATE TABLE IF NOT EXISTS study_info (
+        study_id VARCHAR(64) PRIMARY KEY,
+        study_name TEXT NOT NULL,
+        protocol_id VARCHAR(64) UNIQUE NOT NULL,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    ")
+
+    DBI::dbExecute(conn, "
+      CREATE TABLE IF NOT EXISTS subjects (
+        subject_id VARCHAR(64) PRIMARY KEY,
+        study_id VARCHAR(64) NOT NULL REFERENCES study_info(study_id),
+        enrollment_date TIMESTAMP,
+        status TEXT,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    ")
+
+    list(
+      success = TRUE,
+      path = normalizePath(db_path, winslash = "/"),
+      key = key,
+      message = paste("Database created and encrypted at:", db_path)
+    )
+  }, error = function(e) {
+    list(success = FALSE, error = paste("Initialization failed:", e$message))
+  })
+}
+
+
+#' Initialize Base Tables on a Server-Hosted Backend
+#'
+#' PostgreSQL/MySQL/MariaDB analogue of `init_encrypted_sqlite_database()`.
+#' These backends have no database *file* to create -- the database
+#' itself is assumed to already exist on the server -- so this only
+#' creates the `study_info`/`subjects` base tables, and has no
+#' application-level encryption key to generate or return (see
+#' `initialize_encrypted_database()`'s `@details`).
+#'
+#' @param adapter A `PostgreSQLAdapter`/`MySQLAdapter` instance.
+#' @param backend Character: `adapter$backend_name()`.
+#' @inheritParams initialize_encrypted_database
+#' @keywords internal
+init_server_backend_database <- function(adapter, backend, overwrite = FALSE) {
+  tryCatch({
+    conn <- adapter$connect()
+    on.exit(adapter$disconnect(conn), add = TRUE)
+
+    existing_tables <- DBI::dbListTables(conn)
+    if ("study_info" %in% existing_tables && !overwrite) {
+      stop("Database already initialized: a 'study_info' table already exists",
+           "\nSet overwrite=TRUE to drop and recreate it")
+    }
+    if (overwrite) {
+      cascade <- if (backend == "postgresql") " CASCADE" else ""
+      for (tbl in c("subjects", "study_info")) {
+        if (tbl %in% existing_tables) {
+          DBI::dbExecute(conn, paste0("DROP TABLE IF EXISTS ", tbl, cascade))
+        }
+      }
+    }
+
+    # study_id/protocol_id/subject_id are VARCHAR(64), not TEXT: MySQL/
+    # MariaDB rejects an unbounded TEXT/BLOB column in a PRIMARY KEY or
+    # UNIQUE constraint ("BLOB/TEXT column ... used in key specification
+    # without a key length"); SQLite, DuckDB, and PostgreSQL all treat
+    # VARCHAR(n) and TEXT as equivalent, so this is a no-op change for
+    # them.
+    DBI::dbExecute(conn, "
+      CREATE TABLE IF NOT EXISTS study_info (
+        study_id VARCHAR(64) PRIMARY KEY,
+        study_name TEXT NOT NULL,
+        protocol_id VARCHAR(64) UNIQUE NOT NULL,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    ")
+
+    DBI::dbExecute(conn, "
+      CREATE TABLE IF NOT EXISTS subjects (
+        subject_id VARCHAR(64) PRIMARY KEY,
+        study_id VARCHAR(64) NOT NULL REFERENCES study_info(study_id),
+        enrollment_date TIMESTAMP,
+        status TEXT,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    ")
+
+    backend_config <- adapter$config[[if (backend == "postgresql") "postgresql" else "mysql"]]
+
+    list(
+      success = TRUE,
+      path = NA_character_,
+      key = NA_character_,
+      message = sprintf(
+        "Database tables created on %s at %s:%s/%s. Encryption at rest is not managed by this function on this backend; configure it at the server/infrastructure level (see docs/edc-encryption-decision-2026-10-29.md).",
+        backend, backend_config$host %||% "?", backend_config$port %||% "?",
+        backend_config$name %||% "?"
+      )
+    )
+  }, error = function(e) {
+    list(success = FALSE, error = paste("Initialization failed:", e$message))
   })
 }
 

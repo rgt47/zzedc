@@ -88,9 +88,10 @@ init_restriction <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "restriction_requests", "request_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS restriction_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         request_number TEXT UNIQUE NOT NULL,
         dsar_request_id INTEGER,
         subject_id TEXT,
@@ -112,15 +113,16 @@ init_restriction <- function() {
         legal_hold_id INTEGER,
         request_hash TEXT NOT NULL,
         previous_hash TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (dsar_request_id) REFERENCES dsar_requests(request_id),
         FOREIGN KEY (legal_hold_id) REFERENCES legal_holds(hold_id)
       )
-    ")
+    ", auto_increment_ddl("restriction_requests", "request_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "restriction_items", "item_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS restriction_items (
-        item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id %s,
         request_id INTEGER NOT NULL,
         table_name TEXT NOT NULL,
         record_id TEXT NOT NULL,
@@ -135,30 +137,32 @@ init_restriction <- function() {
         lifted_by TEXT,
         lift_reason TEXT,
         item_hash TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (request_id) REFERENCES restriction_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("restriction_items", "item_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "restriction_history", "history_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS restriction_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         request_id INTEGER NOT NULL,
         item_id INTEGER,
         action TEXT NOT NULL,
         action_details TEXT,
         performed_by TEXT NOT NULL,
-        performed_at TEXT DEFAULT (datetime('now')),
+        performed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         history_hash TEXT NOT NULL,
         previous_history_hash TEXT,
         FOREIGN KEY (request_id) REFERENCES restriction_requests(request_id),
         FOREIGN KEY (item_id) REFERENCES restriction_items(item_id)
       )
-    ")
+    ", auto_increment_ddl("restriction_history", "history_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "restriction_third_parties", "recipient_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS restriction_third_parties (
-        recipient_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipient_id %s,
         request_id INTEGER NOT NULL,
         recipient_name TEXT NOT NULL,
         recipient_type TEXT NOT NULL,
@@ -174,14 +178,15 @@ init_restriction <- function() {
         lift_notification_sent INTEGER DEFAULT 0,
         lift_notification_sent_date TEXT,
         notes TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (request_id) REFERENCES restriction_requests(request_id)
       )
-    ")
+    ", auto_increment_ddl("restriction_third_parties", "recipient_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "processing_attempts", "attempt_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS processing_attempts (
-        attempt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id %s,
         request_id INTEGER,
         item_id INTEGER,
         subject_id TEXT,
@@ -190,7 +195,7 @@ init_restriction <- function() {
         operation_type TEXT NOT NULL,
         operation_details TEXT,
         attempted_by TEXT NOT NULL,
-        attempted_at TEXT DEFAULT (datetime('now')),
+        attempted_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         was_blocked INTEGER DEFAULT 1,
         override_reason TEXT,
         override_authorized_by TEXT,
@@ -198,7 +203,7 @@ init_restriction <- function() {
         FOREIGN KEY (request_id) REFERENCES restriction_requests(request_id),
         FOREIGN KEY (item_id) REFERENCES restriction_items(item_id)
       )
-    ")
+    ", auto_increment_ddl("processing_attempts", "attempt_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_restriction_requests_status
                          ON restriction_requests(status)")
@@ -408,12 +413,13 @@ create_restriction_request <- function(subject_email,
       }
     }
 
-    DBI::dbExecute(con, "
+    request_id <- DBI::dbGetQuery(con, "
       INSERT INTO restriction_requests (
         request_number, dsar_request_id, subject_id, subject_email,
         subject_name, restriction_grounds, status, received_date,
         due_date, requested_by, legal_hold_id, request_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", params = list(
       request_number,
       safe_int_restriction(dsar_request_id),
@@ -428,9 +434,7 @@ create_restriction_request <- function(subject_email,
       safe_int_restriction(hold_id),
       request_hash,
       safe_scalar_restriction(previous_hash)
-    ))
-
-    request_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_restriction_action(
       request_id = request_id,
@@ -641,11 +645,12 @@ add_restriction_item <- function(request_id,
     )
     item_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    item_id <- DBI::dbGetQuery(con, "
       INSERT INTO restriction_items (
         request_id, table_name, record_id, data_category,
         field_name, restriction_scope, status, item_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING item_id AS id
     ", params = list(
       request_id,
       table_name,
@@ -655,9 +660,7 @@ add_restriction_item <- function(request_id,
       restriction_scope,
       status,
       item_hash
-    ))
-
-    item_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_restriction_action(
       request_id = request_id,
@@ -1190,11 +1193,12 @@ add_restriction_third_party <- function(request_id,
       return(list(success = FALSE, error = "Request not found"))
     }
 
-    DBI::dbExecute(con, "
+    recipient_id <- DBI::dbGetQuery(con, "
       INSERT INTO restriction_third_parties (
         request_id, recipient_name, recipient_type, contact_email,
         contact_name, data_shared, notification_required
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      RETURNING recipient_id AS id
     ", params = list(
       request_id,
       recipient_name,
@@ -1203,9 +1207,7 @@ add_restriction_third_party <- function(request_id,
       safe_scalar_restriction(contact_name),
       safe_scalar_restriction(data_shared),
       as.integer(notification_required)
-    ))
-
-    recipient_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_restriction_action(
       request_id = request_id,

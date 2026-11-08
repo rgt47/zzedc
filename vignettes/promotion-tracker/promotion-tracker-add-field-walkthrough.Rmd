@@ -39,6 +39,43 @@ directly, which takes under a second and touches nothing else.
 
 ---
 
+## For a non-technical trial manager: what you can do yourself
+
+If you are a trial manager without database access, you can still do
+the recordkeeping half of this change yourself in the Google Sheet --
+you just cannot finish it alone.
+
+**What you can do in Google Sheets.** Open the Promotion Review
+Tracker Sheet, go to the `Data_Dictionary` tab, find the rows for
+`journal_reviews`, and add one new row:
+
+| Column | Value |
+|---|---|
+| form_code | journal_reviews |
+| field_name | review_assigned_date |
+| field_label | Review Assigned Date |
+| field_type | date |
+| required | FALSE |
+| description | Date the editor assigned this manuscript for review |
+| field_order | 35 |
+
+Use `field_order = 35` so the new field lands between Manuscript ID
+(30) and Review Date (40) -- the gaps of 10 between existing rows
+exist exactly so a new row can be slotted in without renumbering
+anything else.
+
+**Where it stops being a Sheet-only job.** Editing the Sheet does
+*not*, by itself, make the field appear in the live app. There is no
+automatic sync from the Sheet to the running form -- the Sheet is the
+durable record of what the form *should* contain, but someone with
+database access still has to apply the matching change to the live
+database (Sections 2-4 below). That step takes an admin under a
+minute. In practice: update the Sheet for recordkeeping and audit
+purposes, then hand off to whoever manages the deployment to apply it
+live.
+
+---
+
 ## 1. Update the Google Sheet first
 
 The Google Sheet's `Data_Dictionary` tab is the durable source of
@@ -283,5 +320,5 @@ the form tab) forces the metadata query to re-run.
   running on a schedule regardless.
 
 ---
-*Rendered on 2026-11-05 at 10:28 PST.*<br>
+*Rendered on 2026-11-07 at 11:01 PST.*<br>
 *Source: ~/prj/sfw/05-zzedc/zzedc/vignettes/promotion-tracker/promotion-tracker-add-field-walkthrough.Rmd*

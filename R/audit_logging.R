@@ -33,9 +33,10 @@ init_audit_logging <- function(db_path = NULL) {
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     # Create main audit log table with enhanced event types
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "audit_log", "audit_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS audit_log (
-        audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        audit_id %s,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         user_id TEXT,
         event_type TEXT NOT NULL CHECK(event_type IN
@@ -62,12 +63,13 @@ init_audit_logging <- function(db_path = NULL) {
         hash_verified BOOLEAN DEFAULT 1,
         created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("audit_log", "audit_id")))
 
     # Create audit events table
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "audit_events", "event_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS audit_events (
-        event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id %s,
         audit_id INTEGER NOT NULL REFERENCES audit_log(audit_id),
         event_category TEXT,
         event_severity TEXT CHECK(event_severity IN ('info', 'warning', 'error', 'critical')),
@@ -75,12 +77,13 @@ init_audit_logging <- function(db_path = NULL) {
         recovery_action TEXT,
         created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("audit_events", "event_id")))
 
     # Create hash-chain table
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "audit_chain", "chain_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS audit_chain (
-        chain_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chain_id %s,
         audit_id INTEGER NOT NULL UNIQUE REFERENCES audit_log(audit_id),
         record_hash TEXT NOT NULL UNIQUE,
         previous_hash TEXT,
@@ -89,7 +92,7 @@ init_audit_logging <- function(db_path = NULL) {
         verification_date TIMESTAMP,
         created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("audit_chain", "chain_id")))
 
     # Create indexes
     DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)")
@@ -222,19 +225,16 @@ log_audit_event <- function(event_type, table_name, record_id = NULL,
       audit_hash <- digest::digest(record_content, algo = "sha256")
 
       # Insert audit record
-      DBI::dbExecute(conn, "
+      audit_id <- DBI::dbGetQuery(conn, "
         INSERT INTO audit_log
         (timestamp, event_type, table_name, record_id, operation, details,
          user_id, audit_hash, previous_hash)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING audit_id AS id
       ", list(
         timestamp, event_type, table_name, record_id, operation, details,
         user_id, audit_hash, previous_hash
-      ))
-
-      audit_id <- DBI::dbGetQuery(
-        conn, "SELECT last_insert_rowid() as id"
-      )[1, 1]
+      ))[1, 1]
 
       # Chain order: MAX is O(1) with the index; COUNT(*) is a full scan.
       chain_order <- DBI::dbGetQuery(

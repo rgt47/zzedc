@@ -51,10 +51,17 @@ DuckDBAdapter <- R6::R6Class(
     },
 
     #' @description
-    #' Create a new DuckDB connection
+    #' Create a new DuckDB connection. If `config$duckdb$encryption_key`
+    #' is set, the database file is opened encrypted via
+    #' `ATTACH ... (ENCRYPTION_KEY ...)` rather than a direct `dbdir`
+    #' connection: DuckDB rejects a wrong key with an error (verified
+    #' in `docs/db-adapter-remediation-plan-2026-11-07.md`), and all
+    #' existing unqualified table references resolve against the
+    #' attached database with no call-site changes.
     #' @return DBI connection object
     connect = function() {
       db_path <- self$config$duckdb$path
+      encryption_key <- self$config$duckdb$encryption_key
 
       # Create directory if needed (unless in-memory)
       if (db_path != ":memory:") {
@@ -64,11 +71,20 @@ DuckDBAdapter <- R6::R6Class(
         }
       }
 
-      conn <- DBI::dbConnect(
-        duckdb::duckdb(),
-        dbdir = db_path,
-        read_only = FALSE
-      )
+      if (!is.null(encryption_key) && nchar(encryption_key) > 0 &&
+          db_path != ":memory:") {
+        conn <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+        DBI::dbExecute(conn, sprintf(
+          "ATTACH '%s' AS zzedc (ENCRYPTION_KEY '%s')", db_path, encryption_key
+        ))
+        DBI::dbExecute(conn, "USE zzedc")
+      } else {
+        conn <- DBI::dbConnect(
+          duckdb::duckdb(),
+          dbdir = db_path,
+          read_only = FALSE
+        )
+      }
 
       # Configure threads if specified
       threads <- self$config$duckdb$threads
@@ -86,7 +102,10 @@ DuckDBAdapter <- R6::R6Class(
     },
 
     #' @description
-    #' Create a connection pool
+    #' Create a connection pool. Honors `config$duckdb$encryption_key`
+    #' the same way `connect()` does, via a pool-wide `onCreate` hook
+    #' that runs the `ATTACH ... (ENCRYPTION_KEY ...)` + `USE` pair on
+    #' every connection the pool opens.
     #' @return Pool object
     pool = function() {
       if (!requireNamespace("pool", quietly = TRUE)) {
@@ -95,6 +114,7 @@ DuckDBAdapter <- R6::R6Class(
       }
 
       db_path <- self$config$duckdb$path
+      encryption_key <- self$config$duckdb$encryption_key
 
       # Create directory if needed (unless in-memory)
       if (db_path != ":memory:") {
@@ -104,11 +124,26 @@ DuckDBAdapter <- R6::R6Class(
         }
       }
 
-      pool::dbPool(
-        duckdb::duckdb(),
-        dbdir = db_path,
-        read_only = FALSE
-      )
+      if (!is.null(encryption_key) && nchar(encryption_key) > 0 &&
+          db_path != ":memory:") {
+        pool::dbPool(
+          duckdb::duckdb(),
+          dbdir = ":memory:",
+          onCreate = function(conn) {
+            DBI::dbExecute(conn, sprintf(
+              "ATTACH '%s' AS zzedc (ENCRYPTION_KEY '%s')",
+              db_path, encryption_key
+            ))
+            DBI::dbExecute(conn, "USE zzedc")
+          }
+        )
+      } else {
+        pool::dbPool(
+          duckdb::duckdb(),
+          dbdir = db_path,
+          read_only = FALSE
+        )
+      }
     },
 
     #' @description
@@ -157,15 +192,68 @@ DuckDBAdapter <- R6::R6Class(
         supports_returning = TRUE,
 
         # UPSERT support (DuckDB uses INSERT OR REPLACE)
-        upsert_syntax = "INSERT OR REPLACE"
+        upsert_syntax = "INSERT OR REPLACE",
+
+        # Date difference in days (col_a - col_b)
+        date_diff_days = function(col_a, col_b) {
+          sprintf("date_diff('day', %s, %s)", col_b, col_a)
+        }
+      )
+    },
+
+    #' @description
+    #' Get the DDL fragment for an auto-increment primary key column.
+    #' DuckDB's plain `INTEGER PRIMARY KEY` (the `dialect()$auto_increment`
+    #' value) has no default value generator and fails with a
+    #' `NOT NULL constraint failed` error on an INSERT that omits the
+    #' column (verified in
+    #' `docs/db-adapter-remediation-plan-2026-11-07.md`); it needs a
+    #' named sequence instead. Call `prepare_auto_increment()` before
+    #' the `CREATE TABLE` statement that uses this fragment.
+    #' @param table_name Name of the table the column belongs to
+    #' @param column_name Name of the auto-increment column
+    #' @return Character string with the column's DDL fragment
+    auto_increment_column = function(table_name, column_name) {
+      sprintf("INTEGER PRIMARY KEY DEFAULT nextval('%s')",
+              private$sequence_name(table_name, column_name))
+    },
+
+    #' @description
+    #' Create the sequence that `auto_increment_column()`'s DEFAULT
+    #' references, if it does not already exist.
+    #' @param conn Database connection
+    #' @param table_name Name of the table the column belongs to
+    #' @param column_name Name of the auto-increment column
+    prepare_auto_increment = function(conn, table_name, column_name) {
+      DBI::dbExecute(conn, sprintf(
+        "CREATE SEQUENCE IF NOT EXISTS %s",
+        private$sequence_name(table_name, column_name)
+      ))
+      invisible(NULL)
+    },
+
+    #' @description
+    #' Describe a table's columns via `PRAGMA table_info`
+    #' @param conn Database connection
+    #' @param table_name Name of table to describe
+    #' @return Data frame with columns `name`, `type`, `notnull`, `pk`
+    describe_table = function(conn, table_name) {
+      info <- DBI::dbGetQuery(conn, sprintf("PRAGMA table_info('%s')", table_name))
+      data.frame(
+        name = info$name,
+        type = info$type,
+        notnull = info$notnull > 0,
+        pk = info$pk > 0,
+        stringsAsFactors = FALSE
       )
     },
 
     #' @description
     #' Check if encryption is supported
-    #' @return Logical FALSE (DuckDB does not support native encryption)
+    #' @return Logical TRUE via `ATTACH ... (ENCRYPTION_KEY ...)`,
+    #'   when `config$duckdb$encryption_key` is set (see `connect()`)
     supports_encryption = function() {
-      FALSE
+      TRUE
     },
 
     #' @description
@@ -235,6 +323,16 @@ DuckDBAdapter <- R6::R6Class(
       } else {
         NA_integer_
       }
+    }
+  ),
+
+  private = list(
+    # Deterministic sequence name for a table/column pair, shared by
+    # auto_increment_column() and prepare_auto_increment() so the
+    # DEFAULT nextval() expression always names a sequence that was
+    # actually created.
+    sequence_name = function(table_name, column_name) {
+      sprintf("%s_%s_seq", table_name, column_name)
     }
   )
 )

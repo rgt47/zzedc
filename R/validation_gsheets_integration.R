@@ -411,9 +411,10 @@ init_dsl_rules_db <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "dsl_validation_rules", "id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS dsl_validation_rules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id %s,
         rule_id TEXT UNIQUE NOT NULL,
         field_code TEXT NOT NULL,
         form_code TEXT,
@@ -435,11 +436,12 @@ init_dsl_rules_db <- function() {
         updated_at TEXT,
         version INTEGER DEFAULT 1
       )
-    ")
+    ", auto_increment_ddl("dsl_validation_rules", "id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "dsl_rule_permissions", "id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS dsl_rule_permissions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id %s,
         role_name TEXT NOT NULL,
         can_view INTEGER DEFAULT 1,
         can_create INTEGER DEFAULT 0,
@@ -447,26 +449,28 @@ init_dsl_rules_db <- function() {
         can_delete INTEGER DEFAULT 0,
         can_approve INTEGER DEFAULT 0,
         can_activate INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now'))
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
       )
-    ")
+    ", auto_increment_ddl("dsl_rule_permissions", "id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "dsl_rule_audit", "id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS dsl_rule_audit (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id %s,
         rule_id TEXT NOT NULL,
         action TEXT NOT NULL,
         old_value TEXT,
         new_value TEXT,
         changed_by TEXT NOT NULL,
-        changed_at TEXT DEFAULT (datetime('now')),
+        changed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         reason TEXT
       )
-    ")
+    ", auto_increment_ddl("dsl_rule_audit", "id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "dsl_rule_approvals", "id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS dsl_rule_approvals (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id %s,
         rule_id TEXT NOT NULL,
         version INTEGER NOT NULL,
         requested_by TEXT NOT NULL,
@@ -477,7 +481,7 @@ init_dsl_rules_db <- function() {
         comments TEXT,
         FOREIGN KEY (rule_id) REFERENCES dsl_validation_rules(rule_id)
       )
-    ")
+    ", auto_increment_ddl("dsl_rule_approvals", "id")))
 
     setup_default_dsl_permissions(con)
 
@@ -764,7 +768,7 @@ request_dsl_rule_approval <- function(rule_id, requested_by, comments = NULL) {
 
     DBI::dbExecute(con, "
       INSERT INTO dsl_rule_approvals (rule_id, version, requested_by, requested_at, comments)
-      VALUES (?, ?, ?, datetime('now'), ?)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
     ", params = list(rule_id, rule$version[1], requested_by, comments))
 
     DBI::dbExecute(con, "
@@ -828,7 +832,7 @@ review_dsl_rule <- function(rule_id, reviewer_id, reviewer_role, decision, comme
 
     DBI::dbExecute(con, "
       UPDATE dsl_rule_approvals SET
-        status = ?, reviewed_by = ?, reviewed_at = datetime('now'), comments = ?
+        status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, comments = ?
       WHERE id = ?
     ", params = list(toupper(decision), reviewer_id, comments, pending$id[1]))
 
@@ -837,7 +841,7 @@ review_dsl_rule <- function(rule_id, reviewer_id, reviewer_role, decision, comme
 
     DBI::dbExecute(con, "
       UPDATE dsl_validation_rules SET
-        approval_status = ?, approved_by = ?, approved_at = datetime('now'),
+        approval_status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
         is_active = ?
       WHERE rule_id = ?
     ", params = list(new_status, reviewer_id, is_active, rule_id))
@@ -1600,7 +1604,7 @@ migrate_add_studymanager_role <- function(db_path = NULL) {
       VALUES ('StudyManager',
               'Coordinating center study manager - configuration and user approval authority',
               'read,write,reports,export,approve_users',
-              datetime('now'))
+              CURRENT_TIMESTAMP)
     ")
   }
 

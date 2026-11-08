@@ -34,12 +34,18 @@ NULL
 #'   - nullable: FALSE if NOT NULL constraint (default TRUE)
 #'   - default: Default value expression (optional)
 #' @param if_not_exists Add IF NOT EXISTS clause (default TRUE)
+#' @param conn Database connection, required only when `columns`
+#'   includes an auto-increment primary key on a backend that needs
+#'   companion DDL first (currently DuckDB's `CREATE SEQUENCE`; see
+#'   `DatabaseAdapter$prepare_auto_increment()`). Omit it for backends
+#'   where auto-increment is a self-contained keyword.
 #'
 #' @return Character string with CREATE TABLE SQL
 #'
 #' @examples
 #' \dontrun{
 #'   adapter <- create_db_adapter(config)
+#'   conn <- adapter$connect()
 #'   sql <- build_create_table(adapter, "users", list(
 #'     list(name = "id", type = "integer", primary_key = TRUE,
 #'          auto_increment = TRUE),
@@ -47,13 +53,13 @@ NULL
 #'     list(name = "active", type = "boolean", default = TRUE),
 #'     list(name = "created_at", type = "timestamp",
 #'          default = "CURRENT_TIMESTAMP")
-#'   ))
+#'   ), conn = conn)
 #' }
 #'
 #' @keywords internal
 #' @export
 build_create_table <- function(adapter, table_name, columns,
-                               if_not_exists = TRUE) {
+                               if_not_exists = TRUE, conn = NULL) {
   dialect <- adapter$dialect()
 
   col_defs <- vapply(columns, function(col) {
@@ -74,7 +80,11 @@ build_create_table <- function(adapter, table_name, columns,
 
     # Handle primary key with auto-increment
     if (isTRUE(col$primary_key) && isTRUE(col$auto_increment)) {
-      col_def <- sprintf("%s %s", col$name, dialect$auto_increment)
+      if (!is.null(conn)) {
+        adapter$prepare_auto_increment(conn, table_name, col$name)
+      }
+      col_def <- sprintf("%s %s", col$name,
+                         adapter$auto_increment_column(table_name, col$name))
     } else {
       col_def <- sprintf("%s %s", col$name, col_type)
 
@@ -411,6 +421,36 @@ get_db_type <- function(adapter, logical_type, length = NULL) {
     blob = dialect$blob_type,
     stop("Unknown logical type: ", logical_type)
   )
+}
+
+
+#' Resolve a Table's Primary Key Column Name
+#'
+#' Looks up the primary key column of `table_name` via the current
+#' backend's `describe_table()`. For code that needs to address "the
+#' row with this id" generically across tables -- this codebase does
+#' not use a uniform `id` column; the real primary key is named per
+#' table (`audit_id`, `design_id`, `field_id`, ...), and the previous
+#' SQLite-only idiom of hardcoding `WHERE rowid = ? OR id = ?` to
+#' paper over that broke on every other backend (`rowid` has no
+#' equivalent on PostgreSQL/DuckDB/MariaDB; see
+#' `docs/db-adapter-remediation-plan-2026-11-07.md` Section 1).
+#'
+#' @param conn Database connection
+#' @param table_name Name of table to inspect
+#' @param fallback Column name to return if `describe_table()` finds
+#'   no primary key (default `"rowid"`, SQLite's implicit row
+#'   identifier; only SQLite actually supports addressing a table
+#'   this way when it has no explicit primary key column)
+#' @return Character string with the primary key column name
+#'
+#' @keywords internal
+#' @export
+resolve_table_pk_column <- function(conn, table_name, fallback = "rowid") {
+  adapter <- get_db_adapter()
+  desc <- adapter$describe_table(conn, table_name)
+  pk_cols <- desc$name[desc$pk]
+  if (length(pk_cols) == 0) fallback else pk_cols[1]
 }
 
 

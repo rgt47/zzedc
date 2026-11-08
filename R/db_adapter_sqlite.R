@@ -155,7 +155,12 @@ SQLiteAdapter <- R6::R6Class(
         supports_returning = TRUE,
 
         # UPSERT support
-        upsert_syntax = "INSERT OR REPLACE"
+        upsert_syntax = "INSERT OR REPLACE",
+
+        # Date difference in days (col_a - col_b)
+        date_diff_days = function(col_a, col_b) {
+          sprintf("(julianday(%s) - julianday(%s))", col_a, col_b)
+        }
       )
     },
 
@@ -164,6 +169,22 @@ SQLiteAdapter <- R6::R6Class(
     #' @return Logical TRUE if RSQLCipher is available
     supports_encryption = function() {
       requireNamespace("RSQLCipher", quietly = TRUE)
+    },
+
+    #' @description
+    #' Describe a table's columns via `PRAGMA table_info`
+    #' @param conn Database connection
+    #' @param table_name Name of table to describe
+    #' @return Data frame with columns `name`, `type`, `notnull`, `pk`
+    describe_table = function(conn, table_name) {
+      info <- DBI::dbGetQuery(conn, sprintf("PRAGMA table_info('%s')", table_name))
+      data.frame(
+        name = info$name,
+        type = info$type,
+        notnull = info$notnull > 0,
+        pk = info$pk > 0,
+        stringsAsFactors = FALSE
+      )
     },
 
     #' @description

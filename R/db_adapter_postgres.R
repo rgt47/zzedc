@@ -169,6 +169,11 @@ PostgreSQLAdapter <- R6::R6Class(
             collapse = ", "
           )
           sprintf("ON CONFLICT (%s) DO UPDATE SET %s", conflict, updates)
+        },
+
+        # Date difference in days (col_a - col_b)
+        date_diff_days = function(col_a, col_b) {
+          sprintf("(%s::date - %s::date)", col_a, col_b)
         }
       )
     },
@@ -178,6 +183,33 @@ PostgreSQLAdapter <- R6::R6Class(
     #' @return Logical TRUE (PostgreSQL supports SSL/TLS)
     supports_encryption = function() {
       TRUE
+    },
+
+    #' @description
+    #' Describe a table's columns via `information_schema.columns`
+    #' (PostgreSQL has no `PRAGMA table_info` equivalent)
+    #' @param conn Database connection
+    #' @param table_name Name of table to describe
+    #' @return Data frame with columns `name`, `type`, `notnull`, `pk`
+    describe_table = function(conn, table_name) {
+      cols <- DBI::dbGetQuery(conn, "
+        SELECT column_name AS name, data_type AS type,
+               (is_nullable = 'NO') AS notnull
+        FROM information_schema.columns
+        WHERE table_name = $1
+        ORDER BY ordinal_position
+      ", params = list(table_name))
+
+      pk_cols <- DBI::dbGetQuery(conn, "
+        SELECT a.attname AS name
+        FROM pg_index i
+        JOIN pg_attribute a
+          ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+        WHERE i.indrelid = $1::regclass AND i.indisprimary
+      ", params = list(table_name))
+
+      cols$pk <- cols$name %in% pk_cols$name
+      cols
     },
 
     #' @description

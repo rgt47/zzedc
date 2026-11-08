@@ -145,7 +145,7 @@ db_insert_user <- function(conn,
       INSERT INTO edc_users
         (user_id, username, password_hash, full_name, email,
          role, site_id, active, must_change_password, created_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
     ", list(
       as.character(user_id),
       as.character(username),

@@ -23,9 +23,10 @@ init_conditional_logic <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "field_conditions", "condition_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS field_conditions (
-        condition_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        condition_id %s,
         condition_name TEXT NOT NULL,
         form_id INTEGER,
         target_field_code TEXT NOT NULL,
@@ -36,45 +37,48 @@ init_conditional_logic <- function() {
         action_type TEXT NOT NULL,
         is_active INTEGER DEFAULT 1,
         execution_order INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("field_conditions", "condition_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "field_dependencies", "dependency_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS field_dependencies (
-        dependency_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dependency_id %s,
         parent_field_code TEXT NOT NULL,
         child_field_code TEXT NOT NULL,
         form_id INTEGER,
         dependency_type TEXT NOT NULL,
         dependency_rule TEXT,
         is_required_dependency INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("field_dependencies", "dependency_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "conditional_groups", "group_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS conditional_groups (
-        group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id %s,
         group_name TEXT NOT NULL,
         form_id INTEGER,
         logic_operator TEXT DEFAULT 'AND',
         description TEXT,
         created_by TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("conditional_groups", "group_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "group_conditions", "id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS group_conditions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id %s,
         group_id INTEGER NOT NULL,
         condition_id INTEGER NOT NULL,
         FOREIGN KEY (group_id) REFERENCES conditional_groups(group_id),
         FOREIGN KEY (condition_id) REFERENCES field_conditions(condition_id)
       )
-    ")
+    ", auto_increment_ddl("group_conditions", "id")))
 
     list(success = TRUE, message = "Conditional logic system initialized")
   }, error = function(e) {
@@ -193,22 +197,20 @@ create_field_condition <- function(condition_name, target_field_code,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    condition_id <- DBI::dbGetQuery(con, "
       INSERT INTO field_conditions (
         condition_name, form_id, target_field_code, condition_type,
         source_field_code, operator, comparison_value, action_type,
         execution_order, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING condition_id AS id
     ", params = list(
       condition_name,
       if (is.null(form_id)) NA_integer_ else as.integer(form_id),
       target_field_code, condition_type, source_field_code, operator,
       safe_scalar_cl(comparison_value), action_type,
       as.integer(execution_order), created_by
-    ))
-
-    condition_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, condition_id = condition_id)
   }, error = function(e) {
@@ -241,20 +243,18 @@ create_field_dependency <- function(parent_field_code, child_field_code,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    dependency_id <- DBI::dbGetQuery(con, "
       INSERT INTO field_dependencies (
         parent_field_code, child_field_code, form_id, dependency_type,
         dependency_rule, is_required_dependency, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      RETURNING dependency_id AS id
     ", params = list(
       parent_field_code, child_field_code,
       if (is.null(form_id)) NA_integer_ else as.integer(form_id),
       dependency_type, safe_scalar_cl(dependency_rule),
       as.integer(is_required_dependency), created_by
-    ))
-
-    dependency_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, dependency_id = dependency_id)
   }, error = function(e) {
@@ -283,18 +283,16 @@ create_conditional_group <- function(group_name, created_by, form_id = NULL,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    group_id <- DBI::dbGetQuery(con, "
       INSERT INTO conditional_groups (
         group_name, form_id, logic_operator, description, created_by
       ) VALUES (?, ?, ?, ?, ?)
+      RETURNING group_id AS id
     ", params = list(
       group_name,
       if (is.null(form_id)) NA_integer_ else as.integer(form_id),
       logic_operator, safe_scalar_cl(description), created_by
-    ))
-
-    group_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, group_id = group_id)
   }, error = function(e) {

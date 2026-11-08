@@ -42,9 +42,10 @@ init_adverse_events <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "adverse_events", "ae_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS adverse_events (
-        ae_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ae_id %s,
         ae_number TEXT NOT NULL UNIQUE,
         study_id TEXT NOT NULL,
         site_id TEXT,
@@ -88,11 +89,12 @@ init_adverse_events <- function(db_path = NULL) {
         previous_hash TEXT,
         metadata TEXT
       )
-    ")
+    ", auto_increment_ddl("adverse_events", "ae_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "sae_details", "sae_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS sae_details (
-        sae_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sae_id %s,
         ae_id INTEGER NOT NULL UNIQUE REFERENCES adverse_events(ae_id),
         sae_number TEXT NOT NULL UNIQUE,
         death BOOLEAN DEFAULT 0,
@@ -122,11 +124,12 @@ init_adverse_events <- function(db_path = NULL) {
         narrative TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("sae_details", "sae_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "ae_followups", "followup_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS ae_followups (
-        followup_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        followup_id %s,
         ae_id INTEGER NOT NULL REFERENCES adverse_events(ae_id),
         followup_date DATE NOT NULL,
         followup_type TEXT NOT NULL CHECK(followup_type IN
@@ -140,11 +143,12 @@ init_adverse_events <- function(db_path = NULL) {
         followup_hash TEXT NOT NULL,
         previous_followup_hash TEXT
       )
-    ")
+    ", auto_increment_ddl("ae_followups", "followup_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "ae_concomitant_meds", "med_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS ae_concomitant_meds (
-        med_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        med_id %s,
         ae_id INTEGER NOT NULL REFERENCES adverse_events(ae_id),
         medication_name TEXT NOT NULL,
         indication TEXT,
@@ -157,11 +161,12 @@ init_adverse_events <- function(db_path = NULL) {
         recorded_by TEXT NOT NULL,
         recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("ae_concomitant_meds", "med_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "ae_medical_history", "history_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS ae_medical_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         ae_id INTEGER NOT NULL REFERENCES adverse_events(ae_id),
         condition TEXT NOT NULL,
         onset_date DATE,
@@ -172,7 +177,7 @@ init_adverse_events <- function(db_path = NULL) {
         recorded_by TEXT NOT NULL,
         recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("ae_medical_history", "history_id")))
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_ae_subject
@@ -442,7 +447,7 @@ create_adverse_event <- function(study_id,
     )
     ae_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    ae_id <- DBI::dbGetQuery(conn, "
       INSERT INTO adverse_events (
         ae_number, study_id, site_id, subject_id, onset_date, onset_time,
         ae_term, ae_description, meddra_pt_code, meddra_pt_term,
@@ -450,6 +455,7 @@ create_adverse_event <- function(study_id,
         expectedness, outcome, action_taken, treatment_given,
         treatment_description, reported_by, ae_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING ae_id AS id
     ", list(
       ae_number,
       safe_scalar_ae(study_id),
@@ -473,9 +479,7 @@ create_adverse_event <- function(study_id,
       safe_scalar_ae(reported_by),
       ae_hash,
       previous_hash
-    ))
-
-    ae_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     tryCatch({
       log_audit_event(
@@ -600,7 +604,7 @@ upgrade_to_sae <- function(ae_id,
       ae_id
     ))
 
-    DBI::dbExecute(conn, "
+    sae_id <- DBI::dbGetQuery(conn, "
       INSERT INTO sae_details (
         ae_id, sae_number, death, death_date, life_threatening,
         hospitalization, hospitalization_admission_date, hospitalization_discharge_date,
@@ -608,6 +612,7 @@ upgrade_to_sae <- function(ae_id,
         other_medically_important_desc, initial_report_date, awareness_date,
         report_type, expedited_report_required, expedited_report_deadline, narrative
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING sae_id AS id
     ", list(
       ae_id,
       sae_number,
@@ -627,9 +632,7 @@ upgrade_to_sae <- function(ae_id,
       1L,
       as.character(expedited_deadline),
       safe_scalar_ae(narrative)
-    ))
-
-    sae_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     add_ae_followup(
       ae_id = ae_id,
@@ -824,11 +827,12 @@ add_ae_followup <- function(ae_id,
     )
     followup_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    followup_id <- DBI::dbGetQuery(conn, "
       INSERT INTO ae_followups (
         ae_id, followup_date, followup_type, previous_value, new_value,
         notes, recorded_by, followup_hash, previous_followup_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING followup_id AS id
     ", list(
       ae_id,
       safe_scalar_ae(as.character(followup_date)),
@@ -839,9 +843,7 @@ add_ae_followup <- function(ae_id,
       safe_scalar_ae(recorded_by),
       followup_hash,
       previous_followup_hash
-    ))
-
-    followup_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     list(
       success = TRUE,
@@ -1132,7 +1134,7 @@ get_pending_sae_reports <- function(study_id = NULL,
     }
 
     if (include_overdue) {
-      query <- paste(query, "AND sd.expedited_report_deadline < date('now')")
+      query <- paste(query, "AND sd.expedited_report_deadline < CURRENT_DATE")
     }
 
     query <- paste(query, "ORDER BY sd.expedited_report_deadline ASC")

@@ -499,7 +499,7 @@ log_audit_action <- function(db_pool, user_id, action, entity_type, entity_id,
       INSERT INTO audit_trail
       (audit_id, user_id, action, entity_type, entity_id, old_values, new_values,
        action_date, ip_address)
-      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
     ", params = list(
       audit_id, user_id, action, entity_type, entity_id,
       old_values, new_values, ip_address

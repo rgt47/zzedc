@@ -65,23 +65,30 @@ create_wizard_database <- function(config_list, db_path = NULL,
     dialect <- adapter$dialect()
 
     # Create all core tables using dialect-aware DDL
-    create_core_tables(conn, dialect, backend)
+    create_core_tables(conn, dialect, backend, adapter)
 
     # Insert study info
+    #
+    # Optional config_list fields are coalesced to NA, not left as a
+    # raw NULL: an R NULL has length 0, and DuckDB's parameter
+    # binding requires every bound value to be length 1, so a NULL
+    # element throws "Bind parameter values need to have the same
+    # length" (SQLite's binding is lenient and accepts it, which hid
+    # this for every backend but DuckDB).
     study_id <- paste0("STUDY_", as.integer(Sys.time()))
     DBI::dbExecute(conn, "
       INSERT INTO study_info
       (study_id, study_name, protocol_id, principal_investigator, pi_email,
        study_phase, target_enrollment, created_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
     ", params = list(
       study_id,
       config_list$study_name,
       config_list$protocol_id,
-      config_list$pi_name,
-      config_list$pi_email,
-      config_list$study_phase,
-      config_list$target_enrollment,
+      config_list$pi_name %||% NA_character_,
+      config_list$pi_email %||% NA_character_,
+      config_list$study_phase %||% NA_character_,
+      config_list$target_enrollment %||% NA_integer_,
       "setup_wizard"
     ))
 
@@ -97,13 +104,13 @@ create_wizard_database <- function(config_list, db_path = NULL,
     DBI::dbExecute(conn, "
       INSERT INTO edc_users
       (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, 1, 1, datetime('now'), ?)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, ?)
     ", params = list(
       admin_id,
       config_list$admin_username,
       password_hash,
-      config_list$admin_fullname,
-      config_list$admin_email,
+      config_list$admin_fullname %||% NA_character_,
+      config_list$admin_email %||% NA_character_,
       "Admin",
       "setup_wizard"
     ))
@@ -121,7 +128,7 @@ create_wizard_database <- function(config_list, db_path = NULL,
         INSERT INTO edc_users
           (user_id, username, password_hash, full_name, email,
            role, active, must_change_password, created_date, created_by)
-        VALUES (?, ?, ?, ?, ?, 'PI', 1, 1, datetime('now'), ?)
+        VALUES (?, ?, ?, ?, ?, 'PI', 1, 1, CURRENT_TIMESTAMP, ?)
       ", params = list(
         pi_id,
         config_list$pi_username,
@@ -147,7 +154,7 @@ create_wizard_database <- function(config_list, db_path = NULL,
     for (role in roles) {
       DBI::dbExecute(conn, "
         INSERT INTO edc_roles (role_name, description, permissions, created_date)
-        VALUES (?, ?, ?, datetime('now'))
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
       ", params = role)
     }
 
@@ -167,7 +174,7 @@ create_wizard_database <- function(config_list, db_path = NULL,
         DBI::dbExecute(conn, "
           INSERT INTO edc_users
           (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, 1, 1, datetime('now'), ?)
+          VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, ?)
         ", params = list(
           member_id,
           member$username,
@@ -623,11 +630,19 @@ build_adapter_config <- function(backend, db_path = NULL, server_config = NULL) 
 #' @param conn Database connection
 #' @param dialect Dialect object from adapter
 #' @param backend Backend name for engine-specific syntax
+#' @param adapter DatabaseAdapter instance `conn` was created from.
+#'   Required for the `edc_roles.role_id` auto-increment column,
+#'   which goes through `adapter$auto_increment_column()` /
+#'   `adapter$prepare_auto_increment()` instead of the raw
+#'   `dialect$auto_increment` string, because DuckDB needs a
+#'   companion `CREATE SEQUENCE` that only those methods know how to
+#'   name and create (see
+#'   `docs/db-adapter-remediation-plan-2026-11-07.md` Phase B).
 #'
 #' @return Invisible NULL
 #'
 #' @keywords internal
-create_core_tables <- function(conn, dialect, backend) {
+create_core_tables <- function(conn, dialect, backend, adapter) {
 
   # Get type mappings from dialect
   text_type <- dialect$text_type
@@ -740,6 +755,7 @@ create_core_tables <- function(conn, dialect, backend) {
       ) ENGINE = MergeTree() ORDER BY role_id
     ", int_type, text_type, text_type, text_type, ts_type))
   } else {
+    adapter$prepare_auto_increment(conn, "edc_roles", "role_id")
     DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS edc_roles (
         role_id %s,
@@ -748,7 +764,8 @@ create_core_tables <- function(conn, dialect, backend) {
         permissions %s,
         created_date %s DEFAULT CURRENT_TIMESTAMP
       )
-    ", dialect$auto_increment, text_type, text_type, text_type, ts_type))
+    ", adapter$auto_increment_column("edc_roles", "role_id"),
+       text_type, text_type, text_type, ts_type))
   }
 
   # Subjects table

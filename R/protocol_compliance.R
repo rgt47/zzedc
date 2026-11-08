@@ -42,9 +42,10 @@ init_protocol_compliance <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "protocol_definitions", "protocol_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS protocol_definitions (
-        protocol_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        protocol_id %s,
         protocol_code TEXT NOT NULL UNIQUE,
         protocol_title TEXT NOT NULL,
         protocol_version TEXT NOT NULL,
@@ -60,11 +61,12 @@ init_protocol_compliance <- function(db_path = NULL) {
         updated_at TIMESTAMP,
         metadata TEXT
       )
-    ")
+    ", auto_increment_ddl("protocol_definitions", "protocol_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "protocol_visits", "visit_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS protocol_visits (
-        visit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        visit_id %s,
         protocol_id INTEGER NOT NULL REFERENCES protocol_definitions(protocol_id),
         visit_code TEXT NOT NULL,
         visit_name TEXT NOT NULL,
@@ -78,11 +80,12 @@ init_protocol_compliance <- function(db_path = NULL) {
         description TEXT,
         UNIQUE(protocol_id, visit_code)
       )
-    ")
+    ", auto_increment_ddl("protocol_visits", "visit_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "protocol_assessments", "assessment_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS protocol_assessments (
-        assessment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assessment_id %s,
         protocol_id INTEGER NOT NULL REFERENCES protocol_definitions(protocol_id),
         visit_id INTEGER REFERENCES protocol_visits(visit_id),
         assessment_code TEXT NOT NULL,
@@ -93,32 +96,19 @@ init_protocol_compliance <- function(db_path = NULL) {
         description TEXT,
         UNIQUE(protocol_id, visit_id, assessment_code)
       )
-    ")
+    ", auto_increment_ddl("protocol_assessments", "assessment_id")))
 
-    DBI::dbExecute(conn, "
-      CREATE TABLE IF NOT EXISTS subject_visits (
-        subject_visit_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        subject_id TEXT NOT NULL,
-        protocol_id INTEGER NOT NULL REFERENCES protocol_definitions(protocol_id),
-        visit_id INTEGER NOT NULL REFERENCES protocol_visits(visit_id),
-        scheduled_date DATE,
-        actual_date DATE,
-        status TEXT NOT NULL DEFAULT 'SCHEDULED' CHECK(status IN
-          ('SCHEDULED', 'COMPLETED', 'MISSED', 'CANCELLED', 'PARTIAL')),
-        days_from_baseline INTEGER,
-        window_status TEXT CHECK(window_status IN
-          ('WITHIN_WINDOW', 'EARLY', 'LATE', 'OUTSIDE_WINDOW')),
-        deviation_id INTEGER REFERENCES protocol_deviations(deviation_id),
-        completed_by TEXT,
-        completed_at TIMESTAMP,
-        notes TEXT,
-        UNIQUE(subject_id, protocol_id, visit_id)
-      )
-    ")
-
-    DBI::dbExecute(conn, "
+    # protocol_deviations must be created before subject_visits: the
+    # latter's deviation_id column references it, and unlike SQLite,
+    # DuckDB/PostgreSQL/MariaDB validate a REFERENCES target exists at
+    # CREATE TABLE time rather than only at DML time (verified: this
+    # CREATE TABLE order previously failed on DuckDB with
+    # `Catalog Error: Table with name protocol_deviations does not
+    # exist!`).
+    prepare_auto_increment(conn, "protocol_deviations", "deviation_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS protocol_deviations (
-        deviation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deviation_id %s,
         protocol_id INTEGER NOT NULL REFERENCES protocol_definitions(protocol_id),
         subject_id TEXT NOT NULL,
         deviation_type TEXT NOT NULL CHECK(deviation_type IN
@@ -144,11 +134,34 @@ init_protocol_compliance <- function(db_path = NULL) {
         deviation_hash TEXT NOT NULL,
         previous_hash TEXT
       )
-    ")
+    ", auto_increment_ddl("protocol_deviations", "deviation_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "subject_visits", "subject_visit_id")
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS subject_visits (
+        subject_visit_id %s,
+        subject_id TEXT NOT NULL,
+        protocol_id INTEGER NOT NULL REFERENCES protocol_definitions(protocol_id),
+        visit_id INTEGER NOT NULL REFERENCES protocol_visits(visit_id),
+        scheduled_date DATE,
+        actual_date DATE,
+        status TEXT NOT NULL DEFAULT 'SCHEDULED' CHECK(status IN
+          ('SCHEDULED', 'COMPLETED', 'MISSED', 'CANCELLED', 'PARTIAL')),
+        days_from_baseline INTEGER,
+        window_status TEXT CHECK(window_status IN
+          ('WITHIN_WINDOW', 'EARLY', 'LATE', 'OUTSIDE_WINDOW')),
+        deviation_id INTEGER REFERENCES protocol_deviations(deviation_id),
+        completed_by TEXT,
+        completed_at TIMESTAMP,
+        notes TEXT,
+        UNIQUE(subject_id, protocol_id, visit_id)
+      )
+    ", auto_increment_ddl("subject_visits", "subject_visit_id")))
+
+    prepare_auto_increment(conn, "eligibility_criteria", "criterion_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS eligibility_criteria (
-        criterion_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        criterion_id %s,
         protocol_id INTEGER NOT NULL REFERENCES protocol_definitions(protocol_id),
         criterion_type TEXT NOT NULL CHECK(criterion_type IN
           ('INCLUSION', 'EXCLUSION')),
@@ -161,11 +174,12 @@ init_protocol_compliance <- function(db_path = NULL) {
         is_active BOOLEAN DEFAULT 1,
         UNIQUE(protocol_id, criterion_code)
       )
-    ")
+    ", auto_increment_ddl("eligibility_criteria", "criterion_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "eligibility_checks", "check_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS eligibility_checks (
-        check_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        check_id %s,
         subject_id TEXT NOT NULL,
         protocol_id INTEGER NOT NULL REFERENCES protocol_definitions(protocol_id),
         check_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -178,7 +192,7 @@ init_protocol_compliance <- function(db_path = NULL) {
         checked_by TEXT NOT NULL,
         notes TEXT
       )
-    ")
+    ", auto_increment_ddl("eligibility_checks", "check_id")))
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_deviations_subject
@@ -261,12 +275,13 @@ create_protocol <- function(protocol_code,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    protocol_id <- DBI::dbGetQuery(conn, "
       INSERT INTO protocol_definitions (
         protocol_code, protocol_title, protocol_version,
         effective_date, sponsor, principal_investigator,
         description, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING protocol_id AS id
     ", list(
       safe_scalar_proto(protocol_code),
       safe_scalar_proto(protocol_title),
@@ -276,9 +291,7 @@ create_protocol <- function(protocol_code,
       safe_scalar_proto(principal_investigator),
       safe_scalar_proto(description),
       safe_scalar_proto(created_by)
-    ))
-
-    protocol_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     list(
       success = TRUE,
@@ -382,12 +395,13 @@ add_protocol_visit <- function(protocol_id,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    visit_id <- DBI::dbGetQuery(conn, "
       INSERT INTO protocol_visits (
         protocol_id, visit_code, visit_name, visit_order,
         target_day, window_before, window_after,
         is_required, visit_type, description
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING visit_id AS id
     ", list(
       protocol_id,
       safe_scalar_proto(visit_code),
@@ -399,9 +413,7 @@ add_protocol_visit <- function(protocol_id,
       as.integer(is_required),
       safe_scalar_proto(visit_type),
       safe_scalar_proto(description)
-    ))
-
-    visit_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     list(
       success = TRUE,
@@ -476,20 +488,19 @@ schedule_subject_visit <- function(subject_id,
       NA_integer_
     }
 
-    DBI::dbExecute(conn, "
+    subject_visit_id <- DBI::dbGetQuery(conn, "
       INSERT INTO subject_visits (
         subject_id, protocol_id, visit_id,
         scheduled_date, days_from_baseline, status
       ) VALUES (?, ?, ?, ?, ?, 'SCHEDULED')
+      RETURNING subject_visit_id AS id
     ", list(
       safe_scalar_proto(subject_id),
       protocol_id,
       visit_id,
       safe_scalar_proto(as.character(scheduled_date)),
       days_from_baseline
-    ))
-
-    subject_visit_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     list(
       success = TRUE,
@@ -588,12 +599,13 @@ complete_subject_visit <- function(subject_id,
       ))
       subject_visit_id <- existing$subject_visit_id
     } else {
-      DBI::dbExecute(conn, "
+      subject_visit_id <- DBI::dbGetQuery(conn, "
         INSERT INTO subject_visits (
           subject_id, protocol_id, visit_id,
           actual_date, status, days_from_baseline, window_status,
           completed_by, completed_at, notes
         ) VALUES (?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)
+        RETURNING subject_visit_id AS id
       ", list(
         safe_scalar_proto(subject_id),
         protocol_id,
@@ -604,8 +616,7 @@ complete_subject_visit <- function(subject_id,
         safe_scalar_proto(completed_by),
         timestamp,
         safe_scalar_proto(notes)
-      ))
-      subject_visit_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+      ))$id
     }
 
     deviation_id <- NULL
@@ -799,13 +810,14 @@ create_protocol_deviation <- function(protocol_id,
     )
     deviation_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    deviation_id <- DBI::dbGetQuery(conn, "
       INSERT INTO protocol_deviations (
         protocol_id, subject_id, deviation_type, severity,
         deviation_date, description, root_cause, corrective_action,
         preventive_action, reported_by, irb_reportable, sponsor_reportable,
         deviation_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING deviation_id AS id
     ", list(
       protocol_id,
       safe_scalar_proto(subject_id),
@@ -821,9 +833,7 @@ create_protocol_deviation <- function(protocol_id,
       as.integer(sponsor_reportable),
       deviation_hash,
       previous_hash
-    ))
-
-    deviation_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     tryCatch({
       log_audit_event(
@@ -1014,11 +1024,12 @@ add_eligibility_criterion <- function(protocol_id,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    criterion_id <- DBI::dbGetQuery(conn, "
       INSERT INTO eligibility_criteria (
         protocol_id, criterion_type, criterion_code,
         criterion_text, field_name, operator, value
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      RETURNING criterion_id AS id
     ", list(
       protocol_id,
       safe_scalar_proto(criterion_type),
@@ -1027,9 +1038,7 @@ add_eligibility_criterion <- function(protocol_id,
       safe_scalar_proto(field_name),
       safe_scalar_proto(operator),
       safe_scalar_proto(value)
-    ))
-
-    criterion_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     list(
       success = TRUE,
@@ -1117,20 +1126,19 @@ check_subject_eligibility <- function(subject_id,
 
     overall_eligible <- all_inclusion_met && !any_exclusion_met
 
-    DBI::dbExecute(conn, "
+    check_id <- DBI::dbGetQuery(conn, "
       INSERT INTO eligibility_checks (
         subject_id, protocol_id, overall_eligible,
         criteria_results, checked_by
       ) VALUES (?, ?, ?, ?, ?)
+      RETURNING check_id AS id
     ", list(
       safe_scalar_proto(subject_id),
       protocol_id,
       as.integer(overall_eligible),
       jsonlite::toJSON(results, auto_unbox = TRUE),
       safe_scalar_proto(checked_by)
-    ))
-
-    check_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     list(
       success = TRUE,

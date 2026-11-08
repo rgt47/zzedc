@@ -57,9 +57,10 @@ init_rectification <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "rectification_requests", "request_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS rectification_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         request_number TEXT NOT NULL UNIQUE,
         dsar_request_id INTEGER REFERENCES dsar_requests(request_id),
         subject_id TEXT,
@@ -82,11 +83,12 @@ init_rectification <- function(db_path = NULL) {
         previous_hash TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("rectification_requests", "request_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "rectification_items", "item_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS rectification_items (
-        item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id %s,
         request_id INTEGER NOT NULL REFERENCES rectification_requests(request_id),
         table_name TEXT NOT NULL,
         record_id TEXT NOT NULL,
@@ -104,11 +106,12 @@ init_rectification <- function(db_path = NULL) {
         applied_by TEXT,
         item_hash TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("rectification_items", "item_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "rectification_history", "history_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS rectification_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         request_id INTEGER NOT NULL REFERENCES rectification_requests(request_id),
         item_id INTEGER REFERENCES rectification_items(item_id),
         action TEXT NOT NULL,
@@ -120,11 +123,12 @@ init_rectification <- function(db_path = NULL) {
         history_hash TEXT NOT NULL,
         previous_history_hash TEXT
       )
-    ")
+    ", auto_increment_ddl("rectification_history", "history_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "third_party_recipients", "recipient_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS third_party_recipients (
-        recipient_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipient_id %s,
         request_id INTEGER NOT NULL REFERENCES rectification_requests(request_id),
         recipient_name TEXT NOT NULL,
         recipient_type TEXT NOT NULL CHECK(recipient_type IN
@@ -142,11 +146,12 @@ init_rectification <- function(db_path = NULL) {
         acknowledgment_date DATE,
         notes TEXT
       )
-    ")
+    ", auto_increment_ddl("third_party_recipients", "recipient_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "rectification_notifications", "notification_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS rectification_notifications (
-        notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        notification_id %s,
         request_id INTEGER NOT NULL REFERENCES rectification_requests(request_id),
         recipient_id INTEGER REFERENCES third_party_recipients(recipient_id),
         notification_type TEXT NOT NULL CHECK(notification_type IN
@@ -161,7 +166,7 @@ init_rectification <- function(db_path = NULL) {
           ('PENDING', 'SENT', 'DELIVERED', 'FAILED', 'BOUNCED')),
         notification_hash TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("rectification_notifications", "notification_id")))
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_rect_status
@@ -308,12 +313,13 @@ create_rectification_request <- function(subject_email,
     )
     request_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    request_id <- DBI::dbGetQuery(conn, "
       INSERT INTO rectification_requests (
         request_number, dsar_request_id, subject_id, subject_email,
         subject_name, request_type, status, received_date, due_date,
         requested_by, request_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, 'RECEIVED', ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", list(
       request_number,
       safe_int_rect(dsar_request_id),
@@ -326,9 +332,7 @@ create_rectification_request <- function(subject_email,
       safe_scalar_rect(requested_by),
       request_hash,
       previous_hash
-    ))
-
-    request_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     log_rectification_action(
       request_id = request_id,
@@ -476,12 +480,13 @@ add_rectification_item <- function(request_id,
     )
     item_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    item_id <- DBI::dbGetQuery(conn, "
       INSERT INTO rectification_items (
         request_id, table_name, record_id, field_name,
         current_value, requested_value, rectification_type,
         justification, supporting_evidence, status, item_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+      RETURNING item_id AS id
     ", list(
       request_id,
       safe_scalar_rect(table_name),
@@ -493,9 +498,7 @@ add_rectification_item <- function(request_id,
       safe_scalar_rect(justification),
       safe_scalar_rect(supporting_evidence),
       item_hash
-    ))
-
-    item_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     log_rectification_action(
       request_id = request_id,
@@ -716,11 +719,12 @@ add_third_party_recipient <- function(request_id,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    recipient_id <- DBI::dbGetQuery(conn, "
       INSERT INTO third_party_recipients (
         request_id, recipient_name, recipient_type, contact_email,
         contact_name, data_shared, notification_required
       ) VALUES (?, ?, ?, ?, ?, ?, 1)
+      RETURNING recipient_id AS id
     ", list(
       request_id,
       safe_scalar_rect(recipient_name),
@@ -728,9 +732,7 @@ add_third_party_recipient <- function(request_id,
       safe_scalar_rect(contact_email),
       safe_scalar_rect(contact_name),
       safe_scalar_rect(data_shared)
-    ))
-
-    recipient_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     log_rectification_action(
       request_id = request_id,

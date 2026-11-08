@@ -56,9 +56,10 @@ init_consent <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "consent_purposes", "purpose_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS consent_purposes (
-        purpose_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purpose_id %s,
         purpose_code TEXT UNIQUE NOT NULL,
         purpose_name TEXT NOT NULL,
         purpose_description TEXT NOT NULL,
@@ -68,16 +69,17 @@ init_consent <- function() {
         is_active INTEGER DEFAULT 1,
         requires_explicit INTEGER DEFAULT 0,
         is_mandatory INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         updated_at TEXT,
         updated_by TEXT
       )
-    ")
+    ", auto_increment_ddl("consent_purposes", "purpose_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "consent_records", "consent_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS consent_records (
-        consent_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        consent_id %s,
         consent_code TEXT UNIQUE NOT NULL,
         subject_id TEXT NOT NULL,
         subject_email TEXT NOT NULL,
@@ -98,30 +100,32 @@ init_consent <- function() {
         is_active INTEGER DEFAULT 1,
         consent_hash TEXT NOT NULL,
         previous_hash TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (purpose_id) REFERENCES consent_purposes(purpose_id)
       )
-    ")
+    ", auto_increment_ddl("consent_records", "consent_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "consent_history", "history_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS consent_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         consent_id INTEGER NOT NULL,
         action TEXT NOT NULL,
         action_details TEXT,
         previous_state INTEGER,
         new_state INTEGER,
         performed_by TEXT NOT NULL,
-        performed_at TEXT DEFAULT (datetime('now')),
+        performed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         history_hash TEXT NOT NULL,
         previous_history_hash TEXT,
         FOREIGN KEY (consent_id) REFERENCES consent_records(consent_id)
       )
-    ")
+    ", auto_increment_ddl("consent_history", "history_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "consent_withdrawal_requests", "request_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS consent_withdrawal_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         request_number TEXT UNIQUE NOT NULL,
         subject_id TEXT NOT NULL,
         subject_email TEXT NOT NULL,
@@ -135,21 +139,22 @@ init_consent <- function() {
         processed_by TEXT,
         request_hash TEXT NOT NULL,
         previous_hash TEXT,
-        created_at TEXT DEFAULT (datetime('now'))
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
       )
-    ")
+    ", auto_increment_ddl("consent_withdrawal_requests", "request_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "consent_preferences", "preference_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS consent_preferences (
-        preference_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        preference_id %s,
         subject_id TEXT NOT NULL,
         subject_email TEXT NOT NULL,
         preference_type TEXT NOT NULL,
         preference_value TEXT NOT NULL,
-        updated_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         updated_by TEXT
       )
-    ")
+    ", auto_increment_ddl("consent_preferences", "preference_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_consent_records_subject
                          ON consent_records(subject_id)")
@@ -286,12 +291,13 @@ create_consent_purpose <- function(purpose_code,
       return(list(success = FALSE, error = "purpose_code already exists"))
     }
 
-    DBI::dbExecute(con, "
+    purpose_id <- DBI::dbGetQuery(con, "
       INSERT INTO consent_purposes (
         purpose_code, purpose_name, purpose_description, legal_basis,
         data_categories, retention_period, requires_explicit,
         is_mandatory, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING purpose_id AS id
     ", params = list(
       purpose_code,
       purpose_name,
@@ -302,9 +308,7 @@ create_consent_purpose <- function(purpose_code,
       as.integer(requires_explicit),
       as.integer(is_mandatory),
       created_by
-    ))
-
-    purpose_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -484,13 +488,14 @@ record_consent <- function(subject_id,
     )
     consent_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    consent_id <- DBI::dbGetQuery(con, "
       INSERT INTO consent_records (
         consent_code, subject_id, subject_email, subject_name, purpose_id,
         consent_given, consent_date, consent_method, consent_version,
         consent_text, ip_address, user_agent, expires_at, consent_hash,
         previous_hash
       ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING consent_id AS id
     ", params = list(
       consent_code,
       subject_id,
@@ -506,9 +511,7 @@ record_consent <- function(subject_id,
       safe_scalar_consent(expires_at),
       consent_hash,
       safe_scalar_consent(previous_hash)
-    ))
-
-    consent_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_consent_action(
       consent_id = consent_id,
@@ -802,12 +805,13 @@ create_withdrawal_request <- function(subject_id,
     )
     request_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    request_id <- DBI::dbGetQuery(con, "
       INSERT INTO consent_withdrawal_requests (
         request_number, subject_id, subject_email, withdrawal_scope,
         purpose_ids, withdrawal_reason, received_date, requested_by,
         request_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", params = list(
       request_number,
       subject_id,
@@ -819,9 +823,7 @@ create_withdrawal_request <- function(subject_id,
       requested_by,
       request_hash,
       safe_scalar_consent(previous_hash)
-    ))
-
-    request_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,

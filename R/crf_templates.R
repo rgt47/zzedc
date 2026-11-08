@@ -23,9 +23,10 @@ init_crf_templates <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_templates", "template_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_templates (
-        template_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id %s,
         template_code TEXT UNIQUE NOT NULL,
         template_name TEXT NOT NULL,
         template_category TEXT NOT NULL,
@@ -36,16 +37,17 @@ init_crf_templates <- function() {
         version TEXT DEFAULT '1.0',
         usage_count INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         updated_at TEXT,
         updated_by TEXT
       )
-    ")
+    ", auto_increment_ddl("crf_templates", "template_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_template_fields", "template_field_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_template_fields (
-        template_field_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_field_id %s,
         template_id INTEGER NOT NULL,
         field_lib_id INTEGER,
         field_code TEXT NOT NULL,
@@ -61,20 +63,21 @@ init_crf_templates <- function() {
         FOREIGN KEY (template_id) REFERENCES crf_templates(template_id),
         FOREIGN KEY (field_lib_id) REFERENCES field_library(field_lib_id)
       )
-    ")
+    ", auto_increment_ddl("crf_template_fields", "template_field_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_template_usage", "usage_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_template_usage (
-        usage_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usage_id %s,
         template_id INTEGER NOT NULL,
         crf_id INTEGER,
         study_name TEXT,
-        used_at TEXT DEFAULT (datetime('now')),
+        used_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         used_by TEXT NOT NULL,
         customizations TEXT,
         FOREIGN KEY (template_id) REFERENCES crf_templates(template_id)
       )
-    ")
+    ", auto_increment_ddl("crf_template_usage", "usage_id")))
 
     list(success = TRUE, message = "CRF template system initialized")
   }, error = function(e) {
@@ -126,20 +129,18 @@ create_crf_template <- function(template_code, template_name, template_category,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    template_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_templates (
         template_code, template_name, template_category, template_description,
         therapeutic_area, is_cdisc_compliant, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      RETURNING template_id AS id
     ", params = list(
       template_code, template_name, template_category,
       safe_scalar_tpl(template_description),
       safe_scalar_tpl(therapeutic_area),
       as.integer(is_cdisc_compliant), created_by
-    ))
-
-    template_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, template_id = template_id,
          message = "Template created")

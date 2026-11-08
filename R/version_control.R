@@ -23,9 +23,10 @@ init_version_control <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "record_versions", "version_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS record_versions (
-        version_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version_id %s,
         table_name TEXT NOT NULL,
         record_id TEXT NOT NULL,
         version_number INTEGER NOT NULL,
@@ -41,22 +42,24 @@ init_version_control <- function(db_path = NULL) {
         metadata TEXT,
         UNIQUE(table_name, record_id, version_number)
       )
-    ")
+    ", auto_increment_ddl("record_versions", "version_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "version_metadata", "metadata_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS version_metadata (
-        metadata_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        metadata_id %s,
         version_id INTEGER NOT NULL REFERENCES record_versions(version_id),
         field_name TEXT NOT NULL,
         old_value TEXT,
         new_value TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("version_metadata", "metadata_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "version_locks", "lock_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS version_locks (
-        lock_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lock_id %s,
         table_name TEXT NOT NULL,
         record_id TEXT NOT NULL,
         locked_by TEXT NOT NULL,
@@ -65,7 +68,7 @@ init_version_control <- function(db_path = NULL) {
         expires_at TIMESTAMP,
         UNIQUE(table_name, record_id)
       )
-    ")
+    ", auto_increment_ddl("version_locks", "lock_id")))
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_versions_table_record
@@ -196,20 +199,18 @@ create_record_version <- function(table_name, record_id, data,
       WHERE table_name = ? AND record_id = ?
     ", list(table_name, record_id))
 
-    DBI::dbExecute(conn, "
+    version_id <- DBI::dbGetQuery(conn, "
       INSERT INTO record_versions
       (table_name, record_id, version_number, data_snapshot, change_type,
        change_reason, changed_by, changed_at, version_hash,
        previous_version_hash, is_current)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      RETURNING version_id AS id
     ", list(
       table_name, record_id, new_version_number, as.character(data_json),
       change_type, change_reason, changed_by, changed_at, version_hash,
       previous_hash
-    ))
-
-    version_id <- DBI::dbGetQuery(conn,
-      "SELECT last_insert_rowid() as id")[1, 1]
+    ))$id[1]
 
     if (!is.null(field_changes) && length(field_changes) > 0) {
       for (field_name in names(field_changes)) {

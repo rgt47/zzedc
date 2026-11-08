@@ -485,7 +485,8 @@ default_db_config <- function(backend = "sqlite", ...) {
       duckdb = list(
         path = overrides$path %||% "data/zzedc.duckdb",
         threads = overrides$threads,
-        memory_limit = overrides$memory_limit
+        memory_limit = overrides$memory_limit,
+        encryption_key = overrides$encryption_key
       )
     ),
 

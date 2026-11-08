@@ -23,9 +23,10 @@ init_calculated_fields <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "calculated_field_definitions", "calc_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS calculated_field_definitions (
-        calc_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        calc_id %s,
         calc_code TEXT UNIQUE NOT NULL,
         calc_name TEXT NOT NULL,
         target_field_code TEXT NOT NULL,
@@ -37,28 +38,30 @@ init_calculated_fields <- function() {
         form_id INTEGER,
         is_active INTEGER DEFAULT 1,
         calculate_on_save INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("calculated_field_definitions", "calc_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "calculation_history", "history_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS calculation_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         calc_id INTEGER NOT NULL,
         record_id TEXT,
         subject_id TEXT,
         input_values TEXT,
         calculated_value TEXT,
-        calculated_at TEXT DEFAULT (datetime('now')),
+        calculated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         calculated_by TEXT,
         FOREIGN KEY (calc_id) REFERENCES calculated_field_definitions(calc_id)
       )
-    ")
+    ", auto_increment_ddl("calculation_history", "history_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "standard_formulas", "formula_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS standard_formulas (
-        formula_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        formula_id %s,
         formula_code TEXT UNIQUE NOT NULL,
         formula_name TEXT NOT NULL,
         formula_category TEXT NOT NULL,
@@ -67,7 +70,7 @@ init_calculated_fields <- function() {
         output_type TEXT NOT NULL,
         description TEXT
       )
-    ")
+    ", auto_increment_ddl("standard_formulas", "formula_id")))
 
     list(success = TRUE, message = "Calculated fields system initialized")
   }, error = function(e) {
@@ -244,21 +247,19 @@ create_calculated_field <- function(calc_code, calc_name, target_field_code,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    calc_id <- DBI::dbGetQuery(con, "
       INSERT INTO calculated_field_definitions (
         calc_code, calc_name, target_field_code, calc_type, formula,
         source_fields, result_type, decimal_places, form_id,
         calculate_on_save, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING calc_id AS id
     ", params = list(
       calc_code, calc_name, target_field_code, calc_type, formula,
       source_fields, result_type, as.integer(decimal_places),
       if (is.null(form_id)) NA_integer_ else as.integer(form_id),
       as.integer(calculate_on_save), created_by
-    ))
-
-    calc_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, calc_id = calc_id)
   }, error = function(e) {

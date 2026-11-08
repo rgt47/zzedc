@@ -56,9 +56,40 @@ init_erasure <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    # legal_holds must be created before erasure_requests: the latter's
+    # legal_hold_id column references it, and unlike SQLite,
+    # DuckDB/PostgreSQL/MariaDB validate a REFERENCES target exists at
+    # CREATE TABLE time rather than only at DML time (verified: this
+    # order previously failed on DuckDB with `Catalog Error: Table
+    # with name legal_holds does not exist!`).
+    prepare_auto_increment(conn, "legal_holds", "hold_id")
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS legal_holds (
+        hold_id %s,
+        hold_number TEXT NOT NULL UNIQUE,
+        hold_type TEXT NOT NULL CHECK(hold_type IN
+          ('REGULATORY', 'LITIGATION', 'AUDIT', 'INVESTIGATION', 'OTHER')),
+        hold_reason TEXT NOT NULL,
+        legal_basis TEXT NOT NULL,
+        affected_subjects TEXT,
+        affected_data_categories TEXT,
+        start_date DATE NOT NULL,
+        end_date DATE,
+        is_active INTEGER DEFAULT 1,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        released_by TEXT,
+        released_at TIMESTAMP,
+        release_reason TEXT,
+        hold_hash TEXT NOT NULL,
+        previous_hash TEXT
+      )
+    ", auto_increment_ddl("legal_holds", "hold_id")))
+
+    prepare_auto_increment(conn, "erasure_requests", "request_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS erasure_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         request_number TEXT NOT NULL UNIQUE,
         dsar_request_id INTEGER REFERENCES dsar_requests(request_id),
         subject_id TEXT,
@@ -81,11 +112,12 @@ init_erasure <- function(db_path = NULL) {
         previous_hash TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    ")
+    ", auto_increment_ddl("erasure_requests", "request_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "erasure_items", "item_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS erasure_items (
-        item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id %s,
         request_id INTEGER NOT NULL REFERENCES erasure_requests(request_id),
         table_name TEXT NOT NULL,
         record_id TEXT NOT NULL,
@@ -101,34 +133,12 @@ init_erasure <- function(db_path = NULL) {
         verification_hash TEXT,
         item_hash TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("erasure_items", "item_id")))
 
-    DBI::dbExecute(conn, "
-      CREATE TABLE IF NOT EXISTS legal_holds (
-        hold_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        hold_number TEXT NOT NULL UNIQUE,
-        hold_type TEXT NOT NULL CHECK(hold_type IN
-          ('REGULATORY', 'LITIGATION', 'AUDIT', 'INVESTIGATION', 'OTHER')),
-        hold_reason TEXT NOT NULL,
-        legal_basis TEXT NOT NULL,
-        affected_subjects TEXT,
-        affected_data_categories TEXT,
-        start_date DATE NOT NULL,
-        end_date DATE,
-        is_active INTEGER DEFAULT 1,
-        created_by TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        released_by TEXT,
-        released_at TIMESTAMP,
-        release_reason TEXT,
-        hold_hash TEXT NOT NULL,
-        previous_hash TEXT
-      )
-    ")
-
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "erasure_history", "history_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS erasure_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         request_id INTEGER NOT NULL REFERENCES erasure_requests(request_id),
         item_id INTEGER REFERENCES erasure_items(item_id),
         hold_id INTEGER REFERENCES legal_holds(hold_id),
@@ -139,11 +149,12 @@ init_erasure <- function(db_path = NULL) {
         history_hash TEXT NOT NULL,
         previous_history_hash TEXT
       )
-    ")
+    ", auto_increment_ddl("erasure_history", "history_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "erasure_third_parties", "recipient_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS erasure_third_parties (
-        recipient_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipient_id %s,
         request_id INTEGER NOT NULL REFERENCES erasure_requests(request_id),
         recipient_name TEXT NOT NULL,
         recipient_type TEXT NOT NULL CHECK(recipient_type IN
@@ -159,7 +170,7 @@ init_erasure <- function(db_path = NULL) {
         erasure_confirmed_date DATE,
         notes TEXT
       )
-    ")
+    ", auto_increment_ddl("erasure_third_parties", "recipient_id")))
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_erasure_status
@@ -384,12 +395,13 @@ create_legal_hold <- function(hold_type,
     )
     hold_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    hold_id <- DBI::dbGetQuery(conn, "
       INSERT INTO legal_holds (
         hold_number, hold_type, hold_reason, legal_basis,
         affected_subjects, affected_data_categories,
         start_date, end_date, is_active, created_by, hold_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+      RETURNING hold_id AS id
     ", list(
       hold_number,
       safe_scalar_erasure(hold_type),
@@ -402,9 +414,7 @@ create_legal_hold <- function(hold_type,
       safe_scalar_erasure(created_by),
       hold_hash,
       previous_hash
-    ))
-
-    hold_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     list(
       success = TRUE,
@@ -689,12 +699,13 @@ create_erasure_request <- function(subject_email,
       NA_integer_
     }
 
-    DBI::dbExecute(conn, "
+    request_id <- DBI::dbGetQuery(conn, "
       INSERT INTO erasure_requests (
         request_number, dsar_request_id, subject_id, subject_email,
         subject_name, erasure_grounds, status, received_date, due_date,
         requested_by, legal_hold_id, request_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", list(
       request_number,
       safe_int_erasure(dsar_request_id),
@@ -709,9 +720,7 @@ create_erasure_request <- function(subject_email,
       safe_int_erasure(hold_id),
       request_hash,
       previous_hash
-    ))
-
-    request_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     log_erasure_action(
       request_id = request_id,
@@ -868,11 +877,12 @@ add_erasure_item <- function(request_id,
       NA_character_
     }
 
-    DBI::dbExecute(conn, "
+    item_id <- DBI::dbGetQuery(conn, "
       INSERT INTO erasure_items (
         request_id, table_name, record_id, data_category,
         erasure_method, status, hold_reason, item_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING item_id AS id
     ", list(
       request_id,
       safe_scalar_erasure(table_name),
@@ -882,9 +892,7 @@ add_erasure_item <- function(request_id,
       initial_status,
       safe_scalar_erasure(hold_reason),
       item_hash
-    ))
-
-    item_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     log_erasure_action(
       request_id = request_id,
@@ -1164,11 +1172,12 @@ add_erasure_third_party <- function(request_id,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    recipient_id <- DBI::dbGetQuery(conn, "
       INSERT INTO erasure_third_parties (
         request_id, recipient_name, recipient_type, contact_email,
         contact_name, data_shared, notification_required
       ) VALUES (?, ?, ?, ?, ?, ?, 1)
+      RETURNING recipient_id AS id
     ", list(
       request_id,
       safe_scalar_erasure(recipient_name),
@@ -1176,9 +1185,7 @@ add_erasure_third_party <- function(request_id,
       safe_scalar_erasure(contact_email),
       safe_scalar_erasure(contact_name),
       safe_scalar_erasure(data_shared)
-    ))
-
-    recipient_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id
 
     log_erasure_action(
       request_id = request_id,

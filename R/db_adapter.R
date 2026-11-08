@@ -155,6 +155,46 @@ DatabaseAdapter <- R6::R6Class(
     },
 
     #' @description
+    #' Get the DDL fragment for an auto-increment primary key column.
+    #' Most backends have a self-contained keyword (e.g. PostgreSQL's
+    #' `SERIAL PRIMARY KEY`) and can ignore `table_name`/`column_name`;
+    #' DuckDB needs them to name a companion sequence (see
+    #' `DuckDBAdapter$auto_increment_column()`). Always call this
+    #' instead of reading `dialect()$auto_increment` directly, so
+    #' backends that need per-column context get it.
+    #' @param table_name Name of the table the column belongs to
+    #' @param column_name Name of the auto-increment column
+    #' @return Character string with the column's DDL fragment
+    auto_increment_column = function(table_name, column_name) {
+      self$dialect()$auto_increment
+    },
+
+    #' @description
+    #' Run any DDL a backend needs before creating a table with an
+    #' auto-increment column from `auto_increment_column()` (e.g.
+    #' DuckDB's companion `CREATE SEQUENCE`). No-op for backends
+    #' whose `auto_increment_column()` is self-contained. Call this
+    #' immediately before the `CREATE TABLE` statement.
+    #' @param conn Database connection
+    #' @param table_name Name of the table the column belongs to
+    #' @param column_name Name of the auto-increment column
+    prepare_auto_increment = function(conn, table_name, column_name) {
+      invisible(NULL)
+    },
+
+    #' @description
+    #' Describe a table's columns in a normalized shape across
+    #' backends (the `PRAGMA table_info` / `information_schema.columns`
+    #' divergence documented in
+    #' `docs/db-adapter-remediation-plan-2026-11-07.md`).
+    #' @param conn Database connection
+    #' @param table_name Name of table to describe
+    #' @return Data frame with columns `name`, `type`, `notnull`, `pk`
+    describe_table = function(conn, table_name) {
+      stop("Subclass must implement describe_table()")
+    },
+
+    #' @description
     #' Check if this backend supports encryption
     #' @return Logical TRUE if encryption is supported
     supports_encryption = function() {

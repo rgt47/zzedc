@@ -609,14 +609,14 @@ save_user_to_db <- function(db_pool, user_id, username, full_name, email, role, 
         pool::dbExecute(db_pool, "
           UPDATE edc_users
           SET full_name = ?, email = ?, role = ?, active = ?, password_hash = ?,
-              must_change_password = 1, modified_date = datetime('now')
+              must_change_password = 1, modified_date = CURRENT_TIMESTAMP
           WHERE user_id = ?
         ", params = list(full_name, email, role, active, password_hash, user_id))
       } else {
         # No password change
         pool::dbExecute(db_pool, "
           UPDATE edc_users
-          SET full_name = ?, email = ?, role = ?, active = ?, modified_date = datetime('now')
+          SET full_name = ?, email = ?, role = ?, active = ?, modified_date = CURRENT_TIMESTAMP
           WHERE user_id = ?
         ", params = list(full_name, email, role, active, user_id))
       }

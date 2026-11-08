@@ -23,13 +23,14 @@ init_study_closeout <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "study_closeout", "closeout_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS study_closeout (
-        closeout_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        closeout_id %s,
         study_id INTEGER NOT NULL,
         closeout_status TEXT DEFAULT 'PENDING',
         closeout_type TEXT DEFAULT 'STANDARD',
-        initiated_at TEXT DEFAULT (datetime('now')),
+        initiated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         initiated_by TEXT NOT NULL,
         completed_at TEXT,
         completed_by TEXT,
@@ -40,11 +41,12 @@ init_study_closeout <- function() {
         final_record_count INTEGER,
         closeout_notes TEXT
       )
-    ")
+    ", auto_increment_ddl("study_closeout", "closeout_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "closeout_checklist", "item_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS closeout_checklist (
-        item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id %s,
         closeout_id INTEGER NOT NULL,
         item_category TEXT NOT NULL,
         item_description TEXT NOT NULL,
@@ -56,11 +58,12 @@ init_study_closeout <- function() {
         completion_notes TEXT,
         FOREIGN KEY (closeout_id) REFERENCES study_closeout(closeout_id)
       )
-    ")
+    ", auto_increment_ddl("closeout_checklist", "item_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "data_reconciliation", "reconciliation_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS data_reconciliation (
-        reconciliation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reconciliation_id %s,
         closeout_id INTEGER NOT NULL,
         reconciliation_type TEXT NOT NULL,
         source_system TEXT,
@@ -70,25 +73,26 @@ init_study_closeout <- function() {
         discrepancies_found INTEGER DEFAULT 0,
         discrepancies_resolved INTEGER DEFAULT 0,
         reconciliation_status TEXT DEFAULT 'PENDING',
-        performed_at TEXT DEFAULT (datetime('now')),
+        performed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         performed_by TEXT NOT NULL,
         resolution_notes TEXT,
         FOREIGN KEY (closeout_id) REFERENCES study_closeout(closeout_id)
       )
-    ")
+    ", auto_increment_ddl("data_reconciliation", "reconciliation_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "database_lock_log", "lock_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS database_lock_log (
-        lock_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lock_id %s,
         study_id INTEGER NOT NULL,
         lock_action TEXT NOT NULL,
         lock_scope TEXT DEFAULT 'FULL',
         reason TEXT,
-        performed_at TEXT DEFAULT (datetime('now')),
+        performed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         performed_by TEXT NOT NULL,
         authorized_by TEXT
       )
-    ")
+    ", auto_increment_ddl("database_lock_log", "lock_id")))
 
     list(success = TRUE, message = "Study closeout system initialized")
   }, error = function(e) {
@@ -167,15 +171,13 @@ initiate_study_closeout <- function(study_id, initiated_by,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    closeout_id <- DBI::dbGetQuery(con, "
       INSERT INTO study_closeout (
         study_id, closeout_status, closeout_type, initiated_by, closeout_notes
       ) VALUES (?, 'IN_PROGRESS', ?, ?, ?)
+      RETURNING closeout_id AS id
     ", params = list(study_id, closeout_type, initiated_by,
-                     safe_scalar_co(closeout_notes)))
-
-    closeout_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+                     safe_scalar_co(closeout_notes)))$id[1]
 
     list(success = TRUE, closeout_id = closeout_id,
          message = "Study closeout initiated")
@@ -345,21 +347,19 @@ record_data_reconciliation <- function(closeout_id, reconciliation_type,
 
     status <- if (discrepancies_found == 0) "COMPLETE" else "PENDING_RESOLUTION"
 
-    DBI::dbExecute(con, "
+    reconciliation_id <- DBI::dbGetQuery(con, "
       INSERT INTO data_reconciliation (
         closeout_id, reconciliation_type, source_system, target_system,
         records_compared, records_matched, discrepancies_found,
         reconciliation_status, performed_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING reconciliation_id AS id
     ", params = list(
       closeout_id, reconciliation_type,
       safe_scalar_co(source_system), safe_scalar_co(target_system),
       as.integer(records_compared), as.integer(records_matched),
       as.integer(discrepancies_found), status, performed_by
-    ))
-
-    reconciliation_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, reconciliation_id = reconciliation_id)
   }, error = function(e) {

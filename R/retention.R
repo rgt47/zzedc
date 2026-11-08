@@ -57,9 +57,10 @@ init_retention <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "retention_policies", "policy_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS retention_policies (
-        policy_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        policy_id %s,
         policy_code TEXT UNIQUE NOT NULL,
         policy_name TEXT NOT NULL,
         data_category TEXT NOT NULL,
@@ -72,16 +73,17 @@ init_retention <- function() {
         requires_review INTEGER DEFAULT 1,
         auto_enforce INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         updated_at TEXT,
         updated_by TEXT
       )
-    ")
+    ", auto_increment_ddl("retention_policies", "policy_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "retention_records", "record_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS retention_records (
-        record_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        record_id %s,
         policy_id INTEGER NOT NULL,
         table_name TEXT NOT NULL,
         record_key TEXT NOT NULL,
@@ -107,14 +109,15 @@ init_retention <- function() {
         action_date TEXT,
         action_by TEXT,
         record_hash TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (policy_id) REFERENCES retention_policies(policy_id)
       )
-    ")
+    ", auto_increment_ddl("retention_records", "record_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "retention_reviews", "review_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS retention_reviews (
-        review_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        review_id %s,
         record_id INTEGER,
         policy_id INTEGER,
         review_type TEXT NOT NULL,
@@ -133,11 +136,12 @@ init_retention <- function() {
         FOREIGN KEY (record_id) REFERENCES retention_records(record_id),
         FOREIGN KEY (policy_id) REFERENCES retention_policies(policy_id)
       )
-    ")
+    ", auto_increment_ddl("retention_reviews", "review_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "retention_actions", "action_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS retention_actions (
-        action_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action_id %s,
         record_id INTEGER NOT NULL,
         review_id INTEGER,
         action_type TEXT NOT NULL,
@@ -146,28 +150,29 @@ init_retention <- function() {
         action_reason TEXT,
         action_details TEXT,
         performed_by TEXT NOT NULL,
-        performed_at TEXT DEFAULT (datetime('now')),
+        performed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         action_hash TEXT NOT NULL,
         previous_action_hash TEXT,
         FOREIGN KEY (record_id) REFERENCES retention_records(record_id),
         FOREIGN KEY (review_id) REFERENCES retention_reviews(review_id)
       )
-    ")
+    ", auto_increment_ddl("retention_actions", "action_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "retention_schedules", "schedule_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS retention_schedules (
-        schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        schedule_id %s,
         policy_id INTEGER NOT NULL,
         schedule_type TEXT NOT NULL,
         frequency_days INTEGER NOT NULL,
         last_run_date TEXT,
         next_run_date TEXT NOT NULL,
         is_active INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         FOREIGN KEY (policy_id) REFERENCES retention_policies(policy_id)
       )
-    ")
+    ", auto_increment_ddl("retention_schedules", "schedule_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_retention_records_policy
                          ON retention_records(policy_id)")
@@ -355,13 +360,14 @@ create_retention_policy <- function(policy_code,
       return(list(success = FALSE, error = "policy_code already exists"))
     }
 
-    DBI::dbExecute(con, "
+    policy_id <- DBI::dbGetQuery(con, "
       INSERT INTO retention_policies (
         policy_code, policy_name, data_category, table_name,
         retention_period_days, retention_basis, legal_reference,
         description, action_on_expiry, requires_review, auto_enforce,
         created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING policy_id AS id
     ", params = list(
       policy_code,
       policy_name,
@@ -375,9 +381,7 @@ create_retention_policy <- function(policy_code,
       as.integer(requires_review),
       as.integer(auto_enforce),
       created_by
-    ))
-
-    policy_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -605,11 +609,12 @@ register_retention_record <- function(policy_id,
     )
     record_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    record_id <- DBI::dbGetQuery(con, "
       INSERT INTO retention_records (
         policy_id, table_name, record_key, subject_id, data_category,
         created_date, retention_start_date, retention_end_date, record_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING record_id AS id
     ", params = list(
       policy_id,
       table_name,
@@ -620,9 +625,7 @@ register_retention_record <- function(policy_id,
       format(retention_start, "%Y-%m-%d"),
       format(retention_end, "%Y-%m-%d"),
       record_hash
-    ))
-
-    record_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     log_retention_action(
       record_id = record_id,
@@ -861,11 +864,12 @@ create_retention_review <- function(review_type,
     )
     review_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    review_id <- DBI::dbGetQuery(con, "
       INSERT INTO retention_reviews (
         policy_id, review_type, review_scope, started_at,
         performed_by, review_hash
       ) VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING review_id AS id
     ", params = list(
       safe_int_retention(policy_id),
       review_type,
@@ -873,9 +877,7 @@ create_retention_review <- function(review_type,
       started_at,
       performed_by,
       review_hash
-    ))
-
-    review_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,

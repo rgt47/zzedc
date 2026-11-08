@@ -48,9 +48,10 @@ init_field_library <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "field_library", "field_lib_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS field_library (
-        field_lib_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        field_lib_id %s,
         field_code TEXT UNIQUE NOT NULL,
         field_name TEXT NOT NULL,
         field_label TEXT NOT NULL,
@@ -80,53 +81,56 @@ init_field_library <- function() {
         source_guidance TEXT,
         is_active INTEGER DEFAULT 1,
         usage_count INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         updated_at TEXT,
         updated_by TEXT
       )
-    ")
+    ", auto_increment_ddl("field_library", "field_lib_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "field_library_versions", "version_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS field_library_versions (
-        version_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version_id %s,
         field_lib_id INTEGER NOT NULL,
         version_number INTEGER NOT NULL,
         change_description TEXT NOT NULL,
         field_snapshot TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         version_hash TEXT NOT NULL,
         FOREIGN KEY (field_lib_id) REFERENCES field_library(field_lib_id)
       )
-    ")
+    ", auto_increment_ddl("field_library_versions", "version_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "field_library_usage", "usage_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS field_library_usage (
-        usage_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usage_id %s,
         field_lib_id INTEGER NOT NULL,
         crf_id INTEGER,
         form_id INTEGER,
-        used_at TEXT DEFAULT (datetime('now')),
+        used_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         used_by TEXT NOT NULL,
         customizations TEXT,
         FOREIGN KEY (field_lib_id) REFERENCES field_library(field_lib_id)
       )
-    ")
+    ", auto_increment_ddl("field_library_usage", "usage_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "field_categories", "category_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS field_categories (
-        category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id %s,
         category_code TEXT UNIQUE NOT NULL,
         category_name TEXT NOT NULL,
         category_description TEXT,
         parent_category_id INTEGER,
         display_order INTEGER,
         is_active INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (parent_category_id) REFERENCES field_categories(category_id)
       )
-    ")
+    ", auto_increment_ddl("field_categories", "category_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_field_lib_code
                          ON field_library(field_code)")
@@ -238,21 +242,19 @@ create_field_category <- function(category_code,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    category_id <- DBI::dbGetQuery(con, "
       INSERT INTO field_categories (
         category_code, category_name, category_description,
         parent_category_id, display_order
       ) VALUES (?, ?, ?, ?, ?)
+      RETURNING category_id AS id
     ", params = list(
       category_code,
       category_name,
       safe_scalar_fl(category_description),
       safe_int_fl(parent_category_id),
       safe_int_fl(display_order)
-    ))
-
-    category_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, category_id = category_id, message = "Category created")
 
@@ -381,7 +383,7 @@ add_library_field <- function(field_code,
       return(list(success = FALSE, error = "field_code already exists"))
     }
 
-    DBI::dbExecute(con, "
+    field_lib_id <- DBI::dbGetQuery(con, "
       INSERT INTO field_library (
         field_code, field_name, field_label, field_type, field_category,
         field_domain, is_cdisc_standard, cdisc_variable, cdisc_domain,
@@ -391,6 +393,7 @@ add_library_field <- function(field_code,
         is_derived, derivation_rule, validation_rules, completion_instruction,
         source_guidance, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING field_lib_id AS id
     ", params = list(
       field_code, field_name, field_label, field_type, field_category,
       safe_scalar_fl(field_domain),
@@ -416,10 +419,7 @@ add_library_field <- function(field_code,
       safe_scalar_fl(completion_instruction),
       safe_scalar_fl(source_guidance),
       created_by
-    ))
-
-    field_lib_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,

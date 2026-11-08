@@ -56,9 +56,10 @@ init_proposals_table <- function(db_path = NULL) {
   con <- connect_encrypted_db(db_path = db_path)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-  DBI::dbExecute(con, "
+  prepare_auto_increment(con, "dsl_rule_proposals", "id")
+  DBI::dbExecute(con, sprintf("
     CREATE TABLE IF NOT EXISTS dsl_rule_proposals (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      id              %s,
       proposal_id     TEXT UNIQUE NOT NULL,
       rule_id         TEXT NOT NULL,
       change_type     TEXT NOT NULL,
@@ -78,7 +79,7 @@ init_proposals_table <- function(db_path = NULL) {
       reviewed_at     TEXT,
       review_comments TEXT
     )
-  ")
+  ", auto_increment_ddl("dsl_rule_proposals", "id")))
 
   invisible(TRUE)
 }
@@ -640,9 +641,10 @@ init_user_proposals_table <- function(db_path = NULL) {
   con <- connect_encrypted_db(db_path = db_path)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-  DBI::dbExecute(con, "
+  prepare_auto_increment(con, "user_proposals", "id")
+  DBI::dbExecute(con, sprintf("
     CREATE TABLE IF NOT EXISTS user_proposals (
-      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      id                 %s,
       proposal_id        TEXT UNIQUE NOT NULL,
       username           TEXT NOT NULL,
       change_type        TEXT NOT NULL,
@@ -661,7 +663,7 @@ init_user_proposals_table <- function(db_path = NULL) {
       reviewed_at        TEXT,
       review_comments    TEXT
     )
-  ")
+  ", auto_increment_ddl("user_proposals", "id")))
 
   invisible(TRUE)
 }

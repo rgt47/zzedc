@@ -840,16 +840,15 @@ replay_redcap_audit <- function(redcap_audit, db_path, key,
                              marker_ts, previous_hash, sep = "|")
     marker_hash <- digest::digest(marker_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    marker_audit_id <- DBI::dbGetQuery(conn, "
       INSERT INTO audit_log
         (timestamp, user_id, event_type, table_name, record_id,
          operation, details, audit_hash, previous_hash)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING audit_id AS id
     ", list(marker_ts, marker_user, marker_event_type,
             marker_table, marker_record, marker_op,
-            marker_details, marker_hash, previous_hash))
-    marker_audit_id <- DBI::dbGetQuery(conn,
-      "SELECT last_insert_rowid() AS id")$id[1]
+            marker_details, marker_hash, previous_hash))$id[1]
     chain_order <- chain_order + 1L
     DBI::dbExecute(conn, "
       INSERT INTO audit_chain
@@ -908,15 +907,14 @@ replay_redcap_audit <- function(redcap_audit, db_path, key,
     audit_hash <- digest::digest(record_content, algo = "sha256")
 
     inserted <- tryCatch({
-      DBI::dbExecute(conn, "
+      audit_id <- DBI::dbGetQuery(conn, "
         INSERT INTO audit_log
           (timestamp, user_id, event_type, table_name, record_id,
            operation, details, audit_hash, previous_hash)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING audit_id AS id
       ", list(ts, user_id, event_type, table_nm, record_id,
-              operation, details, audit_hash, previous_hash))
-      audit_id <- DBI::dbGetQuery(conn,
-        "SELECT last_insert_rowid() AS id")$id[1]
+              operation, details, audit_hash, previous_hash))$id[1]
       chain_order <- chain_order + 1L
       DBI::dbExecute(conn, "
         INSERT INTO audit_chain
@@ -1418,9 +1416,10 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
   # `form_data` inline because the importer has no other
   # caller).
   ensure_edc_users_table(zconn_setup)
-  DBI::dbExecute(zconn_setup, "
+  prepare_auto_increment(zconn_setup, "form_data", "record_id")
+  DBI::dbExecute(zconn_setup, sprintf("
     CREATE TABLE IF NOT EXISTS form_data (
-      record_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_id        %s,
       subject_id       TEXT,
       form_id          INTEGER,
       field_name       TEXT,
@@ -1429,7 +1428,7 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
       data_entry_date  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       user_id          TEXT
     )
-  ")
+  ", auto_increment_ddl("form_data", "record_id")))
 
   # --- 4. Users -------------------------------------------------
   # Programmatic user provisioning via `db_insert_user()`. The
@@ -1550,7 +1549,7 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
     inserted <- tryCatch({
       DBI::dbExecute(zconn, "
         INSERT INTO subjects (subject_id, study_id, status, created_date)
-        VALUES (?, 'REDCAP-IMPORT', 'Enrolled', datetime('now'))
+        VALUES (?, 'REDCAP-IMPORT', 'Enrolled', CURRENT_TIMESTAMP)
       ", list(sid))
       TRUE
     }, error = function(e) FALSE)
@@ -1594,7 +1593,7 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
         INSERT INTO form_data
           (subject_id, field_name, field_value, visit_code,
            data_entry_date)
-        VALUES (?, ?, ?, ?, datetime('now'))
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       ", list(as.character(data_df$subject_id[i]),
               as.character(data_df$field_name[i]),
               as.character(data_df$value[i]),

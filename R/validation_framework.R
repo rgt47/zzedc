@@ -314,15 +314,16 @@ run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
   init_version_control(db_path = test_db)
 
   conn <- connect_encrypted_db(db_path = test_db)
-  DBI::dbExecute(conn, "
+  prepare_auto_increment(conn, "test_data", "id")
+  DBI::dbExecute(conn, sprintf("
     CREATE TABLE IF NOT EXISTS test_data (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id %s,
       record_id TEXT NOT NULL,
       status TEXT,
       value REAL,
       created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  ")
+  ", auto_increment_ddl("test_data", "id")))
   DBI::dbDisconnect(conn)
 
   # OQ-001: Data insert operation
@@ -637,15 +638,16 @@ run_pq_tests <- function(db_path = NULL, verbose = TRUE, record_count = 1000) {
   init_version_control(db_path = test_db)
 
   conn <- connect_encrypted_db(db_path = test_db)
-  DBI::dbExecute(conn, "
+  prepare_auto_increment(conn, "perf_data", "id")
+  DBI::dbExecute(conn, sprintf("
     CREATE TABLE IF NOT EXISTS perf_data (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id %s,
       record_id TEXT NOT NULL,
       status TEXT,
       value REAL,
       created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  ")
+  ", auto_increment_ddl("perf_data", "id")))
   DBI::dbDisconnect(conn)
 
   # PQ-001: Bulk insert performance

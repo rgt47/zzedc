@@ -225,6 +225,11 @@ MySQLAdapter <- R6::R6Class(
             collapse = ", "
           )
           sprintf("ON DUPLICATE KEY UPDATE %s", updates)
+        },
+
+        # Date difference in days (col_a - col_b)
+        date_diff_days = function(col_a, col_b) {
+          sprintf("DATEDIFF(%s, %s)", col_a, col_b)
         }
       )
     },
@@ -271,6 +276,29 @@ MySQLAdapter <- R6::R6Class(
       if (is.null(result) || nrow(result) == 0) return(FALSE)
       val <- result$Value[1]
       !is.na(val) && nzchar(val)
+    },
+
+    #' @description
+    #' Describe a table's columns via `information_schema.columns`
+    #' (MySQL/MariaDB have no `PRAGMA table_info` equivalent).
+    #' @param conn Database connection.
+    #' @param table_name Name of table to describe.
+    #' @return Data frame with columns `name`, `type`, `notnull`, `pk`.
+    describe_table = function(conn, table_name) {
+      result <- DBI::dbGetQuery(conn, "
+        SELECT column_name AS name, data_type AS type,
+               (is_nullable = 'NO') AS notnull,
+               (column_key = 'PRI') AS pk
+        FROM information_schema.columns
+        WHERE table_name = ? AND table_schema = DATABASE()
+        ORDER BY ordinal_position
+      ", params = list(table_name))
+      # RMariaDB returns boolean expressions as integer 0/1 rather
+      # than logical; normalize so notnull/pk have the same type
+      # across every adapter's describe_table().
+      result$notnull <- as.logical(result$notnull)
+      result$pk <- as.logical(result$pk)
+      result
     }
   )
 )

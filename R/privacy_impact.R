@@ -23,9 +23,10 @@ init_pia_system <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "pia_assessments", "assessment_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS pia_assessments (
-        assessment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assessment_id %s,
         assessment_code TEXT UNIQUE NOT NULL,
         assessment_title TEXT NOT NULL,
         study_id INTEGER,
@@ -36,17 +37,18 @@ init_pia_system <- function() {
         status TEXT DEFAULT 'DRAFT',
         overall_risk_level TEXT,
         requires_dpia INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         submitted_at TEXT,
         approved_at TEXT,
         approved_by TEXT
       )
-    ")
+    ", auto_increment_ddl("pia_assessments", "assessment_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "pia_processing_purposes", "purpose_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS pia_processing_purposes (
-        purpose_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purpose_id %s,
         assessment_id INTEGER NOT NULL,
         purpose_category TEXT NOT NULL,
         purpose_description TEXT NOT NULL,
@@ -54,11 +56,12 @@ init_pia_system <- function() {
         legal_basis_details TEXT,
         FOREIGN KEY (assessment_id) REFERENCES pia_assessments(assessment_id)
       )
-    ")
+    ", auto_increment_ddl("pia_processing_purposes", "purpose_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "pia_data_categories", "category_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS pia_data_categories (
-        category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id %s,
         assessment_id INTEGER NOT NULL,
         data_category TEXT NOT NULL,
         is_special_category INTEGER DEFAULT 0,
@@ -67,11 +70,12 @@ init_pia_system <- function() {
         source_of_data TEXT,
         FOREIGN KEY (assessment_id) REFERENCES pia_assessments(assessment_id)
       )
-    ")
+    ", auto_increment_ddl("pia_data_categories", "category_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "pia_risk_assessment", "risk_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS pia_risk_assessment (
-        risk_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        risk_id %s,
         assessment_id INTEGER NOT NULL,
         risk_category TEXT NOT NULL,
         risk_description TEXT NOT NULL,
@@ -81,14 +85,15 @@ init_pia_system <- function() {
         mitigation_measure TEXT,
         residual_risk TEXT,
         assessed_by TEXT NOT NULL,
-        assessed_at TEXT DEFAULT (datetime('now')),
+        assessed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (assessment_id) REFERENCES pia_assessments(assessment_id)
       )
-    ")
+    ", auto_increment_ddl("pia_risk_assessment", "risk_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "pia_consultations", "consultation_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS pia_consultations (
-        consultation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        consultation_id %s,
         assessment_id INTEGER NOT NULL,
         consulted_party TEXT NOT NULL,
         consultation_type TEXT NOT NULL,
@@ -97,7 +102,7 @@ init_pia_system <- function() {
         recommendations TEXT,
         FOREIGN KEY (assessment_id) REFERENCES pia_assessments(assessment_id)
       )
-    ")
+    ", auto_increment_ddl("pia_consultations", "consultation_id")))
 
     list(success = TRUE, message = "PIA system initialized")
   }, error = function(e) {
@@ -203,20 +208,18 @@ create_pia_assessment <- function(assessment_title, processing_description,
 
     assessment_code <- paste0("PIA-", format(Sys.time(), "%Y%m%d-%H%M%S"))
 
-    DBI::dbExecute(con, "
+    assessment_id <- DBI::dbGetQuery(con, "
       INSERT INTO pia_assessments (
         assessment_code, assessment_title, study_id, processing_description,
         data_controller, dpo_name, dpo_email, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING assessment_id AS id
     ", params = list(
       assessment_code, assessment_title,
       if (is.null(study_id)) NA_integer_ else as.integer(study_id),
       processing_description, data_controller,
       safe_scalar_pia(dpo_name), safe_scalar_pia(dpo_email), created_by
-    ))
-
-    assessment_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, assessment_id = assessment_id,
          assessment_code = assessment_code)

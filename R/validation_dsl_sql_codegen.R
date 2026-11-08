@@ -212,7 +212,7 @@ generate_sql_within_days <- function(ast, field_name) {
 
   # Violation: difference > days_tolerance
   paste0(
-    "ABS(CAST((julianday(", check_field, ") - julianday(", reference_field, ")) ",
+    "ABS(CAST((", sql_date_diff_days(check_field, reference_field), ") ",
     "AS INTEGER)) > ", days_tolerance
   )
 }

@@ -16,9 +16,10 @@ init_protocol_linkage <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "protocol_definitions", "protocol_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS protocol_definitions (
-        protocol_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        protocol_id %s,
         protocol_number TEXT UNIQUE NOT NULL,
         protocol_title TEXT NOT NULL,
         protocol_version TEXT DEFAULT '1.0',
@@ -26,26 +27,28 @@ init_protocol_linkage <- function() {
         phase TEXT,
         sponsor TEXT,
         is_active INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("protocol_definitions", "protocol_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "protocol_objectives", "objective_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS protocol_objectives (
-        objective_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        objective_id %s,
         protocol_id INTEGER NOT NULL,
         objective_type TEXT NOT NULL,
         objective_description TEXT NOT NULL,
         is_primary INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         FOREIGN KEY (protocol_id) REFERENCES protocol_definitions(protocol_id)
       )
-    ")
+    ", auto_increment_ddl("protocol_objectives", "objective_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "protocol_crf_links", "link_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS protocol_crf_links (
-        link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        link_id %s,
         protocol_id INTEGER NOT NULL,
         objective_id INTEGER,
         crf_id INTEGER,
@@ -53,11 +56,11 @@ init_protocol_linkage <- function() {
         field_code TEXT,
         link_rationale TEXT,
         is_critical INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         FOREIGN KEY (protocol_id) REFERENCES protocol_definitions(protocol_id)
       )
-    ")
+    ", auto_increment_ddl("protocol_crf_links", "link_id")))
 
     list(success = TRUE, message = "Protocol linkage system initialized")
   }, error = function(e) {
@@ -86,21 +89,19 @@ create_protocol_definition <- function(protocol_number, protocol_title,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    protocol_id <- DBI::dbGetQuery(con, "
       INSERT INTO protocol_definitions (
         protocol_number, protocol_title, therapeutic_area, phase, sponsor,
         created_by
       ) VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING protocol_id AS id
     ", params = list(
       protocol_number, protocol_title,
       if (is.null(therapeutic_area)) NA_character_ else therapeutic_area,
       if (is.null(phase)) NA_character_ else phase,
       if (is.null(sponsor)) NA_character_ else sponsor,
       created_by
-    ))
-
-    protocol_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(success = TRUE, protocol_id = protocol_id,
          message = "Protocol created")

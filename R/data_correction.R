@@ -48,9 +48,10 @@ init_data_correction <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "correction_requests", "request_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS correction_requests (
-        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id %s,
         table_name TEXT NOT NULL,
         record_id TEXT NOT NULL,
         field_name TEXT NOT NULL,
@@ -80,11 +81,12 @@ init_data_correction <- function(db_path = NULL) {
         visit_id TEXT,
         form_id TEXT
       )
-    ")
+    ", auto_increment_ddl("correction_requests", "request_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "correction_approvers", "approver_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS correction_approvers (
-        approver_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        approver_id %s,
         user_id TEXT NOT NULL,
         user_role TEXT NOT NULL CHECK(user_role IN
           ('PI', 'DATA_MANAGER', 'SPONSOR', 'MEDICAL_MONITOR')),
@@ -96,11 +98,12 @@ init_data_correction <- function(db_path = NULL) {
         created_by TEXT,
         UNIQUE(user_id, site_id, study_id)
       )
-    ")
+    ", auto_increment_ddl("correction_approvers", "approver_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "correction_history", "history_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS correction_history (
-        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id %s,
         request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
         action TEXT NOT NULL CHECK(action IN
           ('CREATED', 'SUBMITTED', 'APPROVED', 'REJECTED',
@@ -111,11 +114,12 @@ init_data_correction <- function(db_path = NULL) {
         action_hash TEXT NOT NULL,
         previous_hash TEXT
       )
-    ")
+    ", auto_increment_ddl("correction_history", "history_id")))
 
-    DBI::dbExecute(conn, "
+    prepare_auto_increment(conn, "correction_overrides", "override_id")
+    DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS correction_overrides (
-        override_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        override_id %s,
         request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
         override_type TEXT NOT NULL CHECK(override_type IN
           ('LOCKED_RECORD', 'FINALIZED_DATA', 'SIGNATURE_PRESENT')),
@@ -126,7 +130,7 @@ init_data_correction <- function(db_path = NULL) {
         approved_at TIMESTAMP,
         override_hash TEXT NOT NULL
       )
-    ")
+    ", auto_increment_ddl("correction_overrides", "override_id")))
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_corrections_status
@@ -282,13 +286,14 @@ create_correction_request <- function(table_name,
     )
     request_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(conn, "
+    request_id <- DBI::dbGetQuery(conn, "
       INSERT INTO correction_requests (
         table_name, record_id, field_name, original_value, corrected_value,
         correction_reason, reason_details, original_source_doc,
         corrected_source_doc, requested_by, requested_at, request_hash,
         previous_request_hash, site_id, study_id, subject_id, visit_id, form_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING request_id AS id
     ", list(
       safe_scalar_dc(table_name),
       safe_scalar_dc(record_id),
@@ -308,9 +313,7 @@ create_correction_request <- function(table_name,
       safe_scalar_dc(subject_id),
       safe_scalar_dc(visit_id),
       safe_scalar_dc(form_id)
-    ))
-
-    request_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id[1]
 
     history_hash <- digest::digest(
       paste(request_id, "CREATED", requested_by, timestamp, sep = "|"),
@@ -710,10 +713,12 @@ apply_correction <- function(request_id, applied_by, db_path = NULL) {
     }
 
     tryCatch({
+      pk_col <- resolve_table_pk_column(conn, request$table_name)
       current_data <- DBI::dbGetQuery(conn, sprintf(
-        "SELECT * FROM %s WHERE rowid = ? OR id = ? LIMIT 1",
-        DBI::dbQuoteIdentifier(conn, request$table_name)
-      ), list(request$record_id, request$record_id))
+        "SELECT * FROM %s WHERE %s = ? LIMIT 1",
+        DBI::dbQuoteIdentifier(conn, request$table_name),
+        DBI::dbQuoteIdentifier(conn, pk_col)
+      ), list(request$record_id))
 
       if (nrow(current_data) > 0) {
         create_record_version(
@@ -858,11 +863,12 @@ request_correction_override <- function(request_id,
       algo = "sha256"
     )
 
-    DBI::dbExecute(conn, "
+    override_id <- DBI::dbGetQuery(conn, "
       INSERT INTO correction_overrides (
         request_id, override_type, override_reason, override_by,
         override_at, override_hash
       ) VALUES (?, ?, ?, ?, ?, ?)
+      RETURNING override_id AS id
     ", list(
       request_id,
       safe_scalar_dc(override_type),
@@ -870,9 +876,7 @@ request_correction_override <- function(request_id,
       safe_scalar_dc(override_by),
       timestamp,
       override_hash
-    ))
-
-    override_id <- DBI::dbGetQuery(conn, "SELECT last_insert_rowid() as id")$id
+    ))$id[1]
 
     history_hash <- digest::digest(
       paste(request_id, "ESCALATED", override_by, timestamp, sep = "|"),

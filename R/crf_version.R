@@ -56,9 +56,10 @@ init_crf_version <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_definitions", "crf_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_definitions (
-        crf_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        crf_id %s,
         crf_code TEXT UNIQUE NOT NULL,
         crf_name TEXT NOT NULL,
         crf_description TEXT,
@@ -69,16 +70,17 @@ init_crf_version <- function() {
         locked_at TEXT,
         locked_by TEXT,
         lock_reason TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         updated_at TEXT,
         updated_by TEXT
       )
-    ")
+    ", auto_increment_ddl("crf_definitions", "crf_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_versions", "version_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_versions (
-        version_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version_id %s,
         crf_id INTEGER NOT NULL,
         version_number TEXT NOT NULL,
         version_type TEXT NOT NULL,
@@ -91,7 +93,7 @@ init_crf_version <- function() {
         regulatory_impact TEXT,
         backwards_compatible INTEGER DEFAULT 1,
         requires_retraining INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         reviewed_at TEXT,
         reviewed_by TEXT,
@@ -103,11 +105,12 @@ init_crf_version <- function() {
         FOREIGN KEY (parent_version_id) REFERENCES crf_versions(version_id),
         UNIQUE(crf_id, version_number)
       )
-    ")
+    ", auto_increment_ddl("crf_versions", "version_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_change_log", "change_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_change_log (
-        change_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        change_id %s,
         version_id INTEGER NOT NULL,
         change_type TEXT NOT NULL,
         change_category TEXT NOT NULL,
@@ -121,32 +124,34 @@ init_crf_version <- function() {
         impact_assessment TEXT,
         affected_data INTEGER DEFAULT 0,
         data_migration_required INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         change_hash TEXT NOT NULL,
         FOREIGN KEY (version_id) REFERENCES crf_versions(version_id)
       )
-    ")
+    ", auto_increment_ddl("crf_change_log", "change_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_version_snapshots", "snapshot_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_version_snapshots (
-        snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_id %s,
         version_id INTEGER NOT NULL,
         snapshot_type TEXT NOT NULL,
         snapshot_data TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         snapshot_hash TEXT NOT NULL,
         FOREIGN KEY (version_id) REFERENCES crf_versions(version_id)
       )
-    ")
+    ", auto_increment_ddl("crf_version_snapshots", "snapshot_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "crf_version_comparisons", "comparison_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS crf_version_comparisons (
-        comparison_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        comparison_id %s,
         version_id_old INTEGER NOT NULL,
         version_id_new INTEGER NOT NULL,
-        comparison_date TEXT DEFAULT (datetime('now')),
+        comparison_date TEXT DEFAULT (CURRENT_TIMESTAMP),
         compared_by TEXT NOT NULL,
         fields_added INTEGER DEFAULT 0,
         fields_removed INTEGER DEFAULT 0,
@@ -157,7 +162,7 @@ init_crf_version <- function() {
         FOREIGN KEY (version_id_old) REFERENCES crf_versions(version_id),
         FOREIGN KEY (version_id_new) REFERENCES crf_versions(version_id)
       )
-    ")
+    ", auto_increment_ddl("crf_version_comparisons", "comparison_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_crf_versions_crf
                          ON crf_versions(crf_id)")
@@ -294,19 +299,18 @@ create_crf_definition <- function(crf_code,
       return(list(success = FALSE, error = "crf_code already exists"))
     }
 
-    DBI::dbExecute(con, "
+    crf_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_definitions (
         crf_code, crf_name, crf_description, crf_category, created_by
       ) VALUES (?, ?, ?, ?, ?)
+      RETURNING crf_id AS id
     ", params = list(
       crf_code,
       crf_name,
       safe_scalar_crfv(crf_description),
       safe_scalar_crfv(crf_category),
       created_by
-    ))
-
-    crf_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -535,13 +539,14 @@ create_crf_version <- function(crf_id,
     )
     version_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    version_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_versions (
         crf_id, version_number, version_type, change_summary,
         change_rationale, regulatory_impact, backwards_compatible,
         requires_retraining, effective_date, created_by,
         parent_version_id, version_hash, previous_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING version_id AS id
     ", params = list(
       crf_id,
       version_number,
@@ -556,9 +561,7 @@ create_crf_version <- function(crf_id,
       safe_int_crfv(parent_version_id),
       version_hash,
       safe_scalar_crfv(previous_hash)
-    ))
-
-    version_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     DBI::dbExecute(con, "
       UPDATE crf_definitions
@@ -756,13 +759,14 @@ log_crf_change <- function(version_id,
     )
     change_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    change_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_change_log (
         version_id, change_type, change_category, field_code, field_name,
         attribute_changed, old_value, new_value, change_description,
         change_justification, impact_assessment, affected_data,
         data_migration_required, created_by, change_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING change_id AS id
     ", params = list(
       version_id,
       change_type,
@@ -779,9 +783,7 @@ log_crf_change <- function(version_id,
       as.integer(data_migration_required),
       created_by,
       change_hash
-    ))
-
-    change_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -924,19 +926,18 @@ create_version_snapshot <- function(version_id,
     )
     snapshot_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    snapshot_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_version_snapshots (
         version_id, snapshot_type, snapshot_data, created_by, snapshot_hash
       ) VALUES (?, ?, ?, ?, ?)
+      RETURNING snapshot_id AS id
     ", params = list(
       version_id,
       snapshot_type,
       snapshot_data,
       created_by,
       snapshot_hash
-    ))
-
-    snapshot_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -1057,12 +1058,13 @@ compare_crf_versions <- function(version_id_old,
     )
     comparison_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    comparison_id <- DBI::dbGetQuery(con, "
       INSERT INTO crf_version_comparisons (
         version_id_old, version_id_new, compared_by, fields_added,
         fields_removed, fields_modified, validation_changes,
         comparison_summary, comparison_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING comparison_id AS id
     ", params = list(
       version_id_old,
       version_id_new,
@@ -1073,10 +1075,7 @@ compare_crf_versions <- function(version_id_old,
       validation_changes,
       comparison_summary,
       comparison_hash
-    ))
-
-    comparison_id <- DBI::dbGetQuery(con,
-      "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,

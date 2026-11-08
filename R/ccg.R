@@ -56,9 +56,10 @@ init_ccg <- function() {
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "ccg_forms", "form_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS ccg_forms (
-        form_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        form_id %s,
         form_code TEXT UNIQUE NOT NULL,
         form_name TEXT NOT NULL,
         form_description TEXT,
@@ -68,18 +69,19 @@ init_ccg <- function() {
         visit_type TEXT,
         estimated_duration_minutes INTEGER,
         is_active INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         created_by TEXT NOT NULL,
         updated_at TEXT,
         updated_by TEXT,
         approved_at TEXT,
         approved_by TEXT
       )
-    ")
+    ", auto_increment_ddl("ccg_forms", "form_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "ccg_fields", "field_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS ccg_fields (
-        field_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        field_id %s,
         form_id INTEGER NOT NULL,
         field_code TEXT NOT NULL,
         field_name TEXT NOT NULL,
@@ -105,16 +107,17 @@ init_ccg <- function() {
         query_text TEXT,
         sdtm_variable TEXT,
         sdtm_domain TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         updated_at TEXT,
         FOREIGN KEY (form_id) REFERENCES ccg_forms(form_id),
         UNIQUE(form_id, field_code)
       )
-    ")
+    ", auto_increment_ddl("ccg_fields", "field_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "ccg_versions", "version_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS ccg_versions (
-        version_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version_id %s,
         form_id INTEGER NOT NULL,
         version_number TEXT NOT NULL,
         version_date TEXT NOT NULL,
@@ -124,22 +127,23 @@ init_ccg <- function() {
         status TEXT DEFAULT 'DRAFT',
         effective_date TEXT,
         created_by TEXT NOT NULL,
-        created_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         approved_by TEXT,
         approved_at TEXT,
         version_hash TEXT NOT NULL,
         FOREIGN KEY (form_id) REFERENCES ccg_forms(form_id)
       )
-    ")
+    ", auto_increment_ddl("ccg_versions", "version_id")))
 
-    DBI::dbExecute(con, "
+    prepare_auto_increment(con, "ccg_generated", "generation_id")
+    DBI::dbExecute(con, sprintf("
       CREATE TABLE IF NOT EXISTS ccg_generated (
-        generation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        generation_id %s,
         form_id INTEGER NOT NULL,
         version_id INTEGER,
         output_format TEXT NOT NULL,
         output_file TEXT,
-        generated_at TEXT DEFAULT (datetime('now')),
+        generated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         generated_by TEXT NOT NULL,
         include_examples INTEGER DEFAULT 1,
         include_edit_checks INTEGER DEFAULT 1,
@@ -148,7 +152,7 @@ init_ccg <- function() {
         FOREIGN KEY (form_id) REFERENCES ccg_forms(form_id),
         FOREIGN KEY (version_id) REFERENCES ccg_versions(version_id)
       )
-    ")
+    ", auto_increment_ddl("ccg_generated", "generation_id")))
 
     DBI::dbExecute(con, "CREATE INDEX IF NOT EXISTS idx_ccg_fields_form
                          ON ccg_fields(form_id)")
@@ -308,11 +312,12 @@ create_ccg_form <- function(form_code,
       return(list(success = FALSE, error = "form_code already exists"))
     }
 
-    DBI::dbExecute(con, "
+    form_id <- DBI::dbGetQuery(con, "
       INSERT INTO ccg_forms (
         form_code, form_name, form_description, form_category,
         visit_type, estimated_duration_minutes, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      RETURNING form_id AS id
     ", params = list(
       form_code,
       form_name,
@@ -321,9 +326,7 @@ create_ccg_form <- function(form_code,
       safe_scalar_ccg(visit_type),
       safe_int_ccg(estimated_duration_minutes),
       created_by
-    ))
-
-    form_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -539,7 +542,7 @@ add_ccg_field <- function(form_id,
                   error = "field_code already exists in this form"))
     }
 
-    DBI::dbExecute(con, "
+    field_id <- DBI::dbGetQuery(con, "
       INSERT INTO ccg_fields (
         form_id, field_code, field_name, field_label, field_type,
         field_order, section_name, is_required, is_key_field,
@@ -549,6 +552,7 @@ add_ccg_field <- function(form_id,
         skip_condition, skip_instruction, edit_checks, query_text,
         sdtm_variable, sdtm_domain
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING field_id AS id
     ", params = list(
       form_id,
       field_code,
@@ -575,9 +579,7 @@ add_ccg_field <- function(form_id,
       safe_scalar_ccg(query_text),
       safe_scalar_ccg(sdtm_variable),
       safe_scalar_ccg(sdtm_domain)
-    ))
-
-    field_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     list(
       success = TRUE,
@@ -762,12 +764,13 @@ create_ccg_version <- function(form_id,
     )
     version_hash <- digest::digest(hash_content, algo = "sha256")
 
-    DBI::dbExecute(con, "
+    version_id <- DBI::dbGetQuery(con, "
       INSERT INTO ccg_versions (
         form_id, version_number, version_date, change_summary,
         change_details, previous_version, effective_date,
         created_by, version_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING version_id AS id
     ", params = list(
       form_id,
       version_number,
@@ -778,9 +781,7 @@ create_ccg_version <- function(form_id,
       safe_scalar_ccg(effective_date),
       created_by,
       version_hash
-    ))
-
-    version_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    ))$id[1]
 
     DBI::dbExecute(con, "
       UPDATE ccg_forms SET version = ?, updated_at = ?, updated_by = ?
