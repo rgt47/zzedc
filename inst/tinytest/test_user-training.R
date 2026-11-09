@@ -19,7 +19,7 @@ local({
   conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-  ensure_user_training_table(conn)
+  zzedc:::ensure_user_training_table(conn)
   cols <- DBI::dbListFields(conn, "user_training")
   expected <- c("training_id", "user_id", "training_type", "training_date",
                 "trainer_name", "training_score", "completion_status",
@@ -27,22 +27,22 @@ local({
   expect_true(setequal(cols, expected))
 
   # idempotent
-  ensure_user_training_table(conn)
+  zzedc:::ensure_user_training_table(conn)
   expect_true(setequal(DBI::dbListFields(conn, "user_training"), expected))
 })
 
 local({
   conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
-  ensure_edc_users_table(conn)
-  ensure_user_training_table(conn)
+  zzedc:::ensure_edc_users_table(conn)
+  zzedc:::ensure_user_training_table(conn)
 
-  user <- db_insert_user(conn, username = "jdoe", password_hash = "h",
+  user <- zzedc:::db_insert_user(conn, username = "jdoe", password_hash = "h",
                           full_name = "Jane Doe", role = "Coordinator",
                           created_by = "test")
   expect_true(user$success)
 
-  result <- db_insert_training_record(
+  result <- zzedc:::db_insert_training_record(
     conn = conn, user_id = user$user_id, training_type = "cfr_part11_basics",
     training_date = "2026-11-09", trainer_name = "Alice Trainer",
     training_score = 92
@@ -70,12 +70,12 @@ local({
 local({
   conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
-  ensure_edc_users_table(conn)
-  ensure_user_training_table(conn)
-  user <- db_insert_user(conn, username = "bsmith", password_hash = "h",
+  zzedc:::ensure_edc_users_table(conn)
+  zzedc:::ensure_user_training_table(conn)
+  user <- zzedc:::db_insert_user(conn, username = "bsmith", password_hash = "h",
                           created_by = "test")
 
-  result <- db_insert_training_record(
+  result <- zzedc:::db_insert_training_record(
     conn = conn, user_id = user$user_id, training_type = "data_integrity",
     training_date = "2026-01-01", expiry_date = "2026-06-01"
   )

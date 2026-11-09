@@ -17,7 +17,9 @@ if (file.exists("_setup.R")) source("_setup.R")
 # (R/electronic_signatures.R), via shiny::testServer() the same way
 # test_change-password-module.R drives change_password_server().
 
-if (!exists("cfr_compliance_server")) exit_file("cfr_compliance_server not available")
+if (!exists("cfr_compliance_server", where = asNamespace("zzedc"))) {
+  exit_file("cfr_compliance_server not available")
+}
 
 setup_test_db <- function() {
   old_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA_character_)
@@ -33,9 +35,9 @@ setup_test_db <- function() {
   init_electronic_signatures(db_path = test_db)
 
   conn <- DBI::dbConnect(RSQLite::SQLite(), test_db)
-  ensure_edc_users_table(conn)
+  zzedc:::ensure_edc_users_table(conn)
   password_hash <- digest::digest(paste0("correct-horse", ""), algo = "sha256")
-  db_insert_user(conn, username = "jdoe", password_hash = password_hash,
+  zzedc:::db_insert_user(conn, username = "jdoe", password_hash = password_hash,
                   full_name = "Jane Doe", role = "Coordinator",
                   user_id = "USER_TEST_1", created_by = "test")
   DBI::dbExecute(conn, "

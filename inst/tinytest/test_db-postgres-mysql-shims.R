@@ -31,29 +31,29 @@ if (file.exists("_setup.R")) source("_setup.R")
 
 local({
   expect_equal(
-    translate_pg_placeholders("SELECT * FROM t WHERE a = ? AND b = ?"),
+    zzedc:::translate_pg_placeholders("SELECT * FROM t WHERE a = ? AND b = ?"),
     "SELECT * FROM t WHERE a = $1 AND b = $2"
   )
   expect_equal(
-    translate_pg_placeholders("INSERT INTO t (a,b) VALUES (?, ?)"),
+    zzedc:::translate_pg_placeholders("INSERT INTO t (a,b) VALUES (?, ?)"),
     "INSERT INTO t (a,b) VALUES ($1, $2)"
   )
   expect_equal(
-    translate_pg_placeholders("SELECT * FROM t WHERE x IN (?,?,?)"),
+    zzedc:::translate_pg_placeholders("SELECT * FROM t WHERE x IN (?,?,?)"),
     "SELECT * FROM t WHERE x IN ($1,$2,$3)",
     info = "a dynamically built IN-clause placeholder list numbers sequentially"
   )
   expect_equal(
-    translate_pg_placeholders("no placeholders here"),
+    zzedc:::translate_pg_placeholders("no placeholders here"),
     "no placeholders here"
   )
   expect_equal(
-    translate_pg_placeholders("SELECT * FROM t WHERE note = 'what?' AND a = ?"),
+    zzedc:::translate_pg_placeholders("SELECT * FROM t WHERE note = 'what?' AND a = ?"),
     "SELECT * FROM t WHERE note = 'what?' AND a = $1",
     info = "a literal ? inside a single-quoted string is not translated"
   )
   expect_equal(
-    translate_pg_placeholders("SELECT * FROM t WHERE note = 'it''s a ? test' AND a = ?"),
+    zzedc:::translate_pg_placeholders("SELECT * FROM t WHERE note = 'it''s a ? test' AND a = ?"),
     "SELECT * FROM t WHERE note = 'it''s a ? test' AND a = $1",
     info = "a doubled '' escaped quote does not end the string early"
   )
@@ -64,7 +64,7 @@ local({
 # ============================================================================
 
 local({
-  parsed <- strip_mysql_returning("
+  parsed <- zzedc:::strip_mysql_returning("
     INSERT INTO t (a, b) VALUES (?, ?)
     RETURNING audit_id AS id
   ")
@@ -72,7 +72,7 @@ local({
   expect_equal(parsed$alias, "id")
   expect_false(grepl("RETURNING", parsed$statement, ignore.case = TRUE))
 
-  not_returning <- strip_mysql_returning("SELECT * FROM t WHERE a = ?")
+  not_returning <- zzedc:::strip_mysql_returning("SELECT * FROM t WHERE a = ?")
   expect_false(not_returning$has_returning)
   expect_equal(not_returning$statement, "SELECT * FROM t WHERE a = ?")
   expect_null(not_returning$alias)

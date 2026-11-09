@@ -15,8 +15,8 @@ if (file.exists("_setup.R")) source("_setup.R")
 # check before this.
 
 local({
-  denied <- require_role("Coordinator", c("Admin", "PI", "StudyManager"),
-                          "approve a data correction")
+  denied <- zzedc:::require_role("Coordinator", c("Admin", "PI", "StudyManager"),
+                                  "approve a data correction")
   expect_false(is.null(denied))
   expect_false(denied$success)
   expect_true(grepl("Coordinator", denied$error))
@@ -24,8 +24,8 @@ local({
 })
 
 local({
-  allowed <- require_role("Admin", c("Admin", "PI", "StudyManager"),
-                           "approve a data correction")
+  allowed <- zzedc:::require_role("Admin", c("Admin", "PI", "StudyManager"),
+                                   "approve a data correction")
   expect_null(allowed)
 })
 
@@ -33,14 +33,14 @@ local({
   # Case- and space/underscore-insensitive matching: "Data Manager"
   # (the display string) must match an allow-list entry written the
   # same way, and the check is case-insensitive.
-  expect_null(require_role("data manager", c("Admin", "Data Manager"), "x"))
-  expect_null(require_role("ADMIN", c("Admin", "PI"), "x"))
-  expect_false(is.null(require_role("Monitor", c("Admin", "PI"), "x")))
+  expect_null(zzedc:::require_role("data manager", c("Admin", "Data Manager"), "x"))
+  expect_null(zzedc:::require_role("ADMIN", c("Admin", "PI"), "x"))
+  expect_false(is.null(zzedc:::require_role("Monitor", c("Admin", "PI"), "x")))
 })
 
 local({
   # NULL/unknown actor_role is denied, not silently allowed.
-  denied <- require_role(NULL, c("Admin"), "x")
+  denied <- zzedc:::require_role(NULL, c("Admin"), "x")
   expect_false(is.null(denied))
   expect_true(grepl("\\(none\\)", denied$error))
 })

@@ -23,10 +23,12 @@ if (file.exists("_setup.R")) source("_setup.R")
 # ever called any of them before, which is exactly how this went
 # unnoticed through every previous change to these files.
 
-if (!exists("admin_dashboard_ui")) exit_file("admin_dashboard_ui not available")
+if (!exists("admin_dashboard_ui", where = asNamespace("zzedc"))) {
+  exit_file("admin_dashboard_ui not available")
+}
 
 local({
-  result <- tryCatch(admin_dashboard_ui("test"), error = function(e) e)
+  result <- tryCatch(zzedc:::admin_dashboard_ui("test"), error = function(e) e)
   expect_false(inherits(result, "error"),
                info = if (inherits(result, "error")) conditionMessage(result) else "")
 })
@@ -56,7 +58,7 @@ local({
 })
 
 local({
-  result <- tryCatch(cfr_compliance_ui("test"), error = function(e) e)
+  result <- tryCatch(zzedc:::cfr_compliance_ui("test"), error = function(e) e)
   expect_false(inherits(result, "error"),
                info = if (inherits(result, "error")) conditionMessage(result) else "")
 })
