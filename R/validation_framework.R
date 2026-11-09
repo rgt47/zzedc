@@ -178,14 +178,36 @@ run_iq_tests <- function(config = NULL, db_path = NULL, verbose = TRUE) {
   # IQ-005: Audit logging initialization
   if (verbose) cat("  IQ-005: Testing audit logging setup... ")
   t1 <- Sys.time()
+  .iq_previous_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA_character_)
   audit_test <- tryCatch({
     test_db <- tempfile(fileext = ".db")
-    initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+    # get_db_adapter() (called internally by initialize_encrypted_database()
+    # and connect_encrypted_db()) reads ./config.yml relative to the
+    # working directory if not given an explicit config, and throws
+    # if that file exists but predates the multi-backend db_backend
+    # schema (as this package's own repo-root config.yml does) --
+    # forcing a plain sqlite adapter here keeps this test independent
+    # of whatever config.yml happens to be on disk in the caller's
+    # working directory.
+    get_db_adapter(config = list(db_backend = "sqlite", sqlite = list(path = test_db)),
+                   force_new = TRUE)
+    init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+    # initialize_encrypted_database() generates and returns a key but
+    # does not persist it anywhere; init_audit_logging() connects via
+    # connect_encrypted_db(), which needs DB_ENCRYPTION_KEY actually
+    # set.
+    Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
     result <- init_audit_logging(db_path = test_db)
     unlink(test_db)
-    list(success = result$success, message = result$message)
+    list(success = result$success, message = result$message %||% result$error)
   }, error = function(e) {
     list(success = FALSE, message = e$message)
+  }, finally = {
+    if (is.na(.iq_previous_key)) {
+      Sys.unsetenv("DB_ENCRYPTION_KEY")
+    } else {
+      Sys.setenv(DB_ENCRYPTION_KEY = .iq_previous_key)
+    }
   })
   results$IQ_005 <- create_validation_result(
     test_id = "IQ-005",
@@ -200,14 +222,24 @@ run_iq_tests <- function(config = NULL, db_path = NULL, verbose = TRUE) {
   # IQ-006: Version control initialization
   if (verbose) cat("  IQ-006: Testing version control setup... ")
   t1 <- Sys.time()
+  .iq_previous_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA_character_)
   version_test <- tryCatch({
     test_db <- tempfile(fileext = ".db")
-    initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+    get_db_adapter(config = list(db_backend = "sqlite", sqlite = list(path = test_db)),
+                   force_new = TRUE)
+    init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+    Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
     result <- init_version_control(db_path = test_db)
     unlink(test_db)
-    list(success = result$success, message = result$message)
+    list(success = result$success, message = result$message %||% result$error)
   }, error = function(e) {
     list(success = FALSE, message = e$message)
+  }, finally = {
+    if (is.na(.iq_previous_key)) {
+      Sys.unsetenv("DB_ENCRYPTION_KEY")
+    } else {
+      Sys.setenv(DB_ENCRYPTION_KEY = .iq_previous_key)
+    }
   })
   results$IQ_006 <- create_validation_result(
     test_id = "IQ-006",
@@ -309,7 +341,29 @@ run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
   if (verbose) cat("Running Operational Qualification (OQ) Tests...\n\n")
 
   test_db <- tempfile(fileext = ".db")
-  initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+  # Force a plain sqlite adapter for this temp db rather than letting
+  # get_db_adapter() resolve ./config.yml ambiently -- see the
+  # matching comment in run_iq_tests()'s IQ-005 block for why.
+  get_db_adapter(config = list(db_backend = "sqlite", sqlite = list(path = test_db)),
+                 force_new = TRUE)
+  # initialize_encrypted_database() generates and returns a key but
+  # does not persist it anywhere; every OQ test below that calls
+  # connect_encrypted_db(db_path = test_db) needs DB_ENCRYPTION_KEY
+  # set for the duration of this function, or every one of them fails
+  # with "Database encryption key not found" in any session that
+  # does not already happen to have one set from elsewhere. Save and
+  # restore the caller's own key (if any) rather than clobbering it.
+  previous_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA_character_)
+  on.exit({
+    if (is.na(previous_key)) {
+      Sys.unsetenv("DB_ENCRYPTION_KEY")
+    } else {
+      Sys.setenv(DB_ENCRYPTION_KEY = previous_key)
+    }
+  }, add = TRUE)
+
+  init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+  Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
   init_audit_logging(db_path = test_db)
   init_version_control(db_path = test_db)
 
@@ -379,7 +433,21 @@ run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
   if (verbose) cat("  OQ-003: Testing audit event logging... ")
   t1 <- Sys.time()
   audit_test <- tryCatch({
-    result <- log_audit_event(
+    # Checking log_audit_event()'s boolean return alone is not
+    # sufficient: that return value only reflects whether the call
+    # ran without an R-level error. The ten-site audit-trail outage
+    # fixed on 2026-11-08 (see vignettes/zzedc-whitepaper.Rmd's Part
+    # 11 addendum) was exactly this failure mode -- each call site
+    # silently wrote nothing while reporting success to its own
+    # caller, and this very test passed throughout that outage
+    # because it only exercises log_audit_event() directly, with
+    # `operation` correctly supplied, never the real call sites that
+    # were broken. Re-querying audit_log for the row this call claims
+    # to have written is what actually closes that gap here; it
+    # cannot, by itself, detect a defect at some *other* call site,
+    # but it does mean a future regression in log_audit_event() or
+    # its own schema can no longer pass this test by accident.
+    log_audit_event(
       event_type = "INSERT",
       table_name = "test_table",
       record_id = "TEST001",
@@ -387,7 +455,20 @@ run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
       user_id = "validator",
       db_path = test_db
     )
-    list(success = result, message = if (result) "Audit logging working" else "Audit logging failed")
+    conn <- connect_encrypted_db(db_path = test_db)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    written <- DBI::dbGetQuery(conn, "
+      SELECT event_type, user_id FROM audit_log
+      WHERE record_id = 'TEST001' AND table_name = 'test_table'
+    ")
+    wrote_row <- nrow(written) == 1 &&
+      written$event_type[1] == "INSERT" && written$user_id[1] == "validator"
+    list(success = wrote_row,
+         message = if (wrote_row) {
+           "Audit logging working"
+         } else {
+           "Audit logging call returned without error, but no matching row was written"
+         })
   }, error = function(e) {
     list(success = FALSE, message = e$message)
   })
@@ -633,7 +714,21 @@ run_pq_tests <- function(db_path = NULL, verbose = TRUE, record_count = 1000) {
   if (verbose) cat("Running Performance Qualification (PQ) Tests...\n\n")
 
   test_db <- tempfile(fileext = ".db")
-  initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+  get_db_adapter(config = list(db_backend = "sqlite", sqlite = list(path = test_db)),
+                 force_new = TRUE)
+  # Same fix as run_oq_tests(): persist the generated key for the
+  # duration of this function, restoring the caller's own afterward.
+  previous_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA_character_)
+  on.exit({
+    if (is.na(previous_key)) {
+      Sys.unsetenv("DB_ENCRYPTION_KEY")
+    } else {
+      Sys.setenv(DB_ENCRYPTION_KEY = previous_key)
+    }
+  }, add = TRUE)
+
+  init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+  Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
   init_audit_logging(db_path = test_db)
   init_version_control(db_path = test_db)
 
