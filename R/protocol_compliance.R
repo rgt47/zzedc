@@ -841,9 +841,11 @@ create_protocol_deviation <- function(protocol_id,
         user_id = reported_by,
         table_name = "protocol_deviations",
         record_id = as.character(deviation_id),
+        operation = paste("Protocol deviation created:", deviation_type),
         details = paste("Protocol deviation created:", deviation_type,
                         "| Severity:", severity,
-                        "| Subject:", subject_id)
+                        "| Subject:", subject_id),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 

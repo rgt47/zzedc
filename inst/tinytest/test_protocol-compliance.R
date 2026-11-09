@@ -522,6 +522,52 @@ local({
     expect_true(nchar(result$deviation_hash) == 64)
 
 })
+# Test: create_protocol_deviation's log_audit_event() call actually
+# writes a row. Added 2026-11-08: that call passed neither `operation`
+# (required, no default -- threw before log_audit_event()'s own
+# tryCatch began) nor `db_path` (so even once `operation` is supplied,
+# the write would target the wrong database). Both were silently
+# swallowed by create_protocol_deviation()'s own
+# tryCatch(..., error = function(e) NULL) around the call.
+local({
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db))
+
+    protocol <- create_protocol(
+      protocol_code = "DEV-002",
+      protocol_title = "Deviation Audit Test Protocol",
+      protocol_version = "1.0",
+      effective_date = Sys.Date(),
+      created_by = "admin",
+      db_path = test_db
+    )
+
+    result <- create_protocol_deviation(
+      protocol_id = protocol$protocol_id,
+      subject_id = "SUBJ001",
+      deviation_type = "DOSING",
+      severity = "MINOR",
+      deviation_date = Sys.Date(),
+      description = "Subject missed morning dose",
+      root_cause = "Patient forgot",
+      corrective_action = "Patient re-educated on dosing schedule",
+      reported_by = "coordinator",
+      db_path = test_db
+    )
+    expect_true(result$success)
+
+    conn <- connect_encrypted_db(db_path = test_db)
+    rows <- DBI::dbGetQuery(conn, "
+      SELECT event_type, table_name, record_id, user_id FROM audit_log
+    ")
+    DBI::dbDisconnect(conn)
+
+    expect_equal(nrow(rows), 1)
+    expect_equal(rows$table_name[1], "protocol_deviations")
+    expect_equal(rows$record_id[1], as.character(result$deviation_id))
+    expect_equal(rows$user_id[1], "coordinator")
+
+})
 
 # Test: create_protocol_deviation validates deviation type
 local({

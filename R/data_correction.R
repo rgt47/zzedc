@@ -339,8 +339,10 @@ create_correction_request <- function(table_name,
         user_id = requested_by,
         table_name = "correction_requests",
         record_id = as.character(request_id),
+        operation = paste("Correction request created:", field_name),
         details = paste("Correction request created:",
-                        field_name, "from", original_value, "to", corrected_value)
+                        field_name, "from", original_value, "to", corrected_value),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 
@@ -538,7 +540,9 @@ approve_correction <- function(request_id,
         user_id = reviewed_by,
         table_name = "correction_requests",
         record_id = as.character(request_id),
-        details = paste("Correction approved for", request$field_name)
+        operation = paste("Correction approved for", request$field_name),
+        details = paste("Correction approved for", request$field_name),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 
@@ -638,7 +642,9 @@ reject_correction <- function(request_id,
         user_id = reviewed_by,
         table_name = "correction_requests",
         record_id = as.character(request_id),
-        details = paste("Correction rejected:", review_comments)
+        operation = "Correction request rejected",
+        details = paste("Correction rejected:", review_comments),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 
@@ -780,10 +786,12 @@ apply_correction <- function(request_id, applied_by, db_path = NULL) {
         user_id = applied_by,
         table_name = request$table_name,
         record_id = request$record_id,
+        operation = paste("Data correction applied:", request$field_name),
         details = paste("Data correction applied:",
                         request$field_name, "from", request$original_value,
                         "to", request$corrected_value,
-                        "| Reason:", request$correction_reason)
+                        "| Reason:", request$correction_reason),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 
@@ -902,8 +910,10 @@ request_correction_override <- function(request_id,
         user_id = override_by,
         table_name = "correction_overrides",
         record_id = as.character(override_id),
+        operation = paste("Override requested for correction", request_id),
         details = paste("Override requested for correction", request_id,
-                        "| Type:", override_type)
+                        "| Type:", override_type),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 
@@ -975,8 +985,11 @@ approve_override <- function(override_id, approved_by, db_path = NULL) {
         user_id = approved_by,
         table_name = "correction_overrides",
         record_id = as.character(override_id),
+        operation = paste("Override approved for correction",
+                          override$request_id),
         details = paste("Override approved for correction",
-                        override$request_id)
+                        override$request_id),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 

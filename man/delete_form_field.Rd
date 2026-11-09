@@ -4,10 +4,14 @@
 \alias{delete_form_field}
 \title{Delete Form Field}
 \usage{
-delete_form_field(field_id)
+delete_form_field(field_id, user_id = NULL)
 }
 \arguments{
 \item{field_id}{Field ID}
+
+\item{user_id}{Optional: the user performing this change, recorded
+in the audit trail (see \code{audit_cd_event()}). \code{NULL} records an
+unattributed entry rather than failing the operation.}
 }
 \value{
 List with success status

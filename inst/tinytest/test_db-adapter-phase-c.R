@@ -309,6 +309,7 @@ if (requireNamespace("duckdb", quietly = TRUE)) {
   expect_true("study_info" %in% tables,
               info = "a later connect_encrypted_db() call can still open the encrypted file")
 
+  init_audit_logging()
   init_crf_designer()
   create_designer_form(form_code = "JOURNAL_REVIEWS", form_name = "Journal Reviews",
                         created_by = "admin")

@@ -130,6 +130,49 @@ local({
 
     })
 })
+# Test: create_correction_request's log_audit_event() call actually
+# writes a row. Added 2026-11-08: that call passed neither `operation`
+# (required, no default -- threw before log_audit_event()'s own
+# tryCatch began) nor `db_path` (so even once `operation` is supplied,
+# the write would target the wrong database). Both were silently
+# swallowed by create_correction_request()'s own
+# tryCatch(..., error = function(e) NULL) around the call. The same
+# two omissions existed at every log_audit_event() call site in this
+# file (approve_correction, reject_correction, apply_correction,
+# request_correction_override, approve_override); this test covers
+# the creation path as a representative regression guard.
+local({
+    if (requireNamespace("RSQLite", quietly = TRUE)) local({
+
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db), add = TRUE)
+
+    result <- create_correction_request(
+      table_name = "test_data",
+      record_id = "S001",
+      field_name = "age",
+      original_value = "45",
+      corrected_value = "46",
+      correction_reason = "TYPO",
+      reason_details = "Incorrect transcription from source",
+      requested_by = "coordinator1",
+      db_path = test_db
+    )
+    expect_true(result$success)
+
+    conn <- connect_encrypted_db(db_path = test_db)
+    rows <- DBI::dbGetQuery(conn, "
+      SELECT event_type, table_name, record_id, user_id FROM audit_log
+    ")
+    DBI::dbDisconnect(conn)
+
+    expect_equal(nrow(rows), 1)
+    expect_equal(rows$table_name[1], "correction_requests")
+    expect_equal(rows$record_id[1], as.character(result$request_id))
+    expect_equal(rows$user_id[1], "coordinator1")
+
+    })
+})
 # Test: create_correction_request requires reason details for OTHER
 local({
     if (requireNamespace("RSQLite", quietly = TRUE)) local({

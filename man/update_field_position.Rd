@@ -8,7 +8,8 @@ update_field_position(
   field_id,
   field_row = NULL,
   field_column = NULL,
-  section_id = NULL
+  section_id = NULL,
+  user_id = NULL
 )
 }
 \arguments{
@@ -19,6 +20,10 @@ update_field_position(
 \item{field_column}{New column}
 
 \item{section_id}{New section}
+
+\item{user_id}{Optional: the user performing this change, recorded
+in the audit trail (see \code{audit_cd_event()}). \code{NULL} records an
+unattributed entry rather than failing the operation.}
 }
 \value{
 List with success status

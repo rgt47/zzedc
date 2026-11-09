@@ -175,12 +175,19 @@ result <- add_form_field_by_code(
   field_row    = 35,                      # matches field_order above
   field_column = 1,
   is_required  = FALSE,
-  help_text    = 'Date the editor assigned this manuscript for review'
+  help_text    = 'Date the editor assigned this manuscript for review',
+  user_id      = 'your_username'          # attributed in audit_log
 )
 result$success    # TRUE if the field was added
 result$verified    # TRUE if the row read back matches every argument
 result$design_id   # resolved from form_code -- no manual lookup needed
 ```
+
+`user_id` is optional -- omitting it still writes the audit row, just
+without an attributed actor -- but passing your own identity here is
+what makes the resulting `audit_log` entry useful later, the same way
+`created_by`/`updated_by`/`locked_by` already work on this module's
+other functions.
 
 `field_row` here plays the same role as `field_order` in the
 Data Dictionary: it is the field's position among its form's other
@@ -257,17 +264,18 @@ field-type checking) and the key-gated connection that
 `add_form_field_by_code()` enforces. Prefer the normal path above
 whenever the encryption key is actually available to you.
 
-**Neither path writes to the audit trail.** Despite the parallel to
-other mutating operations in this package, `add_form_field()` and
-`add_form_field_by_code()` do not call `log_audit_event()` --
-confirmed by inspection, `R/crf_designer.R` has no reference to it
-at all, unlike `R/adverse_events.R`, `R/data_correction.R`,
-`R/version_control.R`, and the other modules that do. Adding or
-editing a field through either path leaves no row in `audit_log`;
-the only record of the change is whatever the Google Sheet and this
-walkthrough's own command history capture. This is a real gap, not
-a design choice documented elsewhere, and is tracked in
-`vignette('zzedc-whitepaper')`.
+**Only the normal path writes to the audit trail.** As of 2026-11-08,
+`add_form_field()` and `add_form_field_by_code()` log an `INSERT`
+event to `audit_log` on success (record id, `field_code`/`field_type`
+in `details`, and `user_id` when you pass it) -- this was previously
+a real gap, documented and now fixed; see
+`vignette('zzedc-whitepaper')`'s package-boundary section for the
+full history. The escape hatch above does not get this for free: it
+writes to `designer_fields` with a plain `RSQLite` connection, which
+never passes through `add_form_field()`, so a field added that way
+still leaves no audit row. That is one more reason to prefer the
+normal path whenever the encryption key is available, beyond the
+validation it also bypasses.
 
 ---
 
@@ -326,5 +334,5 @@ the form tab) forces the metadata query to re-run.
   running on a schedule regardless.
 
 ---
-*Rendered on 2026-11-08 at 16:07 PST.*<br>
+*Rendered on 2026-11-08 at 16:51 PST.*<br>
 *Source: ~/prj/sfw/05-zzedc/zzedc/vignettes/promotion-tracker/promotion-tracker-add-field-walkthrough.Rmd*

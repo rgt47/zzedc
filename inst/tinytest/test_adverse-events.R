@@ -167,6 +167,47 @@ local({
 
 })
 
+# Test: create_adverse_event's log_audit_event() call actually writes
+# a row. Added 2026-11-08: that call never passed `operation` (a
+# required argument with no default), which threw before
+# log_audit_event()'s own tryCatch began; the error was swallowed by
+# create_adverse_event()'s own tryCatch(..., error = function(e)
+# NULL) around the call, so the AE was created successfully but
+# silently left zero rows in audit_log every time. This regression-
+# tests that log_audit_event() now receives `operation` and the audit
+# chain actually records the event.
+local({
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db))
+
+    result <- create_adverse_event(
+      study_id = "STUDY001",
+      subject_id = "SUBJ001",
+      onset_date = Sys.Date() - 5,
+      ae_term = "Headache",
+      ae_description = "Mild headache reported by subject",
+      severity = "MILD",
+      causality = "POSSIBLE",
+      outcome = "RECOVERED",
+      reported_by = "coordinator",
+      db_path = test_db
+    )
+    expect_true(result$success)
+
+    conn <- connect_encrypted_db(db_path = test_db)
+    rows <- DBI::dbGetQuery(conn, "
+      SELECT event_type, table_name, record_id, user_id FROM audit_log
+    ")
+    DBI::dbDisconnect(conn)
+
+    expect_equal(nrow(rows), 1)
+    expect_equal(rows$event_type[1], "INSERT")
+    expect_equal(rows$table_name[1], "adverse_events")
+    expect_equal(rows$record_id[1], as.character(result$ae_id))
+    expect_equal(rows$user_id[1], "coordinator")
+
+})
+
 # Test: create_adverse_event validates severity
 local({
     test_db <- setup_test_db()

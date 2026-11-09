@@ -144,6 +144,50 @@ local({
 
     })
 })
+# Test: apply_electronic_signature's log_audit_event() call actually
+# writes a row. Added 2026-11-08: that call passed neither `operation`
+# (a required argument with no default, so it threw before
+# log_audit_event()'s own tryCatch began) nor `db_path` (so even once
+# `operation` is supplied, the audit write would target the wrong
+# database -- the global default rather than this test's own
+# `test_db`). Both were silently swallowed by
+# apply_electronic_signature()'s own
+# tryCatch(..., error = function(e) NULL) around the call.
+local({
+    if (requireNamespace("RSQLite", quietly = TRUE)) local({
+
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db), add = TRUE)
+
+    password <- "testpassword123"
+    password_hash <- get_test_password_hash(password)
+
+    result <- apply_electronic_signature(
+      table_name = "test_records",
+      record_id = "1",
+      signer_user_id = "user001",
+      signer_full_name = "John Smith",
+      signature_meaning = "CREATED_BY",
+      password = password,
+      password_hash = password_hash,
+      db_path = test_db
+    )
+    expect_true(result$success)
+
+    conn <- connect_encrypted_db(db_path = test_db)
+    rows <- DBI::dbGetQuery(conn, "
+      SELECT event_type, table_name, record_id, user_id FROM audit_log
+    ")
+    DBI::dbDisconnect(conn)
+
+    expect_equal(nrow(rows), 1)
+    expect_equal(rows$event_type[1], "SIGNATURE_APPLIED")
+    expect_equal(rows$table_name[1], "test_records")
+    expect_equal(rows$record_id[1], "1")
+    expect_equal(rows$user_id[1], "user001")
+
+    })
+})
 # Test: apply_electronic_signature fails with wrong password
 local({
     if (requireNamespace("RSQLite", quietly = TRUE)) local({

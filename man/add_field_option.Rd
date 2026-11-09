@@ -9,7 +9,8 @@ add_field_option(
   option_value,
   option_label,
   option_order = 1,
-  is_default = FALSE
+  is_default = FALSE,
+  user_id = NULL
 )
 }
 \arguments{
@@ -22,6 +23,10 @@ add_field_option(
 \item{option_order}{Order}
 
 \item{is_default}{Whether default}
+
+\item{user_id}{Optional: the user performing this change, recorded
+in the audit trail (see \code{audit_cd_event()}). \code{NULL} records an
+unattributed entry rather than failing the operation.}
 }
 \value{
 List with success status

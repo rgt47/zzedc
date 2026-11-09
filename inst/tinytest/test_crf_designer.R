@@ -642,3 +642,48 @@ local({
                  "Date the editor assigned this manuscript for review")
 
 })
+# Test: CRF designer mutations reach audit_log. Added 2026-11-08: the
+# module previously never called log_audit_event() at all, so a form
+# or field change left no audit trail -- flagged in
+# vignette('zzedc-whitepaper') before this fix. This exercises
+# create_designer_form(), add_form_field_by_code(),
+# update_field_position(), and delete_form_field() together and
+# checks each produced exactly the audit row it should, including
+# user_id attribution.
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    form <- create_designer_form(
+      form_code = "AUDIT_TEST", form_name = "Audit Test",
+      created_by = "alice"
+    )
+    expect_true(form$success)
+
+    added <- add_form_field_by_code(
+      form_code = "AUDIT_TEST", field_code = "x", field_label = "X",
+      field_type = "TEXT", user_id = "alice"
+    )
+    expect_true(added$success)
+
+    moved <- update_field_position(added$field_id, field_row = 2,
+                                    user_id = "alice")
+    expect_true(moved$success)
+
+    deleted <- delete_form_field(added$field_id, user_id = "alice")
+    expect_true(deleted$success)
+
+    con <- connect_encrypted_db()
+    on.exit(DBI::dbDisconnect(con), add = TRUE)
+    rows <- DBI::dbGetQuery(con, "
+      SELECT event_type, table_name, user_id FROM audit_log ORDER BY audit_id
+    ")
+
+    expect_equal(nrow(rows), 4)
+    expect_equal(rows$event_type, c("INSERT", "INSERT", "UPDATE", "DELETE"))
+    expect_equal(rows$table_name,
+                 c("designer_forms", "designer_fields",
+                   "designer_fields", "designer_fields"))
+    expect_true(all(rows$user_id == "alice"))
+
+})

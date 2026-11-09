@@ -14,6 +14,30 @@ safe_scalar_cd <- function(x, default = NA_character_) {
   else as.character(x)
 }
 
+#' Record a CRF Designer Mutation to the Audit Trail
+#'
+#' `log_audit_event()`'s `operation` argument has no default and is
+#' evaluated before that function's own `tryCatch` begins, so a call
+#' that omits it throws before the error ever reaches that internal
+#' handler; every caller elsewhere in the package wraps its own call
+#' in `tryCatch(..., error = function(e) NULL)`, which only swallows
+#' the symptom. This helper always supplies `operation` so that
+#' failure mode cannot recur here, and still wraps the call so a
+#' genuine audit-logging failure (e.g. a locked-down `audit_log`
+#' table) never blocks the CRF designer operation it is recording.
+#'
+#' @keywords internal
+audit_cd_event <- function(event_type, table_name, record_id, operation,
+                            user_id = NULL, details = NULL) {
+  tryCatch({
+    log_audit_event(
+      event_type = event_type, table_name = table_name,
+      record_id = as.character(record_id), operation = operation,
+      user_id = user_id, details = details
+    )
+  }, error = function(e) NULL)
+}
+
 #' Initialize CRF Designer System
 #' @return List with success status
 #' @keywords internal
@@ -205,6 +229,13 @@ create_designer_form <- function(form_code, form_name, created_by,
       safe_scalar_cd(form_description), layout_type, created_by
     ))$id[1]
 
+    audit_cd_event(
+      event_type = "INSERT", table_name = "designer_forms",
+      record_id = design_id, user_id = created_by,
+      operation = paste("Created form", form_code),
+      details = paste0("form_name=", form_name, "; layout_type=", layout_type)
+    )
+
     list(success = TRUE, design_id = design_id)
   }, error = function(e) {
     list(success = FALSE, error = e$message)
@@ -218,6 +249,9 @@ create_designer_form <- function(form_code, form_name, created_by,
 #' @param section_order Order
 #' @param is_repeating Whether repeating
 #' @param columns Number of columns
+#' @param user_id Optional: the user performing this change, recorded
+#'   in the audit trail (see `audit_cd_event()`). `NULL` records an
+#'   unattributed entry rather than failing the operation.
 #' @return List with success status
 #'
 #' @examples
@@ -237,7 +271,7 @@ create_designer_form <- function(form_code, form_name, created_by,
 #' @export
 add_form_section <- function(design_id, section_code, section_name,
                               section_order = 1, is_repeating = FALSE,
-                              columns = 1) {
+                              columns = 1, user_id = NULL) {
   tryCatch({
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
@@ -252,6 +286,12 @@ add_form_section <- function(design_id, section_code, section_name,
       design_id, section_code, section_name, as.integer(section_order),
       as.integer(is_repeating), as.integer(columns)
     ))$id[1]
+
+    audit_cd_event(
+      event_type = "INSERT", table_name = "designer_sections",
+      record_id = section_id, user_id = user_id,
+      operation = paste("Added section", section_code, "to design", design_id)
+    )
 
     list(success = TRUE, section_id = section_id)
   }, error = function(e) {
@@ -283,6 +323,9 @@ add_form_section <- function(design_id, section_code, section_name,
 #'   hover hint. Shown instead in a modal, opened by clicking the
 #'   field's hint icon (see `inst/app/edc.R`); a field with no
 #'   `help_detail` keeps the plain hover tooltip for that click.
+#' @param user_id Optional: the user performing this change, recorded
+#'   in the audit trail (see `audit_cd_event()`). `NULL` records an
+#'   unattributed entry rather than failing the operation.
 #' @return List with success status
 #'
 #' @examples
@@ -306,7 +349,7 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
                             field_width = 100, is_required = FALSE,
                             placeholder = NULL, help_text = NULL,
                             default_value = NULL, widget_file = NULL,
-                            help_detail = NULL) {
+                            help_detail = NULL, user_id = NULL) {
   tryCatch({
     valid_types <- names(get_designer_field_types())
     if (!field_type %in% valid_types) {
@@ -334,6 +377,13 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
       safe_scalar_cd(default_value), safe_scalar_cd(widget_file),
       safe_scalar_cd(help_detail)
     ))$id[1]
+
+    audit_cd_event(
+      event_type = "INSERT", table_name = "designer_fields",
+      record_id = field_id, user_id = user_id,
+      operation = paste("Added field", field_code, "to design", design_id),
+      details = paste0("field_type=", field_type, "; field_label=", field_label)
+    )
 
     list(success = TRUE, field_id = field_id)
   }, error = function(e) {
@@ -386,6 +436,9 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
 #'   or `NULL` for none (see `add_form_field()`)
 #' @param help_detail Optional long-form help content (see
 #'   `add_form_field()`)
+#' @param user_id Optional: the user performing this change, passed
+#'   through to `add_form_field()`'s audit-trail entry. `NULL`
+#'   records an unattributed entry rather than failing the operation.
 #' @return List with `success`. On success, also `design_id`,
 #'   `field_id`, `verified` (logical: `TRUE` if the row read back from
 #'   `designer_fields` matches every argument passed in), `mismatches`
@@ -415,7 +468,8 @@ add_form_field_by_code <- function(form_code, field_code, field_label,
                                    field_column = 1, field_width = 100,
                                    is_required = FALSE, placeholder = NULL,
                                    help_text = NULL, default_value = NULL,
-                                   widget_file = NULL, help_detail = NULL) {
+                                   widget_file = NULL, help_detail = NULL,
+                                   user_id = NULL) {
   tryCatch({
     # Each step below opens and closes its own connection rather than
     # holding one open across add_form_field()'s own connect() call.
@@ -469,7 +523,7 @@ add_form_field_by_code <- function(form_code, field_code, field_label,
       field_width = field_width, is_required = is_required,
       placeholder = placeholder, help_text = help_text,
       default_value = default_value, widget_file = widget_file,
-      help_detail = help_detail
+      help_detail = help_detail, user_id = user_id
     )
 
     if (!isTRUE(result$success)) {
@@ -527,11 +581,15 @@ add_form_field_by_code <- function(form_code, field_code, field_label,
 #' @param option_label Option label
 #' @param option_order Order
 #' @param is_default Whether default
+#' @param user_id Optional: the user performing this change, recorded
+#'   in the audit trail (see `audit_cd_event()`). `NULL` records an
+#'   unattributed entry rather than failing the operation.
 #' @return List with success status
 #' @keywords internal
 #' @export
 add_field_option <- function(field_id, option_value, option_label,
-                              option_order = 1, is_default = FALSE) {
+                              option_order = 1, is_default = FALSE,
+                              user_id = NULL) {
   tryCatch({
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
@@ -545,6 +603,12 @@ add_field_option <- function(field_id, option_value, option_label,
       as.integer(option_order), as.integer(is_default)
     ))
 
+    audit_cd_event(
+      event_type = "INSERT", table_name = "designer_field_options",
+      record_id = field_id, user_id = user_id,
+      operation = paste("Added option", option_value, "to field", field_id)
+    )
+
     list(success = TRUE, message = "Field option added")
   }, error = function(e) {
     list(success = FALSE, error = e$message)
@@ -556,29 +620,37 @@ add_field_option <- function(field_id, option_value, option_label,
 #' @param field_row New row
 #' @param field_column New column
 #' @param section_id New section
+#' @param user_id Optional: the user performing this change, recorded
+#'   in the audit trail (see `audit_cd_event()`). `NULL` records an
+#'   unattributed entry rather than failing the operation.
 #' @return List with success status
 #' @keywords internal
 #' @export
 update_field_position <- function(field_id, field_row = NULL,
-                                   field_column = NULL, section_id = NULL) {
+                                   field_column = NULL, section_id = NULL,
+                                   user_id = NULL) {
   tryCatch({
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
     updates <- c()
     params <- list()
+    changed <- c()
 
     if (!is.null(field_row)) {
       updates <- c(updates, "field_row = ?")
       params <- append(params, list(as.integer(field_row)))
+      changed <- c(changed, paste0("field_row=", field_row))
     }
     if (!is.null(field_column)) {
       updates <- c(updates, "field_column = ?")
       params <- append(params, list(as.integer(field_column)))
+      changed <- c(changed, paste0("field_column=", field_column))
     }
     if (!is.null(section_id)) {
       updates <- c(updates, "section_id = ?")
       params <- append(params, list(as.integer(section_id)))
+      changed <- c(changed, paste0("section_id=", section_id))
     }
 
     if (length(updates) == 0) {
@@ -592,6 +664,13 @@ update_field_position <- function(field_id, field_row = NULL,
       paste(updates, collapse = ", "),
       "WHERE field_id = ?"
     ), params = params)
+
+    audit_cd_event(
+      event_type = "UPDATE", table_name = "designer_fields",
+      record_id = field_id, user_id = user_id,
+      operation = paste("Updated position of field", field_id),
+      details = paste(changed, collapse = "; ")
+    )
 
     list(success = TRUE, message = "Field position updated")
   }, error = function(e) {
@@ -625,6 +704,12 @@ update_form_status <- function(design_id, new_status, updated_by) {
       updated_by, design_id
     ))
 
+    audit_cd_event(
+      event_type = "UPDATE", table_name = "designer_forms",
+      record_id = design_id, user_id = updated_by,
+      operation = paste("Status changed to", new_status)
+    )
+
     list(success = TRUE, message = "Form status updated")
   }, error = function(e) {
     list(success = FALSE, error = e$message)
@@ -650,6 +735,12 @@ lock_form_design <- function(design_id, locked_by) {
       format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
       locked_by, design_id
     ))
+
+    audit_cd_event(
+      event_type = "UPDATE", table_name = "designer_forms",
+      record_id = design_id, user_id = locked_by,
+      operation = "Form design locked"
+    )
 
     list(success = TRUE, message = "Form design locked")
   }, error = function(e) {
@@ -767,13 +858,22 @@ get_field_options <- function(field_id) {
 
 #' Delete Form Field
 #' @param field_id Field ID
+#' @param user_id Optional: the user performing this change, recorded
+#'   in the audit trail (see `audit_cd_event()`). `NULL` records an
+#'   unattributed entry rather than failing the operation.
 #' @return List with success status
 #' @keywords internal
 #' @export
-delete_form_field <- function(field_id) {
+delete_form_field <- function(field_id, user_id = NULL) {
   tryCatch({
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+    # Read back identifying details before the row is gone, so the
+    # audit entry records what was deleted rather than just its id.
+    deleted <- DBI::dbGetQuery(con, "
+      SELECT field_code, design_id FROM designer_fields WHERE field_id = ?
+    ", params = list(field_id))
 
     DBI::dbExecute(con, "
       DELETE FROM designer_field_options WHERE field_id = ?
@@ -782,6 +882,18 @@ delete_form_field <- function(field_id) {
     DBI::dbExecute(con, "
       DELETE FROM designer_fields WHERE field_id = ?
     ", params = list(field_id))
+
+    audit_cd_event(
+      event_type = "DELETE", table_name = "designer_fields",
+      record_id = field_id, user_id = user_id,
+      operation = paste("Deleted field", field_id),
+      details = if (nrow(deleted) > 0) {
+        paste0("field_code=", deleted$field_code[1],
+               "; design_id=", deleted$design_id[1])
+      } else {
+        NULL
+      }
+    )
 
     list(success = TRUE, message = "Field deleted")
   }, error = function(e) {

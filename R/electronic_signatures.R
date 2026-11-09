@@ -367,8 +367,10 @@ apply_electronic_signature <- function(table_name,
         user_id = signer_user_id,
         table_name = table_name,
         record_id = record_id,
+        operation = paste("Signature applied:", signature_meaning),
         details = paste("Electronic signature applied:",
-                        signature_meaning, "by", signer_full_name)
+                        signature_meaning, "by", signer_full_name),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 
@@ -791,8 +793,10 @@ invalidate_signature <- function(signature_code,
         user_id = invalidated_by,
         table_name = sig$table_name,
         record_id = sig$record_id,
+        operation = paste("Signature invalidated:", signature_code),
         details = paste("Signature invalidated:", signature_code,
-                        "| Reason:", reason)
+                        "| Reason:", reason),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 

@@ -18,7 +18,8 @@ add_form_field(
   help_text = NULL,
   default_value = NULL,
   widget_file = NULL,
-  help_detail = NULL
+  help_detail = NULL,
+  user_id = NULL
 )
 }
 \arguments{
@@ -58,6 +59,10 @@ description that would be too much for \code{help_text}'s one-line
 hover hint. Shown instead in a modal, opened by clicking the
 field's hint icon (see \code{inst/app/edc.R}); a field with no
 \code{help_detail} keeps the plain hover tooltip for that click.}
+
+\item{user_id}{Optional: the user performing this change, recorded
+in the audit trail (see \code{audit_cd_event()}). \code{NULL} records an
+unattributed entry rather than failing the operation.}
 }
 \value{
 List with success status

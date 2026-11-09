@@ -17,7 +17,8 @@ add_form_field_by_code(
   help_text = NULL,
   default_value = NULL,
   widget_file = NULL,
-  help_detail = NULL
+  help_detail = NULL,
+  user_id = NULL
 )
 }
 \arguments{
@@ -53,6 +54,10 @@ or \code{NULL} for none (see \code{add_form_field()})}
 
 \item{help_detail}{Optional long-form help content (see
 \code{add_form_field()})}
+
+\item{user_id}{Optional: the user performing this change, passed
+through to \code{add_form_field()}'s audit-trail entry. \code{NULL}
+records an unattributed entry rather than failing the operation.}
 }
 \value{
 List with \code{success}. On success, also \code{design_id},

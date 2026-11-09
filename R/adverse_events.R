@@ -487,8 +487,10 @@ create_adverse_event <- function(study_id,
         user_id = reported_by,
         table_name = "adverse_events",
         record_id = as.character(ae_id),
+        operation = paste("Adverse event created:", ae_term),
         details = paste("AE created:", ae_term, "| Severity:", severity,
-                        "| Subject:", subject_id)
+                        "| Subject:", subject_id),
+        db_path = db_path
       )
     }, error = function(e) NULL)
 

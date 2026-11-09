@@ -10,7 +10,8 @@ add_form_section(
   section_name,
   section_order = 1,
   is_repeating = FALSE,
-  columns = 1
+  columns = 1,
+  user_id = NULL
 )
 }
 \arguments{
@@ -25,6 +26,10 @@ add_form_section(
 \item{is_repeating}{Whether repeating}
 
 \item{columns}{Number of columns}
+
+\item{user_id}{Optional: the user performing this change, recorded
+in the audit trail (see \code{audit_cd_event()}). \code{NULL} records an
+unattributed entry rather than failing the operation.}
 }
 \value{
 List with success status

@@ -357,19 +357,50 @@ Multi-factor authentication is documented in `R/auth_module.R`; this
 module was outside the scope of the most recent compliance audit and
 its claims are unverified at the present revision.
 
-The CRF Designer module (`R/crf_designer.R`) does not participate in
-the audit chain at all: `create_designer_form()`, `add_form_field()`,
-`add_form_field_by_code()`, and the rest of that module never call
-`log_audit_event()`, confirmed by grep across the source (every other
-mutating module -- `R/adverse_events.R`, `R/data_correction.R`,
-`R/version_control.R`, `R/electronic_signatures.R`,
-`R/protocol_compliance.R`, `R/privacy_module.R`,
-`R/validation_framework.R`, `R/audit_enhanced.R` -- does). Under 21
-CFR Part 11 §11.10(e), a record of who changed a form's structure and
-when should exist; today it does not. A form definition change is
-recoverable only from the Google Sheet's own edit history and
-whatever out-of-band record the operator keeps, as described in
-`vignette('promotion-tracker-add-field-walkthrough')`, Section 2.
+**Audit trail gap, found and fixed 2026-11-08.** Two independent
+defects had left §11.10(e) ("secure, computer-generated, time-stamped
+audit trails") substantially broken, both now corrected and covered
+by permanent regression tests:
+
+1. The CRF Designer module (`R/crf_designer.R`) never called
+   `log_audit_event()` at all -- confirmed by grep across the
+   source. Adding, moving, or deleting a form field through
+   `create_designer_form()`, `add_form_field()`,
+   `add_form_field_by_code()`, `update_field_position()`,
+   `delete_form_field()`, and the module's other mutators left no
+   audit row. Each now logs its own `INSERT`/`UPDATE`/`DELETE` event
+   through a new local helper, `audit_cd_event()`.
+2. Independently, and more severely: ten existing
+   `log_audit_event()` call sites across `R/adverse_events.R`,
+   `R/electronic_signatures.R` (two sites), `R/data_correction.R`
+   (six sites), and `R/protocol_compliance.R` had been silently
+   writing nothing for an unknown period before this fix.
+   `log_audit_event()`'s `operation` argument has no default and is
+   evaluated before that function's own `tryCatch` begins; every one
+   of those ten calls omitted it, so the resulting error was thrown
+   before `log_audit_event()` could catch it, and was instead
+   swallowed by the *caller's* `tryCatch(..., error = function(e)
+   NULL)`. The outer operation (recording an adverse event, applying
+   or revoking a signature, requesting, approving, rejecting, or
+   applying a correction, reporting a protocol deviation) always
+   reported success; the audit row never existed. A second,
+   compounding defect at the same ten sites meant that even once
+   `operation` is supplied, the write would still target the wrong
+   database whenever the caller passed an explicit `db_path` (as
+   every test harness, and potentially a multi-study deployment,
+   does) -- `db_path` was never forwarded to the nested
+   `log_audit_event()` call. Both omissions are now fixed at every
+   site, and `run_oq_tests()`'s OQ-003 audit-logging check
+   (§11.10(a)) is noted as an incomplete safeguard against this
+   specific failure mode: it calls `log_audit_event()` directly with
+   `operation` supplied, so it always passed throughout, and would
+   not have caught this defect at any of the ten real call sites.
+
+A form-definition change is still recoverable only from the Google
+Sheet's own edit history if the audit row is somehow lost, as
+described in `vignette('promotion-tracker-add-field-walkthrough')`,
+Section 2 -- but as of this fix, the normal path through
+`add_form_field_by_code()` does write that audit row.
 
 Across 50 audited features mapped to GDPR articles or 21 CFR Part 11
 sections, the canonical compliance reference classifies 35 as
