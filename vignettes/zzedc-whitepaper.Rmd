@@ -420,6 +420,49 @@ There are therefore two answers to 'is this record on a regulatory
 hold?' and they are not unit-tested together. A future revision will
 unify them.
 
+## Addendum: 21 CFR Part 11 Gap Analysis (2026-11-08)
+
+Following the audit-trail defects documented above, a section-by-
+section review of 21 CFR Part 11 Subpart B (§11.10(a)-(k), §11.30,
+§11.50, §11.70, §11.100, §11.200, §11.300) was run against this
+package's actual source, not against this document's own prior
+claims or docstrings. The method was to read the function(s) that
+subpart B's claimed to be covered by, exercise them where feasible,
+and classify each requirement as VERIFIED IMPLEMENTED, PARTIALLY
+IMPLEMENTED, DOCUMENTED-ONLY (schema or UI present, no working code
+behind it), or MISSING. A recurring pattern emerged: this document
+has consistently identified *that* a gap exists in the right place,
+but has underestimated *how broken* the surrounding mechanism
+actually is -- the same pattern already visible in the audit-trail
+finding above (not merely absent in one module, but silently broken
+in ten others).
+
+| Section | Requirement | Verdict | Evidence |
+|---|---|---|---|
+| §11.300(b)/(d) | Password controls (lockout, periodic revision) | **MISSING** | `authenticate_user()` (`R/auth_module.R`) never checks or increments a failed-attempt counter, never calls `log_account_lockout()` (`R/audit_enhanced.R`, which exists but has zero callers), and never reads `config.yml`'s declared `max_failed_attempts: 3`. No password-expiry check exists anywhere. |
+| §11.10(i) | Training records | **MISSING** (worse than this document's prior "schema-only" claim) | `R/cfr_compliance_module.R`'s "Record Training" button has no `observeEvent` handler at all -- clicking it does nothing. `user_training` is read (`SELECT`) but never written anywhere in the package. |
+| §11.10(e) | Audit trail validation coverage | **PARTIALLY IMPLEMENTED, with a false-assurance gap** | `run_oq_tests()`'s audit-logging check calls `log_audit_event()` directly with `operation` supplied, so it always passed throughout the outage documented above; it never exercised any of the ten real call sites that were actually broken. A clean OQ run gave no signal that the underlying mechanism had failed. |
+| §11.10(a) | IQ/OQ/PQ validation suite | VERIFIED IMPLEMENTED | `run_iq_tests()`/`run_oq_tests()`/`run_pq_tests()` (`R/validation_framework.R`) run real checks (package presence, DB connect, encryption round-trip, hash algorithm) with pass/fail results, not stubs -- subject to the §11.10(e) caveat above. |
+| §11.10(k) | Change control | VERIFIED IMPLEMENTED | `R/change_control.R` has a real create, submit, impact-assessment, approval, implementation, verification pipeline, not a stub. |
+| §11.10(f) | Operational/sequencing checks | PARTIALLY IMPLEMENTED | `data_correction.R` enforces `status == "PENDING"` before approve/reject -- real sequencing, spot-checked only; not verified across every module's state machine. |
+| §11.50/§11.70 | Signature manifestation and record linkage | VERIFIED IMPLEMENTED, the strongest area found | `apply_electronic_signature()` stores signer name, timestamp, and meaning (§11.50), requires password re-verification at signing rather than reusing login state, and cryptographically binds the signature to the actual record content via a SHA-256 hash chain (§11.70) rather than a loose `record_id` reference. |
+| §11.10(c) | Record retention | VERIFIED IMPLEMENTED at reasonable depth | `R/retention.R` has policy creation, record registration, expiry detection, legal hold, extension, and anonymize/delete-at-expiry; not independently verified end to end. |
+| §11.10(d) | Access limitation | PARTIALLY IMPLEMENTED, better than this document previously hedged | `authenticate_user()` does check `active = 1` and hash-compare the password -- a real gate exists. This document's prior "unverified" framing undersold the login gate itself; the real gap is the lockout/expiry layer in the §11.300 finding above. |
+
+Not reached in this pass, for lack of time rather than any finding
+of adequacy: §11.10(b) (completeness of record-copy/export
+functions), §11.10(g) (role/authority checks on sensitive
+operations), §11.100 (signature uniqueness and non-reuse
+enforcement), and §11.200(a) (whether login genuinely enforces two
+distinct identification components, or only one). These are flagged
+as open follow-up work, not as verified-adequate.
+
+The §11.300 password-control finding has not been fixed as of this
+writing; it is a design decision (lockout policy, deauthorization
+flow) in the same category as the encryption-no-op finding earlier
+in this document, deferred pending a decision from the deploying
+team rather than fixed blind.
+
 ## Comparison with REDCap, condensed
 
 REDCap is the natural reference point. The two systems address a
