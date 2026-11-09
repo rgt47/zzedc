@@ -215,6 +215,41 @@ initialize_traditional_server <- function(input, output, session) {
     data_server_fn("data")
   }
 
+  # Same reasoning and the same getFromNamespace() pattern as
+  # data_server above: cfr_compliance_server() and
+  # admin_dashboard_server() were never called anywhere in inst/app/,
+  # so the Compliance and Admin tabs this file's companion
+  # gsheets_ui_integration.R now renders would otherwise show a
+  # working-looking UI with no reactive logic behind any of it --
+  # including both electronic-signature observeEvent handlers,
+  # which were themselves still stubs until this same change (see
+  # R/cfr_compliance_module.R).
+  #
+  # user_input is this session's reactiveValues login state (defined
+  # in server.R, in scope here via lexical scoping since this file is
+  # sourced with local = TRUE into server()'s own environment -- the
+  # same way initialize_gsheets_server() above already relies on it).
+  # Both user_id and user_session are passed as the forms each
+  # module's own code already expects: cfr_compliance_server() calls
+  # user_id() as a function, so it needs a live reactive, not a
+  # snapshot taken before login happens; admin_dashboard_server()
+  # reads user_session$role directly as a reactiveValues object.
+  cfr_compliance_server_fn <- tryCatch(
+    utils::getFromNamespace("cfr_compliance_server", "zzedc"),
+    error = function(e) NULL
+  )
+  if (!is.null(cfr_compliance_server_fn)) {
+    cfr_compliance_server_fn("compliance", user_id = reactive(user_input$user_id))
+  }
+
+  admin_dashboard_server_fn <- tryCatch(
+    utils::getFromNamespace("admin_dashboard_server", "zzedc"),
+    error = function(e) NULL
+  )
+  if (!is.null(admin_dashboard_server_fn)) {
+    admin_dashboard_server_fn("admin", db_pool = db_pool, user_session = user_input)
+  }
+
   if (file.exists("export.R")) {
     source("export.R", local = TRUE)
   }

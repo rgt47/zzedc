@@ -461,24 +461,43 @@ cfr_compliance_server <- function(id, user_id = NULL) {
       )
     })
 
-    # Electronic signature application
+    # Electronic signature application. Previously this simulated
+    # success unconditionally -- input$sig_password was collected
+    # from the UI but never passed to any verification function, no
+    # password check ever happened, and no row was ever written to
+    # electronic_signatures. §11.200(a) requires a second identity
+    # component (the password) to be checked at the moment of
+    # signing; this now delegates to the real
+    # apply_electronic_signature() (R/electronic_signatures.R), which
+    # does that via verify_password_for_signature().
     observeEvent(input$apply_signature, {
       req(input$sig_table, input$sig_record_id, input$sig_meaning, input$sig_password)
 
       if (exists("db_pool") && !is.null(user_id())) {
         tryCatch({
-          # In a real wiring, this would delegate to
-          # apply_electronic_signature() in R/electronic_signatures.R.
-          # For now, simulate the signature creation
+          signer <- pool::dbGetQuery(db_pool, "
+            SELECT full_name, password_hash FROM edc_users WHERE user_id = ?
+          ", params = list(user_id()))
 
-          signature_id <- paste0("SIG", format(Sys.time(), "%Y%m%d%H%M%S"), sample(1000:9999, 1))
+          if (nrow(signer) == 0) {
+            showNotification("Signing user not found", type = "error")
+            return()
+          }
 
-          # In a real implementation, this would validate password and create signature
-          result <- list(success = TRUE, signature_id = signature_id)
+          result <- apply_electronic_signature(
+            table_name = input$sig_table,
+            record_id = input$sig_record_id,
+            signer_user_id = user_id(),
+            signer_full_name = signer$full_name[1],
+            signature_meaning = input$sig_meaning,
+            password = input$sig_password,
+            password_hash = signer$password_hash[1],
+            custom_statement = if (nzchar(input$sig_reason %||% "")) input$sig_reason else NULL
+          )
 
-          if (result$success) {
+          if (isTRUE(result$success)) {
             showNotification(
-              paste("Electronic signature applied successfully. Signature ID:", result$signature_id),
+              paste("Electronic signature applied successfully. Signature ID:", result$signature_code),
               type = "success", duration = 5
             )
 
@@ -489,7 +508,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
             load_compliance_data()
 
           } else {
-            showNotification(paste("Signature failed:", result$message),
+            showNotification(paste("Signature failed:", result$message %||% result$error),
                            type = "error", duration = 5)
           }
 
@@ -500,19 +519,30 @@ cfr_compliance_server <- function(id, user_id = NULL) {
       }
     })
 
-    # Signature verification
+    # Signature verification. Previously this always showed "verified
+    # successfully" for any non-empty id, including one that does not
+    # exist -- it never called verify_electronic_signature(), so it
+    # could not detect an invalidated signature or a record modified
+    # after signing.
     observeEvent(input$verify_signature, {
       req(input$verify_sig_id)
 
-      # Simulate signature verification
+      result <- verify_electronic_signature(input$verify_sig_id)
+
       output$signature_verification_result <- renderUI({
-        if (nchar(input$verify_sig_id) > 0) {
-          # In real implementation, this would call verify_electronic_signature()
+        if (isTRUE(result$is_valid)) {
           div(class = "alert alert-success",
             bsicons::bs_icon("check-circle"),
             " Signature verified successfully",
             br(),
-            small("Signature is valid and has not been tampered with.")
+            small(result$message)
+          )
+        } else {
+          div(class = "alert alert-danger",
+            bsicons::bs_icon("x-circle"),
+            " Signature verification failed",
+            br(),
+            small(result$error %||% "Unknown error")
           )
         }
       })

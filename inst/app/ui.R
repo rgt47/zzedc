@@ -244,6 +244,30 @@ if (!exists("ui_content") || is.null(ui_content)) {
     uiOutput("export")
   ),
 
+  # Compliance (electronic signatures, training records) and Admin
+  # (user management, backup/restore, audit trail, system config)
+  # tabs. Mirrors the same two tabs added to gsheets_ui_integration.R's
+  # create_enhanced_ui() -- this traditional UI block is what actually
+  # renders whenever that enhanced path fails, which it currently
+  # always does, every request (a separate, pre-existing bug in
+  # home.R unrelated to these tabs: `source("home.R", local = TRUE)`
+  # assigns to a top-level `output$hometab` that does not exist at
+  # UI-generation time, so create_enhanced_ui() throws and ui.R falls
+  # back to this block). The server-side mounting in
+  # initialize_traditional_server() runs unconditionally either way,
+  # so these tabs are functional regardless of which UI path wins.
+  bslib::nav_panel(
+    title = tagList(safe_icon("patch-check-fill"), "Compliance"),
+    value = "compliance",
+    safe_module_ui("cfr_compliance_ui", "compliance", "Compliance module not available")
+  ),
+
+  bslib::nav_panel(
+    title = tagList(safe_icon("shield-lock-fill"), "Admin"),
+    value = "admin",
+    safe_module_ui("admin_dashboard_ui", "admin", "Admin dashboard not available")
+  ),
+
   # Settings/Admin (future)
   bslib::nav_spacer(),
 

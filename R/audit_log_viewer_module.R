@@ -21,7 +21,7 @@ audit_log_viewer_ui <- function(id) {
         div(class = "row",
           # Username filter
           div(class = "col-md-3",
-            label("User"),
+            tags$label("User"),
             selectInput(ns("filter_user"), NULL,
                        choices = c("All Users" = ""),
                        multiple = FALSE)
@@ -29,7 +29,7 @@ audit_log_viewer_ui <- function(id) {
 
           # Action type filter
           div(class = "col-md-3",
-            label("Action Type"),
+            tags$label("Action Type"),
             selectInput(ns("filter_action"), NULL,
                        choices = list(
                          "All Actions" = "",
@@ -42,14 +42,14 @@ audit_log_viewer_ui <- function(id) {
 
           # Date range filter
           div(class = "col-md-3",
-            label("Date From"),
+            tags$label("Date From"),
             dateInput(ns("filter_date_from"), NULL,
                      value = Sys.Date() - 30,
                      format = "yyyy-mm-dd")
           ),
 
           div(class = "col-md-3",
-            label("Date To"),
+            tags$label("Date To"),
             dateInput(ns("filter_date_to"), NULL,
                      value = Sys.Date(),
                      format = "yyyy-mm-dd")
@@ -59,14 +59,14 @@ audit_log_viewer_ui <- function(id) {
         div(class = "row mt-2",
           # Search box
           div(class = "col-md-6",
-            label("Search"),
+            tags$label("Search"),
             textInput(ns("search_text"), NULL,
                      placeholder = "Search in all fields...")
           ),
 
           # Entity type filter
           div(class = "col-md-3",
-            label("Entity Type"),
+            tags$label("Entity Type"),
             selectInput(ns("filter_entity_type"), NULL,
                        choices = c("All" = "", "Users" = "user", "Data" = "data",
                                   "Forms" = "form", "System" = "system"))

@@ -115,11 +115,25 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL, db_p
       }
     })
 
-    # Initialize all submodules
+    # Initialize all submodules.
+    #
+    # actor_role is passed as a reactive, not the plain snapshot this
+    # used to take (`if (!is.null(user_session)) user_session$role
+    # else NULL`, evaluated exactly once at mount time). This module
+    # is mounted once at session start, before login happens (login
+    # is itself a later observeEvent) -- a plain snapshot would have
+    # permanently captured user_session$role as NULL for the entire
+    # session, so role-gating inside user_management_server() would
+    # never reflect who actually logged in, however long the session
+    # ran. user_management_server()'s own actor_role handling already
+    # resolves either a reactive or a plain value, so this just needs
+    # to supply the reactive form.
     user_mgmt_results <- user_management_server(
       "user_mgmt",
       db_pool    = db_pool,
-      actor_role = if (!is.null(user_session)) user_session$role else NULL
+      actor_role = shiny::reactive({
+        if (!is.null(user_session)) user_session$role else NULL
+      })
     )
 
     backup_restore_results <- backup_restore_server(
@@ -211,18 +225,18 @@ system_config_ui <- function(id) {
           bslib::card_header(class = "bg-danger text-white", "Security"),
           bslib::card_body(
             div(class = "mb-3",
-              label("Session Timeout (minutes)"),
+              tags$label("Session Timeout (minutes)"),
               numericInput(ns("session_timeout"), NULL, value = 30, min = 5, max = 1440)
             ),
 
             div(class = "mb-3",
-              label("Max Failed Login Attempts"),
+              tags$label("Max Failed Login Attempts"),
               numericInput(ns("max_login_attempts"), NULL, value = 3, min = 1, max = 10)
             ),
 
             div(class = "form-check mb-3",
-              input(id = ns("enforce_https"), type = "checkbox", class = "form-check-input"),
-              label("Enforce HTTPS", `for` = ns("enforce_https"), class = "form-check-label")
+              tags$input(id = ns("enforce_https"), type = "checkbox", class = "form-check-input"),
+              tags$label("Enforce HTTPS", `for` = ns("enforce_https"), class = "form-check-label")
             ),
 
             actionButton(ns("save_security"), "Save Settings", class = "btn btn-primary btn-sm")
@@ -240,24 +254,24 @@ system_config_ui <- function(id) {
             div(class = "row",
               div(class = "col-md-4",
                 div(class = "form-check",
-                  input(id = ns("gdpr_enabled"), type = "checkbox", class = "form-check-input", checked = TRUE),
-                  label("GDPR Compliance", `for` = ns("gdpr_enabled"), class = "form-check-label")
+                  tags$input(id = ns("gdpr_enabled"), type = "checkbox", class = "form-check-input", checked = TRUE),
+                  tags$label("GDPR Compliance", `for` = ns("gdpr_enabled"), class = "form-check-label")
                 ),
                 p(class = "small text-muted mt-2", "Data subject rights, consent management, privacy controls")
               ),
 
               div(class = "col-md-4",
                 div(class = "form-check",
-                  input(id = ns("cfr_enabled"), type = "checkbox", class = "form-check-input", checked = TRUE),
-                  label("21 CFR Part 11", `for` = ns("cfr_enabled"), class = "form-check-label")
+                  tags$input(id = ns("cfr_enabled"), type = "checkbox", class = "form-check-input", checked = TRUE),
+                  tags$label("21 CFR Part 11", `for` = ns("cfr_enabled"), class = "form-check-label")
                 ),
                 p(class = "small text-muted mt-2", "Electronic signatures, audit trails, data integrity")
               ),
 
               div(class = "col-md-4",
                 div(class = "form-check",
-                  input(id = ns("audit_logging"), type = "checkbox", class = "form-check-input", checked = TRUE),
-                  label("Audit Logging", `for` = ns("audit_logging"), class = "form-check-label")
+                  tags$input(id = ns("audit_logging"), type = "checkbox", class = "form-check-input", checked = TRUE),
+                  tags$label("Audit Logging", `for` = ns("audit_logging"), class = "form-check-label")
                 ),
                 p(class = "small text-muted mt-2", "Track all system actions and data changes")
               )

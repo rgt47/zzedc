@@ -102,6 +102,38 @@ create_enhanced_ui <- function() {
     create_setup_ui()
   )
 
+  # 7. Compliance (electronic signatures, training records) and Admin
+  # (user management, backup/restore, audit trail, system config)
+  # tabs. Both modules already exist in the zzedc package, fully
+  # implemented with their own tests, but neither was ever mounted
+  # anywhere in inst/app/ -- confirmed by a repo-wide grep for
+  # cfr_compliance_server(/admin_dashboard_server( across every file
+  # here before this change: zero matches. Looked up via
+  # getFromNamespace() the same defensive way ui.R's own
+  # safe_module_ui() does for internal (non-exported) package
+  # functions, so a build missing either module degrades to a
+  # warning panel instead of a hard failure.
+  .safe_internal_ui <- function(ui_fn_name, id, fallback) {
+    fn <- tryCatch(utils::getFromNamespace(ui_fn_name, "zzedc"), error = function(e) NULL)
+    if (!is.null(fn) && is.function(fn)) fn(id) else div(class = "alert alert-warning", fallback)
+  }
+
+  nav_tabs[["compliance"]] <- bslib::nav_panel(
+    title = "Compliance",
+    icon = bsicons::bs_icon("patch-check"),
+    value = "compliance",
+    .safe_internal_ui("cfr_compliance_ui", "compliance",
+                       "Compliance module not available")
+  )
+
+  nav_tabs[["admin"]] <- bslib::nav_panel(
+    title = "Admin",
+    icon = bsicons::bs_icon("shield-lock"),
+    value = "admin",
+    .safe_internal_ui("admin_dashboard_ui", "admin",
+                       "Admin dashboard not available")
+  )
+
   # Build the complete UI
   ui <- bslib::page_navbar(
     title = div(

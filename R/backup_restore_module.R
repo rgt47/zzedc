@@ -43,14 +43,14 @@ backup_restore_ui <- function(id) {
             p("Back up your database immediately to prevent data loss."),
 
             div(class = "mb-3",
-              label("Backup Name (optional)"),
+              tags$label("Backup Name (optional)"),
               textInput(ns("backup_name"), NULL,
                        placeholder = "e.g., 'Before data cleanup'")
             ),
 
             div(class = "form-check mb-3",
-              input(id = ns("backup_compress"), type = "checkbox", class = "form-check-input", checked = TRUE),
-              label("Compress backup file (saves space)", `for` = ns("backup_compress"), class = "form-check-label")
+              tags$input(id = ns("backup_compress"), type = "checkbox", class = "form-check-input", checked = TRUE),
+              tags$label("Compress backup file (saves space)", `for` = ns("backup_compress"), class = "form-check-label")
             ),
 
             div(class = "d-grid",
@@ -76,19 +76,19 @@ backup_restore_ui <- function(id) {
           bslib::card_header("Automatic Backups"),
           bslib::card_body(
             div(class = "form-check mb-2",
-              input(id = ns("auto_backup_enable"), type = "checkbox", class = "form-check-input", checked = TRUE),
-              label("Enable automatic daily backups", `for` = ns("auto_backup_enable"), class = "form-check-label")
+              tags$input(id = ns("auto_backup_enable"), type = "checkbox", class = "form-check-input", checked = TRUE),
+              tags$label("Enable automatic daily backups", `for` = ns("auto_backup_enable"), class = "form-check-label")
             ),
 
             div(class = "form-group mt-3",
-              label("Backup Time (daily)"),
+              tags$label("Backup Time (daily)"),
               selectInput(ns("auto_backup_time"), NULL,
                          choices = sprintf("%02d:00", 0:23),
                          selected = "02:00")
             ),
 
             div(class = "form-group",
-              label("Keep Backups For (days)"),
+              tags$label("Keep Backups For (days)"),
               numericInput(ns("auto_backup_retain"), NULL, value = 30, min = 1, max = 365)
             ),
 

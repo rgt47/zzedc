@@ -229,6 +229,15 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
+    # actor_role may be passed as a plain string or, when mounted
+    # against a per-session reactiveValues login state (the role is
+    # not yet known at mount time, before login happens), a reactive
+    # expression -- same defensive resolution data_correction_module.R
+    # already uses for its own current_user/user_role parameters.
+    .actor_role <- function() {
+      if (shiny::is.reactive(actor_role)) actor_role() else actor_role
+    }
+
     # Reactive values for state management
     user_state <- reactiveValues(
       users = data.frame(),
@@ -339,8 +348,8 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
 
       shiny::showModal(.user_modal_dialog(ns, title = "Add User"))
 
-      choices <- if (!is.null(actor_role)) {
-        .assignable_roles(actor_role)
+      choices <- if (!is.null(.actor_role())) {
+        .assignable_roles(.actor_role())
       } else {
         c("Admin", "PI", "StudyManager", "Coordinator",
           "Data Manager", "Monitor")
@@ -371,8 +380,8 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
         active   = as.logical(user_row$active[1])
       ))
 
-      choices <- if (!is.null(actor_role)) {
-        .assignable_roles(actor_role)
+      choices <- if (!is.null(.actor_role())) {
+        .assignable_roles(.actor_role())
       } else {
         c("Admin", "PI", "StudyManager", "Coordinator",
           "Data Manager", "Monitor")
@@ -435,7 +444,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
         password = input$modal_password,
         active = input$modal_active,
         mode = user_state$modal_mode,
-        actor_role = actor_role
+        actor_role = .actor_role()
       )
 
       # Reload users and close modal
