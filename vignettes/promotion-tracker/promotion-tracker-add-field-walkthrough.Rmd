@@ -253,9 +253,21 @@ DBI::dbDisconnect(conn)
 
 Treat this as an admin-only escape hatch, not routine practice: it
 bypasses the package's own validation (`is_backend_available`,
-field-type checking, the audit trail that `add_form_field()` would
-otherwise participate in). Prefer the normal path above whenever the
-encryption key is actually available to you.
+field-type checking) and the key-gated connection that
+`add_form_field_by_code()` enforces. Prefer the normal path above
+whenever the encryption key is actually available to you.
+
+**Neither path writes to the audit trail.** Despite the parallel to
+other mutating operations in this package, `add_form_field()` and
+`add_form_field_by_code()` do not call `log_audit_event()` --
+confirmed by inspection, `R/crf_designer.R` has no reference to it
+at all, unlike `R/adverse_events.R`, `R/data_correction.R`,
+`R/version_control.R`, and the other modules that do. Adding or
+editing a field through either path leaves no row in `audit_log`;
+the only record of the change is whatever the Google Sheet and this
+walkthrough's own command history capture. This is a real gap, not
+a design choice documented elsewhere, and is tracked in
+`vignette('zzedc-whitepaper')`.
 
 ---
 
@@ -314,5 +326,5 @@ the form tab) forces the metadata query to re-run.
   running on a schedule regardless.
 
 ---
-*Rendered on 2026-11-07 at 11:01 PST.*<br>
+*Rendered on 2026-11-08 at 16:07 PST.*<br>
 *Source: ~/prj/sfw/05-zzedc/zzedc/vignettes/promotion-tracker/promotion-tracker-add-field-walkthrough.Rmd*

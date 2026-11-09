@@ -357,6 +357,20 @@ Multi-factor authentication is documented in `R/auth_module.R`; this
 module was outside the scope of the most recent compliance audit and
 its claims are unverified at the present revision.
 
+The CRF Designer module (`R/crf_designer.R`) does not participate in
+the audit chain at all: `create_designer_form()`, `add_form_field()`,
+`add_form_field_by_code()`, and the rest of that module never call
+`log_audit_event()`, confirmed by grep across the source (every other
+mutating module -- `R/adverse_events.R`, `R/data_correction.R`,
+`R/version_control.R`, `R/electronic_signatures.R`,
+`R/protocol_compliance.R`, `R/privacy_module.R`,
+`R/validation_framework.R`, `R/audit_enhanced.R` -- does). Under 21
+CFR Part 11 §11.10(e), a record of who changed a form's structure and
+when should exist; today it does not. A form definition change is
+recoverable only from the Google Sheet's own edit history and
+whatever out-of-band record the operator keeps, as described in
+`vignette('promotion-tracker-add-field-walkthrough')`, Section 2.
+
 Across 50 audited features mapped to GDPR articles or 21 CFR Part 11
 sections, the canonical compliance reference classifies 35 as
 implemented, 8 as partial (most often because of an absent transport

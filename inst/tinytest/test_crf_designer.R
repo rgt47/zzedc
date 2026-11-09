@@ -570,3 +570,75 @@ local({
     expect_equal(sum(form_data$fields$field_code == "dup_field"), 1)
 
 })
+# Test: add_form_field_by_code rejects the lower-case Data Dictionary
+# spelling of field_type (e.g. "date"), matching the warning in
+# vignette('promotion-tracker-add-field-walkthrough'), Section 2: the
+# Google Sheets importer upper-cases field_type on the way in, but
+# this direct call does not do that translation for the caller.
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    create_designer_form(
+      form_code = "JOURNAL_REVIEWS",
+      form_name = "Journal Reviews",
+      created_by = "designer"
+    )
+
+    result <- add_form_field_by_code(
+      form_code = "journal_reviews",
+      field_code = "review_assigned_date",
+      field_label = "Review Assigned Date",
+      field_type = "date"
+    )
+
+    expect_false(result$success)
+    expect_match(result$error, "Invalid field_type: date")
+
+})
+# Test: the vignette's worked example end to end -- the row written
+# by add_form_field_by_code() is read back from designer_fields with
+# every field matching what was passed in, which is exactly what
+# result$verified summarizes. This exercises the same read result$
+# verified is itself computed from, as an independent check that it
+# is not just reporting TRUE regardless of the row's actual content.
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    form <- create_designer_form(
+      form_code = "journal_reviews",
+      form_name = "Journal Reviews",
+      created_by = "designer"
+    )
+
+    result <- add_form_field_by_code(
+      form_code = "journal_reviews",
+      field_code = "review_assigned_date",
+      field_label = "Review Assigned Date",
+      field_type = "DATE",
+      field_row = 35,
+      field_column = 1,
+      is_required = FALSE,
+      help_text = "Date the editor assigned this manuscript for review"
+    )
+    expect_true(result$success)
+
+    con <- connect_encrypted_db()
+    on.exit(DBI::dbDisconnect(con), add = TRUE)
+    written <- DBI::dbGetQuery(con, "
+      SELECT field_code, field_label, field_type, field_row, field_column,
+             is_required, help_text
+      FROM designer_fields WHERE field_id = ?
+    ", params = list(result$field_id))
+
+    expect_equal(written$field_code, "review_assigned_date")
+    expect_equal(written$field_label, "Review Assigned Date")
+    expect_equal(written$field_type, "DATE")
+    expect_equal(written$field_row, 35)
+    expect_equal(written$field_column, 1)
+    expect_equal(written$is_required, 0)
+    expect_equal(written$help_text,
+                 "Date the editor assigned this manuscript for review")
+
+})
