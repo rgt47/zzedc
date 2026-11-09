@@ -315,6 +315,35 @@ local({
     expect_equal(locked, 1)
 
 })
+# Test: lock_form_design enforces §11.10(g) locker_role gating when
+# supplied, and skips the check (existing behavior) when it is
+# omitted. Added 2026-11-09.
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    form <- create_designer_form(
+      form_code = "LOCK_ROLE_TEST",
+      form_name = "Lock Role Test",
+      created_by = "designer"
+    )
+
+    denied <- lock_form_design(form$design_id, "monitor1", locker_role = "Monitor")
+    expect_false(denied$success)
+    expect_true(grepl("not authorized", denied$error))
+
+    con <- connect_encrypted_db()
+    on.exit(DBI::dbDisconnect(con), add = TRUE)
+    still_unlocked <- DBI::dbGetQuery(con, "
+      SELECT is_locked FROM designer_forms WHERE design_id = ?
+    ", params = list(form$design_id))$is_locked[1]
+    expect_equal(still_unlocked, 0,
+                 info = "a denied role check must not have locked the form")
+
+    allowed <- lock_form_design(form$design_id, "admin1", locker_role = "Admin")
+    expect_true(allowed$success)
+
+})
 # Test: get_designer_form returns full details
 local({
     setup_cd_test()

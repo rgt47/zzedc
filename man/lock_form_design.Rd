@@ -4,12 +4,15 @@
 \alias{lock_form_design}
 \title{Lock Form Design}
 \usage{
-lock_form_design(design_id, locked_by)
+lock_form_design(design_id, locked_by, locker_role = NULL)
 }
 \arguments{
 \item{design_id}{Design ID}
 
 \item{locked_by}{User locking}
+
+\item{locker_role}{Optional: the locking user's role, checked via
+\code{\link[=require_role]{require_role()}} against \code{c("Admin", "PI", "StudyManager", "Data Manager")} (§11.10(g)). \code{NULL} skips the check.}
 }
 \value{
 List with success status

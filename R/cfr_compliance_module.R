@@ -345,6 +345,23 @@ cfr_compliance_server <- function(id, user_id = NULL) {
       }
     })
 
+    # Populate the "Record Training" user dropdown with real users.
+    # This was previously left as choices = c() with nothing anywhere
+    # updating it (see the Record Training card's selectInput, above).
+    observe({
+      if (exists("db_pool")) {
+        tryCatch({
+          users <- pool::dbGetQuery(db_pool, "
+            SELECT user_id, full_name, username FROM edc_users
+            WHERE active = 1 ORDER BY full_name
+          ")
+          choices <- setNames(users$user_id,
+                               paste0(users$full_name, " (", users$username, ")"))
+          updateSelectInput(session, "training_user", choices = choices)
+        }, error = function(e) NULL)
+      }
+    })
+
     # Load compliance data from database
     load_compliance_data <- function() {
       tryCatch({
@@ -499,6 +516,42 @@ cfr_compliance_server <- function(id, user_id = NULL) {
           )
         }
       })
+    })
+
+    # Record training (§11.10(i)). Previously this button had no
+    # handler at all -- see ensure_user_training_table()/
+    # db_insert_training_record() in R/db_users.R for the table this
+    # writes to, added alongside this handler.
+    observeEvent(input$record_training, {
+      req(input$training_user, input$training_type, input$training_date)
+
+      if (exists("db_pool")) {
+        tryCatch({
+          conn <- pool::poolCheckout(db_pool)
+          on.exit(pool::poolReturn(conn), add = TRUE)
+
+          result <- db_insert_training_record(
+            conn = conn,
+            user_id = input$training_user,
+            training_type = input$training_type,
+            training_date = input$training_date,
+            trainer_name = if (nzchar(input$trainer_name %||% "")) input$trainer_name else NULL,
+            training_score = input$training_score
+          )
+
+          if (isTRUE(result$success)) {
+            showNotification("Training record saved successfully", type = "success")
+            updateTextInput(session, "trainer_name", value = "")
+            load_compliance_data()
+          } else {
+            showNotification(paste("Failed to save training record:", result$error),
+                            type = "error")
+          }
+        }, error = function(e) {
+          showNotification(paste("Error recording training:", e$message),
+                          type = "error")
+        })
+      }
     })
 
     # Signature history table

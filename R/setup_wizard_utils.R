@@ -248,6 +248,7 @@ auth:
   default_salt: %s
   session_timeout_minutes: %d
   max_failed_attempts: %d
+  lockout_duration_minutes: 15
 
 security:
   enforce_https: %s
@@ -709,6 +710,8 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
         site_id %s,
         active %s DEFAULT %s,
         must_change_password %s DEFAULT %s,
+        failed_login_attempts %s DEFAULT 0,
+        locked_at %s,
         last_login %s,
         created_date %s,
         created_by %s,
@@ -717,7 +720,7 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
       ) ENGINE = MergeTree() ORDER BY user_id
     ", text_type, text_type, text_type, text_type, text_type,
        text_type, text_type, bool_type, bool_default_true,
-       bool_type, bool_default_false,
+       bool_type, bool_default_false, int_type, ts_type,
        ts_type, ts_type, text_type, ts_type, text_type))
   } else {
     DBI::dbExecute(conn, sprintf("
@@ -731,6 +734,8 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
         site_id %s,
         active %s DEFAULT %s,
         must_change_password %s DEFAULT %s,
+        failed_login_attempts %s DEFAULT 0,
+        locked_at %s,
         last_login %s,
         created_date %s DEFAULT CURRENT_TIMESTAMP,
         created_by %s,
@@ -739,7 +744,7 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
       )
     ", text_type, text_type, text_type, text_type, text_type,
        text_type, text_type, bool_type, bool_default_true,
-       bool_type, bool_default_false,
+       bool_type, bool_default_false, int_type, ts_type,
        ts_type, ts_type, text_type, ts_type, text_type))
   }
 

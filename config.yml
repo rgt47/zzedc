@@ -15,6 +15,7 @@ default:
     # Sys.setenv(ZZEDC_SALT = openssl::rand_hex(32))
     default_salt: null  # Will fail if env var not set (forces explicit configuration)
     max_failed_attempts: 3
+    lockout_duration_minutes: 15  # how long a locked account stays locked before auto-unlock
     session_timeout_minutes: 30
 
   # Application settings

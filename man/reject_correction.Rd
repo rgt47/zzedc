@@ -4,7 +4,13 @@
 \alias{reject_correction}
 \title{Reject Correction Request}
 \usage{
-reject_correction(request_id, reviewed_by, review_comments, db_path = NULL)
+reject_correction(
+  request_id,
+  reviewed_by,
+  review_comments,
+  db_path = NULL,
+  reviewer_role = NULL
+)
 }
 \arguments{
 \item{request_id}{Integer: Request identifier}
@@ -14,6 +20,10 @@ reject_correction(request_id, reviewed_by, review_comments, db_path = NULL)
 \item{review_comments}{Character: Rejection reason (required)}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{reviewer_role}{Optional: the reviewer's role (see
+\code{\link[=approve_correction]{approve_correction()}}'s matching parameter for the check and
+allowed-role list).}
 }
 \value{
 List with rejection status

@@ -228,6 +228,19 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     message("Could not ensure edc_users table is current: ", e$message)
   })
 
+  # §11.10(i) training records: user_training has no CREATE TABLE
+  # anywhere else, unlike edc_users/data_entries above -- ensuring it
+  # here, the same way, means the Compliance tab's "Record Training"
+  # button (R/cfr_compliance_module.R) has somewhere to write to from
+  # the very first app launch, on any backend.
+  tryCatch({
+    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    ensure_user_training_table(conn)
+  }, error = function(e) {
+    message("Could not ensure user_training table is current: ", e$message)
+  })
+
   # Run the app
   shiny::runApp(
     appDir = app_dir,
@@ -315,6 +328,7 @@ create_default_config <- function(path = "config.yml") {
 
   auth:
     max_failed_attempts: 3
+    lockout_duration_minutes: 15
     session_timeout_minutes: 30
     default_salt: "%s"
 

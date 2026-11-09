@@ -8,7 +8,8 @@ approve_correction(
   request_id,
   reviewed_by,
   review_comments = NULL,
-  db_path = NULL
+  db_path = NULL,
+  reviewer_role = NULL
 )
 }
 \arguments{
@@ -19,6 +20,11 @@ approve_correction(
 \item{review_comments}{Character: Approval comments (optional)}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{reviewer_role}{Optional: the reviewer's role, checked via
+\code{\link[=require_role]{require_role()}} against \code{c("Admin", "PI", "StudyManager", "Data Manager")} (§11.10(g)). \code{NULL} skips the check -- existing
+callers that do not yet pass a role are unaffected; new callers
+should supply one.}
 }
 \value{
 List with approval status

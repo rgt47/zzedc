@@ -342,6 +342,81 @@ local({
 
     })
 })
+# Test: approve_correction/reject_correction enforce §11.10(g)
+# reviewer_role gating when supplied, and skip the check (existing
+# behavior) when it is omitted. Added 2026-11-09.
+local({
+    if (requireNamespace("RSQLite", quietly = TRUE)) local({
+
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db), add = TRUE)
+
+    create_result <- create_correction_request(
+      table_name = "test_data",
+      record_id = "S001",
+      field_name = "age",
+      original_value = "45",
+      corrected_value = "46",
+      correction_reason = "TYPO",
+      requested_by = "coordinator1",
+      db_path = test_db
+    )
+
+    denied <- approve_correction(
+      request_id = create_result$request_id,
+      reviewed_by = "monitor1",
+      review_comments = "Verified against source document",
+      db_path = test_db,
+      reviewer_role = "Monitor"
+    )
+    expect_false(denied$success)
+    expect_true(grepl("not authorized", denied$error))
+
+    # the request must still be PENDING -- a denied role check must
+    # not have mutated it
+    req <- get_correction_request(create_result$request_id, db_path = test_db)
+    expect_equal(req$request$status, "PENDING")
+
+    allowed <- approve_correction(
+      request_id = create_result$request_id,
+      reviewed_by = "studymanager1",
+      review_comments = "Verified against source document",
+      db_path = test_db,
+      reviewer_role = "StudyManager"
+    )
+    expect_true(allowed$success)
+
+    })
+})
+local({
+    if (requireNamespace("RSQLite", quietly = TRUE)) local({
+
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db), add = TRUE)
+
+    create_result <- create_correction_request(
+      table_name = "test_data",
+      record_id = "S001",
+      field_name = "age",
+      original_value = "45",
+      corrected_value = "46",
+      correction_reason = "TYPO",
+      requested_by = "coordinator1",
+      db_path = test_db
+    )
+
+    denied <- reject_correction(
+      request_id = create_result$request_id,
+      reviewed_by = "monitor1",
+      review_comments = "Not sufficiently documented",
+      db_path = test_db,
+      reviewer_role = "Monitor"
+    )
+    expect_false(denied$success)
+    expect_true(grepl("not authorized", denied$error))
+
+    })
+})
 # Test: reject_correction requires reason
 local({
     if (requireNamespace("RSQLite", quietly = TRUE)) local({
@@ -695,6 +770,50 @@ local({
     content <- readLines(report_file)
     expect_true(any(grepl("DATA CORRECTION REPORT", content)))
     expect_true(any(grepl("Test Organization", content)))
+
+    })
+})
+# Test: generate_correction_report's txt form is a complete copy,
+# not a bounded preview. Added 2026-11-09 (§11.10(b)): this used to
+# cap at the first 50 rows, noting "... and N more corrections"
+# rather than reproducing them. 55 requests (one over the old cap)
+# confirms every one appears and the old truncation note is gone.
+local({
+    if (requireNamespace("RSQLite", quietly = TRUE)) local({
+
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db), add = TRUE)
+
+    n <- 55
+    for (i in seq_len(n)) {
+      create_correction_request(
+        table_name = "test_data",
+        record_id = paste0("S", sprintf("%03d", (i - 1) %% 3 + 1)),
+        field_name = "age",
+        original_value = "40",
+        corrected_value = "41",
+        correction_reason = "TYPO",
+        requested_by = "coordinator1",
+        db_path = test_db
+      )
+    }
+
+    report_file <- tempfile(fileext = ".txt")
+    on.exit(unlink(report_file), add = TRUE)
+
+    result <- generate_correction_report(
+      output_file = report_file, format = "txt",
+      organization = "Test Organization", prepared_by = "Test User",
+      db_path = test_db
+    )
+    expect_true(result$success)
+    expect_equal(result$corrections_count, n)
+
+    content <- readLines(report_file)
+    expect_equal(sum(grepl("^Request #", content)), n,
+                 info = "every correction must appear in the txt report, not just the first 50")
+    expect_false(any(grepl("more corrections", content)),
+                 info = "the old 50-row truncation note must be gone")
 
     })
 })

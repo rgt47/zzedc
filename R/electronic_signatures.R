@@ -739,6 +739,10 @@ check_signature_requirements <- function(table_name,
 #' @param invalidated_by Character: User ID performing invalidation
 #' @param reason Character: Reason for invalidation (required)
 #' @param db_path Character: Database path (optional)
+#' @param invalidator_role Optional: the invalidating user's role,
+#'   checked via [require_role()] against `c("Admin")` (§11.10(g)) --
+#'   revoking a signature is the most sensitive action in this file.
+#'   `NULL` skips the check.
 #'
 #' @return List with invalidation result
 #'
@@ -747,12 +751,18 @@ check_signature_requirements <- function(table_name,
 invalidate_signature <- function(signature_code,
                                   invalidated_by,
                                   reason,
-                                  db_path = NULL) {
+                                  db_path = NULL,
+                                  invalidator_role = NULL) {
   if (is.null(reason) || nchar(reason) < 10) {
     return(list(
       success = FALSE,
       error = "Invalidation reason required (min 10 characters)"
     ))
+  }
+
+  if (!is.null(invalidator_role)) {
+    denied <- require_role(invalidator_role, c("Admin"), "invalidate a signature")
+    if (!is.null(denied)) return(denied)
   }
 
   tryCatch({
@@ -1083,7 +1093,12 @@ generate_signature_report <- function(output_file,
       )
 
       if (nrow(signatures) > 0) {
-        for (i in seq_len(min(nrow(signatures), 50))) {
+        # §11.10(b) requires this report to be a complete copy, not a
+        # bounded preview -- this used to cap at the first 50 rows
+        # (noting "... and N more" rather than dropping them
+        # silently, but still not reproducing them). The json format
+        # already included every row; the txt form now does too.
+        for (i in seq_len(nrow(signatures))) {
           s <- signatures[i, ]
           lines <- c(lines,
             sprintf("Signature: %s", s$signature_code),
@@ -1093,10 +1108,6 @@ generate_signature_report <- function(output_file,
             sprintf("  Signed: %s | Valid: %s", s$signed_at, ifelse(s$is_valid, "Yes", "No")),
             ""
           )
-        }
-
-        if (nrow(signatures) > 50) {
-          lines <- c(lines, sprintf("... and %d more signatures", nrow(signatures) - 50))
         }
       }
 

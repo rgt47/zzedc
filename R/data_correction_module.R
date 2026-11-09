@@ -403,12 +403,14 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
 
     shiny::observeEvent(input$approve_btn, {
       user <- if (shiny::is.reactive(current_user)) current_user() else current_user
+      role <- if (shiny::is.reactive(user_role)) user_role() else user_role
 
       result <- approve_correction(
         request_id = rv$selected_request,
         reviewed_by = user,
         review_comments = input$review_comments,
-        db_path = db_path
+        db_path = db_path,
+        reviewer_role = role
       )
 
       if (result$success) {
@@ -422,6 +424,7 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
 
     shiny::observeEvent(input$reject_btn, {
       user <- if (shiny::is.reactive(current_user)) current_user() else current_user
+      role <- if (shiny::is.reactive(user_role)) user_role() else user_role
 
       if (nchar(input$review_comments) < 10) {
         shiny::showNotification(
@@ -433,7 +436,8 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
         request_id = rv$selected_request,
         reviewed_by = user,
         review_comments = input$review_comments,
-        db_path = db_path
+        db_path = db_path,
+        reviewer_role = role
       )
 
       if (result$success) {

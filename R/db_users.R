@@ -78,6 +78,19 @@ ensure_edc_users_table <- function(conn) {
     DBI::dbExecute(conn,
       "ALTER TABLE edc_users ADD COLUMN must_change_password INTEGER DEFAULT 0")
   }
+  # §11.300 password-lockout columns, migrated in the same idempotent
+  # style as must_change_password above. Defaulting both to 0/NULL on
+  # migration means an already-deployed study's existing users start
+  # unlocked, not retroactively penalized for login history that
+  # predates this feature.
+  if (!"failed_login_attempts" %in% DBI::dbListFields(conn, "edc_users")) {
+    DBI::dbExecute(conn,
+      "ALTER TABLE edc_users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0")
+  }
+  if (!"locked_at" %in% DBI::dbListFields(conn, "edc_users")) {
+    DBI::dbExecute(conn,
+      "ALTER TABLE edc_users ADD COLUMN locked_at TIMESTAMP")
+  }
   invisible(NULL)
 }
 
@@ -159,6 +172,116 @@ db_insert_user <- function(conn,
       as.character(created_by)
     ))
     list(success = TRUE, user_id = user_id)
+  }, error = function(e) {
+    # §11.100: usernames are never deleted, only deactivated, so a
+    # UNIQUE-constraint failure here almost always means the admin
+    # typed a username that belongs to an existing (possibly
+    # deactivated) account -- including a past attempt to reassign an
+    # identifier to a different individual, which §11.100(a)
+    # specifically prohibits. A bare "Database error" left that
+    # indistinguishable from an unrelated DB failure.
+    msg <- conditionMessage(e)
+    if (grepl("UNIQUE|constraint", msg, ignore.case = TRUE)) {
+      list(success = FALSE,
+           error = paste0(
+             "Username '", username, "' is already in use (possibly by a ",
+             "deactivated account). Usernames are never reassigned to a ",
+             "different individual; choose a different username."
+           ))
+    } else {
+      list(success = FALSE, error = msg)
+    }
+  })
+}
+
+
+#' Create the `user_training` table if it does not exist
+#'
+#' §11.10(i) training records. Before this, `user_training` was
+#' referenced by exactly one query in the whole package -- the
+#' read-only `SELECT` in `cfr_compliance_module.R`'s compliance
+#' dashboard -- with no `CREATE TABLE` anywhere and no writer of any
+#' kind; the dashboard's own "Record Training" button had no handler
+#' behind it at all. This mirrors [ensure_edc_users_table()]'s
+#' idempotent create-if-missing pattern.
+#'
+#' @param conn A DBI connection (or pool object that delegates DBI
+#'   methods).
+#' @return Invisible `NULL`.
+#' @keywords internal
+ensure_user_training_table <- function(conn) {
+  DBI::dbExecute(conn, "
+    CREATE TABLE IF NOT EXISTS user_training (
+      training_id       TEXT PRIMARY KEY,
+      user_id            TEXT NOT NULL REFERENCES edc_users(user_id),
+      training_type      TEXT NOT NULL,
+      training_date      DATE NOT NULL,
+      trainer_name       TEXT,
+      training_score     REAL,
+      completion_status  TEXT DEFAULT 'completed',
+      expiry_date        DATE,
+      created_date       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+  invisible(NULL)
+}
+
+
+#' Insert a single row into `user_training`
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param user_id The trainee's `edc_users.user_id`.
+#' @param training_type One of the values `cfr_compliance_module.R`'s
+#'   `training_type` select offers (e.g. `"cfr_part11_basics"`).
+#' @param training_date The date training was completed.
+#' @param trainer_name Optional trainer name.
+#' @param training_score Optional numeric score (0-100).
+#' @param completion_status Defaults to `"completed"` -- recording a
+#'   training event through this path means it already happened, not
+#'   that it is scheduled.
+#' @param expiry_date Defaults to one year after `training_date`,
+#'   the common renewal period for compliance training of this kind;
+#'   pass a different date explicitly if a given `training_type`
+#'   needs a different cycle.
+#' @param training_id Optional pre-generated identifier; auto-
+#'   generated if `NULL`.
+#' @return Named list with `success` (logical) and either
+#'   `training_id` (on success) or `error`.
+#' @keywords internal
+db_insert_training_record <- function(conn,
+                                       user_id,
+                                       training_type,
+                                       training_date,
+                                       trainer_name = NULL,
+                                       training_score = NULL,
+                                       completion_status = "completed",
+                                       expiry_date = NULL,
+                                       training_id = NULL) {
+  if (is.null(training_id) || !nzchar(as.character(training_id))) {
+    training_id <- paste0("TRAIN_", as.integer(Sys.time()), "_",
+                           sample(1e6, 1L))
+  }
+  if (is.null(expiry_date)) {
+    expiry_date <- as.character(as.Date(training_date) + 365)
+  }
+
+  tryCatch({
+    DBI::dbExecute(conn, "
+      INSERT INTO user_training
+        (training_id, user_id, training_type, training_date,
+         trainer_name, training_score, completion_status, expiry_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ", list(
+      as.character(training_id),
+      as.character(user_id),
+      as.character(training_type),
+      as.character(training_date),
+      if (is.null(trainer_name)) NA_character_ else as.character(trainer_name),
+      if (is.null(training_score)) NA_real_ else as.numeric(training_score),
+      as.character(completion_status),
+      as.character(expiry_date)
+    ))
+    list(success = TRUE, training_id = training_id)
   }, error = function(e) {
     list(success = FALSE, error = conditionMessage(e))
   })

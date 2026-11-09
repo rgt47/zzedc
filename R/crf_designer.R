@@ -719,11 +719,21 @@ update_form_status <- function(design_id, new_status, updated_by) {
 #' Lock Form Design
 #' @param design_id Design ID
 #' @param locked_by User locking
+#' @param locker_role Optional: the locking user's role, checked via
+#'   [require_role()] against `c("Admin", "PI", "StudyManager",
+#'   "Data Manager")` (§11.10(g)). `NULL` skips the check.
 #' @return List with success status
 #' @keywords internal
 #' @export
-lock_form_design <- function(design_id, locked_by) {
+lock_form_design <- function(design_id, locked_by, locker_role = NULL) {
   tryCatch({
+    if (!is.null(locker_role)) {
+      denied <- require_role(locker_role,
+                              c("Admin", "PI", "StudyManager", "Data Manager"),
+                              "lock a form design")
+      if (!is.null(denied)) return(denied)
+    }
+
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 

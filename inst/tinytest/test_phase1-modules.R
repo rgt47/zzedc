@@ -193,7 +193,68 @@ local({
     # Test: creates new user with hashed password
     local({
             skip("Module functions tested via module servers")
-    
+
+    })
+
+    # Test: save_user_to_db enforces the §11.10(g) actor_role gate
+    # when supplied, and skips it (existing behavior) when omitted.
+    # Added 2026-11-09 -- previously the only "gate" on who could
+    # assign which role was the UI dropdown's own client-side
+    # filtering (.assignable_roles()), which a direct call to this
+    # function bypassed entirely.
+    if (requireNamespace("pool", quietly = TRUE) &&
+          requireNamespace("digest", quietly = TRUE)) local({
+
+        db_path <- tempfile(fileext = ".db")
+        conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+        zzedc:::ensure_edc_users_table(conn)
+        DBI::dbDisconnect(conn)
+        db_pool <- pool::dbPool(RSQLite::SQLite(), dbname = db_path,
+                                 minSize = 1, maxSize = 2)
+        on.exit({
+          pool::poolClose(db_pool)
+          unlink(db_path)
+        }, add = TRUE)
+
+        # A Coordinator-tier actor trying to create an Admin: denied,
+        # and nothing is written.
+        expect_error(
+          zzedc:::save_user_to_db(
+            db_pool = db_pool, user_id = NULL, username = "newadmin",
+            full_name = "New Admin", email = "a@example.org", role = "Admin",
+            password = "pw", active = TRUE, mode = "add",
+            actor_role = "Coordinator"
+          ),
+          pattern = "not assignable"
+        )
+        rows <- pool::dbGetQuery(db_pool,
+          "SELECT COUNT(*) AS n FROM edc_users WHERE username = 'newadmin'")
+        expect_equal(rows$n[1], 0L)
+
+        # A role within what an Admin-tier actor may assign (per the
+        # existing .ROLE_TIER model, a tier-1 actor like Admin may
+        # assign strictly-lower tiers, not its own tier): allowed.
+        zzedc:::save_user_to_db(
+          db_pool = db_pool, user_id = NULL, username = "newcoord2",
+          full_name = "New Coordinator", email = "c2@example.org",
+          role = "Coordinator", password = "pw", active = TRUE,
+          mode = "add", actor_role = "Admin"
+        )
+        rows2 <- pool::dbGetQuery(db_pool,
+          "SELECT COUNT(*) AS n FROM edc_users WHERE username = 'newcoord2'")
+        expect_equal(rows2$n[1], 1L)
+
+        # Omitting actor_role entirely preserves the prior,
+        # unrestricted behavior.
+        zzedc:::save_user_to_db(
+          db_pool = db_pool, user_id = NULL, username = "newadmin3",
+          full_name = "New Admin", email = "a3@example.org", role = "Admin",
+          password = "pw", active = TRUE, mode = "add"
+        )
+        rows3 <- pool::dbGetQuery(db_pool,
+          "SELECT COUNT(*) AS n FROM edc_users WHERE username = 'newadmin3'")
+        expect_equal(rows3$n[1], 1L)
+
     })
 })
 # Phase 1: Backup and Restore Functions

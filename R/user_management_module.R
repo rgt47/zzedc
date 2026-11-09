@@ -17,7 +17,13 @@
 
 # Returns the role names that `actor_role` is permitted to assign.
 .assignable_roles <- function(actor_role) {
-  actor_tier <- .ROLE_TIER[tolower(actor_role %||% 'coordinator')]
+  # .normalize_role_name() (R/authorization.R) replaces spaces with
+  # underscores before lowercasing -- without it, "Data Manager"
+  # looked up "data manager" in .ROLE_TIER, never matched
+  # "data_manager", and silently fell back to the tier-3 default
+  # below (confirmed: this returned only "Monitor" instead of the
+  # tier-2 set StudyManager gets).
+  actor_tier <- .ROLE_TIER[.normalize_role_name(actor_role %||% 'coordinator')]
   if (is.na(actor_tier)) actor_tier <- 3L
   assignable <- names(.ROLE_TIER)[.ROLE_TIER > actor_tier]
   # Capitalise to match UI display values
@@ -428,7 +434,8 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
         role = input$modal_role,
         password = input$modal_password,
         active = input$modal_active,
-        mode = user_state$modal_mode
+        mode = user_state$modal_mode,
+        actor_role = actor_role
       )
 
       # Reload users and close modal
@@ -551,6 +558,13 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
 #' @param password Password (optional for edits)
 #' @param active Whether user is active
 #' @param mode Either "add" or "edit"
+#' @param actor_role Optional: the role of the user performing this
+#'   save, checked against `.assignable_roles(actor_role)` (§11.10(g))
+#'   -- the UI's role dropdown is already pre-filtered by this same
+#'   function (see `user_management_server`'s `observeEvent`
+#'   handlers above), but that is a client-side narrowing only; a
+#'   direct call to this function bypassed it entirely until this
+#'   check was added here too. `NULL` skips the check.
 #'
 #' @examples
 #' \dontrun{
@@ -564,10 +578,18 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
 #' )
 #' }
 #' @keywords internal
-save_user_to_db <- function(db_pool, user_id, username, full_name, email, role, password, active, mode) {
+save_user_to_db <- function(db_pool, user_id, username, full_name, email,
+                             role, password, active, mode, actor_role = NULL) {
 
   if (is.null(db_pool)) {
     return(invisible(NULL))
+  }
+
+  if (!is.null(actor_role) && !role %in% .assignable_roles(actor_role)) {
+    stop(paste0(
+      "Role '", role, "' is not assignable by '", actor_role, "'. ",
+      "Assignable roles: ", paste(.assignable_roles(actor_role), collapse = ", "), "."
+    ))
   }
 
   tryCatch({

@@ -15,7 +15,8 @@ local({
   cols <- DBI::dbListFields(conn, "edc_users")
   expected <- c("user_id", "username", "password_hash",
                  "full_name", "email", "role", "site_id",
-                 "active", "must_change_password", "last_login",
+                 "active", "must_change_password",
+                 "failed_login_attempts", "locked_at", "last_login",
                  "created_date", "created_by", "modified_date",
                  "modified_by")
   expect_true(setequal(cols, expected))
@@ -58,6 +59,51 @@ local({
 })
 
 
+# Test: ensure_edc_users_table() migrates in the §11.300 lockout
+# columns (failed_login_attempts, locked_at) on a table that predates
+# them, same as the must_change_password migration above, and an
+# already-existing row starts unlocked with a zero count rather than
+# erroring on the newly-added columns.
+local({
+  conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  DBI::dbExecute(conn, "
+    CREATE TABLE edc_users (
+      user_id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL, full_name TEXT, email TEXT,
+      role TEXT, site_id TEXT, active INTEGER DEFAULT 1,
+      must_change_password INTEGER DEFAULT 0, last_login TIMESTAMP,
+      created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_by TEXT, modified_date TIMESTAMP, modified_by TEXT
+    )
+  ")
+  DBI::dbExecute(conn, "
+    INSERT INTO edc_users (user_id, username, password_hash, active)
+    VALUES ('USER_PRE2', 'pre_existing2', 'h', 1)
+  ")
+
+  expect_false("failed_login_attempts" %in% DBI::dbListFields(conn, "edc_users"))
+  expect_false("locked_at" %in% DBI::dbListFields(conn, "edc_users"))
+
+  zzedc:::ensure_edc_users_table(conn)
+
+  expect_true("failed_login_attempts" %in% DBI::dbListFields(conn, "edc_users"))
+  expect_true("locked_at" %in% DBI::dbListFields(conn, "edc_users"))
+
+  rows <- DBI::dbGetQuery(conn, "
+    SELECT failed_login_attempts, locked_at FROM edc_users
+    WHERE username = 'pre_existing2'
+  ")
+  expect_equal(rows$failed_login_attempts[1], 0L)
+  expect_true(is.na(rows$locked_at[1]))
+
+  # idempotent: calling again on an already-migrated table is a no-op
+  zzedc:::ensure_edc_users_table(conn)
+  expect_true("failed_login_attempts" %in% DBI::dbListFields(conn, "edc_users"))
+})
+
+
 # Test: db_insert_user happy path produces a row with the
 # expected columns
 local({
@@ -91,7 +137,10 @@ local({
 
 
 # Test: db_insert_user surfaces unique-username conflicts
-# through the result list rather than throwing
+# through the result list rather than throwing, with a message that
+# names the real cause (§11.100: usernames are never reassigned) --
+# previously a bare "Database error: ..." indistinguishable from any
+# other DBI failure.
 local({
   conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
@@ -104,8 +153,8 @@ local({
   second <- zzedc:::db_insert_user(conn, "bob", "h2",
                                      created_by = "test")
   expect_false(second$success)
-  expect_true(grepl("UNIQUE|constraint",
-                     second$error, ignore.case = TRUE))
+  expect_true(grepl("already in use", second$error, ignore.case = TRUE))
+  expect_true(grepl("bob", second$error))
 })
 
 

@@ -4,7 +4,13 @@
 \alias{invalidate_signature}
 \title{Invalidate Electronic Signature}
 \usage{
-invalidate_signature(signature_code, invalidated_by, reason, db_path = NULL)
+invalidate_signature(
+  signature_code,
+  invalidated_by,
+  reason,
+  db_path = NULL,
+  invalidator_role = NULL
+)
 }
 \arguments{
 \item{signature_code}{Character: Signature code to invalidate}
@@ -14,6 +20,11 @@ invalidate_signature(signature_code, invalidated_by, reason, db_path = NULL)
 \item{reason}{Character: Reason for invalidation (required)}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{invalidator_role}{Optional: the invalidating user's role,
+checked via \code{\link[=require_role]{require_role()}} against \code{c("Admin")} (§11.10(g)) --
+revoking a signature is the most sensitive action in this file.
+\code{NULL} skips the check.}
 }
 \value{
 List with invalidation result

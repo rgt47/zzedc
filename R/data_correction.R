@@ -469,12 +469,25 @@ get_pending_corrections <- function(reviewer_id = NULL,
 #' @return List with approval status
 #'
 #' @keywords internal
+#' @param reviewer_role Optional: the reviewer's role, checked via
+#'   [require_role()] against `c("Admin", "PI", "StudyManager",
+#'   "Data Manager")` (§11.10(g)). `NULL` skips the check -- existing
+#'   callers that do not yet pass a role are unaffected; new callers
+#'   should supply one.
 #' @export
 approve_correction <- function(request_id,
                                 reviewed_by,
                                 review_comments = NULL,
-                                db_path = NULL) {
+                                db_path = NULL,
+                                reviewer_role = NULL) {
   tryCatch({
+    if (!is.null(reviewer_role)) {
+      denied <- require_role(reviewer_role,
+                              c("Admin", "PI", "StudyManager", "Data Manager"),
+                              "approve a data correction")
+      if (!is.null(denied)) return(denied)
+    }
+
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -567,6 +580,9 @@ approve_correction <- function(request_id,
 #' @param reviewed_by Character: Reviewer user ID
 #' @param review_comments Character: Rejection reason (required)
 #' @param db_path Character: Database path (optional)
+#' @param reviewer_role Optional: the reviewer's role (see
+#'   [approve_correction()]'s matching parameter for the check and
+#'   allowed-role list).
 #'
 #' @return List with rejection status
 #'
@@ -575,12 +591,20 @@ approve_correction <- function(request_id,
 reject_correction <- function(request_id,
                                reviewed_by,
                                review_comments,
-                               db_path = NULL) {
+                               db_path = NULL,
+                               reviewer_role = NULL) {
   if (is.null(review_comments) || nchar(review_comments) < 10) {
     return(list(
       success = FALSE,
       error = "Rejection reason required (min 10 characters)"
     ))
+  }
+
+  if (!is.null(reviewer_role)) {
+    denied <- require_role(reviewer_role,
+                            c("Admin", "PI", "StudyManager", "Data Manager"),
+                            "reject a data correction")
+    if (!is.null(denied)) return(denied)
   }
 
   tryCatch({
@@ -1307,7 +1331,10 @@ generate_correction_report <- function(output_file,
       )
 
       if (nrow(corrections) > 0) {
-        for (i in seq_len(min(nrow(corrections), 50))) {
+        # §11.10(b) requires this report to be a complete copy, not a
+        # bounded preview -- see the matching fix and comment in
+        # generate_signature_report() (R/electronic_signatures.R).
+        for (i in seq_len(nrow(corrections))) {
           r <- corrections[i, ]
           lines <- c(lines,
             sprintf("Request #%d", r$request_id),
@@ -1320,11 +1347,6 @@ generate_correction_report <- function(output_file,
                     r$status, r$requested_at, r$requested_by),
             ""
           )
-        }
-
-        if (nrow(corrections) > 50) {
-          lines <- c(lines, sprintf("... and %d more corrections",
-                                    nrow(corrections) - 50))
         }
       }
 

@@ -439,6 +439,56 @@ local({
 
     })
 })
+# Test: invalidate_signature enforces §11.10(g) invalidator_role
+# gating when supplied (Admin only -- revoking a signature is the
+# most sensitive action in this file), and skips the check (existing
+# behavior) when it is omitted. Added 2026-11-09.
+local({
+    if (requireNamespace("RSQLite", quietly = TRUE)) local({
+
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db), add = TRUE)
+
+    password <- "testpassword123"
+    password_hash <- get_test_password_hash(password)
+
+    sig_result <- apply_electronic_signature(
+      table_name = "test_records",
+      record_id = "1",
+      signer_user_id = "user001",
+      signer_full_name = "John Smith",
+      signature_meaning = "CREATED_BY",
+      password = password,
+      password_hash = password_hash,
+      db_path = test_db
+    )
+
+    denied <- invalidate_signature(
+      signature_code = sig_result$signature_code,
+      invalidated_by = "studymanager1",
+      reason = "Signature applied in error - wrong record selected",
+      db_path = test_db,
+      invalidator_role = "StudyManager"
+    )
+    expect_false(denied$success)
+    expect_true(grepl("not authorized", denied$error))
+
+    # the signature must still be valid -- a denied role check must
+    # not have mutated it
+    still_valid <- verify_electronic_signature(sig_result$signature_code, db_path = test_db)
+    expect_true(still_valid$is_valid)
+
+    allowed <- invalidate_signature(
+      signature_code = sig_result$signature_code,
+      invalidated_by = "admin1",
+      reason = "Signature applied in error - wrong record selected",
+      db_path = test_db,
+      invalidator_role = "Admin"
+    )
+    expect_true(allowed$success)
+
+    })
+})
 # Test: invalidate_signature requires reason
 local({
     if (requireNamespace("RSQLite", quietly = TRUE)) local({
@@ -551,6 +601,54 @@ local({
     expect_true(any(grepl("ELECTRONIC SIGNATURE REPORT", content)))
     expect_true(any(grepl("Test Organization", content)))
     expect_true(any(grepl("21 CFR Part 11", content)))
+
+    })
+})
+# Test: generate_signature_report's txt form is a complete copy, not
+# a bounded preview. Added 2026-11-09 (§11.10(b)): this used to cap
+# at the first 50 rows, noting "... and N more signatures" rather
+# than reproducing them -- the json form had everything, the txt form
+# did not. 55 signatures (one over the old cap) confirms every one of
+# them appears and the old truncation note is gone.
+local({
+    if (requireNamespace("RSQLite", quietly = TRUE)) local({
+
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db), add = TRUE)
+
+    password <- "testpassword123"
+    password_hash <- get_test_password_hash(password)
+
+    n <- 55
+    for (i in seq_len(n)) {
+      apply_electronic_signature(
+        table_name = "test_records",
+        record_id = as.character((i - 1) %% 3 + 1),
+        signer_user_id = "user001",
+        signer_full_name = "User One",
+        signature_meaning = "CREATED_BY",
+        password = password,
+        password_hash = password_hash,
+        db_path = test_db
+      )
+    }
+
+    report_file <- tempfile(fileext = ".txt")
+    on.exit(unlink(report_file), add = TRUE)
+
+    result <- generate_signature_report(
+      output_file = report_file, format = "txt",
+      organization = "Test Organization", prepared_by = "Test User",
+      db_path = test_db
+    )
+    expect_true(result$success)
+    expect_equal(result$signature_count, n)
+
+    content <- readLines(report_file)
+    expect_equal(sum(grepl("^Signature: SIG", content)), n,
+                 info = "every signature must appear in the txt report, not just the first 50")
+    expect_false(any(grepl("more signatures", content)),
+                 info = "the old 50-row truncation note must be gone")
 
     })
 })

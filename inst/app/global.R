@@ -75,7 +75,8 @@ if (is.null(cfg)) {
   message("Using default configuration (no config.yml found)")
   cfg <- list(
     database = list(path = "data/zzedc.db", pool_size = 5),
-    auth = list(max_failed_attempts = 3, session_timeout_minutes = 30),
+    auth = list(max_failed_attempts = 3, lockout_duration_minutes = 15,
+                session_timeout_minutes = 30),
     app = list(name = "ZZedc - Electronic Data Capture", debug = TRUE)
   )
 }

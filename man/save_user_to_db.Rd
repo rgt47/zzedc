@@ -13,7 +13,8 @@ save_user_to_db(
   role,
   password,
   active,
-  mode
+  mode,
+  actor_role = NULL
 )
 }
 \arguments{
@@ -34,6 +35,14 @@ save_user_to_db(
 \item{active}{Whether user is active}
 
 \item{mode}{Either "add" or "edit"}
+
+\item{actor_role}{Optional: the role of the user performing this
+save, checked against \code{.assignable_roles(actor_role)} (§11.10(g))
+-- the UI's role dropdown is already pre-filtered by this same
+function (see \code{user_management_server}'s \code{observeEvent}
+handlers above), but that is a client-side narrowing only; a
+direct call to this function bypassed it entirely until this
+check was added here too. \code{NULL} skips the check.}
 }
 \description{
 Internal helper function for saving user data
