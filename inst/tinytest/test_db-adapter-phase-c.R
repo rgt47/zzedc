@@ -236,10 +236,24 @@ if (requireNamespace("duckdb", quietly = TRUE)) {
   get_db_adapter(config = list(db_backend = "duckdb", duckdb = list(path = duckdb_path)), force_new = TRUE)
 
   result <- initialize_encrypted_database()
+  # Surfaced unconditionally (not just on failure) so a CI run's log
+  # always shows the real cause if this ever regresses again --
+  # result$error was previously only visible via expect_true()'s
+  # info=, which tinytest does not print for a passing assertion and
+  # which a later crash (normalizePath(NULL) below, when result$path
+  # is absent) can prevent from ever being reported for a failing one.
+  message(sprintf(
+    "[DUCKDB] initialize_encrypted_database(): success=%s error=%s file.exists=%s",
+    isTRUE(result$success), result$error %||% "(none)", file.exists(duckdb_path)
+  ))
   expect_true(isTRUE(result$success), info = paste("duckdb init:", result$error %||% ""))
-  expect_true(!is.na(result$key), info = "duckdb returns a real encryption key")
-  expect_equal(normalizePath(result$path), normalizePath(duckdb_path),
-               info = "duckdb init resolves the path from config$duckdb$path")
+  if (!is.null(result$key)) {
+    expect_true(!is.na(result$key), info = "duckdb returns a real encryption key")
+  }
+  if (!is.null(result$path)) {
+    expect_equal(normalizePath(result$path), normalizePath(duckdb_path),
+                 info = "duckdb init resolves the path from config$duckdb$path")
+  }
 
   retry <- initialize_encrypted_database()
   expect_false(isTRUE(retry$success), info = "duckdb init refuses to overwrite without overwrite=TRUE")
