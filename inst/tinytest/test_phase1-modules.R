@@ -386,10 +386,18 @@ local({
 
 # Group: Shiny modules can be instantiated
 local({
-    # Test: setup_wizard_ui creates valid UI
+    # Test: setup_wizard_ui creates valid UI. Previously a dead
+    # skip("Module UI tests require Shiny environment") stub -- no
+    # test had ever actually called this function, which is exactly
+    # how it went unnoticed that it called bare label()/input()
+    # (neither is a function in base R, shiny, or htmltools; fixed to
+    # tags$label()/tags$input()), the same bug already found and
+    # fixed in backup_restore_module.R, audit_log_viewer_module.R,
+    # and admin_dashboard_module.R earlier this session.
     local({
-            skip("Module UI tests require Shiny environment")
-    
+      result <- tryCatch(zzedc:::setup_wizard_ui("test"), error = function(e) e)
+      expect_false(inherits(result, "error"),
+                   info = if (inherits(result, "error")) conditionMessage(result) else "")
     })
     # Test: user_management_ui creates valid UI
     local({

@@ -148,7 +148,7 @@ instrument_import_server <- function(id, db_conn, instruments_dir = "instruments
             div(
               strong(instr$full_name),
               br(),
-              small(
+              tags$small(
                 class = "text-muted",
                 paste0(instr$items, " items - ", instr$description)
               )

@@ -81,14 +81,14 @@ setup_wizard_ui <- function(id) {
                placeholder = "admin@institution.edu"),
 
       div(class = "form-group",
-        label("Password *", `for` = ns("admin_password")),
+        tags$label("Password *", `for` = ns("admin_password")),
         passwordInput(ns("admin_password"), NULL,
                      placeholder = "Create a strong password"),
         div(id = ns("password_strength"), class = "small text-muted mt-1")
       ),
 
       div(class = "form-group",
-        label("Confirm Password *", `for` = ns("admin_password_confirm")),
+        tags$label("Confirm Password *", `for` = ns("admin_password_confirm")),
         passwordInput(ns("admin_password_confirm"), NULL,
                      placeholder = "Re-enter your password"),
         div(id = ns("password_match"), class = "small text-muted mt-1")
@@ -122,25 +122,25 @@ setup_wizard_ui <- function(id) {
           actionButton(ns("copy_salt"), "Copy", class = "btn btn-outline-secondary")
         ),
         div(class = "form-check mt-3",
-          input(id = ns("confirm_salt"), type = "checkbox", class = "form-check-input"),
-          label("I have saved the security salt in a secure location",
+          tags$input(id = ns("confirm_salt"), type = "checkbox", class = "form-check-input"),
+          tags$label("I have saved the security salt in a secure location",
                `for` = ns("confirm_salt"), class = "form-check-label")
         )
       ),
 
       div(class = "form-group mt-3",
-        label("Session Timeout (minutes) *"),
+        tags$label("Session Timeout (minutes) *"),
         numericInput(ns("session_timeout"), NULL, value = 30, min = 5, max = 1440)
       ),
 
       div(class = "form-group",
-        label("Enforce HTTPS *"),
+        tags$label("Enforce HTTPS *"),
         selectInput(ns("enforce_https"), NULL,
                    choices = c("No" = "no", "Yes (recommended)" = "yes"))
       ),
 
       div(class = "form-group",
-        label("Max Failed Login Attempts *"),
+        tags$label("Max Failed Login Attempts *"),
         numericInput(ns("max_login_attempts"), NULL, value = 3, min = 1, max = 10)
       ),
 

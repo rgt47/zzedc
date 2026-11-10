@@ -535,14 +535,14 @@ cfr_compliance_server <- function(id, user_id = NULL) {
             bsicons::bs_icon("check-circle"),
             " Signature verified successfully",
             br(),
-            small(result$message)
+            tags$small(result$message)
           )
         } else {
           div(class = "alert alert-danger",
             bsicons::bs_icon("x-circle"),
             " Signature verification failed",
             br(),
-            small(result$error %||% "Unknown error")
+            tags$small(result$error %||% "Unknown error")
           )
         }
       })

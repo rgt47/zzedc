@@ -146,6 +146,40 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_true(result$is_valid)
   })
 
+  # Regression test, added 2026-11-10: output$signature_verification_result's
+  # renderUI called a bare small(...) -- not a function anywhere in
+  # base R, shiny, or htmltools -- on both the success and failure
+  # branches. The two blocks above call verify_electronic_signature()
+  # directly, never through the Shiny module's own observeEvent +
+  # renderUI, so neither one actually exercises the UI that crashed;
+  # this drives it through cfr_compliance_server() itself, the same
+  # way a real browser session would, and is exactly how this bug
+  # went unnoticed until now.
+  local({
+    ctx <- setup_test_db()
+    on.exit(cleanup_test_db(ctx), add = TRUE)
+
+    db_pool <- DBI::dbConnect(RSQLite::SQLite(), ctx$test_db)
+    on.exit(DBI::dbDisconnect(db_pool), add = TRUE)
+    assign("db_pool", db_pool, envir = globalenv())
+    on.exit(rm("db_pool", envir = globalenv()), add = TRUE)
+
+    result <- tryCatch({
+      shiny::testServer(
+        zzedc:::cfr_compliance_server,
+        args = list(user_id = shiny::reactive("USER_TEST_1")),
+        {
+          session$setInputs(verify_sig_id = "SIG_DOES_NOT_EXIST", verify_signature = 1)
+          session$flushReact()
+          output$signature_verification_result
+        }
+      )
+    }, error = function(e) e)
+
+    expect_false(inherits(result, "error"),
+                 info = if (inherits(result, "error")) conditionMessage(result) else "")
+  })
+
 }) else {
   exit_file("RSQLite and/or digest not installed")
 }

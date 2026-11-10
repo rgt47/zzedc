@@ -23,13 +23,17 @@
 # names not yet traced to a declared dependency (see below).
 utils::globalVariables(c(
 
-# small()/label() are used as bare calls in cfr_compliance_module.R
-# and admin_dashboard_module.R but do not resolve to any declared
-# Import; likely a missing `tags$` prefix or an undeclared dependency.
+# small()/label()/input() were bare calls across cfr_compliance_module.R,
+# admin_dashboard_module.R, backup_restore_module.R,
+# audit_log_viewer_module.R, setup_wizard_module.R, and
+# instrument_import_module.R -- confirmed (2026-11-09/10) to be a
+# missing `tags$` prefix in every case, not a genuine NSE symbol or an
+# undeclared dependency; all fixed to tags$small()/tags$label()/
+# tags$input() and no longer need declaring here.
 # updatePasswordInput() is from shinyauthr, which is used but never
 # declared in DESCRIPTION Imports or Suggests. Left as globalVariables
 # rather than guess-importing an unverified package.
-  "small", "label", "updatePasswordInput",
+  "updatePasswordInput",
 
 # Shiny reactive context
   "input", "cfg", "db_pool",
