@@ -76,7 +76,7 @@ if (is.null(cfg)) {
   cfg <- list(
     database = list(path = "data/zzedc.db", pool_size = 5),
     auth = list(max_failed_attempts = 3, lockout_duration_minutes = 15,
-                session_timeout_minutes = 30),
+                password_expiry_days = 90, session_timeout_minutes = 30),
     app = list(name = "ZZedc - Electronic Data Capture", debug = TRUE)
   )
 }

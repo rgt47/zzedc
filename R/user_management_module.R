@@ -487,7 +487,8 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
           # replace it on next login, same as db_insert_user()'s
           # default for new users.
           pool::dbExecute(db_pool,
-            "UPDATE edc_users SET password_hash = ?, must_change_password = 1 WHERE user_id = ?",
+            "UPDATE edc_users SET password_hash = ?, must_change_password = 1,
+             password_changed_date = CURRENT_TIMESTAMP WHERE user_id = ?",
             params = list(password_hash, user_state$edit_user_id)
           )
         }
@@ -640,7 +641,8 @@ save_user_to_db <- function(db_pool, user_id, username, full_name, email,
         pool::dbExecute(db_pool, "
           UPDATE edc_users
           SET full_name = ?, email = ?, role = ?, active = ?, password_hash = ?,
-              must_change_password = 1, modified_date = CURRENT_TIMESTAMP
+              must_change_password = 1, password_changed_date = CURRENT_TIMESTAMP,
+              modified_date = CURRENT_TIMESTAMP
           WHERE user_id = ?
         ", params = list(full_name, email, role, active, password_hash, user_id))
       } else {

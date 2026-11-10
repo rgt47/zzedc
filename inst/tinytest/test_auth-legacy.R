@@ -344,6 +344,164 @@ if (requireNamespace("pool", quietly = TRUE) &&
                 info = "the manual unlock must be attributed to the admin who performed it")
   })
 
+  # §11.300(b) password periodic revision, added 2026-11-10. These
+  # back-date testuser's password_changed_date directly (rather than
+  # waiting real time) to exercise the expiry comparison. Also clears
+  # must_change_password -- .make_auth_test_db()/_with_audit() create
+  # testuser via db_insert_user()'s own default of TRUE (a brand new
+  # account always starts needing a change), which would otherwise
+  # make every must_change_password assertion below pass or fail for
+  # the wrong reason, independent of the expiry logic actually under
+  # test.
+  .backdate_password <- function(pool, days_ago) {
+    pool::dbExecute(pool, "
+      UPDATE edc_users
+      SET password_changed_date = ?, must_change_password = 0
+      WHERE username = 'testuser'
+    ", params = list(format(Sys.time() - days_ago * 86400, tz = "UTC",
+                             "%Y-%m-%d %H:%M:%S")))
+  }
+
+  # A password older than password_expiry_days forces a change on
+  # login, even though must_change_password started at 0 (a normal
+  # login, not a password someone else chose).
+  local({
+    authenticate_user <- .load_authenticate_user()
+    db_pool <- .make_auth_test_db()
+    on.exit(pool::poolClose(db_pool), add = TRUE)
+    .backdate_password(db_pool, 100)
+
+    assign("db_pool", db_pool, envir = globalenv())
+    assign("cfg", list(auth = list(default_salt = "test-salt",
+                                    password_expiry_days = 90)),
+           envir = globalenv())
+    on.exit({
+      rm("db_pool", envir = globalenv())
+      rm("cfg", envir = globalenv())
+    }, add = TRUE)
+
+    result <- authenticate_user("testuser", "correct-horse")
+    expect_true(result$success,
+                info = "login itself must still succeed -- expiry forces a change, not a lockout")
+    expect_true(isTRUE(result$must_change_password),
+                info = "a password older than password_expiry_days must force a change")
+
+    row <- pool::dbGetQuery(db_pool,
+      "SELECT must_change_password FROM edc_users WHERE username = 'testuser'")
+    expect_equal(as.integer(row$must_change_password[1]), 1L,
+                 info = "the forced change must persist on the row, not just this session")
+  })
+
+  # A password within the expiry window does not force a change.
+  local({
+    authenticate_user <- .load_authenticate_user()
+    db_pool <- .make_auth_test_db()
+    on.exit(pool::poolClose(db_pool), add = TRUE)
+    .backdate_password(db_pool, 10)
+
+    assign("db_pool", db_pool, envir = globalenv())
+    assign("cfg", list(auth = list(default_salt = "test-salt",
+                                    password_expiry_days = 90)),
+           envir = globalenv())
+    on.exit({
+      rm("db_pool", envir = globalenv())
+      rm("cfg", envir = globalenv())
+    }, add = TRUE)
+
+    result <- authenticate_user("testuser", "correct-horse")
+    expect_true(result$success)
+    expect_false(isTRUE(result$must_change_password),
+                 info = "a 10-day-old password must not trip a 90-day expiry")
+  })
+
+  # password_expiry_days = 0 (or NULL) disables the check entirely,
+  # even for a password that would otherwise be far past any
+  # reasonable expiry window.
+  local({
+    authenticate_user <- .load_authenticate_user()
+    db_pool <- .make_auth_test_db()
+    on.exit(pool::poolClose(db_pool), add = TRUE)
+    .backdate_password(db_pool, 1000)
+
+    assign("db_pool", db_pool, envir = globalenv())
+    assign("cfg", list(auth = list(default_salt = "test-salt",
+                                    password_expiry_days = 0)),
+           envir = globalenv())
+    on.exit({
+      rm("db_pool", envir = globalenv())
+      rm("cfg", envir = globalenv())
+    }, add = TRUE)
+
+    result <- authenticate_user("testuser", "correct-horse")
+    expect_true(result$success)
+    expect_false(isTRUE(result$must_change_password),
+                 info = "password_expiry_days = 0 must disable the expiry check")
+  })
+
+  # A freshly created account's password_changed_date (just set by
+  # db_insert_user()) is never immediately read as expired. This
+  # clears db_insert_user()'s own must_change_password = TRUE default
+  # (a different, unrelated reason a new account forces a change)
+  # without touching password_changed_date, to isolate the expiry
+  # check specifically.
+  local({
+    authenticate_user <- .load_authenticate_user()
+    db_pool <- .make_auth_test_db()
+    on.exit(pool::poolClose(db_pool), add = TRUE)
+    pool::dbExecute(db_pool,
+      "UPDATE edc_users SET must_change_password = 0 WHERE username = 'testuser'")
+
+    assign("db_pool", db_pool, envir = globalenv())
+    assign("cfg", list(auth = list(default_salt = "test-salt",
+                                    password_expiry_days = 90)),
+           envir = globalenv())
+    on.exit({
+      rm("db_pool", envir = globalenv())
+      rm("cfg", envir = globalenv())
+    }, add = TRUE)
+
+    result <- authenticate_user("testuser", "correct-horse")
+    expect_true(result$success)
+    expect_false(isTRUE(result$must_change_password),
+                 info = "a password set moments ago must not read as expired")
+  })
+
+  # Forcing a change via expiry writes a PASSWORD_CHANGE row to
+  # audit_log, the same event_type the self-service change-password
+  # flow uses (no new event_type was added; see inst/app/auth.R's
+  # comment on why), distinguished by its description text.
+  local({
+    auth_env <- .load_auth_env()
+    authenticate_user <- auth_env$authenticate_user
+    test_db <- .make_auth_test_db_with_audit()
+    on.exit({
+      pool::poolClose(test_db$pool)
+      unlink(test_db$db_path)
+      Sys.unsetenv('ZZEDC_DB_PATH')
+    }, add = TRUE)
+    .backdate_password(test_db$pool, 100)
+
+    assign("db_pool", test_db$pool, envir = globalenv())
+    assign("cfg", list(auth = list(default_salt = "test-salt",
+                                    password_expiry_days = 90)),
+           envir = globalenv())
+    on.exit({
+      rm("db_pool", envir = globalenv())
+      rm("cfg", envir = globalenv())
+    }, add = TRUE)
+
+    result <- authenticate_user("testuser", "correct-horse")
+    expect_true(isTRUE(result$must_change_password))
+
+    con <- connect_encrypted_db()
+    on.exit(DBI::dbDisconnect(con), add = TRUE)
+    rows <- DBI::dbGetQuery(con, "
+      SELECT event_type, operation FROM audit_log WHERE event_type = 'PASSWORD_CHANGE'
+    ")
+    expect_true(any(grepl("expired", rows$operation, ignore.case = TRUE)),
+                info = "the forced-expiry audit row must be distinguishable from a self-service change")
+  })
+
 } else {
   exit_file("pool and/or digest not installed")
 }

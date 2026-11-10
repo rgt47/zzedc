@@ -16,6 +16,7 @@ default:
     default_salt: null  # Will fail if env var not set (forces explicit configuration)
     max_failed_attempts: 3
     lockout_duration_minutes: 15  # how long a locked account stays locked before auto-unlock
+    password_expiry_days: 90  # §11.300(b) periodic revision; force a change after this many days since the password was last set
     session_timeout_minutes: 30
 
   # Application settings

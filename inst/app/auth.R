@@ -8,6 +8,19 @@
 # database that predates this feature gets them added automatically
 # the next time launch_zzedc() runs, the same way must_change_password
 # was migrated in.
+#
+# §11.300(b) password periodic revision note (2026-11-10): the
+# whitepaper's gap table previously called this out as open --
+# lockout was fixed, but nothing forced a periodic password change.
+# password_changed_date (also migrated by ensure_edc_users_table())
+# tracks when each user's password was last set; every write site
+# that changes password_hash (db_insert_user(), the self-service
+# change-password flow, and both admin reset/edit paths) also sets
+# it. authenticate_user() compares its age against
+# cfg$auth$password_expiry_days and reuses the existing
+# must_change_password gate to force a change -- no new UI needed,
+# since that gate (change_password_module.R) already exists for the
+# "password someone else chose" case.
 authenticate_user <- function(username, password) {
 
   # Check if database pool exists
@@ -24,6 +37,14 @@ authenticate_user <- function(username, password) {
     as.numeric(cfg$auth$lockout_duration_minutes)
   } else {
     15
+  }
+  # §11.300(b) periodic revision. NULL/0/negative disables the check
+  # (no forced expiry), the same "off switch via non-positive value"
+  # convention as the rest of this function's config knobs.
+  password_expiry_days <- if (!is.null(cfg$auth$password_expiry_days)) {
+    as.numeric(cfg$auth$password_expiry_days)
+  } else {
+    90
   }
 
   tryCatch({
@@ -108,6 +129,44 @@ authenticate_user <- function(username, password) {
         WHERE user_id = ?
       ", params = list(Sys.time(), user_id))
 
+      # §11.300(b) password periodic revision: force a change if the
+      # current password is older than password_expiry_days. Reuses
+      # the existing must_change_password gate (change_password_module.R)
+      # rather than inventing a second forced-change mechanism, so the
+      # UI side needs no changes at all. password_changed_date is only
+      # absent on a row that predates both this feature and
+      # ensure_edc_users_table()'s own backfill migration -- treated
+      # as "not expired" (fail open on the comparison) rather than
+      # forcing a change with no evidence one is actually due.
+      already_must_change <- isTRUE(as.logical(user_record$must_change_password))
+      expired <- FALSE
+      if (!already_must_change && !is.na(password_expiry_days) &&
+            password_expiry_days > 0) {
+        changed_raw <- user_record$password_changed_date[1]
+        if (!is.null(changed_raw) && !is.na(changed_raw) &&
+              nzchar(as.character(changed_raw))) {
+          changed_time <- as.POSIXct(changed_raw, tz = "UTC")
+          age_days <- as.numeric(difftime(Sys.time(), changed_time, units = "days"))
+          expired <- !is.na(age_days) && age_days >= password_expiry_days
+        }
+      }
+
+      if (expired) {
+        pool::dbExecute(db_pool, "
+          UPDATE edc_users SET must_change_password = 1 WHERE user_id = ?
+        ", params = list(user_id))
+        tryCatch(
+          log_security_event(
+            event_type = "PASSWORD_CHANGE", user_id = username,
+            description = paste0(
+              "Password expired after ", password_expiry_days,
+              " days; change forced at next login"
+            )
+          ),
+          error = function(e) NULL
+        )
+      }
+
       return(list(
         success = TRUE,
         user_id = user_record$user_id,
@@ -118,7 +177,7 @@ authenticate_user <- function(username, password) {
         # NULL (not FALSE) on a database that predates this column
         # and has not yet been migrated by ensure_edc_users_table();
         # isTRUE() downstream treats that the same as FALSE.
-        must_change_password = isTRUE(as.logical(user_record$must_change_password))
+        must_change_password = already_must_change || expired
       ))
     } else {
       new_failed_attempts <- failed_attempts + 1L

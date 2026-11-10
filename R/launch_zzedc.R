@@ -329,6 +329,7 @@ create_default_config <- function(path = "config.yml") {
   auth:
     max_failed_attempts: 3
     lockout_duration_minutes: 15
+    password_expiry_days: 90
     session_timeout_minutes: 30
     default_salt: "%s"
 

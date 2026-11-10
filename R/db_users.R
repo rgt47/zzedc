@@ -91,6 +91,23 @@ ensure_edc_users_table <- function(conn) {
     DBI::dbExecute(conn,
       "ALTER TABLE edc_users ADD COLUMN locked_at TIMESTAMP")
   }
+  # §11.300(b) password periodic revision (expiry), migrated the same
+  # way. Every write site that sets a new password_hash (db_insert_user(),
+  # the self-service change-password flow, and both admin reset/edit
+  # paths) also sets this column, so authenticate_user() can compare it
+  # against cfg$auth$password_expiry_days. A row migrated here (no
+  # password_changed_date yet) is backfilled from created_date rather
+  # than left NULL -- NULL would otherwise read as "never set", which
+  # would force every existing user to change their password the
+  # moment this feature ships, the same over-eager-migration mistake
+  # must_change_password's own comment above warns against.
+  if (!"password_changed_date" %in% DBI::dbListFields(conn, "edc_users")) {
+    DBI::dbExecute(conn,
+      "ALTER TABLE edc_users ADD COLUMN password_changed_date TIMESTAMP")
+    DBI::dbExecute(conn,
+      "UPDATE edc_users SET password_changed_date = created_date
+       WHERE password_changed_date IS NULL")
+  }
   invisible(NULL)
 }
 
@@ -157,8 +174,9 @@ db_insert_user <- function(conn,
     DBI::dbExecute(conn, "
       INSERT INTO edc_users
         (user_id, username, password_hash, full_name, email,
-         role, site_id, active, must_change_password, created_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+         role, site_id, active, must_change_password, created_date,
+         password_changed_date, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
     ", list(
       as.character(user_id),
       as.character(username),

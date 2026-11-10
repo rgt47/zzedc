@@ -103,8 +103,8 @@ create_wizard_database <- function(config_list, db_path = NULL,
     # reminder to change it, with nothing enforcing that.
     DBI::dbExecute(conn, "
       INSERT INTO edc_users
-      (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, ?)
+      (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, password_changed_date, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
     ", params = list(
       admin_id,
       config_list$admin_username,
@@ -127,8 +127,8 @@ create_wizard_database <- function(config_list, db_path = NULL,
       DBI::dbExecute(conn, "
         INSERT INTO edc_users
           (user_id, username, password_hash, full_name, email,
-           role, active, must_change_password, created_date, created_by)
-        VALUES (?, ?, ?, ?, ?, 'PI', 1, 1, CURRENT_TIMESTAMP, ?)
+           role, active, must_change_password, created_date, password_changed_date, created_by)
+        VALUES (?, ?, ?, ?, ?, 'PI', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
       ", params = list(
         pi_id,
         config_list$pi_username,
@@ -173,8 +173,8 @@ create_wizard_database <- function(config_list, db_path = NULL,
 
         DBI::dbExecute(conn, "
           INSERT INTO edc_users
-          (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, ?)
+          (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, password_changed_date, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
         ", params = list(
           member_id,
           member$username,
@@ -249,6 +249,7 @@ auth:
   session_timeout_minutes: %d
   max_failed_attempts: %d
   lockout_duration_minutes: 15
+  password_expiry_days: 90
 
 security:
   enforce_https: %s
@@ -712,6 +713,7 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
         must_change_password %s DEFAULT %s,
         failed_login_attempts %s DEFAULT 0,
         locked_at %s,
+        password_changed_date %s,
         last_login %s,
         created_date %s,
         created_by %s,
@@ -720,7 +722,7 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
       ) ENGINE = MergeTree() ORDER BY user_id
     ", text_type, text_type, text_type, text_type, text_type,
        text_type, text_type, bool_type, bool_default_true,
-       bool_type, bool_default_false, int_type, ts_type,
+       bool_type, bool_default_false, int_type, ts_type, ts_type,
        ts_type, ts_type, text_type, ts_type, text_type))
   } else {
     DBI::dbExecute(conn, sprintf("
@@ -736,6 +738,7 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
         must_change_password %s DEFAULT %s,
         failed_login_attempts %s DEFAULT 0,
         locked_at %s,
+        password_changed_date %s,
         last_login %s,
         created_date %s DEFAULT CURRENT_TIMESTAMP,
         created_by %s,
@@ -744,7 +747,7 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
       )
     ", text_type, text_type, text_type, text_type, text_type,
        text_type, text_type, bool_type, bool_default_true,
-       bool_type, bool_default_false, int_type, ts_type,
+       bool_type, bool_default_false, int_type, ts_type, ts_type,
        ts_type, ts_type, text_type, ts_type, text_type))
   }
 

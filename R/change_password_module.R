@@ -89,6 +89,7 @@ change_password_server <- function(id, db_pool, user_input, salt,
         pool::dbExecute(
           db_pool,
           "UPDATE edc_users SET password_hash = ?, must_change_password = 0,
+             password_changed_date = CURRENT_TIMESTAMP,
              modified_date = CURRENT_TIMESTAMP WHERE user_id = ?",
           params = list(password_hash, user_input$user_id)
         )
