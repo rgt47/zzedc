@@ -74,6 +74,18 @@ DuckDBAdapter <- R6::R6Class(
       if (!is.null(encryption_key) && nchar(encryption_key) > 0 &&
           db_path != ":memory:") {
         conn <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+        # ATTACH ... ENCRYPTION_KEY needs DuckDB's full (writable)
+        # mbedtls crypto module. On at least one DuckDB build (1.5.4,
+        # confirmed in CI), only a read-only crypto module is loaded
+        # by default, and ATTACH with ENCRYPTION_KEY fails outright
+        # with "DuckDB currently has a read-only crypto module
+        # loaded... ensure httpfs is loaded using `LOAD httpfs`" --
+        # i.e. encrypted database creation never worked at all on
+        # that build. Loading httpfs first pulls in the full module;
+        # verified harmless on a newer build (2.0.0) where it was not
+        # otherwise required.
+        DBI::dbExecute(conn, "INSTALL httpfs")
+        DBI::dbExecute(conn, "LOAD httpfs")
         DBI::dbExecute(conn, sprintf(
           "ATTACH '%s' AS zzedc (ENCRYPTION_KEY '%s')", db_path, encryption_key
         ))
@@ -130,6 +142,12 @@ DuckDBAdapter <- R6::R6Class(
           duckdb::duckdb(),
           dbdir = ":memory:",
           onCreate = function(conn) {
+            # See the matching comment in connect(): ATTACH ...
+            # ENCRYPTION_KEY needs httpfs loaded first on at least one
+            # DuckDB build, or it fails with a read-only-crypto-module
+            # error.
+            DBI::dbExecute(conn, "INSTALL httpfs")
+            DBI::dbExecute(conn, "LOAD httpfs")
             DBI::dbExecute(conn, sprintf(
               "ATTACH '%s' AS zzedc (ENCRYPTION_KEY '%s')",
               db_path, encryption_key
