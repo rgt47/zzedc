@@ -37,7 +37,8 @@ Imports:
     DT,
     ggplot2,
     plotly,
-    R.utils
+    R.utils,
+    methods
 Suggests:
     tinytest (>= 1.4.0),
     knitr,

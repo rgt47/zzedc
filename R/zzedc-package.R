@@ -14,6 +14,7 @@
 #' @importFrom shinyalert shinyalert
 #' @importFrom DBI dbConnect dbDisconnect dbWriteTable
 #' @importFrom RSQLite SQLite
+#' @importFrom methods existsMethod getMethod setMethod
 "_PACKAGE"
 
 # Declare global variables to avoid R CMD check NOTEs
@@ -41,7 +42,7 @@ utils::globalVariables(c(
 # Column names used in dplyr pipelines (NSE)
   "Missing_Percent", "Variable", "approval_date", "completion_status",
   "event_type", "execution_date", "expiry_date", "reason", "record_id",
-  "role", "signature_meaning", "signature_status", "signer_name",
+  "role", "signature_id", "signature_meaning", "signature_status", "signer_name",
   "signing_timestamp", "status", "table_name", "training_type",
   "user_name", "validation_title", "validation_type", "validator_name",
 
