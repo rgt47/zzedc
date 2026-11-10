@@ -107,29 +107,32 @@ jobs:
                                        lib = Sys.getenv('CI_TOOLS_LIB'),
                                        repos = 'https://cloud.r-project.org')"
 
-      # DuckDB autoinstalls extensions (e.g. icu, needed for
-      # CURRENT_DATE/CURRENT_TIMESTAMP) over the network on first use,
-      # and by default caches them in a per-R-session temp directory
-      # that is wiped when that session exits -- so every later R
-      # process in this job (the check subprocess, the tests step)
-      # re-attempts the download from scratch and fails here, since
-      # this runner has no route to DuckDB's extension repository.
-      # Warming the cache once with shared_home = TRUE persists it to
-      # ~/.duckdb, which every later duckdb::duckdb() call in this job
-      # (even without shared_home = TRUE) picks up automatically.
-      # Verified locally: a second R process with a broken network
-      # proxy and the same HOME loads the cached extension with no
-      # network access. Package-level code is unaffected either way.
+      # DuckDB's extension *autoload* (triggered implicitly by e.g.
+      # CURRENT_DATE/CURRENT_TIMESTAMP) never attempts a network
+      # download on its own -- confirmed from the actual CI error,
+      # "Extension ... not found ... Install it first using
+      # 'INSTALL icu'" -- it only looks in the already-resolved
+      # extension_directory and gives up. This job's duckdb R package
+      # (1.5.4.1; confirmed via the duckdb-r source at that tag) has no
+      # `shared_home` argument -- that's a 2.0+ addition -- but its
+      # default extension_directory already resolves to a directory
+      # alongside the installed duckdb package (writable here, since
+      # it's under CI_TOOLS_LIB), which persists for the rest of this
+      # job across every later R process (the check subprocess, the
+      # tests step) without any special config. So a single explicit
+      # `INSTALL icu` here is sufficient; nothing needs to override
+      # where it's cached.
       - name: Warm the DuckDB extension cache (icu)
         continue-on-error: true
         run: |
           Rscript --no-init-file -e "\
             .libPaths(c(Sys.getenv('CI_TOOLS_LIB'), .libPaths())); \
             if (requireNamespace('duckdb', quietly = TRUE)) { \
-              con <- DBI::dbConnect(duckdb::duckdb(shared_home = TRUE)); \
+              con <- DBI::dbConnect(duckdb::duckdb()); \
               tryCatch({ \
                 DBI::dbExecute(con, 'INSTALL icu'); \
                 DBI::dbExecute(con, 'LOAD icu'); \
+                message('icu extension installed and loaded'); \
               }, error = function(e) message('icu warm-up failed: ', conditionMessage(e))); \
               DBI::dbDisconnect(con, shutdown = TRUE); \
             } else { \
