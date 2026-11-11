@@ -22,10 +22,10 @@ knitr::opts_chunk$set(
 
 This vignette is the Google-Sheets-driven companion to the
 CSV-based [Demonstration Clinical Trial Setup](demonstration-trial-setup.html) walk-
-through. The study is the same — *Active vs. Placebo Memory
-Enhancement Study with 20 subjects* — but the data dictionary,
+through. The study is the same (*Active vs. Placebo Memory
+Enhancement Study with 20 subjects*), but the data dictionary,
 validation rules, and user roster are authored in Google Sheets
-rather than in CSV files. A single import call materialises them
+rather than in CSV files. A single import call materializes them
 into the ZZedc database.
 
 This path is intended for clinical teams that prefer a familiar
@@ -36,8 +36,9 @@ maintenance:
   directly in a browser
 - Multi-author edits and revision history are handled by Google
   Sheets natively
-- Bidirectional sync allows Sheets and the ZZedc database to stay
-  aligned through the life of the trial
+- Periodic re-import keeps the database's validation rules aligned
+  with the Sheet through the life of the trial (one direction only:
+  from the Sheet into the database, not back out)
 
 The CSV path remains available and is preferred for studies that
 will live entirely on a single laptop, in air-gapped environments,
@@ -65,11 +66,11 @@ install.packages("googlesheets4")
 ZZedc supports both authentication modes that `googlesheets4`
 provides:
 
-- **Interactive OAuth** — recommended for development and small
+- **Interactive OAuth**: recommended for development and small
   teams. The first call opens a browser, prompts for consent, and
   caches a refresh token at `~/.cache/gargle/`.
-- **Service account** — required for unattended jobs (CI, cron,
-  containerised deployments). Create a service-account key in
+- **Service account**: required for unattended jobs (CI, cron,
+  containerized deployments). Create a service-account key in
   Google Cloud Console, share the target Sheet with the service
   account's email address, then point `googlesheets4` at the JSON
   key.
@@ -136,9 +137,11 @@ intended to be shared.
 | site_id         | no       | 001                      |
 | active          | no       | TRUE                     |
 
-Roles must match values returned by `zzedc::list_user_roles()`
-(`Admin`, `PI`, `Coordinator`, `Researcher`, `DataManager`,
-`Monitor` in the default schema).
+Roles must be one of the values the admin-UI role vocabulary
+recognizes: `Admin`, `PI`, `StudyManager`, `Data Manager`,
+`Coordinator`, or `Monitor`. No exported function enumerates this
+list; it is fixed in the role-assignment tier used by the Admin
+tab's user-management screen.
 
 ### Tab 2: `Data_Dictionary`
 
@@ -215,7 +218,7 @@ with the validation-rules schema and example rows:
 library(zzedc)
 
 template <- create_validation_rules_template(
-  sheet_name       = "ToyTrial_ValidationRules",
+  sheet_name       = "DemonstrationTrial_ValidationRules",
   include_examples = TRUE
 )
 template$sheet_url
@@ -233,7 +236,18 @@ in `vignettes/demonstration-trial/csv_templates/` and paste into your Sheet.
 Once the workbook has the four required tabs filled in
 (`Study_Users`, `Data_Dictionary`, `validation_rules`, optionally
 `Visit_Schedule` and `Subjects`), import it into a fresh ZZedc
-database with a single call:
+database with a single call. This call creates the database through
+`initialize_encrypted_database()`, so the active `security.profile`
+(`?resolve_security_profile`; `development`, `standard`, or
+`regulated`, default `standard`) applies: under `regulated`, a
+SQLite database that cannot be shown to be encrypted (stock CRAN
+RSQLite, with no SQLCipher or SQLite3MultipleCiphers build) is
+refused rather than created. For a demonstration run on stock
+RSQLite, set the profile to `standard` or `development` first:
+
+```{r security_profile}
+Sys.setenv(ZZEDC_SECURITY_PROFILE = "development")
+```
 
 ```{r import_one_call}
 library(zzedc)
@@ -253,19 +267,26 @@ result <- setup_zzedc_from_gsheets(
 
 # Per-stage status
 result$success                   # overall pass/fail
+result$database$encrypted        # TRUE only on a SQLCipher/
+                                  # SQLite3MultipleCiphers build
 result$users$imported            # number of users imported
 result$forms$imported_forms      # number of CRFs created
 result$forms$imported_fields     # number of fields across all CRFs
 result$validation_rules$imported # number of validation rules imported
 
-# The encryption key is needed for any subsequent operations in
-# this R session.
+# The encryption key and the password salt are both needed for any
+# subsequent operations in this R session, including login: without
+# the salt, every imported user's password hash fails to match on
+# login.
 Sys.setenv(DB_ENCRYPTION_KEY = result$key)
+Sys.setenv(ZZEDC_SALT = result$salt)
 ```
 
 `setup_zzedc_from_gsheets()` runs four stages in order:
 
-1. Initialize the encrypted SQLite database at `db_path`.
+1. Initialize the encrypted SQLite database at `db_path`, then the
+   CRF designer, CRF version-control, DSL validation-rule, and
+   audit-log schemas.
 2. Read `Study_Users` and create user accounts.
 3. Read `Data_Dictionary`, create one CRF per `form_code` value,
    and add each field as defined.
@@ -273,9 +294,14 @@ Sys.setenv(DB_ENCRYPTION_KEY = result$key)
    [import_validation_rules_from_gsheets()] (which itself
    validates DSL syntax row-by-row).
 
-If any stage fails, the others still run and the failures are
-collected in stage-specific `errors` lists; the top-level
-`success` flag is `TRUE` only if every stage passed cleanly.
+Only stages 2-4 are independent of one another: if users, forms, or
+validation rules fail to import, the remaining stages still run and
+the failures are collected in stage-specific `errors` lists. A
+failure in stage 1 (database or schema initialization, for example
+the `regulated` profile refusing an unencrypted SQLite file) stops
+the whole call immediately and no later stage runs. The top-level
+`success` flag is `TRUE` only if every stage that did run passed
+cleanly.
 
 ### Validating before importing
 
@@ -314,39 +340,58 @@ its fourth stage.
 
 ---
 
-## Bidirectional sync
+## Periodic re-import of validation rules
 
-For studies that maintain CRFs and validation rules in Google
-Sheets as the source of truth, ZZedc supports periodic re-import:
+For studies that maintain validation rules in Google Sheets as the
+source of truth, `sync_dsl_rules_from_gsheets()` re-imports the
+`validation_rules` tab on demand. This is one-directional (Sheet
+into database); nothing is written back to the Sheet:
 
 ```{r sync}
 sync_result <- sync_dsl_rules_from_gsheets(
-  sheet_id     = sheet_id,
-  imported_by  = "data_manager",
-  delete_missing = FALSE
+  sheet_id  = sheet_id,
+  user_id   = "data_manager",
+  user_role = "data_manager"
 )
 
-sync_result$added
-sync_result$updated
-sync_result$deleted
+sync_result$success
+sync_result$imported  # rules written or re-written to the database
+sync_result$skipped   # rule rows that failed validation
+sync_result$errors    # named list, by rule_id, of the failures
 ```
 
-`delete_missing = FALSE` (default) treats Sheet rows as additive:
-rules absent from the Sheet are left alone in the database. Set
-to `TRUE` when the Sheet is the canonical authority and missing
-rules should be retired.
+`user_role` is checked against the `dsl_rule_permissions` table
+(`check_dsl_rule_permission(user_role, "edit")`) before anything
+runs; a role without edit permission gets
+`list(success = FALSE, error = "Insufficient permissions to sync
+rules")` and nothing is imported. This check lower-cases
+`user_role` and compares it against `admin`, `pi`, `studymanager`,
+`data_manager`, `coordinator`, or `monitor` exactly, which is a
+different role spelling than the `Study_Users` tab's `Admin`, `PI`,
+`StudyManager`, `Data Manager`, `Coordinator`, `Monitor` (the
+underscore in `data_manager` matters: `"Data Manager"` and
+`"DataManager"` both fail the check).
 
-For audit purposes, every sync run writes a record to the
-`audit_trail` table tagged with the `sheet_id`, the timestamp,
-and the user who ran it.
+Every rule currently in the Sheet is re-imported (upserted) on each
+call, whether or not it already exists in the database. There is no
+`delete_missing` option: a rule removed from the Sheet is **not**
+removed from the database by this call. Retiring a rule that is no
+longer wanted means deleting or deactivating it directly in the
+database, or through the Admin tab, after it is taken out of the
+Sheet.
+
+For audit purposes, each sync writes one summary record to the
+`dsl_rule_audit` table (action `SYNC_FROM_GSHEETS`, attributed to
+`user_id`); it is not tagged with the `sheet_id`, so a deployment
+that syncs from more than one Sheet cannot distinguish which Sheet a
+given sync came from in that table.
 
 ---
 
 ## Verification
 
 ```{r verify}
-conn <- connect_encrypted_db(db_path = db_path,
-                              key = init_result$key)
+conn <- connect_encrypted_db(db_path = db_path, key = result$key)
 on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
 # Roster
@@ -383,7 +428,10 @@ The Shiny session opens in your default browser. Authenticate as
 one of the users you imported and proceed to data entry. The
 audit log records every action, the validation rules fire as
 defined in the Sheet, and exports are available through the
-secure-export module.
+secure-export module. The Compliance tab (electronic signatures,
+training records) and the Admin tab (user management, admin
+dashboard) are also available to users with the appropriate role,
+the same as in the CSV-driven demonstration trial.
 
 ---
 
@@ -411,8 +459,13 @@ For a strictly single-PI laptop deployment, the CSV path
 The Google-Sheets path has reached parity with the CSV path for
 study setup, but a few constraints remain:
 
-- Bidirectional sync currently handles the validation-rules tab
-  only; users and form definitions are import-only. To revise
+- Periodic re-import handles the validation-rules tab only, and
+  only one direction (Sheet into database); users and form
+  definitions are import-only, and nothing is ever written back to
+  the Sheet for any tab. There is also no way to retire a rule by
+  removing it from the Sheet: `sync_dsl_rules_from_gsheets()` has no
+  delete option, so a rule taken out of the Sheet stays in the
+  database until it is deleted or deactivated directly. To revise
   CRFs or the user roster after initial setup, edit the database
   directly through the ZZedc admin interface or rerun
   `setup_zzedc_from_gsheets()` against a fresh `db_path`.
@@ -421,8 +474,11 @@ study setup, but a few constraints remain:
   rate limits (300 read requests per minute per user). Large
   deployments should batch reads via `range_read()` rather than
   per-tab calls.
-- Stage-level errors surface in the result object's per-stage
-  `errors` lists rather than aborting the import. Inspect
+- Stage-level errors in `setup_zzedc_from_gsheets()` surface in the
+  result object's per-stage `errors` lists without aborting the
+  remaining stages, but only for the users, forms, and
+  validation-rules stages. A failure initializing the database or
+  its schema stops the whole call immediately. Inspect
   `result$success` and the per-stage objects before assuming a
   successful import.
 

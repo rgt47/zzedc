@@ -6,6 +6,7 @@
 #' @param db_path Path to database file
 load_gsheets_forms <- function(forms_dir = "forms_generated", db_path = NULL) {
 
+  explicit_path <- !is.null(db_path)
   if (is.null(db_path)) {
     # Try to get from config
     if (exists("cfg")) {
@@ -22,13 +23,20 @@ load_gsheets_forms <- function(forms_dir = "forms_generated", db_path = NULL) {
     stop("Forms directory not found: ", forms_dir)
   }
 
-  # Load form definitions from database
-  con <- RSQLite::dbConnect(RSQLite::SQLite(), db_path)
-  on.exit(RSQLite::dbDisconnect(con))
+  # Load form definitions from database. Inside the application, use
+  # its pool (global.R), which follows the configured backend and its
+  # encryption; a direct SQLite connection is kept only for callers
+  # that pass an explicit db_path outside the application.
+  if (!explicit_path && exists("db_pool", inherits = TRUE)) {
+    con <- get("db_pool", inherits = TRUE)
+  } else {
+    con <- RSQLite::dbConnect(RSQLite::SQLite(), db_path)
+    on.exit(RSQLite::dbDisconnect(con))
+  }
 
   tryCatch({
     # Get forms overview
-    forms_overview <- RSQLite::dbGetQuery(con, "SELECT * FROM edc_forms")
+    forms_overview <- DBI::dbGetQuery(con, "SELECT * FROM edc_forms")
 
     if (nrow(forms_overview) == 0) {
       stop("No forms found in database. Run Google Sheets setup first.")
@@ -201,10 +209,12 @@ generate_gsheets_form_server <- function(forms_data, input, output, session,
       observeEvent(input[[submit_button_id]], {
 
         # Get form fields from database
-        con <- RSQLite::dbConnect(RSQLite::SQLite(), cfg$database$path)
-        on.exit(RSQLite::dbDisconnect(con))
+        # The application's pool (global.R), not a direct RSQLite
+        # connection to cfg$database$path, so submissions go to the
+        # configured backend and are encrypted when it is.
+        con <- db_pool
 
-        form_fields <- RSQLite::dbGetQuery(con,
+        form_fields <- DBI::dbGetQuery(con,
           "SELECT field FROM edc_fields WHERE form_name = ?",
           params = list(local_form_name)
         )
@@ -257,7 +267,7 @@ generate_gsheets_form_server <- function(forms_data, input, output, session,
                               paste(field_names, collapse = ", "),
                               ") VALUES (", placeholders, ")")
 
-          RSQLite::dbExecute(con, insert_sql, params = as.list(field_values))
+          DBI::dbExecute(con, insert_sql, params = as.list(field_values))
 
           # Show success message
           shinyalert::shinyalert(

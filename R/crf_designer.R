@@ -218,16 +218,30 @@ create_designer_form <- function(form_code, form_name, created_by,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    design_id <- DBI::dbGetQuery(con, "
+    # The id is assigned explicitly, above every existing designer form
+    # and CRF definition. The importers give a form the same id in both
+    # tables (ensure_designer_form_row()), so a backend's own sequence
+    # (DuckDB, PostgreSQL), which does not see those ids, could otherwise
+    # hand out one already in use. This also avoids RETURNING, which
+    # MySQL does not support.
+    max_id <- function(sql) {
+      v <- tryCatch(DBI::dbGetQuery(con, sql)[[1]][1], error = function(e) NA)
+      if (is.null(v) || is.na(v)) 0 else as.numeric(v)
+    }
+    design_id <- as.integer(max(
+      max_id("SELECT MAX(design_id) FROM designer_forms"),
+      max_id("SELECT MAX(crf_id) FROM crf_definitions")
+    ) + 1)
+
+    DBI::dbExecute(con, "
       INSERT INTO designer_forms (
-        form_code, form_name, form_category, form_description,
+        design_id, form_code, form_name, form_category, form_description,
         layout_type, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?)
-      RETURNING design_id AS id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     ", params = list(
-      form_code, form_name, safe_scalar_cd(form_category),
+      design_id, form_code, form_name, safe_scalar_cd(form_category),
       safe_scalar_cd(form_description), layout_type, created_by
-    ))$id[1]
+    ))
 
     audit_cd_event(
       event_type = "INSERT", table_name = "designer_forms",
@@ -240,6 +254,38 @@ create_designer_form <- function(form_code, form_name, created_by,
   }, error = function(e) {
     list(success = FALSE, error = e$message)
   })
+}
+
+#' Give an Imported CRF a Matching Designer Form Row (internal)
+#'
+#' The importers (`setup_zzedc_from_gsheets()`, the REDCap importer)
+#' create a form in `crf_definitions` and attach its fields with
+#' `add_form_field(design_id = crf_id)`, the convention the EDC tab reads
+#' (`designer_fields.design_id == crf_definitions.crf_id`). The schema,
+#' however, declares `designer_fields.design_id` a foreign key to
+#' `designer_forms`. SQLite does not enforce that by default, so imports
+#' wrote fields pointing at a design that did not exist; DuckDB and
+#' PostgreSQL enforce it and rejected every imported field. This inserts
+#' the `designer_forms` row with the same id, if it is missing.
+#'
+#' @param crf_id Integer: the `crf_definitions.crf_id`.
+#' @param form_code,form_name,created_by Values for the row.
+#' @return `invisible(TRUE)`.
+#' @keywords internal
+ensure_designer_form_row <- function(crf_id, form_code, form_name, created_by) {
+  con <- connect_encrypted_db()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  exists <- DBI::dbGetQuery(
+    con, "SELECT COUNT(*) AS n FROM designer_forms WHERE design_id = ?",
+    params = list(as.integer(crf_id))
+  )$n > 0
+  if (!exists) {
+    DBI::dbExecute(con, "
+      INSERT INTO designer_forms (design_id, form_code, form_name, created_by)
+      VALUES (?, ?, ?, ?)
+    ", params = list(as.integer(crf_id), form_code, form_name, created_by))
+  }
+  invisible(TRUE)
 }
 
 #' Add Form Section

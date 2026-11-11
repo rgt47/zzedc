@@ -4,30 +4,26 @@
 \alias{setup_choice_server}
 \title{Setup Choice Server}
 \usage{
-setup_choice_server(id)
+setup_choice_server(id, on_console = NULL)
 }
 \arguments{
 \item{id}{Namespace ID}
+
+\item{on_console}{Optional function called when the user, having read
+the console commands, chooses to close the setup page.}
 }
 \value{
-Reactive value indicating chosen method
+Reactive value: \code{NULL} until a choice is made, then
+\code{"wizard"} or \code{"shell"}.
 }
 \description{
 Setup Choice Server
 }
 \examples{
 \dontrun{
-# Embed the first-run setup-choice module.
-# Most users will run the full application via
-# `zzedc::launch_zzedc()`; the example below shows how to
-# embed the module in a custom Shiny app instead.
 if (interactive()) {
-  ui <- shiny::fluidPage(
-    setup_choice_ui("module_id")
-  )
-  server <- function(input, output, session) {
-    setup_choice_server("module_id")
-  }
+  ui <- bslib::page_fluid(setup_choice_ui("choice"))
+  server <- function(input, output, session) setup_choice_server("choice")
   shiny::shinyApp(ui, server)
 }
 }

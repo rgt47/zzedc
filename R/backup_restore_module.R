@@ -108,7 +108,11 @@ backup_restore_ui <- function(id) {
           bslib::card_body(
             p("Select a backup to restore from."),
 
-            DT::DTOutput(ns("backups_table"))
+            DT::DTOutput(ns("backups_table")),
+            # The table's Download buttons trigger this hidden link;
+            # Shiny serves files only through a downloadHandler.
+            div(style = "display:none;",
+                downloadLink(ns("download_file"), "Download"))
           )
         ),
 
@@ -161,8 +165,16 @@ backup_restore_ui <- function(id) {
 #' @param db_pool Reactive expression returning database connection pool
 #' @param db_path Reactive expression returning path to database file
 #' @param backup_dir Directory where backups are stored
+#' @param db_adapter The application's `DatabaseAdapter`; decides whether
+#'   file backup applies (SQLite and DuckDB only) and how to make a
+#'   consistent copy.
+#' @param user_session The session's login state; its `username` is
+#'   recorded with a restore request.
 #'
 #' @return Invisible NULL
+#'
+#' @details
+#' Restore is staged, not performed in place: see `?database_restore`.
 #'
 #' @examples
 #' \dontrun{
@@ -182,9 +194,43 @@ backup_restore_ui <- function(id) {
 #' }
 #' @keywords internal
 backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data/zzedc.db"),
-                                  backup_dir = "./backups") {
+                                  backup_dir = "./backups", db_adapter = NULL,
+                                  user_session = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    actor_name <- function() {
+      if (!is.null(user_session) && !is.null(user_session$username)) {
+        as.character(user_session$username)
+      } else {
+        NA_character_
+      }
+    }
+
+    # The Select/Delete/Download buttons send a file path from the
+    # browser (Shiny.setInputValue). Accept it only if it is one of the
+    # backups this module itself listed; otherwise a crafted message
+    # could restore from, or delete, any file the app can reach.
+    known_backup <- function(path) {
+      listed <- load_backups()$filepath
+      ok <- !is.null(path) && length(path) == 1 && length(listed) > 0 &&
+        normalizePath(path, mustWork = FALSE) %in% normalizePath(listed, mustWork = FALSE)
+      if (!ok) {
+        stop("That file is not one of this study's backups.", call. = FALSE)
+      }
+      path
+    }
+
+    # This module backs up by copying the database file, which exists
+    # only for the file backends. Server backends need their own tools.
+    backend <- if (!is.null(db_adapter)) db_adapter$backend_name() else "sqlite"
+    file_backend <- backend %in% c("sqlite", "duckdb")
+    server_backend_msg <- paste0(
+      "File backup and restore apply to the SQLite and DuckDB backends. ",
+      "This study uses ", backend, "; use the server's own backup tools ",
+      "(pg_dump or WAL archiving for PostgreSQL, mysqldump or binary logs ",
+      "for MySQL/MariaDB)."
+    )
 
     # Reactive values
     backup_state <- reactiveValues(
@@ -201,7 +247,8 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
     # Load available backups
     load_backups <- function() {
       tryCatch({
-        backup_files <- list.files(backup_dir, pattern = "\\.db(\\.gz)?$", full.names = TRUE)
+        backup_files <- list.files(backup_dir, pattern = "\\.db(\\.gz)?(\\.enc)?$",
+                                   full.names = TRUE)
 
         if (length(backup_files) == 0) {
           return(data.frame(
@@ -276,6 +323,10 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Create backup button
     observeEvent(input$create_backup_btn, {
+      if (!file_backend) {
+        shinyalert("Backup not available here", server_backend_msg, type = "info")
+        return()
+      }
       tryCatch({
         # Show progress
         shinyjs::show("backup_progress")
@@ -291,9 +342,13 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
         # Sanitize filename
         backup_name <- gsub("[^a-zA-Z0-9_-]", "", backup_name)
 
-        extension <- if (input$backup_compress) ".db.gz" else ".db"
-        backup_filename <- paste0(backup_name, extension)
-        backup_filepath <- file.path(backup_dir, backup_filename)
+        # Write the uncompressed .db first and gzip it afterwards. The
+        # path used to end in ".db.gz" from the start, so the gzip step
+        # below (which looks for ".db") never ran: "compressed" backups
+        # were uncompressed files with a .gz name, which a restore then
+        # failed to gunzip.
+        backup_filename <- paste0(backup_name, if (input$backup_compress) ".db.gz" else ".db")
+        backup_filepath <- file.path(backup_dir, paste0(backup_name, ".db"))
 
         # Perform backup
         db_file <- db_path()
@@ -309,14 +364,37 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
           ns("backup_progress_bar")
         ))
 
-        # Copy database file
-        file.copy(db_file, backup_filepath, overwrite = TRUE)
-
-        # Compress if requested
-        if (input$backup_compress && grepl("\\.db$", backup_filepath)) {
-          R.utils::gzip(backup_filepath, destname = paste0(backup_filepath, ".gz"), remove = TRUE)
-          backup_filepath <- paste0(backup_filepath, ".gz")
+        # Under 'regulated', a backup of an unencrypted database must be
+        # encrypted (ZZEDC_BACKUP_PASSPHRASE); refuse before writing.
+        passphrase <- backup_passphrase()
+        db_encrypted <- if (backend == "duckdb") {
+          isTRUE(db_adapter$encryption_capabilities()$at_rest_configured)
+        } else {
+          isTRUE(sqlite_file_is_encrypted(db_file))
         }
+        check_backup_policy(db_encrypted, passphrase)
+
+        # A consistent copy of the open database: VACUUM INTO for
+        # SQLite (a plain file copy can miss commits still in the
+        # write-ahead log), CHECKPOINT then copy for DuckDB. For an
+        # encrypted DuckDB file the copy is ciphertext. Then compress
+        # if asked, and encrypt when a backup passphrase is set.
+        create_database_backup(db_pool, db_file, backend, backup_filepath)
+        backup_filepath <- finalize_backup_file(
+          backup_filepath, compress = isTRUE(input$backup_compress),
+          passphrase = passphrase
+        )
+        backup_filename <- basename(backup_filepath)
+        tryCatch(
+          log_audit_event(
+            event_type = "BACKUP", table_name = "database",
+            record_id = backup_filename,
+            operation = paste("Backup created:", backup_filename,
+                              if (!is.null(passphrase)) "(encrypted)" else ""),
+            user_id = actor_name()
+          ),
+          error = function(e) NULL
+        )
 
         # Update progress
         shinyjs::runjs(sprintf(
@@ -361,16 +439,54 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Select backup
     observeEvent(input$select_backup, {
-      filepath <- input$select_backup
+      filepath <- tryCatch(known_backup(input$select_backup), error = function(e) NULL)
+      if (is.null(filepath)) {
+        shinyalert("Error", "That file is not one of this study's backups.", type = "error")
+        return()
+      }
       backup_state$selected_backup <- filepath
 
       # Enable restore button
       shinyjs::addClass(id = ns("restore_btn"), class = "disabled")
     })
 
+    # Download backup. The button used to send an input nothing handled.
+    # A backup holds every record in the study (in plaintext unless the
+    # database is encrypted), so each download is audit-logged.
+    download_target <- reactiveVal(NULL)
+    observeEvent(input$download_backup, {
+      filepath <- tryCatch(known_backup(input$download_backup), error = function(e) NULL)
+      if (is.null(filepath)) {
+        shinyalert("Error", "That file is not one of this study's backups.", type = "error")
+        return()
+      }
+      download_target(filepath)
+      tryCatch(
+        log_audit_event(
+          event_type = "EXPORT", table_name = "database",
+          record_id = basename(filepath),
+          operation = paste("Backup downloaded:", basename(filepath)),
+          user_id = actor_name()
+        ),
+        error = function(e) NULL
+      )
+      shinyjs::runjs(sprintf("document.getElementById('%s').click();", ns("download_file")))
+    })
+    output$download_file <- downloadHandler(
+      filename = function() basename(download_target() %||% "backup.db"),
+      content = function(file) {
+        req(download_target())
+        file.copy(download_target(), file, overwrite = TRUE)
+      }
+    )
+
     # Delete backup
     observeEvent(input$delete_backup, {
-      filepath <- input$delete_backup
+      filepath <- tryCatch(known_backup(input$delete_backup), error = function(e) NULL)
+      if (is.null(filepath)) {
+        shinyalert("Error", "That file is not one of this study's backups.", type = "error")
+        return()
+      }
 
       # Confirmation dialog
       shinyalert(
@@ -400,6 +516,10 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Restore from backup
     observeEvent(input$restore_btn, {
+      if (!file_backend) {
+        shinyalert("Restore not available here", server_backend_msg, type = "info")
+        return()
+      }
       if (is.null(backup_state$selected_backup)) {
         shinyalert("Error", "Please select a backup to restore", type = "error")
         return()
@@ -410,81 +530,40 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
         return()
       }
 
+      # The database cannot be replaced while the application has it
+      # open (a shared pool, write-ahead logs). The restore is staged
+      # here and applied at the next start, before any connection
+      # opens (?database_restore). This used to copy the backup over the
+      # open file and then close the pool every session shares.
       tryCatch({
-        shinyjs::show("restore_progress")
+        backup_file <- known_backup(backup_state$selected_backup)
+        staged <- request_database_restore(
+          backup_file, db_path(), backend = backend,
+          requested_by = actor_name()
+        )
+        tryCatch(
+          log_audit_event(
+            event_type = "RESTORE", table_name = "database",
+            record_id = basename(backup_file),
+            operation = paste("Restore staged from", basename(backup_file),
+                              "- applied at next application start"),
+            user_id = actor_name()
+          ),
+          error = function(e) NULL
+        )
 
-        backup_file <- backup_state$selected_backup
-        db_file <- db_path()
-        current_time <- format(Sys.time(), "%Y%m%d_%H%M%S")
-        safety_backup <- file.path(backup_dir, paste0("pre_restore_", current_time, ".db"))
-
-        # Safety: create backup of current database
-        shinyjs::runjs(sprintf(
-          "document.getElementById('%s').style.width = '25%%'; document.getElementById('%s').textContent = 'Creating safety backup...'",
-          ns("restore_progress_bar"), ns("restore_status")
-        ))
-
-        if (file.exists(db_file)) {
-          file.copy(db_file, safety_backup, overwrite = TRUE)
-        }
-
-        # Decompress if needed
-        shinyjs::runjs(sprintf(
-          "document.getElementById('%s').style.width = '50%%'; document.getElementById('%s').textContent = 'Decompressing backup...'",
-          ns("restore_progress_bar"), ns("restore_status")
-        ))
-
-        if (grepl("\\.gz$", backup_file)) {
-          temp_file <- tempfile(fileext = ".db")
-          R.utils::gunzip(backup_file, destname = temp_file, remove = FALSE)
-          restore_source <- temp_file
-        } else {
-          restore_source <- backup_file
-        }
-
-        # Restore database
-        shinyjs::runjs(sprintf(
-          "document.getElementById('%s').style.width = '75%%'; document.getElementById('%s').textContent = 'Restoring database...'",
-          ns("restore_progress_bar"), ns("restore_status")
-        ))
-
-        file.copy(restore_source, db_file, overwrite = TRUE)
-
-        # Verify restoration
-        shinyjs::runjs(sprintf(
-          "document.getElementById('%s').style.width = '90%%'; document.getElementById('%s').textContent = 'Verifying...'",
-          ns("restore_progress_bar"), ns("restore_status")
-        ))
-
-        # Close database connections to allow reconnection
-        if (!is.null(db_pool)) {
-          pool::poolClose(db_pool)
-        }
-
-        # Complete
-        shinyjs::runjs(sprintf(
-          "document.getElementById('%s').style.width = '100%%'; document.getElementById('%s').textContent = 'Complete!'",
-          ns("restore_progress_bar"), ns("restore_status")
-        ))
-
-        # Non-blocking pause before hiding the progress bar; see
-        # the matching note in the backup observer above.
-        shinyjs::delay(1000, shinyjs::hide("restore_progress"))
-
-        shinyalert("Restoration Complete",
-                  paste("Database restored successfully.\n",
-                        "Note: Please refresh your browser to reconnect to the database."),
+        shinyalert("Restore scheduled",
+                  paste0(staged$message, "\n\n",
+                         "Restart the application to complete the restore. ",
+                         "Until then, the current database stays in use."),
                   type = "success")
-
-        # Clear confirmation field
         updateTextInput(session, "restore_confirmation", value = "")
 
       }, error = function(e) {
         shinyalert("Restoration Error",
-                  paste("Failed to restore backup:", e$message, "\n\n",
-                        "Your current database is still intact."),
+                  paste("Failed to stage the restore:", e$message, "\n\n",
+                        "Your current database is unchanged."),
                   type = "error")
-        shinyjs::hide("restore_progress")
       })
     })
 
@@ -524,20 +603,33 @@ perform_automatic_backup <- function(db_path, backup_dir = "./backups", compress
       return(list(success = FALSE, message = "Database file not found"))
     }
 
-    # Create backup
+    # Under 'regulated', a backup of an unencrypted database must be
+    # encrypted (ZZEDC_BACKUP_PASSPHRASE); refuse before writing.
+    passphrase <- backup_passphrase()
+    format <- .detect_db_file_format(db_path)
+    db_encrypted <- if (identical(format, "duckdb")) {
+      isFALSE(.readable_without_key(db_path, format))
+    } else {
+      isTRUE(sqlite_file_is_encrypted(db_path))
+    }
+    check_backup_policy(db_encrypted, passphrase)
+
+    # Create backup. Intended for a scheduler while the application is
+    # stopped, or for a database no connection is writing to; with the
+    # application running, use the Backup tab, which makes a consistent
+    # copy through the open connection.
     timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
     backup_filename <- paste0("auto_backup_", timestamp, ".db")
     backup_filepath <- file.path(backup_dir, backup_filename)
 
     file.copy(db_path, backup_filepath, overwrite = TRUE)
-
-    if (compress) {
-      R.utils::gzip(backup_filepath, destname = paste0(backup_filepath, ".gz"), remove = TRUE)
-      backup_filepath <- paste0(backup_filepath, ".gz")
-    }
+    backup_filepath <- finalize_backup_file(backup_filepath, compress = compress,
+                                            passphrase = passphrase)
+    backup_filename <- basename(backup_filepath)
 
     # Clean up old backups
-    backup_files <- list.files(backup_dir, pattern = "^auto_backup_.*\\.db(\\.gz)?$", full.names = TRUE)
+    backup_files <- list.files(backup_dir, pattern = "^auto_backup_.*\\.db(\\.gz)?(\\.enc)?$",
+                               full.names = TRUE)
     if (length(backup_files) > 0) {
       file_ages <- as.numeric(Sys.time() - file.mtime(backup_files), units = "days")
       old_files <- backup_files[file_ages > keep_days]

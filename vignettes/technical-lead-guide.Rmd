@@ -88,16 +88,22 @@ ZZedc commits to three things and the rest of this guide is
 about preserving them:
 
 1. **Encryption at rest.** Subject data is stored on disk
-   under AES-256 when the package is run against a
+   encrypted when the package runs on DuckDB with
+   `duckdb.encryption_key` set (DuckDB's native file
+   encryption; CRAN software only), or on SQLite with a
    SQLCipher-enabled RSQLite (for example via
-   SQLite3MultipleCiphers or a custom build), or against a
-   server-side encrypted backend (TDE for
-   PostgreSQL/MySQL/ClickHouse). The default stock RSQLite
-   binary on CRAN does not include SQLCipher, so encryption
-   on SQLite-backed deployments is opt-in and depends on the
-   driver build present on the production host. Verify on
-   the deployment host with `verify_database_encryption()`
-   (Chapter 5).
+   SQLite3MultipleCiphers or a custom build). The stock CRAN
+   RSQLite does not include SQLCipher: the key is ignored and
+   the file is plaintext. On PostgreSQL, MySQL/MariaDB, and
+   ClickHouse, encryption at rest is the server operator's
+   configuration (InnoDB tablespace encryption, volume
+   encryption, or a vendor feature), which zzedc cannot
+   observe. The `security.profile` setting decides what
+   happens when encryption cannot be shown to be active:
+   `regulated` refuses to start, `standard` (the default)
+   warns, `development` is silent (Chapter 5, §5.0). Verify
+   on the deployment host with `verify_database_encryption()`
+   (§5.5).
 2. **Hash-chained audit log.** Every database mutation appends
    a row to `audit_log` whose `audit_hash` depends on the
    previous row's hash. Tampering with any row breaks the
@@ -192,11 +198,11 @@ delta.
 
 | Backend | When to use | Concurrent users | Encryption | Backup model |
 |---|---|---|---|---|
-| SQLite + SQLCipher | Solo, small site, on-prem | up to ~50 | SQLCipher (driver-dependent) | File copy |
-| DuckDB | Analytics-heavy, columnar | up to ~50 | At-rest via OS | File copy |
-| PostgreSQL | Institutional, multi-site | hundreds | TDE / pgcrypto | pg_dump or WAL archive |
-| MySQL/MariaDB | REDCap shops, institutional | hundreds | TDE | mysqldump or binlog |
-| ClickHouse | High-volume analytics | thousands | TDE | clickhouse-backup |
+| SQLite | Solo, small site, on-prem | up to ~50 | None on stock CRAN RSQLite; SQLCipher with a cipher-enabled build | File copy |
+| DuckDB | Analytics-heavy, columnar; recommended when encryption at rest is required | up to ~50 | Native file encryption (`duckdb.encryption_key`) | File copy |
+| PostgreSQL | Institutional, multi-site | hundreds | Server side only: volume/filesystem encryption or a TDE distribution (community PostgreSQL has no built-in TDE); TLS via `sslmode` | pg_dump or WAL archive |
+| MySQL/MariaDB | REDCap shops, institutional | hundreds | Server side: InnoDB tablespace encryption; TLS via `ssl_mode` | mysqldump or binlog |
+| ClickHouse | High-volume analytics | thousands | Server side | clickhouse-backup |
 
 ---
 
@@ -402,6 +408,43 @@ layout is identical.
 
 # Chapter 5. Initializing the database
 
+## 5.0 Choose a security profile first
+
+One setting decides how zzedc reacts when storage cannot be
+shown to be encrypted at rest:
+
+| Profile | Unencrypted database | AWS KMS failure | Use for |
+|---|---|---|---|
+| `development` | Allowed silently | Falls back to `DB_ENCRYPTION_KEY` | Tests, demonstrations, synthetic data |
+| `standard` (default) | Allowed, with a warning naming the risk | Falls back, with a warning | Low-risk or de-identified studies |
+| `regulated` | Refused: the app will not start | Error | 21 CFR Part 11, HIPAA, IRB-governed studies |
+
+Set it in `config.yml`:
+
+```yaml
+default:
+  security:
+    profile: regulated
+```
+
+or with `ZZEDC_SECURITY_PROFILE` in the environment, or with
+`options(zzedc.security_profile = ...)`; the option outranks
+the environment variable, which outranks `config.yml`.
+`resolve_security_profile()` reports the active profile and
+where it came from. The app logs both at startup. The
+configuration templates, the setup wizard, and the bundled
+`config.yml` all write `regulated`; a stock-RSQLite SQLite
+deployment therefore will not start until it moves to DuckDB
+with an encryption key, gains a cipher-enabled RSQLite, or is
+deliberately set to `standard`.
+
+Under every profile the result fields tell the truth:
+`initialize_encrypted_database()$encrypted`,
+`verify_database_encryption()$encrypted`, and the adapter
+method `encryption_capabilities()`, which reports at-rest and
+in-transit encryption separately. TLS is not counted as
+encryption at rest.
+
 ## 5.1 Encryption-at-rest architecture
 
 Database encryption operates at the connection layer. When
@@ -415,19 +458,85 @@ Characteristics of the SQLCipher integration:
 - *Page size.* 4096 bytes (SQLCipher default).
 - *Key derivation.* PBKDF2 with SHA256.
 
-For PostgreSQL/MySQL/ClickHouse, encryption-at-rest is the
-backend's transparent data encryption (TDE) feature; ZZedc
-contributes only the application-side key custody and audit
-logic.
+For DuckDB, the database file is opened with
+`ATTACH ... (ENCRYPTION_KEY ...)` whenever
+`duckdb.encryption_key` is set; DuckDB refuses to open the
+file without the key. This needs DuckDB's `httpfs` extension,
+and deadline queries need `icu`. Without configuration, the R
+duckdb package downloads both into a per-session temporary
+directory. For production, and always under `regulated` (which
+disallows runtime downloads by default), pre-install them:
 
-Note on the partial nature of this guarantee for
-SQLite-backed deployments: the stock RSQLite binary
-distributed via CRAN is built without SQLCipher. ZZedc will
-still create and use a SQLite database, but at-rest
-encryption requires a SQLCipher-enabled RSQLite (for example
-via SQLite3MultipleCiphers or a custom build). Run
-`verify_database_encryption()` on the deployment host
-(§5.5) before claiming encryption-at-rest in any DMP or IRB
+```{r}
+# On a connected machine with the same OS, architecture,
+# and DuckDB version as the deployment host:
+install_duckdb_extensions("/srv/zzedc/duckdb_extensions")
+```
+
+then copy the directory to the host and set:
+
+```yaml
+database:
+  backend: duckdb
+  duckdb:
+    path: /srv/zzedc/MEMORY-001/study.duckdb
+    encryption_key: ${DB_ENCRYPTION_KEY}
+    extension_directory: /srv/zzedc/duckdb_extensions
+```
+
+A missing extension is then an error when the connection
+opens, naming this remedy.
+
+The Shiny application reads the same choice from the
+`database:` section of its own `config.yml` (the
+`config::get()` file passed to `launch_zzedc()`), which is
+flat:
+
+```yaml
+default:
+  database:
+    backend: duckdb            # sqlite (default), duckdb,
+                               # postgresql, mysql
+    path: data/study.duckdb
+    encryption_key: ${DB_ENCRYPTION_KEY}
+    extension_directory: /srv/zzedc/duckdb_extensions
+    pool_size: 5
+  security:
+    profile: regulated
+```
+
+Server backends take `host`, `port`, `name`, `user`,
+`password`, and `sslmode` (PostgreSQL) or `ssl_mode`
+(MySQL/MariaDB) in the same section. `launch_zzedc()`
+initializes and migrates the database on that backend, and
+the application's pool and the package functions it calls
+all open it through one adapter. Before 2026-11-10 the
+application ignored the backend and always opened SQLite.
+
+For a new study you need not write this section by hand:
+`launch_zzedc(backend = "duckdb")` (or the interactive
+prompt, or the setup wizard, `launch_setup_wizard()`) writes
+it, with `${...}` references for the key and passwords, and
+for DuckDB installs the extensions into
+`duckdb_extensions/`. `describe_backends()` compares the
+options.
+
+For PostgreSQL/MySQL/ClickHouse, encryption at rest is a
+server or storage setting (InnoDB tablespace encryption,
+volume encryption, or a vendor TDE distribution; community
+PostgreSQL has none built in). ZZedc contributes only the
+application-side key custody and audit logic, and cannot
+verify the server's setting.
+
+Note on SQLite-backed deployments: the stock RSQLite binary
+distributed via CRAN is built without SQLCipher.
+`sqlite_cipher_available()` tests the installed build by
+writing a keyed file and inspecting it. On a stock build the
+key is ignored and the database is plaintext; until
+2026-11-10 that happened silently, and it is now reported or
+refused according to the security profile (§5.0). Run
+`verify_database_encryption()` on the deployment host (§5.5)
+before claiming encryption at rest in any DMP or IRB
 submission.
 
 ## 5.2 Generate and verify the encryption key
@@ -465,8 +574,14 @@ init <- initialize_encrypted_database(
   overwrite = FALSE
 )
 init$success           # TRUE
+init$encrypted         # FALSE on stock CRAN RSQLite
 init$key               # SAVE THIS; treat as a password
 ```
+
+On SQLite, `init$encrypted` is `TRUE` only with a
+cipher-enabled RSQLite. Under the `regulated` profile a
+database that would be plaintext is not created at all:
+`init$success` is `FALSE` and no file is left behind.
 
 The returned `init$key` is the master encryption key. Store
 it as in §5.2.
@@ -494,21 +609,54 @@ DBI::dbDisconnect(conn)
 verification <- verify_database_encryption(
   db_path = "/srv/zzedc/MEMORY-001/study.db"
 )
-verification$encrypted     # TRUE only if SQLCipher is active
+verification$encrypted            # TRUE only if verified
+verification$readable_without_key # the decisive check
 verification$message
 ```
 
-This check opens the file with a stock SQLite reader and
-confirms the bytes are not interpretable as plaintext SQLite.
-If `encrypted` is `FALSE`, the running RSQLite is not
-SQLCipher-enabled; subject data on this host is at rest in
-the clear. Stop and rebuild against a SQLCipher driver
-before proceeding.
+This check tests the property encryption exists to provide:
+it opens the file with no key (a stock SQLite or DuckDB
+reader) and requires that to fail, then opens it with the key
+and requires that to succeed. It works for SQLite and DuckDB
+files. If `encrypted` is `FALSE` and `readable_without_key`
+is `TRUE`, subject data on this host is at rest in the clear.
+
+Versions before 2026-11-10 judged encryption by the share of
+bytes above 127 in the file's first kilobyte. That heuristic
+also failed correctly encrypted files (ciphertext has about
+half its bytes above 127), so it could not distinguish the
+two cases; do not rely on validation records produced with
+it.
+
+IQ-008 in the validation suite (`run_iq_tests()`) performs
+the same check against the deployment database under the
+active profile, and fails under `regulated` unless encryption
+is verified.
 
 ## 5.6 Migrate an unencrypted database to encrypted
 
-If the trial accumulated data on a stock RSQLite before a
-SQLCipher driver was available, convert the database in place:
+To encrypt an existing database file in place (a backup of
+the plaintext original is kept, and the original is left
+unchanged on any failure):
+
+```{r}
+result <- set_encryption_for_existing_db(
+  db_path = "/srv/zzedc/MEMORY-001/study.duckdb"
+)
+result$encrypted     # verified before the file is replaced
+result$new_key       # SAVE THIS
+result$backup_path   # plaintext copy: secure or delete it
+```
+
+This works for DuckDB files on any installation, and for
+SQLite files only with a cipher-enabled RSQLite; on stock
+CRAN RSQLite it stops with an error rather than producing an
+unencrypted file. (Before 2026-11-10 this function generated
+a key and a backup but never rewrote the file.)
+
+Alternatively, if the trial accumulated data on a stock
+RSQLite before a SQLCipher driver was available, copy it into
+a new database:
 
 ```{r}
 result <- migrate_to_encrypted(
@@ -593,9 +741,16 @@ the trial is unavailable during rotation. The procedure is:
 1. Stop the application (`docker compose stop zzedc`).
 2. Take a fresh backup (Chapter 9).
 3. Generate a new key with `generate_db_key()`.
-4. Use SQLCipher's `PRAGMA rekey = 'new-key';` (via a
-   privileged R session) to re-encrypt the database in
-   place.
+4. Re-encrypt under the new key. On SQLite with a
+   cipher-enabled RSQLite, use SQLCipher's
+   `PRAGMA rekey = 'new-key';` from a privileged R session.
+   On DuckDB, which has no in-place rekey, copy into a new
+   file attached with the new key
+   (`ATTACH ... (ENCRYPTION_KEY 'new-key')` followed by
+   `COPY FROM DATABASE`), verify it with
+   `verify_database_encryption(db_path, key = new_key)`, then
+   swap the files. zzedc does not yet automate rotation
+   (plan Phase 4.3).
 5. Update `DB_ENCRYPTION_KEY` in the secrets store.
 6. Restart and run `verify_audit_log_integrity()` (Chapter
    10) before re-opening to users.
@@ -625,6 +780,47 @@ Operational hygiene:
 - Encrypt backup transfers in transit (TLS 1.2+).
 - Conduct a periodic security review of who holds the key
   and who can read the secrets store.
+
+## 5.11 How this compares to REDCap, OpenClinica, and Castor
+
+A technical lead arriving from REDCap or a self-hosted
+OpenClinica deployment will recognize most of this chapter,
+but the encryption-at-rest story differs in a way worth
+stating plainly rather than leaving implicit. REDCap,
+self-hosted OpenClinica (Community Edition), and LibreClinica
+all defer at-rest encryption entirely to the hosting
+institution's infrastructure (disk-level or database-engine
+encryption configured outside the application); none of them
+offers a package-enforced, independently verifiable at-rest
+guarantee for a free or self-hosted install. Castor's free
+tier is vendor-hosted rather than self-hosted, so the question
+does not arise there in the same form, and its field-level
+encryption module for sensitive identifiers is a paid add-on,
+not a baseline feature; Castor's own public materials are
+also internally inconsistent about which cipher family it
+uses (AES-256 per one help-center page, libsodium
+XSalsa/XChaCha plus Poly1305 per its Security Statement), an
+inconsistency this guide does not attempt to resolve.
+
+zzedc takes the application-layer approach for the DuckDB
+backend specifically: the `regulated` security profile
+(§5.0) combined with `verify_database_encryption()`
+(§5.5) gives an automated, re-runnable check of the
+at-rest guarantee rather than a guarantee that exists only on
+paper. This is currently true for DuckDB only. SQLite depends
+on a cipher-enabled RSQLite build that is not the CRAN
+default, and the server backends (PostgreSQL, MySQL/MariaDB,
+ClickHouse) remain exactly as infrastructure-dependent as the
+equivalent REDCap, OpenClinica, or Castor-self-hosted
+deployment: zzedc contributes application-side key custody
+and audit logic there, but cannot observe or enforce the
+server's own encryption configuration. Treat this section,
+rather than an unqualified comparison, as the accurate basis
+for any REDCap-versus-zzedc encryption claim in a protocol or
+DMP; the governing document for the three-layer compliance
+framing generally (software controls, institutional
+procedure, per-study configuration) is
+`docs/encryption-compliance-plan-2026-11-10.md`.
 
 ---
 
@@ -701,9 +897,18 @@ result <- setup_zzedc_from_csv(
 )
 ```
 
-The contract is otherwise identical. See
-[`vignette('demonstration-trial-setup')`](demonstration-trial-setup.html)
-for a full worked example.
+The contract is otherwise identical. For another backend, pass
+`adapter_config` (for example `app_database_config(cfg)`) instead
+of `db_path`; `create_database = FALSE` imports into an existing
+study, skipping users, forms, and rules that are already there.
+(This function was documented here before it existed; it was
+added on 2026-11-11.)
+
+A complete worked example ships with the package: the
+fictional ADHD trial in
+`system.file("extdata", "adhd_trial", package = "zzedc")`,
+nine forms, 129 fields, and 57 validation rules in the three
+CSV files. Its `README.md` shows how to load it.
 
 ---
 
@@ -787,6 +992,25 @@ launch_zzedc()
 This is appropriate for the content author's dry-run protocol
 (their Chapter 4) but not for any real-site use. For
 production, use one of the patterns below.
+
+Confirm the full top-level navigation loads: Home, each
+study-specific CRF tab, Reports, Data, Export, Setup, and two
+tabs relevant to this guide's audience: *Compliance*
+(electronic signatures and training records; implemented in
+`R/cfr_compliance_module.R`) and *Admin* (user management,
+backup/restore, the admin dashboard; implemented in
+`R/admin_dashboard_module.R`). Both modules existed as code
+before this release but were not reachable from the live
+application's navigation; they are now wired into `nav_tabs`
+and appear for every logged-in user, the same as the other
+top-level tabs. The navigation itself does not filter these
+tabs by role; anything inside them that should be restricted
+(for example, which roles an admin is permitted to assign to
+another user) is enforced inside the module itself, not by
+hiding the tab. If either tab is missing or renders a *module
+not available* placeholder on a fresh install, treat it as an
+installation problem (a missing module file), not an expected
+limitation.
 
 ## 8.2 Production pattern: Docker on a single VM
 
@@ -1135,9 +1359,34 @@ below an hour.
 The running Shiny app exposes a *Backup & Restore* card on
 the Admin tab for one-off snapshots a project administrator
 can take from a browser without shell access — useful before
-schema migrations, before bulk data corrections, or as the
-"safety backup" the restore flow makes automatically before
-overwriting the live database. Behavior notes:
+schema migrations, before bulk data corrections, or before a
+restore. Behavior notes:
+
+- Backups are written to the study directory's `backups/`
+  folder. (Before 2026-11-11 they went to the application
+  folder inside the installed package, where reinstalling the
+  package deleted them.)
+- A SQLite backup is made with `VACUUM INTO`, a consistent copy
+  that includes commits still in the write-ahead log; a DuckDB
+  backup is made after `CHECKPOINT`. The compression option
+  now actually compresses (earlier "compressed" backups were
+  uncompressed files named `.gz`, which could not be restored).
+- **Restore is applied at the next start, not immediately.**
+  Pressing Restore checks that the backup is a database of the
+  study's backend and stages it beside the database; the
+  current database stays in use until the application is
+  restarted. At startup, `launch_zzedc()` (and the
+  application itself) keeps the current database and its
+  write-ahead log in a `pre_restore_<timestamp>/` folder beside
+  it, removes the old write-ahead log, and puts the backup in
+  place, recording the event in `restore_history.log`. (The
+  previous behavior copied the backup over the open file and
+  closed the connection pool shared by every session.) See
+  `?database_restore`; `request_database_restore()` and
+  `apply_pending_restore()` do the same from the console.
+- Only files in the backup folder can be selected, restored, or
+  deleted; the paths the browser sends are checked against the
+  server's own list.
 
 - The backup runs synchronously on the R session that hosts
   the Shiny app. SQLite copy + gzip on a clinical-trial-sized
@@ -1526,7 +1775,14 @@ Post-recovery (1-4 h)
   transfers in transit (TLS 1.2+); access-control the
   backup storage; log all backup access and restoration;
   cover backup procedures in any Business Associate
-  Agreement.
+  Agreement. Note that zzedc's own backup functions
+  (`perform_automatic_backup()`, the backup/restore module)
+  copy the database file as is: a backup of an encrypted
+  DuckDB or SQLCipher file is ciphertext, but a backup of a
+  stock-RSQLite database is plaintext, and zzedc does not
+  yet encrypt backups itself (plan Phase 2.1). Until then,
+  encrypt backup storage at the operating-system or storage
+  level.
 
 Document at minimum: backup schedule and retention,
 recovery runbooks per scenario, DR test results,
@@ -1787,7 +2043,11 @@ file:
 
 | Claim | Implemented in |
 |---|---|
-| Encryption at rest (AES-256) | `R/encryption_utils.R`, `R/db_connection.R` |
+| Encryption at rest (DuckDB native; SQLite only with a cipher-enabled RSQLite) | `R/db_adapter_duckdb.R`, `R/encryption_utils.R`, `R/db_connection.R` |
+| Security profile enforcement (refuse/warn on unencrypted storage) | `R/security_profile.R`, `inst/app/global.R` |
+| Encryption-at-rest verification (keyless-open test; IQ-008) | `R/db_connection.R::verify_database_encryption()`, `R/validation_framework.R` |
+| Password-encrypted exports (AES-256-CTR + HMAC-SHA256) | `R/secure_export.R::encrypt_export_file()` |
+| Pseudonymization of identifiers (HMAC-SHA256) | `R/secure_export.R::pseudonymize_values()` |
 | Hash-chained audit log | `R/audit_logging.R`, `R/cfr_part11_extensions.R` |
 | Audit-log integrity validation | `R/audit_logging.R::verify_audit_log_integrity()` |
 | Electronic signatures (21 CFR Part 11) | `R/electronic_signatures.R` |
@@ -1806,12 +2066,29 @@ are GDPR Article 32 and FDA 21 CFR Part 11. ZZedc's
 contribution to each:
 
 - *GDPR Article 32 (security of processing).* Encryption of
-  personal data at rest (when SQLCipher-enabled RSQLite or
-  TDE is in effect; see Chapter 5); access control via
-  role-based authentication and per-site scoping; audit
-  trail for accountability; documented operational
-  procedures. The 'partial' caveat applies because
-  encryption-at-rest depends on the deployed driver.
+  personal data at rest (DuckDB with an encryption key, a
+  SQLCipher-enabled RSQLite, or server-side encryption; see
+  Chapter 5); pseudonymization of direct identifiers in
+  exports (`selective_field_export()`, which calls
+  `pseudonymize_values()` under HMAC-SHA256 with a key
+  separate from the database key; the output remains
+  personal data under Article 4(5)); password-encrypted
+  exports; access control via role-based authentication and
+  per-site scoping; audit trail for accountability;
+  documented operational procedures. The 'partial' caveat
+  applies because encryption at rest depends on the
+  deployed backend; the `regulated` profile makes that
+  dependency fail closed rather than silent.
+
+  `selective_field_export()`'s `fields_to_encrypt` argument
+  is deprecated in favor of `fields_to_pseudonymize` (the
+  function pseudonymizes; it never encrypted in a reversible
+  sense). The pseudonyms it produces differ from those an
+  earlier zzedc version would have produced for the same
+  field, so an export made before this change and one made
+  after it cannot be linked on a pseudonymized field. A
+  misspelled field name is now an error rather than silently
+  leaving that field unprotected in the export.
 - *FDA 21 CFR Part 11 (electronic records and electronic
   signatures).* Hash-chained audit trail (immutable by
   construction; verifiable end-to-end with
@@ -1821,14 +2098,34 @@ contribution to each:
   authenticated user; data-integrity verification on
   exports (`export_encrypted_data()` produces a
   companion `.sha256` file consumed by
-  `verify_exported_data()`).
+  `verify_exported_data()`; the export file itself is
+  encrypted, as a separate `.enc` file using AES-256-CTR
+  with HMAC-SHA256 under a bcrypt-pbkdf-derived key, only
+  when a `password` of at least 12 characters is
+  supplied).
+
+  A known limitation in the electronic-signature framework,
+  not yet remediated: `R/electronic_signatures.R`'s
+  signing-password check hashes the password with a single,
+  unsalted round of SHA-256, while the application's own
+  login path (`auth_module.R`) salts its password hash via
+  the `ZZEDC_SALT` environment variable. The two schemes are
+  inconsistent, and the signature path is the weaker of the
+  two for a credential that is meant to bind a Part 11
+  signature to an individual. The project maintainer has
+  deliberately left this unfixed for now, because correcting
+  it is a migration (existing stored signature-password
+  hashes would need to be rehashed), not an edit; see
+  `NEWS.md`'s *Known, not changed* note for v0.7.0.
+  Do not represent signature-password handling as stronger
+  than this in a DMP or validation record.
 
 Neither claim is self-attesting. The audit chain is correct
 by construction but a per-database integrity claim requires
-running the verifier; encryption-at-rest is correct by
-construction but a per-host claim requires running
-`verify_database_encryption()` against the production
-binary.
+running the verifier; encryption at rest depends on the
+deployed backend and RSQLite build, so a per-host claim
+requires running `verify_database_encryption()` (or IQ-008)
+against the production database.
 
 The canonical compliance write-up is
 `docs/compliance/gdpr-and-cfr-part11.md`. That document is

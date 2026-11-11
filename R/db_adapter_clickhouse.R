@@ -204,10 +204,18 @@ ClickHouseAdapter <- R6::R6Class(
     },
 
     #' @description
-    #' Check if encryption is supported
-    #' @return Logical TRUE (ClickHouse supports TLS)
-    supports_encryption = function() {
-      TRUE
+    #' Describe this backend's encryption. Encryption at rest is a
+    #' ClickHouse server or storage setting zzedc cannot observe; TLS
+    #' depends on the connection settings. Earlier versions reported
+    #' `supports_encryption() = TRUE` on the strength of TLS alone.
+    #' @return List; see `DatabaseAdapter$encryption_capabilities()`
+    encryption_capabilities = function() {
+      list(
+        at_rest = "server",
+        at_rest_configured = NA,
+        in_transit = "optional",
+        detail = "Encryption at rest and TLS are configured on the ClickHouse server."
+      )
     },
 
     #' @description

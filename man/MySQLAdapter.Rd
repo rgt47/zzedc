@@ -85,7 +85,7 @@ machinery; these are present in all supported versions.
     \item \href{#method-MySQLAdapter-connect}{\code{MySQLAdapter$connect()}}
     \item \href{#method-MySQLAdapter-pool}{\code{MySQLAdapter$pool()}}
     \item \href{#method-MySQLAdapter-dialect}{\code{MySQLAdapter$dialect()}}
-    \item \href{#method-MySQLAdapter-supports_encryption}{\code{MySQLAdapter$supports_encryption()}}
+    \item \href{#method-MySQLAdapter-encryption_capabilities}{\code{MySQLAdapter$encryption_capabilities()}}
     \item \href{#method-MySQLAdapter-backend_name}{\code{MySQLAdapter$backend_name()}}
     \item \href{#method-MySQLAdapter-server_version}{\code{MySQLAdapter$server_version()}}
     \item \href{#method-MySQLAdapter-is_ssl_connected}{\code{MySQLAdapter$is_ssl_connected()}}
@@ -105,6 +105,8 @@ machinery; these are present in all supported versions.
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="prepare_auto_increment"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-prepare_auto_increment'><code>DatabaseAdapter$prepare_auto_increment()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="shutdown"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-shutdown'><code>DatabaseAdapter$shutdown()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="supports_encryption"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-supports_encryption'><code>DatabaseAdapter$supports_encryption()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
@@ -174,21 +176,23 @@ machinery; these are present in all supported versions.
 }
 
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-MySQLAdapter-supports_encryption"></a>}}
-\if{latex}{\out{\hypertarget{method-MySQLAdapter-supports_encryption}{}}}
-\subsection{\code{MySQLAdapter$supports_encryption()}}{
-  Whether this backend supports encryption at rest. MySQL
-supports InnoDB tablespace encryption at the server level;
-the \code{key} argument used by the SQLite path is not honoured
-here, but transport-level TLS is configured via
-\code{mysql$ssl_mode}.
+\if{html}{\out{<a id="method-MySQLAdapter-encryption_capabilities"></a>}}
+\if{latex}{\out{\hypertarget{method-MySQLAdapter-encryption_capabilities}{}}}
+\subsection{\code{MySQLAdapter$encryption_capabilities()}}{
+  Describe this backend's encryption. MySQL and MariaDB encrypt at
+rest through InnoDB tablespace encryption, enabled on the server;
+the \code{key} argument used by the SQLite and DuckDB paths is not
+honored here. TLS is enforced only when \code{mysql$ssl_mode} requires
+it. Earlier versions reported \code{supports_encryption() = TRUE},
+conflating server capability and TLS with encryption zzedc
+provides.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{MySQLAdapter$supports_encryption()}
+    \preformatted{MySQLAdapter$encryption_capabilities()}
     \if{html}{\out{</div>}}
   }
   \subsection{Returns}{
-    Logical TRUE.
+    List; see \code{DatabaseAdapter$encryption_capabilities()}
   }
 }
 

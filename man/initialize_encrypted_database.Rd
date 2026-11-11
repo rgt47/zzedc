@@ -26,8 +26,21 @@ this key beyond the current function call; the caller must store
 it (for example via \code{Sys.setenv(DB_ENCRYPTION_KEY = result$key)}
 or AWS Secrets Manager). Losing the key makes the database
 unrecoverable.
-\item message: Status message
+\item encrypted: Logical. Whether the created file was verified to be
+encrypted at rest. On SQLite with a stock CRAN RSQLite build this
+is \code{FALSE}: the key is accepted but not applied. \code{NA} on
+server-hosted backends, where encryption at rest is a server
+setting this function cannot observe.
+\item message: Status message, which states plainly when the database
+is not encrypted
 }
+
+Under the \code{regulated} security profile (see
+\code{resolve_security_profile()}), a SQLite database that would be
+written unencrypted is removed and the function returns
+\code{success = FALSE}. Under \code{standard} it succeeds with a warning;
+under \code{development}, silently. In all profiles \code{encrypted} reports
+the true state.
 }
 \description{
 Creates a new encrypted database with complete schema.

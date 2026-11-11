@@ -48,7 +48,7 @@ the content using tools they are comfortable with (Google
 Sheets), while a technical colleague handles the parts that
 require a terminal, database, or server.
 
-## Division of labour
+## Division of labor
 
 | You (content author) | Technical lead |
 |---|---|
@@ -85,7 +85,7 @@ question.
 ## Trial design
 
 - [ ] What is the trial's full name and protocol identifier?
-- [ ] How many participants will you enrol (a realistic ceiling
+- [ ] How many participants will you enroll (a realistic ceiling
       for the next 12 months)?
 - [ ] How many sites will collect data (1 for a single-site
       trial; otherwise list each)?
@@ -126,9 +126,9 @@ or in a plain document.
 - [ ] Plausibility ranges for every numeric field (heart rate
       between 30 and 200, MMSE total between 0 and 30)
 - [ ] Date orderings (date of birth before consent;
-      randomisation before any visit)
+      randomization before any visit)
 - [ ] Visit-window rules (Week 4 visit must occur 25 to 31 days
-      after randomisation)
+      after randomization)
 - [ ] Cross-field consistency (if pregnant is `Yes`, sex must
       be `Female`; if a serious AE, a description is required)
 
@@ -144,6 +144,15 @@ This chapter is the core of your work. By the end of it you
 will have a Google Sheets workbook with three completed tabs
 (`Study_Users`, `Data_Dictionary`, `validation_rules`) ready
 to hand to the technical lead.
+
+If you have configured a REDCap project before, the mental
+model differs in one respect: REDCap's Online Designer lets you
+build and preview forms directly in the browser, while ZZedc's
+content lives in a workbook that the technical lead imports in
+a separate step. The workbook format means you can draft and
+revise forms, users, and rules offline or with a collaborator
+before anything reaches the application, at the cost of that
+extra import round trip whenever you make a change.
 
 ## 3.1 Before you begin
 
@@ -168,10 +177,10 @@ Drive. Rename it to something memorable, for example
 *MEMORY-001 Study Configuration*.
 
 If you are starting from scratch, create a new Sheet at
-[sheets.google.com](https://sheets.google.com) and add three
+[Google Sheets](https://docs.google.com/spreadsheets/) and add three
 tabs. Right-click the tab strip at the bottom and choose
 *Rename*; name them `Study_Users`, `Data_Dictionary`, and
-`validation_rules` exactly as written. Capitalisation and
+`validation_rules` exactly as written. Capitalization and
 spelling matter: the import tool looks for those tab names
 exactly.
 
@@ -229,7 +238,7 @@ Then start adding your team members, one per row.
 
 For a multi-site trial, the `site_id` column is the only thing
 that changes. Each user belongs to exactly one site (or to
-"all sites" via the special `site_id = "ALL"`, reserved for the
+'all sites' via the special `site_id = "ALL"`, reserved for the
 PI, central monitor, and data manager).
 
 ### Example: a three-site memory trial
@@ -425,7 +434,7 @@ assessment_date - randomization_date between 25 and 31
 ```
 
 (Week 4 visit must occur between 25 and 31 days after
-randomisation.)
+randomization.)
 
 #### 5. Conditional consistency
 
@@ -501,7 +510,7 @@ Then:
    (`TEST-001`). Do not use any real patient data.
 3. **Walk through every form, every field, every visit.**
    Enter realistic but synthetic values.
-4. **Test the "wrong" path.** Try to enter a value that should
+4. **Test the 'wrong' path.** Try to enter a value that should
    trigger each validation rule. Confirm the error message is
    helpful.
 5. **Save and re-open the subject.** Confirm the data persists.
@@ -519,7 +528,7 @@ technical lead, and either re-edit the workbook (for
 form/rule/user changes) or have the technical lead fix the
 configuration directly.
 
-## What "looks wrong" usually means
+## What 'looks wrong' usually means
 
 | Symptom | Likely cause |
 |---|---|
@@ -563,6 +572,19 @@ not train multiple sites at once unless they share staff.
   create a subject, how to enter a visit, how to ask for help.
 - Your phone or email for the first two weeks (so problems do
   not pile up while site staff figure out who to ask).
+
+## Recording training completion
+
+The application's **Compliance** tab tracks electronic
+signatures, audit-trail events, and training records in one
+place. After each site's training session, record each
+coordinator's training there (user, training type, date, and
+score) so the trial has a documented training record beyond
+your own notes. Recording training is a documented control some
+institutional and sponsor-side procedures expect; it does not
+by itself make the trial compliant with anything. If you hold
+the `Admin` role you can enter it yourself; otherwise ask the
+technical lead or site PI, who will see the same tab.
 
 ## Common training gotchas
 
@@ -614,7 +636,7 @@ Common reasons: a value is implausible (a 27-year-old in a
 1. **Open** the query in the application: navigate to the
    subject, click the field in question, choose
    *Raise query*. Write a specific question
-   (*"Is the height value 1.65 in metres or 165 in cm?"*).
+   (*'Is the height value 1.65 in meters or 165 in cm?'*).
 2. The site coordinator gets the query in their *Open Queries*
    list at next login.
 3. **Respond.** The coordinator either corrects the value
@@ -687,8 +709,13 @@ date.
 - [ ] Daily backups are configured and tested (the technical
       lead has performed at least one restore-from-backup
       drill)
-- [ ] Encryption at rest is enabled and the encryption key is
-      held by the agreed custodian
+- [ ] Encryption at rest is enabled and verified (the
+      technical lead has run `verify_database_encryption()`
+      or IQ-008 and it returned `encrypted = TRUE`; on a stock
+      SQLite installation it will not), and the encryption key
+      is held by the agreed custodian
+- [ ] The security profile is set deliberately in
+      `config.yml` (`regulated` for regulated studies)
 - [ ] The audit log validates end-to-end (the technical lead
       has run `verify_audit_log_integrity()`)
 
@@ -712,7 +739,7 @@ date.
 When every box is checked, schedule a 30-minute go-live call
 with the technical lead and the site PIs. On the call: confirm
 the URL, confirm the credentials work, ask each site PI for
-"go" or "no-go", and switch the application to the *Live*
+'go' or 'no-go', and switch the application to the *Live*
 banner state via the technical lead's command.
 
 ---
@@ -809,7 +836,7 @@ You can give the technical lead a CSV-shaped folder with
 `Study_Users.csv`, `Data_Dictionary.csv`, and
 `validation_rules.csv`. The technical lead has an alternate
 import path (see the [Technical-Lead Guide](technical-lead-guide.html)
-§"CSV authoring path") that does not require Google. Google
+§'CSV authoring path') that does not require Google. Google
 Sheets is the easier option because it gives you live editing
 and collaboration. CSV works for sites that block Google Drive.
 
@@ -834,8 +861,8 @@ Yes. Use the conditional pattern in §3.6:
 if pregnant == "Yes" then sex == "Female" endif
 ```
 
-This expresses "if the subject is pregnant, sex must be
-Female". You can chain conditions and combine them with `and`
+This expresses 'if the subject is pregnant, sex must be
+Female'. You can chain conditions and combine them with `and`
 and `or`.
 
 **Q. How do I version-control the workbook?**
@@ -907,9 +934,9 @@ chosen, the more they will accept it).
 
 # Companion guides
 
-- [Technical-Lead Guide](technical-lead-guide.html) — the
+- [Technical-Lead Guide](technical-lead-guide.html): the
   parallel guide for your technical colleague
-- [Demonstration Trial via Google Sheets](demonstration-trial-via-gsheets.html)
-  — a worked example using a synthetic memory study
-- [REDCap Migration Roadmap](mysql-redcap-migration-roadmap.html)
-  — only relevant if you are migrating from REDCap
+- [Demonstration Trial via Google Sheets](demonstration-trial-via-gsheets.html):
+  a worked example using a synthetic memory study
+- [REDCap Migration Roadmap](mysql-redcap-migration-roadmap.html):
+  only relevant if you are migrating from REDCap

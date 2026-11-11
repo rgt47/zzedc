@@ -9,6 +9,18 @@
 #' @param host Character string of IP address to listen on. Default is "127.0.0.1".
 #' @param port Integer specifying the port to listen on. Default is \code{NULL}
 #'   (random port).
+#' @param backend Database backend for a new study (`"sqlite"`, `"duckdb"`,
+#'   `"postgresql"`, or `"mysql"`; see `describe_backends()`). Used only
+#'   when the working directory has no `config.yml`. When `NULL` in an
+#'   interactive session, a menu compares the backends and asks; when
+#'   `NULL` otherwise, SQLite is used.
+#' @param profile Security profile for a new study's `config.yml`
+#'   (default `"regulated"`; see `resolve_security_profile()`). Used only
+#'   when there is no `config.yml`.
+#' @param setup Logical. `TRUE` opens the setup wizard in a browser to
+#'   create a new study (`launch_setup_wizard()`) instead of launching
+#'   the application; the wizard can launch the application when it
+#'   finishes.
 #'
 #' @return No return value, launches the Shiny application
 #' 
@@ -34,11 +46,29 @@
 #' 
 #' # Launch without opening browser
 #' launch_zzedc(launch.browser = FALSE)
+#'
+#' # New study on encrypted DuckDB (needs DB_ENCRYPTION_KEY set, or an
+#' # interactive session, which generates one)
+#' launch_zzedc(backend = "duckdb")
+#'
+#' # Create a new study with the setup wizard
+#' launch_zzedc(setup = TRUE)
 #' }
 #'
 #' @export
 #' @importFrom shiny runApp
-launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = NULL) {
+launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = NULL,
+                         backend = NULL, profile = "regulated", setup = FALSE) {
+
+  if (isTRUE(setup)) {
+    outcome <- launch_setup_wizard(base_path = getwd(),
+                                   launch.browser = launch.browser,
+                                   host = host, port = port,
+                                   show_choice = FALSE)
+    if (!identical(outcome, "launch")) {
+      return(invisible(outcome))
+    }
+  }
 
   # inst/app/*.R files (e.g. edc.R's renderPanel(blfieldlist) call)
   # reference several zzedc-exported functions unqualified, relying
@@ -88,30 +118,42 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     }
   }
 
- # Check for config.yml and create default if missing
+  # Check for config.yml and create one for the chosen backend if missing
   if (!file.exists("config.yml")) {
     message("\n")
     message("No config.yml found in current directory: ", getwd())
     message("\n")
 
-    # Check if running interactively
-    if (interactive()) {
-      response <- readline("Create default config.yml? (y/n): ")
-      if (tolower(substr(response, 1, 1)) == "y") {
-        create_default_config()
-        message("Created config.yml with default settings")
-      } else {
-        stop(
-          "config.yml is required. Create one manually or run launch_zzedc() ",
-          "again and choose 'y' to create a default.",
-          call. = FALSE
-        )
+    if (is.null(backend) && interactive()) {
+      choice <- .choose_backend_interactive()
+      if (identical(choice, "wizard")) {
+        return(invisible(launch_zzedc(..., launch.browser = launch.browser,
+                                      host = host, port = port, setup = TRUE)))
       }
-    } else {
-      # Non-interactive: create default automatically
-      create_default_config()
-      message("Created config.yml with default settings (non-interactive mode)")
+      backend <- choice
+      if (backend == "sqlite" && profile == "regulated" && !sqlite_cipher_available()) {
+        message(
+          "\nSQLite cannot be encrypted with the standard CRAN build of RSQLite, ",
+          "and the 'regulated' security profile refuses unencrypted storage."
+        )
+        answer <- readline(
+          "Does this study need its stored data encrypted (regulated data)? (y/n): "
+        )
+        if (tolower(substr(answer, 1, 1)) == "y") {
+          stop("Choose DuckDB for encrypted storage: run launch_zzedc() again and ",
+               "pick DuckDB, or launch_zzedc(backend = \"duckdb\").", call. = FALSE)
+        }
+        profile <- "standard"
+      }
     }
+    backend <- backend %||% "sqlite"
+
+    # Prepare first (key, extensions), so that a failure leaves no
+    # half-created study behind.
+    .prepare_new_backend(backend)
+    create_default_config(backend = backend, profile = profile)
+    message("Created config.yml for backend '", backend, "' with security profile '",
+            profile, "'")
   }
 
   # Find the app directory from installed package
@@ -152,22 +194,40 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
 
   Sys.setenv(ZZEDC_WORK_DIR = normalizePath(getwd()))
 
-  # Check if database needs initialization
+  # Check if database needs initialization. The configured backend
+  # (config.yml database.backend; SQLite by default) is used for every
+  # step below, the same one the application's pool will open
+  # (inst/app/global.R), so initialization and migrations reach the
+  # study database whatever backend it is on.
   cfg <- config::get(file = config_path)
-  db_path <- cfg$database$path
-  if (!grepl("^/|^[A-Za-z]:", db_path)) {
-    db_path <- file.path(getwd(), db_path)
-  }
+  db_config <- app_database_config(cfg, getwd())
+  db_path <- app_database_path(db_config)
+  db_label <- if (is.na(db_path)) paste(db_config$db_backend, "server") else db_path
 
-  if (!file.exists(db_path) || !check_database_initialized(db_path)) {
+  # Apply a restore staged from the Backup tab before anything opens the
+  # database (see ?database_restore).
+  apply_pending_restore(db_config)
+
+  # Apply the security profile before touching the database, so that a
+  # configuration the profile refuses is reported as that, not as an
+  # uninitialized database followed by a failed initialization.
+  # check_storage_encryption() fixes the profile for the R session; the
+  # caller's option is restored when this function returns.
+  prior_profile <- getOption("zzedc.security_profile")
+  on.exit(options(zzedc.security_profile = prior_profile), add = TRUE)
+  check_storage_encryption(adapter = create_db_adapter(db_config),
+                           config_profile = cfg$security$profile)
+
+  if (!check_database_initialized(db_path, adapter_config = db_config)) {
     message("\n")
-    message("Database not initialized: ", db_path)
+    message("Database not initialized: ", db_label)
     message("\n")
 
     if (interactive()) {
       response <- readline("Initialize database with default admin user? (y/n): ")
       if (tolower(substr(response, 1, 1)) == "y") {
-        init_result <- initialize_default_database(db_path)
+        init_result <- initialize_default_database(db_path, adapter_config = db_config,
+                                                   salt = resolve_auth_salt(cfg))
         if (init_result$success) {
           message("\nDatabase initialized successfully!")
           message("Login credentials:")
@@ -179,13 +239,17 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
         }
       } else {
         message("\nTo initialize manually, run:")
-        message("  zzedc::initialize_default_database('", db_path, "')")
+        message("  zzedc::initialize_default_database('", db_label, "')")
         message("\nOr use create_wizard_database() for custom setup.\n")
         stop("Database must be initialized before launching.", call. = FALSE)
       }
     } else {
-      # Non-interactive: initialize automatically
-      init_result <- initialize_default_database(db_path)
+      # Non-interactive: initialize automatically. The administrator's
+      # password is hashed with the salt the login will use; it used
+      # the built-in salt, so the default account could not log in
+      # whenever the configuration's salt variable (ZZEDC_SALT) was set.
+      init_result <- initialize_default_database(db_path, adapter_config = db_config,
+                                                 salt = resolve_auth_salt(cfg))
       if (init_result$success) {
         message("Database initialized (non-interactive mode)")
         message("Default credentials - Username: admin, Password: admin123")
@@ -206,39 +270,55 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
   # necessarily submitted anything, so guaranteeing the table exists
   # here -- once, before the app starts -- is cheap insurance against
   # relying on every call site's own defensiveness.
-  tryCatch({
-    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
-    on.exit(DBI::dbDisconnect(conn), add = TRUE)
-    ensure_data_entries_table(conn)
-  }, error = function(e) {
-    message("Could not ensure data_entries table exists: ", e$message)
-  })
-
-  # Same reasoning as data_entries above: `edc_users` may exist but
-  # predate the `must_change_password` column (any study database
-  # provisioned before this feature), and ensure_edc_users_table()
-  # both creates the table if missing and migrates an existing one
-  # that lacks the column (see its own roxygen for why the migrated
-  # default is 0, not 1).
-  tryCatch({
-    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
-    on.exit(DBI::dbDisconnect(conn), add = TRUE)
-    ensure_edc_users_table(conn)
-  }, error = function(e) {
-    message("Could not ensure edc_users table is current: ", e$message)
-  })
-
+  #
+  # `edc_users` may exist but predate the `must_change_password`
+  # column (any study database provisioned before this feature), and
+  # ensure_edc_users_table() both creates the table if missing and
+  # migrates an existing one that lacks the column (see its own
+  # roxygen for why the migrated default is 0, not 1).
+  #
   # §11.10(i) training records: user_training has no CREATE TABLE
-  # anywhere else, unlike edc_users/data_entries above -- ensuring it
-  # here, the same way, means the Compliance tab's "Record Training"
-  # button (R/cfr_compliance_module.R) has somewhere to write to from
-  # the very first app launch, on any backend.
-  tryCatch({
-    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
-    on.exit(DBI::dbDisconnect(conn), add = TRUE)
-    ensure_user_training_table(conn)
-  }, error = function(e) {
-    message("Could not ensure user_training table is current: ", e$message)
+  # anywhere else, unlike edc_users/data_entries -- ensuring it here
+  # means the Compliance tab's "Record Training" button
+  # (R/cfr_compliance_module.R) has somewhere to write to from the
+  # very first app launch.
+  #
+  # These used to open the file with RSQLite directly, whatever the
+  # configured backend. One adapter connection now serves all three,
+  # and is closed (for DuckDB, the instance shut down) before the
+  # application opens its own pool.
+  local({
+    adapter <- create_db_adapter(db_config)
+    on.exit(adapter$shutdown(), add = TRUE)
+    conn <- adapter$connect()
+    on.exit(adapter$disconnect(conn), add = TRUE, after = FALSE)
+    for (step in list(
+      list(ensure_data_entries_table, "data_entries table exists"),
+      list(ensure_edc_users_table, "edc_users table is current"),
+      list(ensure_user_training_table, "user_training table is current")
+    )) {
+      tryCatch(step[[1]](conn), error = function(e) {
+        message("Could not ensure ", step[[2]], ": ", e$message)
+      })
+    }
+  })
+
+  # The hash-chained audit tables (audit_log, audit_events,
+  # audit_chain) were never created by the launcher's default
+  # initialization, so log_audit_event() and the security events it
+  # records (login lockouts, unlocks) failed in every freshly launched
+  # deployment. init_audit_logging() is idempotent (CREATE TABLE IF NOT
+  # EXISTS) and reaches the study database through the cached adapter,
+  # which is set here to the configured backend; the application
+  # replaces it with its own adapter when global.R runs.
+  local({
+    adapter <- get_db_adapter(config = db_config, force_new = TRUE)
+    on.exit(adapter$shutdown(), add = TRUE)
+    result <- init_audit_logging(db_path = if (is.na(db_path)) NULL else db_path)
+    if (!isTRUE(result$success)) {
+      message("Could not initialize audit logging tables: ",
+              result$error %||% result$message %||% "unknown error")
+    }
   })
 
   # Run the app
@@ -253,18 +333,26 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
 
 #' Check if database is initialized
 #'
-#' @param db_path Path to the database file
+#' @param db_path Path to the database file (SQLite or DuckDB); ignored
+#'   for server backends.
+#' @param adapter_config Optional configuration for
+#'   `create_db_adapter()`. When `NULL`, `db_path` is treated as a
+#'   SQLite file.
 #' @return TRUE if database has required tables, FALSE otherwise
 #' @keywords internal
-check_database_initialized <- function(db_path) {
-  if (!file.exists(db_path)) {
+check_database_initialized <- function(db_path, adapter_config = NULL) {
+  if (is.null(adapter_config)) {
+    adapter_config <- list(db_backend = "sqlite", sqlite = list(path = db_path))
+  }
+  if (!is.na(db_path %||% NA) && !file.exists(db_path)) {
     return(FALSE)
   }
 
-
   tryCatch({
-    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
-    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    adapter <- create_db_adapter(adapter_config)
+    on.exit(adapter$shutdown(), add = TRUE)
+    conn <- adapter$connect()
+    on.exit(adapter$disconnect(conn), add = TRUE, after = FALSE)
 
     tables <- DBI::dbListTables(conn)
     required_tables <- c("edc_users", "study_info")
@@ -280,10 +368,19 @@ check_database_initialized <- function(db_path) {
 #' Creates a minimal database with an admin user for first-time setup.
 #'
 #' @param db_path Path where database will be created
+#' @param adapter_config Optional configuration for
+#'   `create_db_adapter()` (see `app_database_config()`); when supplied,
+#'   the database is created on that backend, with its encryption
+#'   settings.
+#' @param salt Password salt for the default administrator. It must be
+#'   the salt the application's login will use; `launch_zzedc()` passes
+#'   `resolve_auth_salt(cfg)`. Defaults to the package's built-in salt,
+#'   which is what a `create_default_config()` configuration resolves to.
 #' @return List with success status and message
 #' @keywords internal
 #' @export
-initialize_default_database <- function(db_path) {
+initialize_default_database <- function(db_path, adapter_config = NULL,
+                                        salt = DEFAULT_SECURITY_SALT) {
   config <- list(
     study_name = "New Study",
     protocol_id = "PROTO-001",
@@ -295,10 +392,10 @@ initialize_default_database <- function(db_path) {
     admin_password = "admin123",
     admin_fullname = "System Administrator",
     admin_email = "admin@example.com",
-    security_salt = DEFAULT_SECURITY_SALT
+    security_salt = salt
   )
 
-  create_wizard_database(config, db_path = db_path)
+  create_wizard_database(config, db_path = db_path, adapter_config = adapter_config)
 }
 
 # Default salt used for password hashing when no custom salt is configured
@@ -307,40 +404,57 @@ DEFAULT_SECURITY_SALT <- "zzedc_default_salt_change_in_production_2024"
 
 #' Create default configuration file
 #'
-#' Creates a minimal config.yml in the current working directory.
+#' Creates a commented config.yml for the chosen database backend and
+#' security profile.
 #'
 #' @param path Path to create config file. Default is "config.yml".
+#' @param backend Database backend: `"sqlite"` (default), `"duckdb"`,
+#'   `"postgresql"`, or `"mysql"`. See `describe_backends()`.
+#' @param profile Security profile written to the file: `"regulated"`
+#'   (default), `"standard"`, or `"development"`. Under `regulated`, a
+#'   SQLite database on the standard CRAN build of RSQLite is refused at
+#'   startup; DuckDB with an encryption key is the CRAN-only route.
 #'
 #' @return Invisibly returns the path to the created file.
+#'
+#' @details
+#' Secrets are not written to the file. A DuckDB configuration refers to
+#' `${DB_ENCRYPTION_KEY}`, and server configurations to
+#' `${ZZEDC_DB_HOST}`, `${ZZEDC_DB_USER}`, and `${ZZEDC_DB_PASSWORD}`,
+#' which are read from the environment when the application starts.
 #'
 #' @examples
 #' # Write a default configuration to a temporary file (the
 #' # production call writes to the current working directory).
 #' tmp_config <- tempfile(fileext = ".yml")
-#' create_default_config(path = tmp_config)
+#' create_default_config(path = tmp_config, backend = "duckdb")
 #' file.exists(tmp_config)
 #' @export
-create_default_config <- function(path = "config.yml") {
-  config_content <- sprintf('default:
-  database:
-    path: "data/zzedc.db"
-    pool_size: 5
-
-  auth:
-    max_failed_attempts: 3
-    lockout_duration_minutes: 15
-    password_expiry_days: 90
-    session_timeout_minutes: 30
-    default_salt: "%s"
-
-  app:
-    name: "ZZedc - Electronic Data Capture"
-    version: "1.0.0"
-    debug: true
-
-  ui:
-    theme: "flatly"
-', DEFAULT_SECURITY_SALT)
-  writeLines(config_content, path)
+create_default_config <- function(path = "config.yml", backend = "sqlite",
+                                  profile = "regulated") {
+  backend <- match.arg(backend, names(.backend_catalog))
+  profile <- match.arg(profile, .security_profile_levels)
+  lines <- c(
+    "default:",
+    .database_config_yaml(backend),
+    "",
+    "  auth:",
+    "    max_failed_attempts: 3",
+    "    lockout_duration_minutes: 15",
+    "    password_expiry_days: 90",
+    "    session_timeout_minutes: 30",
+    sprintf('    default_salt: "%s"', DEFAULT_SECURITY_SALT),
+    "",
+    .security_config_yaml(profile),
+    "",
+    "  app:",
+    '    name: "ZZedc - Electronic Data Capture"',
+    '    version: "1.0.0"',
+    "    debug: true",
+    "",
+    "  ui:",
+    '    theme: "flatly"'
+  )
+  writeLines(lines, path)
   invisible(path)
 }

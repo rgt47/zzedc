@@ -4,10 +4,15 @@
 \alias{check_database_initialized}
 \title{Check if database is initialized}
 \usage{
-check_database_initialized(db_path)
+check_database_initialized(db_path, adapter_config = NULL)
 }
 \arguments{
-\item{db_path}{Path to the database file}
+\item{db_path}{Path to the database file (SQLite or DuckDB); ignored
+for server backends.}
+
+\item{adapter_config}{Optional configuration for
+\code{create_db_adapter()}. When \code{NULL}, \code{db_path} is treated as a
+SQLite file.}
 }
 \value{
 TRUE if database has required tables, FALSE otherwise

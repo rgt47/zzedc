@@ -1,0 +1,5 @@
+"username","full_name","email","role","password_initial","site_id","active"
+"drschen","Dr. Sarah Chen","schen@university.edu","PI","ChangeMe-Demo-2026",1,1
+"alex_r","Alex Rodriguez","arodriguez@university.edu","Admin","ChangeMe-Demo-2026",1,1
+"maria_s","Maria Santos","msantos@university.edu","Coordinator","ChangeMe-Demo-2026",1,1
+"backup_admin","Backup Admin","backup@university.edu","Admin","ChangeMe-Demo-2026",1,0

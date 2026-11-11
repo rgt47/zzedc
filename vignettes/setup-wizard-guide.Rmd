@@ -1,5 +1,5 @@
 ---
-title: "Setup Wizard Guide (Reference)"
+title: 'Setup Wizard Guide (Reference)'
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Setup Wizard Guide (Reference)}
@@ -11,19 +11,43 @@ vignette: >
 knitr::opts_chunk$set(eval = FALSE)
 ```
 
-# The web setup wizard
+# The setup wizard
 
-The setup wizard is a click-through alternative to the Google
-Sheets authoring path described in
+The setup wizard is a guided alternative to the Google Sheets
+authoring path described in
 [Content-Author Guide](content-author-guide.html). Use it when
-your team prefers an in-application UI over a spreadsheet.
+your team prefers a guided configuration step over hand-editing a
+spreadsheet and a config file.
+
+The package ships the wizard's logic as a set of exported R
+functions (`create_wizard_directories()`, `create_wizard_database()`,
+`create_wizard_config()`, and the orchestrating
+`complete_wizard_setup()`), and as a six-step browser wizard that
+collects the same configuration and calls `complete_wizard_setup()`
+when you press **Create Study**. Open the browser wizard from an
+empty project directory with either of:
+
+```{r}
+zzedc::launch_setup_wizard()
+zzedc::launch_zzedc(setup = TRUE)
+```
+
+`launch_setup_wizard()` first shows a page offering the wizard or the
+equivalent R console commands; `launch_zzedc(setup = TRUE)` goes
+straight to the wizard. When it finishes, **Launch ZZedc** starts the
+new study in the same R session. `launch_zzedc()` run in a directory with no `config.yml`
+also offers the wizard, alongside a console menu for choosing the
+database. (Before 2026-11-10 the browser wizard was not reachable,
+and its final step did not create anything; the console path below
+was the only working one. Both now work and are exercised by the
+package's tests.)
 
 ## When the wizard makes sense
 
 - A solo investigator setting up a single-site trial without a
   separate technical lead.
-- An institution that blocks Google Drive but allows you to
-  reach the application's own URL.
+- An institution that blocks Google Drive but allows running R
+  commands locally or on an approved server.
 - A small team that does not need the structured
   spreadsheet-as-source-of-truth workflow.
 
@@ -39,35 +63,109 @@ your team prefers an in-application UI over a spreadsheet.
 
 ## How to use the wizard
 
-1. Launch the application: `zzedc::launch_zzedc()`.
-2. Open `http://localhost:3838` (or the deployed URL).
-3. The wizard appears automatically the first time the
-   application connects to an empty database. Otherwise,
-   navigate to *Admin → Setup Wizard*.
+Build a configuration list and pass it to `complete_wizard_setup()`,
+which creates the project directories, the study database, a
+`config.yml`, a launch script, and an environment file holding the
+generated security salt, in one call:
 
-The wizard walks through six steps:
+```{r}
+config <- list(
+  study_name        = 'Depression Treatment Trial',
+  protocol_id       = 'DEPR-2024-001',
+  pi_name           = 'Dr. Jane Smith',
+  pi_email          = 'jane.smith@university.edu',
+  study_phase       = 'Phase 2',
+  target_enrollment = 50,
+  admin_username    = 'jsmith',
+  admin_fullname    = 'Jane Smith',
+  admin_email       = 'jane.smith@university.edu',
+  admin_password    = 'a-strong-password-here',
+  security_salt     = paste(sample(letters, 16, replace = TRUE),
+                             collapse = ''),
+  session_timeout     = 30,
+  max_login_attempts  = 5,
+  enforce_https       = 'no'
+)
 
-1. **Study info**: name, protocol ID, PI, target enrollment.
-2. **Admin account**: the first administrator's username,
-   password, and email.
-3. **Security configuration**: encryption key, salt, and
-   session timeout.
-4. **Team members**: usernames, roles, and site assignments
-   for the rest of the team.
-5. **Database backend**: SQLite (default) or one of the
-   server backends.
-6. **Data dictionary**: choose to upload a CSV, paste a
-   workbook link, or build forms one at a time in the wizard.
+result <- complete_wizard_setup(config, base_path = 'my_study')
+```
 
-Each step has its own help text. The wizard does not enforce
-the multi-site site_id consistency that the Google Sheets
-path makes obvious; for multi-site trials, prefer the
-spreadsheet.
+Then launch the application against the generated project with
+`zzedc::launch_zzedc()` run from `my_study/`.
+
+To choose the database and security profile in the console path,
+add these entries to the configuration list (see
+`describe_backends()` for a comparison of the options):
+
+```{r}
+config$db_backend        <- 'duckdb'           # sqlite, duckdb,
+                                                 # postgresql, mysql
+config$db_encryption_key <- generate_db_key()  # DuckDB; save it
+config$security_profile  <- 'regulated'        # or standard,
+                                                 # development
+# Server backends: connection settings; the password is read
+# from the ZZEDC_DB_PASSWORD environment variable.
+# config$db_settings <- list(host = 'db.example.edu', port = 5432,
+#                            name = 'zzedc', user = 'zzedc_app',
+#                            ssl = 'verify-full')
+```
+
+Without `db_backend`, the study uses SQLite. The encryption key is
+used to create the database but is not written to the project; set
+`DB_ENCRYPTION_KEY` to it before each launch.
+
+**Security profile note.** The generated `config.yml` records the
+`security_profile` you chose (default `regulated`). Under
+`regulated`, the application refuses to start on storage it cannot
+verify is encrypted at rest. With the standard CRAN build of
+RSQLite, that rules out SQLite; DuckDB with an encryption key is the
+CRAN-only route, and the browser wizard will not let you combine
+`regulated` with SQLite or a server database. To keep SQLite, choose
+the `standard` profile and rely on full-disk encryption. See
+`?resolve_security_profile`.
+
+## Steps of the browser wizard
+
+1. **Basic information**: study name, protocol ID, PI name and
+   email, target enrollment, study phase.
+2. **Administrator account**: username, full name, email, and
+   password.
+3. **Security configuration**: the security profile (regulated,
+   standard, or development), a generated security salt (you
+   confirm you have saved it), session timeout, and failed-login
+   limit. The HTTPS setting is recorded but not yet enforced by
+   zzedc; HTTPS must come from a web server or proxy in front of the
+   application.
+4. **Database**: SQLite, DuckDB, PostgreSQL, or MySQL/MariaDB. Each
+   option has a hover summary, and **compare all options** opens a
+   table of what each is for, how it encrypts stored data, and
+   whether the `regulated` profile accepts it. The wizard checks the
+   choice against the profile from Step 3 and will not continue with
+   a combination that would refuse to start. For DuckDB it shows a
+   newly generated encryption key (you confirm you have saved it)
+   and offers to download DuckDB's extensions for offline use; for a
+   server database it asks for the connection settings.
+5. **Team members** (optional): username, full name, email, and
+   role for each additional team member, added one at a time. This
+   step does not collect a site assignment for each member, even
+   though the underlying user table supports one; assign sites
+   afterward through the admin user-management functions, or use
+   the Google Sheets path, which models site assignment directly in
+   the data dictionary.
+6. **Data collection forms**: the study is created without forms;
+   this step explains how to add them afterward (CSV import, Google
+   Sheets import, or the CRF designer). Earlier versions offered
+   import options here that were never carried out.
+
+For multi-site trials, prefer the Google Sheets path over either
+wizard implementation, since neither the console function nor the
+UI module enforces multi-site `site_id` consistency the way the
+spreadsheet does.
 
 ## Companion guides
 
-- [Content-Author Guide](content-author-guide.html) — the
-  canonical Google Sheets authoring path
-- [Technical-Lead Guide](technical-lead-guide.html) — Chapter
-  5 covers programmatic database initialization that
-  complements the wizard's GUI-driven path
+- [Content-Author Guide](content-author-guide.html): the canonical
+  Google Sheets authoring path
+- [Technical-Lead Guide](technical-lead-guide.html): Chapter 5
+  covers programmatic database initialization and backend
+  configuration that complements the wizard

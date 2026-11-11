@@ -81,50 +81,64 @@ if (is.null(cfg)) {
   )
 }
 
+# One password-salt rule for the whole application: package modules
+# (user management) read it from this option, and the login, the
+# change-password form, and the launcher compute it from the same
+# configuration (zzedc::resolve_auth_salt()).
+options(zzedc.auth_salt = zzedc::resolve_auth_salt(cfg))
+
 # Get working directory (where user launched from)
 work_dir <- Sys.getenv("ZZEDC_WORK_DIR", getwd())
 
-# Resolve database path relative to working directory
-db_path <- cfg$database$path
-if (!grepl("^/|^[A-Za-z]:", db_path)) {
-  # Relative path - make it relative to work_dir
-  db_path <- file.path(work_dir, db_path)
+# Build the database configuration from config.yml's `database:`
+# section (backend: sqlite, duckdb, postgresql, mysql; default
+# sqlite). Until 2026-11-10 this file ignored the backend and always
+# opened SQLite with RSQLite, so the app could not use any other
+# backend, nor any encryption a backend provides.
+db_config <- zzedc::app_database_config(cfg, work_dir)
+
+# A restore requested from the Backup tab is applied here, before any
+# connection to the database is opened (see ?zzedc::database_restore).
+zzedc::apply_pending_restore(db_config)
+
+# Cache the adapter, so package functions the app calls
+# (connect_encrypted_db() and everything built on it) open the same
+# backend and the same file as the pool below.
+db_adapter <- zzedc::get_db_adapter(config = db_config, force_new = TRUE)
+
+# File path for file backends (SQLite, DuckDB); NA for server backends.
+db_path <- zzedc::app_database_path(db_config)
+if (!is.na(db_path) && !identical(db_path, ":memory:")) {
+  db_dir <- dirname(db_path)
+  if (!dir.exists(db_dir)) {
+    dir.create(db_dir, recursive = TRUE, showWarnings = FALSE)
+    message("Created database directory: ", db_dir)
+  }
 }
 
-# Ensure data directory exists
-db_dir <- dirname(db_path)
-if (!dir.exists(db_dir)) {
-  dir.create(db_dir, recursive = TRUE, showWarnings = FALSE)
-  message("Created database directory: ", db_dir)
-}
+# Apply the security profile before any connection is opened. Under
+# the 'regulated' profile this stops the app when the database cannot
+# be shown to be encrypted at rest.
+zzedc::check_storage_encryption(adapter = db_adapter,
+                                config_profile = cfg$security$profile)
 
-# Database connection pool (if pool package available)
-if (requireNamespace("pool", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)) {
-  db_pool <- pool::dbPool(
-    drv = RSQLite::SQLite(),
-    dbname = db_path,
-    minSize = 1,
-    maxSize = cfg$database$pool_size
-  )
+# Connection pool from the adapter: applies the backend's encryption
+# (DuckDB ENCRYPTION_KEY, SQLCipher key) and extension settings.
+db_pool <- db_adapter$pool()
 
-  # Verify database connection on startup
-  tryCatch({
-    test_conn <- pool::poolCheckout(db_pool)
-    pool::poolReturn(test_conn)
-    message("✓ Database pool initialized successfully (pool_size: ", cfg$database$pool_size, ")")
-  }, error = function(e) {
-    warning("Database pool initialization error: ", e$message)
-  })
+# Verify database connection on startup
+tryCatch({
+  test_conn <- pool::poolCheckout(db_pool)
+  pool::poolReturn(test_conn)
+  message("Database pool initialized (backend: ", db_config$db_backend,
+          ", max pool size: ", cfg$database$pool_size %||% 5, ")")
+}, error = function(e) {
+  warning("Database pool initialization error: ", e$message)
+})
 
-  # Ensure pool is closed when app stops
-  onStop(function() {
-    pool::poolClose(db_pool)
-  })
-} else {
-  # Fallback: simple connection function
-  db_pool <- NULL
-  message("Pool package not available - using direct database connections")
-}
+onStop(function() {
+  pool::poolClose(db_pool)
+})
 
 trial_name <- "trial0"
 

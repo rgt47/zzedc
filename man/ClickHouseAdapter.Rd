@@ -54,7 +54,7 @@ RDBMS. It uses eventual consistency and is optimized for batch inserts.
     \item \href{#method-ClickHouseAdapter-connect}{\code{ClickHouseAdapter$connect()}}
     \item \href{#method-ClickHouseAdapter-pool}{\code{ClickHouseAdapter$pool()}}
     \item \href{#method-ClickHouseAdapter-dialect}{\code{ClickHouseAdapter$dialect()}}
-    \item \href{#method-ClickHouseAdapter-supports_encryption}{\code{ClickHouseAdapter$supports_encryption()}}
+    \item \href{#method-ClickHouseAdapter-encryption_capabilities}{\code{ClickHouseAdapter$encryption_capabilities()}}
     \item \href{#method-ClickHouseAdapter-backend_name}{\code{ClickHouseAdapter$backend_name()}}
     \item \href{#method-ClickHouseAdapter-insert_batch}{\code{ClickHouseAdapter$insert_batch()}}
     \item \href{#method-ClickHouseAdapter-create_table}{\code{ClickHouseAdapter$create_table()}}
@@ -76,6 +76,8 @@ RDBMS. It uses eventual consistency and is optimized for batch inserts.
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="prepare_auto_increment"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-prepare_auto_increment'><code>DatabaseAdapter$prepare_auto_increment()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="shutdown"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-shutdown'><code>DatabaseAdapter$shutdown()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="supports_encryption"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-supports_encryption'><code>DatabaseAdapter$supports_encryption()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
@@ -145,17 +147,20 @@ RDBMS. It uses eventual consistency and is optimized for batch inserts.
 }
 
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ClickHouseAdapter-supports_encryption"></a>}}
-\if{latex}{\out{\hypertarget{method-ClickHouseAdapter-supports_encryption}{}}}
-\subsection{\code{ClickHouseAdapter$supports_encryption()}}{
-  Check if encryption is supported
+\if{html}{\out{<a id="method-ClickHouseAdapter-encryption_capabilities"></a>}}
+\if{latex}{\out{\hypertarget{method-ClickHouseAdapter-encryption_capabilities}{}}}
+\subsection{\code{ClickHouseAdapter$encryption_capabilities()}}{
+  Describe this backend's encryption. Encryption at rest is a
+ClickHouse server or storage setting zzedc cannot observe; TLS
+depends on the connection settings. Earlier versions reported
+\code{supports_encryption() = TRUE} on the strength of TLS alone.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{ClickHouseAdapter$supports_encryption()}
+    \preformatted{ClickHouseAdapter$encryption_capabilities()}
     \if{html}{\out{</div>}}
   }
   \subsection{Returns}{
-    Logical TRUE (ClickHouse supports TLS)
+    List; see \code{DatabaseAdapter$encryption_capabilities()}
   }
 }
 

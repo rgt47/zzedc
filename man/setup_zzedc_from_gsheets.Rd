@@ -12,7 +12,9 @@ setup_zzedc_from_gsheets(
   imported_by = "setup_from_gsheets",
   overwrite = FALSE,
   dry_run = FALSE,
-  salt = NULL
+  salt = NULL,
+  adapter_config = NULL,
+  create_database = TRUE
 )
 }
 \arguments{
@@ -37,11 +39,24 @@ workbook without writing to the database. Defaults to
 
 \item{salt}{Character. Salt used to hash each imported user's
 initial password. Defaults to \code{NULL}, which resolves to the
-\code{ZZEDC_SALT} environment variable if set, or otherwise to a
+\code{zzedc.auth_salt} option (set by the running application), then
+the \code{ZZEDC_SALT} environment variable if set, or otherwise to a
 freshly generated random salt (returned as \code{result$salt}).
 Earlier versions of this function hashed every import with a
 single hardcoded salt shared across all installations; that
 behavior is no longer present.}
+
+\item{adapter_config}{Optional configuration for \code{create_db_adapter()}
+(for example \code{app_database_config(cfg)}), selecting the backend:
+SQLite, DuckDB, PostgreSQL, or MySQL/MariaDB. When supplied,
+\code{db_path} is taken from it (and is not needed for server
+backends). When \code{NULL}, \code{db_path} is a SQLite file, as before.}
+
+\item{create_database}{Logical. \code{TRUE} (default) creates the database
+first. \code{FALSE} imports into an existing study database, as the
+application's Google Sheets actions do: users and forms that
+already exist are skipped and counted (\code{users$skipped},
+\code{forms$skipped}), not reported as errors and not overwritten.}
 }
 \value{
 List with one element per stage (\code{database}, \code{users},
@@ -71,7 +86,9 @@ The Google Sheet must contain three tabs:
 \code{role}, \code{password_initial}. Optional: \code{site_id}, \code{active}.}
 \item{Data_Dictionary}{One row per field across all CRFs.
 Columns: \code{form_code}, \code{field_name}, \code{field_label},
-\code{field_type}, \code{required}. Optional: \code{validation},
+\code{field_type}, \code{required}. Optional: \code{form_name} (the form's
+display name; the first non-blank value among a form's rows is
+used, otherwise "<FORM_CODE> Form"), \code{validation},
 \code{description} (becomes the field's help text, shown beneath
 it), \code{field_order} (an integer controlling the field's position
 on the form; defaults to the field's own row position within

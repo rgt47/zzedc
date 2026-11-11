@@ -102,7 +102,9 @@ admin_dashboard_ui <- function(id) {
 #' }
 #' }
 #' @keywords internal
-admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL, db_path = reactive("./data/zzedc.db")) {
+admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL,
+                                   db_path = reactive("./data/zzedc.db"),
+                                   db_adapter = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -140,12 +142,20 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL, db_p
       "backup",
       db_pool = db_pool,
       db_path = db_path,
-      backup_dir = "./backups"
+      # The study directory's backups/ folder. "./backups" resolved
+      # against the application's working directory, which is the app
+      # folder inside the installed package: backups were written into
+      # the R library, where a reinstall deletes them.
+      backup_dir = file.path(Sys.getenv("ZZEDC_WORK_DIR", unset = "."), "backups"),
+      db_adapter = db_adapter,
+      user_session = user_session
     )
 
     audit_results <- audit_log_viewer_server("audit", db_pool = db_pool)
 
-    system_config_results <- system_config_server("system_config", db_pool = db_pool)
+    system_config_results <- system_config_server("system_config", db_pool = db_pool,
+                                                  db_path = db_path,
+                                                  db_adapter = db_adapter)
 
     help_results <- help_documentation_server("help")
 
@@ -309,16 +319,25 @@ system_config_ui <- function(id) {
 #' }
 #' }
 #' @keywords internal
-system_config_server <- function(id, db_pool = NULL) {
+system_config_server <- function(id, db_pool = NULL,
+                                 db_path = reactive("./data/zzedc.db"),
+                                 db_adapter = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    # Display database info
+    # Display database info for the configured database, not a fixed
+    # "./data/zzedc.db" (which this panel used to report regardless of
+    # the database the app actually opened).
     observe({
-      if (file.exists("./data/zzedc.db")) {
-        size_mb <- file.size("./data/zzedc.db") / (1024^2)
-        shinyjs::html(ns("db_path"), "./data/zzedc.db")
+      path <- db_path()
+      backend <- if (!is.null(db_adapter)) db_adapter$backend_name() else "sqlite"
+      if (!is.null(path) && !is.na(path) && file.exists(path)) {
+        size_mb <- file.size(path) / (1024^2)
+        shinyjs::html(ns("db_path"), paste0(path, " (", backend, ")"))
         shinyjs::html(ns("db_size"), sprintf("%.2f MB", size_mb))
+      } else if (backend %in% c("postgresql", "mysql", "clickhouse")) {
+        shinyjs::html(ns("db_path"), paste(backend, "server"))
+        shinyjs::html(ns("db_size"), "n/a")
       }
     })
 

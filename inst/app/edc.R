@@ -282,23 +282,10 @@ output$ui <- renderUI({
            hidden(uiOutput("results")),
            tableOutput("val"))))}})
 
-# Same salt resolution as authenticate_user() in auth.R (sourced
-# before this file, so its own helper isn't reachable here -- see
-# that file's comment on the cfg$auth$salt_env_var-absent-from-
-# scaffolded-configs bug this already works around): must hash a
-# changed password exactly the way login will verify it, or the
+# The same salt rule login uses (zzedc::resolve_auth_salt()): a changed
+# password must be hashed exactly the way login will verify it, or the
 # user would be locked out by their own password change.
-.edc_auth_salt <- local({
-  salt_env_var <- cfg$auth$salt_env_var
-  salt <- if (is.character(salt_env_var) && length(salt_env_var) == 1 &&
-                nzchar(salt_env_var)) {
-    Sys.getenv(salt_env_var)
-  } else {
-    ""
-  }
-  if (salt == "") salt <- cfg$auth$default_salt
-  salt
-})
+.edc_auth_salt <- zzedc::resolve_auth_salt(cfg)
 
 zzedc:::change_password_server(
   "change_password", db_pool, user_input, salt = .edc_auth_salt,

@@ -15,6 +15,14 @@ create_launch_script(config_list, output_path)
 List with success status
 }
 \description{
-Creates a customized launch script file that users can run to start the application
+Creates a launch script that starts the application for this study.
+}
+\details{
+The script changes to the study directory before calling
+\code{launch_zzedc()}, which reads \code{config.yml} from the working directory;
+without that, running the script from anywhere else created a new
+default study there instead. For a DuckDB study it stops with
+instructions if \code{DB_ENCRYPTION_KEY} is not set, rather than letting the
+application refuse later.
 }
 \keyword{internal}

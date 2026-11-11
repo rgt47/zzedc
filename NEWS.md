@@ -1,3 +1,196 @@
+# zzedc (development version)
+
+## Encryption: false claims removed, security profiles added
+
+Phase 0 of `docs/encryption-compliance-plan-2026-11-10.md`. Several
+functions claimed encryption they did not provide; each now reports
+or enforces the true state.
+
+* **New `security.profile` setting** (`development`, `standard`,
+  `regulated`; built-in default `standard`). Under `regulated`,
+  storage that cannot be shown to be encrypted at rest is refused,
+  including at Shiny app startup, and an AWS KMS failure is an error
+  instead of a fallback. Configuration templates, the setup wizard, and
+  the bundled `config.yml` now write `regulated`. See
+  `?resolve_security_profile`.
+
+* **`initialize_encrypted_database()`** reported "created and
+  encrypted" for plaintext SQLite files on stock CRAN RSQLite (which
+  ignores the key). It now returns `encrypted` and says plainly when the
+  database is not encrypted; under `regulated` it refuses and removes
+  the file.
+
+* **`verify_database_encryption()`** used a byte-statistics test that
+  also failed correctly encrypted files. It now requires the file to be
+  unreadable without the key and readable with it, for SQLite and
+  DuckDB. New fields `readable_without_key` and `backend`; new
+  argument `key`.
+
+* **`set_encryption_for_existing_db()`** never rewrote the file. It
+  now encrypts DuckDB files in place (verified before the swap, with a
+  plaintext backup) and stops with an error on stock RSQLite.
+
+* **`export_encrypted_data(password = )`** ignored the password. It
+  now writes only an encrypted `.enc` file (AES-256-CTR with
+  HMAC-SHA256, bcrypt-pbkdf); see `encrypt_export_file()` and
+  `decrypt_export_file()`. Passwords must be at least 12 characters.
+
+* **`selective_field_export()`** now pseudonymizes with HMAC-SHA256
+  under a separate key (`pseudonymize_values()`,
+  `get_pseudonymization_key()`). Argument `fields_to_encrypt` is
+  deprecated in favor of `fields_to_pseudonymize`. **Pseudonyms differ
+  from those produced by earlier versions**, so exports made before and
+  after cannot be linked on those fields. A misspelled field name is now
+  an error rather than being left unprotected.
+
+* **Adapters** gain `encryption_capabilities()`, reporting at-rest and
+  in-transit encryption separately. `supports_encryption()` now means
+  "zzedc encrypts stored data" and is `FALSE` for PostgreSQL, MySQL,
+  and ClickHouse (it was `TRUE` on the strength of TLS). The SQLite
+  adapter now applies its key before other statements and in its
+  connection pool.
+
+* **`test_encryption()`** now errors, rather than warns, on a plaintext
+  file.
+
+* **Validation suite.** New IQ-008 judges the deployment's storage
+  encryption under the active profile. Functional IQ/OQ/PQ checks run
+  their temporary databases under a scoped `development` profile and no
+  longer leave the cached database adapter pointing at a deleted file.
+  IQ-003's message no longer claims "Encryption working" for a
+  key-format check.
+
+* New exported helpers: `sqlite_file_is_encrypted()`,
+  `sqlite_cipher_available()`, `check_storage_encryption()`,
+  `get_security_profile()`.
+
+* `get_db_path()` treats an empty `ZZEDC_DB_PATH` as unset.
+
+## Follow-up fixes: passwords, restore, Google Sheets, first-run screen
+
+* **One password-salt rule (`resolve_auth_salt()`).** The launcher's
+  default administrator could not log in whenever `ZZEDC_SALT` was set,
+  and users created or reset in the Admin tab could not log in when the
+  configuration named no salt variable, because each path used a
+  different salt. The launcher, login, change-password form, and user
+  management now share one rule. `initialize_default_database()` gains
+  a `salt` argument.
+
+* **Restore is staged and applied at the next start**
+  (`request_database_restore()`, `apply_pending_restore()`), instead of
+  copying over the open database and closing the shared pool. The
+  replaced database and its write-ahead log are kept in
+  `pre_restore_<timestamp>/`.
+
+* Backups: SQLite backups use `VACUUM INTO`; the compress option now
+  compresses (it produced uncompressed `.gz` files); backups go to the
+  study's `backups/` folder, not the installed package's directory.
+  The Backup tab accepts only files in its backup folder (browser-sent
+  paths could name any file).
+
+* **Google Sheets import works on every backend.** The application's
+  Google Sheets actions now call `setup_zzedc_from_gsheets()` (they
+  sourced a script the application directory does not contain). It
+  gains `adapter_config` and `create_database = FALSE`, which imports
+  into an existing study and skips existing users and forms.
+
+* Imported forms (Google Sheets, REDCap) now get a matching
+  `designer_forms` row: their fields violated the foreign key, which
+  SQLite ignored and DuckDB and PostgreSQL rejected.
+  `create_designer_form()` assigns ids above existing ones.
+
+* `launch_setup_wizard()` opens on a choice between the wizard and the
+  console commands (`show_choice = FALSE` skips it).
+
+* New `setup_zzedc_from_csv()`: the Google Sheets import, reading
+  `Study_Users.csv`, `Data_Dictionary.csv`, and `validation_rules.csv`
+  from a folder. (The technical-lead guide documented it before it
+  existed.) Both importers now skip validation rules already present
+  when importing into an existing study, honor the `active` column, and
+  accept an optional `form_name` column.
+
+* The bundled example study (`inst/extdata/adhd_trial`) is converted to
+  the three-table format and loads with `setup_zzedc_from_csv()`.
+
+* Removed: the legacy Google Sheets builders (`inst/app/gsheets_*_builder.R`,
+  `inst/app/gsheets_integration.R`), the scripts that used them
+  (`inst/scripts/setup/setup_from_gsheets.R`, `setup_menu.R`), and the
+  application's "Run Traditional Setup" button, which could not run.
+
+## Choosing the database when a study is created
+
+* `launch_zzedc()` gains `backend`, `profile`, and `setup` arguments.
+  With no `config.yml`, an interactive session is shown a comparison of
+  the databases and asked to choose (or to open the setup wizard).
+  DuckDB setup checks for the encryption key, installs DuckDB's
+  extensions, and only then writes `config.yml`.
+  `create_default_config()` gains `backend` and `profile` and now
+  writes the `regulated` profile by default (it wrote none before).
+
+* New `describe_backends()`: one comparison of the backends, used by
+  the console prompt, the wizard's tooltips, and the documentation.
+
+* **The setup wizard is reachable and creates the study.** New
+  `launch_setup_wizard()` (also `launch_zzedc(setup = TRUE)`). The wizard
+  gains a security-profile choice and a Database step with tooltips, a
+  comparison table, and a profile compatibility check. Its final step
+  previously created nothing; it now calls `complete_wizard_setup()`.
+
+* `create_wizard_config()` writes under `default:`, so `config::get()`
+  can read it (it could not), and quotes free-text values.
+  `complete_wizard_setup()` accepts `db_backend`, `db_encryption_key`,
+  `db_settings`, `security_profile`, and `install_extensions`.
+  The launch script changes to the study directory first.
+
+## The Shiny application uses the configured database backend
+
+* The application previously always opened SQLite with RSQLite,
+  whatever `config.yml` said. `inst/app/global.R` now builds its pool
+  from the configured adapter (new `app_database_config()`,
+  `app_database_path()`), applies the security profile to that backend,
+  and caches the adapter so package functions reach the same database.
+  `launch_zzedc()` initializes and migrates on the configured backend.
+  Encrypted DuckDB under the `regulated` profile now works end to end.
+
+* **One DuckDB instance per adapter.** Each `DuckDBAdapter$connect()`
+  created its own in-process instance, so package functions and the
+  application's pool could attach the same file through separate
+  instances. Connections and the pool now share one instance; new
+  `shutdown()` method (a no-op on other backends) releases it.
+
+* **Audit tables are created at launch.** The launcher never created
+  `audit_log`, so security events (login lockouts and unlocks) were not
+  recorded in freshly launched deployments.
+
+* `connect_encrypted_db()` opens a plaintext SQLite file without a key
+  (the security profile still applies) instead of failing for want of
+  `DB_ENCRYPTION_KEY`.
+
+* The Admin tab's backup, restore, and database-information panels now
+  use the study database rather than a fixed `./data/zzedc.db`. File
+  backup is refused with an explanation on server backends; DuckDB is
+  checkpointed before copying.
+
+* The `standard` profile's warning is emitted immediately, so it
+  appears in a running application's log.
+
+* `create_wizard_database()`, `initialize_default_database()` gain an
+  `adapter_config` argument.
+
+## DuckDB: extensions offline, and a pool concurrency fix
+
+* **The encrypted DuckDB connection pool could not open a second
+  concurrent connection** ("Unique file handle conflict"): every pool
+  connection re-ran `ATTACH` on a shared instance. It now attaches once
+  and each connection selects the attached database.
+
+* New `duckdb.extension_directory` and `duckdb.allow_extension_download`
+  settings. Under the `regulated` profile, runtime extension downloads
+  are disallowed by default. New `install_duckdb_extensions()`
+  pre-installs `httpfs` and `icu` and verifies an offline load; new
+  `duckdb_extension_download_allowed()` reports the policy. Extensions
+  load when a connection opens, so a missing one fails at startup.
+
 # zzedc 0.8.0
 
 ## Correctness fixes: the audit trail

@@ -4,31 +4,35 @@
 \alias{setup_wizard_server}
 \title{Setup Wizard Server}
 \usage{
-setup_wizard_server(id, db_path = reactive("/tmp/zzedc.db"))
+setup_wizard_server(id, base_path = getwd(), on_launch = NULL, on_close = NULL)
 }
 \arguments{
 \item{id}{The namespace id for the module}
 
-\item{db_path}{Reactive path to database file}
+\item{base_path}{Directory in which the study is created (a value or a
+reactive).}
+
+\item{on_launch}{Optional function called by the "Launch ZZedc" button
+after the study is created (for example \code{function() shiny::stopApp("launch")}).
+The database key (DuckDB) and security salt are set as environment
+variables for the current R session first, so an immediate launch can
+open the study.}
+
+\item{on_close}{Optional function called by the "Close" button.}
 }
 \value{
-Reactive value indicating setup completion
+List of reactives: \code{setup_complete}, \code{system_config},
+\code{current_step}, \code{result} (from \code{complete_wizard_setup()}).
 }
 \description{
 Setup Wizard Server
 }
 \examples{
 \dontrun{
-# Embed the guided setup wizard.
-# Most users will run the full application via
-# `zzedc::launch_zzedc()`; the example below shows how to
-# embed the module in a custom Shiny app instead.
 if (interactive()) {
-  ui <- shiny::fluidPage(
-    setup_wizard_ui("module_id")
-  )
+  ui <- bslib::page_fluid(shinyjs::useShinyjs(), setup_wizard_ui("wizard"))
   server <- function(input, output, session) {
-    setup_wizard_server("module_id")
+    setup_wizard_server("wizard", base_path = tempfile("zzedc_"))
   }
   shiny::shinyApp(ui, server)
 }

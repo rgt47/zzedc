@@ -13,6 +13,21 @@
 #' - path: Path to database file (required, use ":memory:" for in-memory)
 #' - threads: Number of threads for query execution (optional)
 #' - memory_limit: Maximum memory usage (optional, e.g., "4GB")
+#' - encryption_key: Encrypts the database file when set (optional)
+#' - extension_directory: Persistent directory for DuckDB extensions
+#'   (optional). Without it, the R duckdb package uses a per-session
+#'   temporary directory, so extensions are downloaded again in every
+#'   session. Populate it in advance with `install_duckdb_extensions()`.
+#' - allow_extension_download: Whether DuckDB may download missing
+#'   extensions at runtime (optional). Defaults to `FALSE` under the
+#'   `regulated` security profile, where downloading unpinned code into
+#'   a validated system is a change-control concern, and `TRUE`
+#'   otherwise.
+#'
+#' Extensions are loaded when a connection opens: `httpfs` (needed for
+#' an encrypted file) and `icu` (needed by `CURRENT_DATE` in deadline
+#' queries). When downloads are disallowed, a missing extension is an
+#' error at connection time, not at the first query that needs it.
 #'
 #' @examples
 #' \dontrun{
@@ -58,110 +73,61 @@ DuckDBAdapter <- R6::R6Class(
     #' in `docs/db-adapter-remediation-plan-2026-11-07.md`), and all
     #' existing unqualified table references resolve against the
     #' attached database with no call-site changes.
+    #'
+    #' Every connection from this adapter, including those of its
+    #' `pool()`, comes from one shared DuckDB instance. Separate
+    #' instances in one R process can each attach the same file, and
+    #' DuckDB's file lock (an operating-system lock, held per process)
+    #' does not stop them writing concurrently. Before 2026-11-10 each
+    #' call created its own instance, so a package function called by
+    #' the application (through `connect_encrypted_db()`) wrote to the
+    #' study file through a second instance while the application's pool
+    #' held it through another.
     #' @return DBI connection object
     connect = function() {
-      db_path <- self$config$duckdb$path
-      encryption_key <- self$config$duckdb$encryption_key
-
-      # Create directory if needed (unless in-memory)
-      if (db_path != ":memory:") {
-        db_dir <- dirname(db_path)
-        if (!dir.exists(db_dir) && db_dir != ".") {
-          dir.create(db_dir, recursive = TRUE, showWarnings = FALSE)
-        }
-      }
-
-      if (!is.null(encryption_key) && nchar(encryption_key) > 0 &&
-          db_path != ":memory:") {
-        conn <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
-        # ATTACH ... ENCRYPTION_KEY needs DuckDB's full (writable)
-        # mbedtls crypto module. On at least one DuckDB build (1.5.4,
-        # confirmed in CI), only a read-only crypto module is loaded
-        # by default, and ATTACH with ENCRYPTION_KEY fails outright
-        # with "DuckDB currently has a read-only crypto module
-        # loaded... ensure httpfs is loaded using `LOAD httpfs`" --
-        # i.e. encrypted database creation never worked at all on
-        # that build. Loading httpfs first pulls in the full module;
-        # verified harmless on a newer build (2.0.0) where it was not
-        # otherwise required.
-        DBI::dbExecute(conn, "INSTALL httpfs")
-        DBI::dbExecute(conn, "LOAD httpfs")
-        DBI::dbExecute(conn, sprintf(
-          "ATTACH '%s' AS zzedc (ENCRYPTION_KEY '%s')", db_path, encryption_key
-        ))
-        DBI::dbExecute(conn, "USE zzedc")
-      } else {
-        conn <- DBI::dbConnect(
-          duckdb::duckdb(),
-          dbdir = db_path,
-          read_only = FALSE
-        )
-      }
-
-      # Configure threads if specified
-      threads <- self$config$duckdb$threads
-      if (!is.null(threads)) {
-        DBI::dbExecute(conn, sprintf("SET threads = %d", as.integer(threads)))
-      }
-
-      # Configure memory limit if specified
-      memory_limit <- self$config$duckdb$memory_limit
-      if (!is.null(memory_limit)) {
-        DBI::dbExecute(conn, sprintf("SET memory_limit = '%s'", memory_limit))
-      }
-
+      conn <- DBI::dbConnect(private$driver())
+      private$prepare_connection(conn)
       conn
     },
 
     #' @description
-    #' Create a connection pool. Honors `config$duckdb$encryption_key`
-    #' the same way `connect()` does, via a pool-wide `onCreate` hook
-    #' that runs the `ATTACH ... (ENCRYPTION_KEY ...)` + `USE` pair on
-    #' every connection the pool opens.
+    #' Create a connection pool on this adapter's shared DuckDB instance
+    #' (see `connect()`).
     #' @return Pool object
     pool = function() {
       if (!requireNamespace("pool", quietly = TRUE)) {
         stop("pool package required for connection pooling.\n",
              "Install with: install.packages('pool')")
       }
+      pool::dbPool(
+        private$driver(),
+        minSize = self$config$duckdb$pool_min %||% 1,
+        maxSize = self$config$duckdb$pool_max %||% Inf,
+        onCreate = function(conn) private$prepare_connection(conn)
+      )
+    },
 
-      db_path <- self$config$duckdb$path
-      encryption_key <- self$config$duckdb$encryption_key
-
-      # Create directory if needed (unless in-memory)
-      if (db_path != ":memory:") {
-        db_dir <- dirname(db_path)
-        if (!dir.exists(db_dir) && db_dir != ".") {
-          dir.create(db_dir, recursive = TRUE, showWarnings = FALSE)
-        }
+    #' @description
+    #' Close a connection. The shared instance stays open for this
+    #' adapter's other connections; see `shutdown()`.
+    #' @param conn Database connection
+    disconnect = function(conn) {
+      if (!is.null(conn) && DBI::dbIsValid(conn)) {
+        DBI::dbDisconnect(conn)
       }
+    },
 
-      if (!is.null(encryption_key) && nchar(encryption_key) > 0 &&
-          db_path != ":memory:") {
-        pool::dbPool(
-          duckdb::duckdb(),
-          dbdir = ":memory:",
-          onCreate = function(conn) {
-            # See the matching comment in connect(): ATTACH ...
-            # ENCRYPTION_KEY needs httpfs loaded first on at least one
-            # DuckDB build, or it fails with a read-only-crypto-module
-            # error.
-            DBI::dbExecute(conn, "INSTALL httpfs")
-            DBI::dbExecute(conn, "LOAD httpfs")
-            DBI::dbExecute(conn, sprintf(
-              "ATTACH '%s' AS zzedc (ENCRYPTION_KEY '%s')",
-              db_path, encryption_key
-            ))
-            DBI::dbExecute(conn, "USE zzedc")
-          }
-        )
-      } else {
-        pool::dbPool(
-          duckdb::duckdb(),
-          dbdir = db_path,
-          read_only = FALSE
-        )
+    #' @description
+    #' Shut down this adapter's shared DuckDB instance, releasing the
+    #' database file. Call it when the adapter is finished with, before
+    #' another adapter (for example a later application pool) opens the
+    #' same file. Connections and pools from this adapter become invalid.
+    shutdown = function() {
+      if (!is.null(private$drv)) {
+        tryCatch(duckdb::duckdb_shutdown(private$drv), error = function(e) NULL)
+        private$drv <- NULL
       }
+      invisible(NULL)
     },
 
     #' @description
@@ -267,11 +233,19 @@ DuckDBAdapter <- R6::R6Class(
     },
 
     #' @description
-    #' Check if encryption is supported
-    #' @return Logical TRUE via `ATTACH ... (ENCRYPTION_KEY ...)`,
-    #'   when `config$duckdb$encryption_key` is set (see `connect()`)
-    supports_encryption = function() {
-      TRUE
+    #' Describe this backend's encryption. DuckDB encrypts the database
+    #' file itself via `ATTACH ... (ENCRYPTION_KEY ...)` whenever
+    #' `config$duckdb$encryption_key` is set (see `connect()`).
+    #' @return List; see `DatabaseAdapter$encryption_capabilities()`
+    encryption_capabilities = function() {
+      key <- self$config$duckdb$encryption_key
+      list(
+        at_rest = "package",
+        at_rest_configured = !is.null(key) && nzchar(key) &&
+          !identical(self$config$duckdb$path, ":memory:"),
+        in_transit = "not_applicable",
+        detail = "DuckDB encrypts the database file when duckdb.encryption_key is set."
+      )
     },
 
     #' @description
@@ -345,12 +319,241 @@ DuckDBAdapter <- R6::R6Class(
   ),
 
   private = list(
+    drv = NULL,
+    extensions_ready = FALSE,
+
+    is_encrypted = function() {
+      key <- self$config$duckdb$encryption_key
+      !is.null(key) && nzchar(key) && !identical(self$config$duckdb$path, ":memory:")
+    },
+
+    # The adapter's one DuckDB instance, created on first use and
+    # recreated if it has been shut down (including by a caller's
+    # DBI::dbDisconnect(conn, shutdown = TRUE) on one of its
+    # connections). An encrypted file is attached to an in-memory
+    # instance; an unencrypted file is the instance's own database.
+    driver = function() {
+      if (!is.null(private$drv) &&
+          isTRUE(tryCatch(DBI::dbIsValid(private$drv), error = function(e) FALSE))) {
+        return(private$drv)
+      }
+      db_path <- self$config$duckdb$path
+      if (!identical(db_path, ":memory:")) {
+        db_dir <- dirname(db_path)
+        if (!dir.exists(db_dir) && db_dir != ".") {
+          dir.create(db_dir, recursive = TRUE, showWarnings = FALSE)
+        }
+      }
+      private$extensions_ready <- FALSE
+      private$drv <- if (private$is_encrypted()) {
+        duckdb::duckdb(dbdir = ":memory:")
+      } else {
+        private$check_unencrypted(db_path)
+        duckdb::duckdb(dbdir = db_path, read_only = FALSE)
+      }
+      private$drv
+    },
+
+    # Per-connection setup on the shared instance. The encrypted file
+    # is attached once per instance: a second ATTACH of the same file
+    # fails with "Unique file handle conflict", which is what made a
+    # second concurrent pool connection impossible before 2026-11-10.
+    # USE is per-connection, so every connection runs it.
+    prepare_connection = function(conn) {
+      if (private$is_encrypted()) {
+        attached <- DBI::dbGetQuery(conn, paste(
+          "SELECT count(*) AS n FROM duckdb_databases()",
+          "WHERE database_name = 'zzedc'"
+        ))$n > 0
+        if (!attached) {
+          # ATTACH ... ENCRYPTION_KEY needs DuckDB's full (writable)
+          # mbedtls crypto module. On at least one DuckDB build (1.5.4,
+          # confirmed in CI), only a read-only crypto module is loaded
+          # by default, and ATTACH with ENCRYPTION_KEY fails outright
+          # ("DuckDB currently has a read-only crypto module loaded...
+          # ensure httpfs is loaded using `LOAD httpfs`"). Loading httpfs
+          # first pulls in the full module; verified harmless on a newer
+          # build (2.0.0) where it was not otherwise required.
+          private$prepare_extensions(conn, need_httpfs = TRUE)
+          private$extensions_ready <- TRUE
+          DBI::dbExecute(conn, sprintf(
+            "ATTACH '%s' AS zzedc (ENCRYPTION_KEY '%s')",
+            self$config$duckdb$path, self$config$duckdb$encryption_key
+          ))
+        }
+        DBI::dbExecute(conn, "USE zzedc")
+      } else if (!private$extensions_ready) {
+        private$prepare_extensions(conn, need_httpfs = FALSE)
+        private$extensions_ready <- TRUE
+      }
+
+      threads <- self$config$duckdb$threads
+      if (!is.null(threads)) {
+        DBI::dbExecute(conn, sprintf("SET threads = %d", as.integer(threads)))
+      }
+      memory_limit <- self$config$duckdb$memory_limit
+      if (!is.null(memory_limit)) {
+        DBI::dbExecute(conn, sprintf("SET memory_limit = '%s'", memory_limit))
+      }
+      invisible(conn)
+    },
+
     # Deterministic sequence name for a table/column pair, shared by
     # auto_increment_column() and prepare_auto_increment() so the
     # DEFAULT nextval() expression always names a sequence that was
     # actually created.
     sequence_name = function(table_name, column_name) {
       sprintf("%s_%s_seq", table_name, column_name)
+    },
+
+    # Load the extensions a connection needs, from a persistent
+    # directory when one is configured. httpfs is required before an
+    # encrypted ATTACH; icu is loaded up front so that, when downloads
+    # are disallowed, its absence fails here rather than at the first
+    # CURRENT_DATE deadline query. When downloads are allowed and icu
+    # is not yet installed, DuckDB's own autoload is left to fetch it
+    # on first use, as before, so offline development machines are not
+    # forced onto the network for databases that never need it.
+    prepare_extensions = function(conn, need_httpfs) {
+      cfg <- self$config$duckdb
+      ext_dir <- cfg$extension_directory
+      if (!is.null(ext_dir) && nzchar(ext_dir)) {
+        dir.create(ext_dir, recursive = TRUE, showWarnings = FALSE)
+        DBI::dbExecute(conn, sprintf(
+          "SET extension_directory = '%s'",
+          normalizePath(ext_dir, winslash = "/", mustWork = FALSE)
+        ))
+      }
+      allow <- duckdb_extension_download_allowed(cfg)
+      if (!allow) {
+        DBI::dbExecute(conn, "SET autoinstall_known_extensions = false")
+      }
+
+      try_load <- function(ext) {
+        tryCatch({
+          DBI::dbExecute(conn, sprintf("LOAD %s", ext))
+          TRUE
+        }, error = function(e) FALSE)
+      }
+      missing_msg <- function(ext) {
+        paste0(
+          "DuckDB extension '", ext, "' is not installed",
+          if (!is.null(ext_dir)) paste0(" in ", ext_dir) else
+            " (no duckdb.extension_directory is configured, so DuckDB uses a per-session temporary directory)",
+          ", and runtime downloads are disallowed (security profile '",
+          get_security_profile(), "'). Pre-install it on a connected machine of ",
+          "the same platform with install_duckdb_extensions(), copy the ",
+          "directory to this host, and set duckdb.extension_directory; or set ",
+          "duckdb.allow_extension_download: true."
+        )
+      }
+
+      if (need_httpfs && !try_load("httpfs")) {
+        if (!allow) stop(missing_msg("httpfs"), call. = FALSE)
+        DBI::dbExecute(conn, "INSTALL httpfs")
+        DBI::dbExecute(conn, "LOAD httpfs")
+      }
+      if (!try_load("icu") && !allow) {
+        stop(missing_msg("icu"), call. = FALSE)
+      }
+      invisible(TRUE)
+    },
+
+    # Called only on the no-key path. An in-memory database holds
+    # nothing at rest; any file opened without a key is plaintext.
+    check_unencrypted = function(db_path) {
+      if (identical(db_path, ":memory:")) {
+        return(invisible(TRUE))
+      }
+      enforce_encryption_at_rest(
+        FALSE, db_path, "No duckdb.encryption_key is configured."
+      )
     }
   )
 )
+
+
+#' Whether DuckDB May Download Extensions at Runtime
+#'
+#' @param duckdb_config The `duckdb` section of a database
+#'   configuration.
+#' @return `TRUE` or `FALSE`. An explicit
+#'   `allow_extension_download` setting wins; otherwise downloads are
+#'   disallowed under the `regulated` security profile and allowed
+#'   under the others.
+#' @examples
+#' duckdb_extension_download_allowed(list(allow_extension_download = FALSE))
+#' @export
+duckdb_extension_download_allowed <- function(duckdb_config = list()) {
+  explicit <- duckdb_config$allow_extension_download
+  if (!is.null(explicit)) {
+    return(isTRUE(as.logical(explicit)))
+  }
+  get_security_profile() != "regulated"
+}
+
+
+#' Pre-install DuckDB Extensions into a Persistent Directory
+#'
+#' Downloads the DuckDB extensions zzedc needs into
+#' `extension_directory`, then confirms each one loads from there with
+#' automatic installation switched off. Run it on a machine with
+#' network access and the same operating system, CPU architecture, and
+#' DuckDB version as the deployment host (the directory layout is
+#' `v<duckdb version>/<platform>/`), then copy the directory to the
+#' host and point `duckdb.extension_directory` at it.
+#'
+#' @param extension_directory Character: directory to install into.
+#'   Created if needed.
+#' @param extensions Character vector of extension names (default
+#'   `c("httpfs", "icu")`: `httpfs` is required for encrypted files,
+#'   `icu` for `CURRENT_DATE`).
+#'
+#' @return A data frame with one row per extension: `extension`,
+#'   `loads_offline` (logical), and `install_path`.
+#'
+#' @examples
+#' \dontrun{
+#'   install_duckdb_extensions("/srv/zzedc/duckdb_extensions")
+#' }
+#'
+#' @export
+install_duckdb_extensions <- function(extension_directory,
+                                      extensions = c("httpfs", "icu")) {
+  if (!requireNamespace("duckdb", quietly = TRUE)) {
+    stop("duckdb package required. Install with: install.packages('duckdb')")
+  }
+  dir.create(extension_directory, recursive = TRUE, showWarnings = FALSE)
+  dir_sql <- sprintf(
+    "SET extension_directory = '%s'",
+    normalizePath(extension_directory, winslash = "/", mustWork = TRUE)
+  )
+
+  local({
+    conn <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+    on.exit(DBI::dbDisconnect(conn, shutdown = TRUE), add = TRUE)
+    DBI::dbExecute(conn, dir_sql)
+    for (ext in extensions) {
+      DBI::dbExecute(conn, sprintf("INSTALL %s", ext))
+    }
+  })
+
+  # Verify in a fresh instance that nothing depends on the network.
+  conn <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(DBI::dbDisconnect(conn, shutdown = TRUE), add = TRUE)
+  DBI::dbExecute(conn, dir_sql)
+  DBI::dbExecute(conn, "SET autoinstall_known_extensions = false")
+  loads <- vapply(extensions, function(ext) {
+    tryCatch({
+      DBI::dbExecute(conn, sprintf("LOAD %s", ext))
+      TRUE
+    }, error = function(e) FALSE)
+  }, logical(1))
+  info <- DBI::dbGetQuery(conn, "SELECT extension_name, install_path FROM duckdb_extensions()")
+  data.frame(
+    extension = extensions,
+    loads_offline = unname(loads),
+    install_path = info$install_path[match(extensions, info$extension_name)],
+    stringsAsFactors = FALSE
+  )
+}

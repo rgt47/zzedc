@@ -10,6 +10,24 @@ create_enhanced_ui <- function() {
   # Try to load Google Sheets forms
   gsheets_integration <- integrate_gsheets_forms()
 
+  # home.R, edc.R, report1.R, report2.R, report3.R, and export.R are
+  # server-side scripts: each does `output$<id> <- renderUI(...)` and
+  # relies on reactive objects (db_pool, input, session) that only
+  # exist once the per-session server() call is running (see
+  # gsheets_server_integration.R's initialize_traditional_server(),
+  # which already sources every one of them in that context). This
+  # function builds the static UI once, before any session exists, so
+  # `output` is never bound here; `source(<file>, local = TRUE)$value`
+  # on one of these files always threw "object 'output' not found",
+  # silently crashing the whole enhanced UI (caught by ui.R's
+  # tryCatch) and falling back to the traditional navbar -- regardless
+  # of what the rest of this function does. The UI side only needs a
+  # placeholder matching each file's own output id.
+  .safe_internal_ui <- function(ui_fn_name, id, fallback) {
+    fn <- tryCatch(utils::getFromNamespace(ui_fn_name, "zzedc"), error = function(e) NULL)
+    if (!is.null(fn) && is.function(fn)) fn(id) else div(class = "alert alert-warning", fallback)
+  }
+
   # Build navigation tabs
   nav_tabs <- list()
 
@@ -18,7 +36,7 @@ create_enhanced_ui <- function() {
     title = "Home",
     icon = bsicons::bs_icon("house"),
     value = "home",
-    source("home.R", local = TRUE)$value
+    uiOutput("hometab")
   )
 
   # 2. Include Google Sheets forms if available
@@ -53,7 +71,7 @@ create_enhanced_ui <- function() {
       title = "EDC Forms",
       icon = bsicons::bs_icon("clipboard-data"),
       value = "edc",
-      source("edc.R", local = TRUE)$value
+      uiOutput("ui")
     )
   }
 
@@ -62,36 +80,39 @@ create_enhanced_ui <- function() {
     title = "Basic Reports",
     icon = bsicons::bs_icon("bar-chart"),
     value = "reports1",
-    source("report1.R", local = TRUE)$value
+    uiOutput("rep1")
   )
 
   nav_tabs[["reports2"]] <- bslib::nav_panel(
     title = "Quality Reports",
     icon = bsicons::bs_icon("shield-check"),
     value = "reports2",
-    source("report2.R", local = TRUE)$value
+    uiOutput("rep2")
   )
 
   nav_tabs[["reports3"]] <- bslib::nav_panel(
     title = "Statistical Reports",
     icon = bsicons::bs_icon("graph-up"),
     value = "reports3",
-    source("report3.R", local = TRUE)$value
+    uiOutput("htable")
   )
 
-  # 5. Always include Data Explorer and Export
+  # 5. Always include Data Explorer and Export. Data Explorer is a
+  # real package module (R/data_module.R), not a flat script -- there
+  # never was a data.R in this directory, so source("data.R", ...)
+  # failed with "cannot open file" every time this branch was reached.
   nav_tabs[["data"]] <- bslib::nav_panel(
     title = "Data Explorer",
     icon = bsicons::bs_icon("table"),
     value = "data",
-    source("data.R", local = TRUE)$value
+    .safe_internal_ui("data_ui", "data", "Data Explorer module not available")
   )
 
   nav_tabs[["export"]] <- bslib::nav_panel(
     title = "Export Data",
     icon = bsicons::bs_icon("download"),
     value = "export",
-    source("export.R", local = TRUE)$value
+    uiOutput("export")
   )
 
   # 6. Add Setup tab for Google Sheets management
@@ -112,12 +133,8 @@ create_enhanced_ui <- function() {
   # getFromNamespace() the same defensive way ui.R's own
   # safe_module_ui() does for internal (non-exported) package
   # functions, so a build missing either module degrades to a
-  # warning panel instead of a hard failure.
-  .safe_internal_ui <- function(ui_fn_name, id, fallback) {
-    fn <- tryCatch(utils::getFromNamespace(ui_fn_name, "zzedc"), error = function(e) NULL)
-    if (!is.null(fn) && is.function(fn)) fn(id) else div(class = "alert alert-warning", fallback)
-  }
-
+  # warning panel instead of a hard failure. Uses the same
+  # .safe_internal_ui() defined above for the Data Explorer tab.
   nav_tabs[["compliance"]] <- bslib::nav_panel(
     title = "Compliance",
     icon = bsicons::bs_icon("patch-check"),
@@ -159,8 +176,12 @@ create_enhanced_ui <- function() {
       tags$link(rel = "icon", href = "logo.png", type = "image/png")
     ),
 
-    # Add all navigation tabs
-    !!!nav_tabs,
+    # Add all navigation tabs. nav_tabs is keyed by id (nav_tabs[["home"]],
+    # etc.) for lookup/readability above; splicing it with those names
+    # still attached makes page_navbar() see named ... arguments and
+    # reject them ("Tabs should all be unnamed arguments, but some are
+    # named"), so strip the names for the splice itself.
+    !!!unname(nav_tabs),
 
     # Authentication modal placeholder
     uiOutput("uiLogin"),
@@ -251,11 +272,11 @@ create_forms_overview_ui <- function(forms_data) {
           bslib::card(
             bslib::card_header("Google Sheets Configuration"),
             bslib::card_body(
-              p("Current Google Sheets:"),
-              tags$ul(
-                tags$li("Authentication: Check Google Sheets"),
-                tags$li("Data Dictionary: Check Google Sheets")
-              ),
+              textInput("refresh_sheet_id", "Google Sheets ID or URL:",
+                        value = if (exists("cfg")) cfg$gsheets$sheet_id %||% "" else ""),
+              p(class = "small text-muted",
+                "Refresh imports new users, forms, and rules from the workbook; ",
+                "existing ones are left unchanged."),
               actionButton("refresh_gsheets", "Refresh from Google Sheets", class = "btn btn-warning"),
               br(), br(),
               actionButton("export_config", "Export Configuration", class = "btn btn-info")
@@ -290,19 +311,18 @@ create_setup_ui <- function() {
           bslib::card(
             bslib::card_header(class = "bg-primary text-white", "Google Sheets Setup"),
             bslib::card_body(
-              p("Configure ZZedc using Google Sheets for easy, non-technical setup."),
+              p("Import users, forms, and validation rules from a Google Sheets ",
+                "workbook into this study's database (any database backend). ",
+                "Users and forms that already exist are left unchanged."),
+              p(class = "small text-muted",
+                "The workbook needs the tabs Study_Users, Data_Dictionary, and ",
+                "validation_rules; see ?zzedc::setup_zzedc_from_gsheets."),
 
-              h5("Authentication Sheet"),
-              textInput("auth_sheet_name", "Sheet Name:", value = "zzedc_auth"),
-
-              h5("Data Dictionary Sheet"),
-              textInput("dd_sheet_name", "Sheet Name:", value = "zzedc_data_dictionary"),
-
-              h5("Project Settings"),
-              textInput("project_name", "Project Name:", value = "zzedc_project"),
+              textInput("gsheets_sheet_id", "Google Sheets ID or URL:",
+                        value = if (exists("cfg")) cfg$gsheets$sheet_id %||% "" else ""),
 
               br(),
-              actionButton("run_gsheets_setup", "Setup from Google Sheets",
+              actionButton("run_gsheets_setup", "Import into this study",
                          class = "btn btn-primary btn-lg"),
 
               br(), br(),
@@ -318,15 +338,8 @@ create_setup_ui <- function() {
 
         div(class = "col-md-6",
           bslib::card(
-            bslib::card_header(class = "bg-info text-white", "Traditional Setup"),
+            bslib::card_header(class = "bg-info text-white", "Import Database"),
             bslib::card_body(
-              p("Use the original ZZedc setup method with R scripts."),
-
-              actionButton("run_traditional_setup", "Run Traditional Setup",
-                         class = "btn btn-info"),
-              br(), br(),
-
-              h5("Import Database"),
               p("Import from existing ZZedc database:"),
               fileInput("import_db", "Select Database File", accept = ".db"),
               actionButton("import_database", "Import Database", class = "btn btn-secondary")

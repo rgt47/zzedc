@@ -4,7 +4,15 @@
 \alias{launch_zzedc}
 \title{Launch the ZZedc Shiny Application}
 \usage{
-launch_zzedc(..., launch.browser = TRUE, host = "127.0.0.1", port = NULL)
+launch_zzedc(
+  ...,
+  launch.browser = TRUE,
+  host = "127.0.0.1",
+  port = NULL,
+  backend = NULL,
+  profile = "regulated",
+  setup = FALSE
+)
 }
 \arguments{
 \item{...}{Additional arguments passed to \code{\link[shiny]{runApp}}}
@@ -16,6 +24,21 @@ Default is \code{TRUE}.}
 
 \item{port}{Integer specifying the port to listen on. Default is \code{NULL}
 (random port).}
+
+\item{backend}{Database backend for a new study (\code{"sqlite"}, \code{"duckdb"},
+\code{"postgresql"}, or \code{"mysql"}; see \code{describe_backends()}). Used only
+when the working directory has no \code{config.yml}. When \code{NULL} in an
+interactive session, a menu compares the backends and asks; when
+\code{NULL} otherwise, SQLite is used.}
+
+\item{profile}{Security profile for a new study's \code{config.yml}
+(default \code{"regulated"}; see \code{resolve_security_profile()}). Used only
+when there is no \code{config.yml}.}
+
+\item{setup}{Logical. \code{TRUE} opens the setup wizard in a browser to
+create a new study (\code{launch_setup_wizard()}) instead of launching
+the application; the wizard can launch the application when it
+finishes.}
 }
 \value{
 No return value, launches the Shiny application
@@ -46,6 +69,13 @@ launch_zzedc(port = 3838)
 
 # Launch without opening browser
 launch_zzedc(launch.browser = FALSE)
+
+# New study on encrypted DuckDB (needs DB_ENCRYPTION_KEY set, or an
+# interactive session, which generates one)
+launch_zzedc(backend = "duckdb")
+
+# Create a new study with the setup wizard
+launch_zzedc(setup = TRUE)
 }
 
 }

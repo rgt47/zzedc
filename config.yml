@@ -27,11 +27,20 @@ default:
 
   # Security and HTTPS configuration
   security:
-    https_only: false  # Set to true in production
-    ssl_cert_path: null  # Path to SSL certificate (e.g., /etc/ssl/certs/zzedc.crt)
-    ssl_key_path: null   # Path to SSL private key (e.g., /etc/ssl/private/zzedc.key)
-    hsts_enabled: false  # HTTP Strict Transport Security (enable in production)
-    hsts_max_age: 31536000  # HSTS max age in seconds (1 year)
+    # Security profile: development, standard, or regulated.
+    # 'regulated' refuses to start when the database is not encrypted at
+    # rest, and refuses an AWS KMS fallback. This app opens SQLite
+    # without a key, so on stock CRAN RSQLite it will not start under
+    # 'regulated': use the DuckDB backend with an encryption key, or set
+    # 'standard' deliberately for synthetic or de-identified data and
+    # rely on full-disk encryption. See ?resolve_security_profile.
+    profile: regulated
+    # true refuses any session that did not arrive over HTTPS (the
+    # 'regulated' profile always does). Shiny does not provide HTTPS:
+    # put the app behind a reverse proxy, for example
+    # system.file("templates", "nginx-zzedc.conf", package = "zzedc"),
+    # which also sets HSTS. Connections to localhost are allowed.
+    https_only: false
 
   # UI settings
   ui:

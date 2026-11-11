@@ -15,7 +15,13 @@ connect_encrypted(db_path, key)
 SQLiteConnection object
 }
 \description{
-Creates a database connection with encryption enabled.
-Supports both SQLite3MultipleCiphers (PRAGMA) and standard SQLCipher (key param).
+Opens a SQLite connection with the key applied, then checks whether
+the file is in fact encrypted and applies the active security
+profile (see \code{resolve_security_profile()}): under \code{regulated} a
+plaintext file is an error, under \code{standard} a warning, under
+\code{development} silent. A new or empty file cannot be judged until
+something is written to it; callers that create databases
+(\code{initialize_encrypted_database()}, \code{test_encryption()}) check again
+after writing.
 }
 \keyword{internal}

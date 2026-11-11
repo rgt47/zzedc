@@ -10,7 +10,6 @@ cat("=====================================\n")
 # Function to check for Google Sheets integration
 check_gsheets_integration <- function() {
   required_files <- c(
-    "gsheets_integration.R",
     "gsheets_form_loader.R",
     "gsheets_ui_integration.R",
     "gsheets_server_integration.R"

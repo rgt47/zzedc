@@ -17,17 +17,10 @@ Setup Choice UI
 }
 \examples{
 \dontrun{
-# Embed the first-run setup-choice module.
-# Most users will run the full application via
-# `zzedc::launch_zzedc()`; the example below shows how to
-# embed the module in a custom Shiny app instead.
+# Shown as the first page of launch_setup_wizard().
 if (interactive()) {
-  ui <- shiny::fluidPage(
-    setup_choice_ui("module_id")
-  )
-  server <- function(input, output, session) {
-    setup_choice_server("module_id")
-  }
+  ui <- bslib::page_fluid(setup_choice_ui("choice"))
+  server <- function(input, output, session) setup_choice_server("choice")
   shiny::shinyApp(ui, server)
 }
 }

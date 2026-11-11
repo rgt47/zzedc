@@ -63,6 +63,15 @@ DatabaseAdapter <- R6::R6Class(
     },
 
     #' @description
+    #' Release any database instance the adapter holds (a no-op for
+    #' backends without one; see `DuckDBAdapter$shutdown()`). Call it
+    #' when finished with an adapter whose file another adapter will
+    #' open next.
+    shutdown = function() {
+      invisible(NULL)
+    },
+
+    #' @description
     #' Create a connection pool for concurrent access
     #' @return Pool object
     pool = function() {
@@ -195,10 +204,37 @@ DatabaseAdapter <- R6::R6Class(
     },
 
     #' @description
-    #' Check if this backend supports encryption
-    #' @return Logical TRUE if encryption is supported
+    #' Describe what encryption this backend provides, keeping
+    #' encryption at rest separate from encryption in transit.
+    #' @return List with elements:
+    #'   - `at_rest`: `"package"` (zzedc encrypts the stored file
+    #'     itself), `"server"` (only the database server can provide
+    #'     it; zzedc cannot observe whether it is enabled), or `"none"`
+    #'   - `at_rest_configured`: `TRUE`/`FALSE` when zzedc can tell
+    #'     whether its own at-rest encryption is configured, `NA` when
+    #'     it cannot
+    #'   - `in_transit`: `"enforced"` (the connection settings require
+    #'     TLS), `"optional"` (TLS possible but not required), or
+    #'     `"not_applicable"` (an embedded, file-based engine with no
+    #'     network connection)
+    #'   - `detail`: a one-sentence explanation
+    encryption_capabilities = function() {
+      list(
+        at_rest = "none",
+        at_rest_configured = FALSE,
+        in_transit = "not_applicable",
+        detail = "No encryption support is implemented for this backend."
+      )
+    },
+
+    #' @description
+    #' Check whether zzedc itself can encrypt this backend's stored
+    #' data. Transport encryption (TLS) does not count; see
+    #' `encryption_capabilities()` for the full picture.
+    #' @return Logical TRUE only if `encryption_capabilities()$at_rest`
+    #'   is `"package"`
     supports_encryption = function() {
-      FALSE
+      identical(self$encryption_capabilities()$at_rest, "package")
     },
 
     #' @description

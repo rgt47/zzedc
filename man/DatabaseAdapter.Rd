@@ -50,6 +50,7 @@ The adapter pattern enables zzedc to support multiple database backends:
     \item \href{#method-DatabaseAdapter-initialize}{\code{DatabaseAdapter$new()}}
     \item \href{#method-DatabaseAdapter-connect}{\code{DatabaseAdapter$connect()}}
     \item \href{#method-DatabaseAdapter-disconnect}{\code{DatabaseAdapter$disconnect()}}
+    \item \href{#method-DatabaseAdapter-shutdown}{\code{DatabaseAdapter$shutdown()}}
     \item \href{#method-DatabaseAdapter-pool}{\code{DatabaseAdapter$pool()}}
     \item \href{#method-DatabaseAdapter-pool_close}{\code{DatabaseAdapter$pool_close()}}
     \item \href{#method-DatabaseAdapter-query}{\code{DatabaseAdapter$query()}}
@@ -62,6 +63,7 @@ The adapter pattern enables zzedc to support multiple database backends:
     \item \href{#method-DatabaseAdapter-auto_increment_column}{\code{DatabaseAdapter$auto_increment_column()}}
     \item \href{#method-DatabaseAdapter-prepare_auto_increment}{\code{DatabaseAdapter$prepare_auto_increment()}}
     \item \href{#method-DatabaseAdapter-describe_table}{\code{DatabaseAdapter$describe_table()}}
+    \item \href{#method-DatabaseAdapter-encryption_capabilities}{\code{DatabaseAdapter$encryption_capabilities()}}
     \item \href{#method-DatabaseAdapter-supports_encryption}{\code{DatabaseAdapter$supports_encryption()}}
     \item \href{#method-DatabaseAdapter-table_exists}{\code{DatabaseAdapter$table_exists()}}
     \item \href{#method-DatabaseAdapter-list_tables}{\code{DatabaseAdapter$list_tables()}}
@@ -118,6 +120,21 @@ The adapter pattern enables zzedc to support multiple database backends:
     \describe{
       \item{\code{conn}}{DBI connection to close}
     }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DatabaseAdapter-shutdown"></a>}}
+\if{latex}{\out{\hypertarget{method-DatabaseAdapter-shutdown}{}}}
+\subsection{\code{DatabaseAdapter$shutdown()}}{
+  Release any database instance the adapter holds (a no-op for
+backends without one; see \code{DuckDBAdapter$shutdown()}). Call it
+when finished with an adapter whose file another adapter will
+open next.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$shutdown()}
     \if{html}{\out{</div>}}
   }
 }
@@ -380,17 +397,49 @@ divergence documented in
 }
 
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DatabaseAdapter-encryption_capabilities"></a>}}
+\if{latex}{\out{\hypertarget{method-DatabaseAdapter-encryption_capabilities}{}}}
+\subsection{\code{DatabaseAdapter$encryption_capabilities()}}{
+  Describe what encryption this backend provides, keeping
+encryption at rest separate from encryption in transit.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DatabaseAdapter$encryption_capabilities()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with elements:
+\itemize{
+\item \code{at_rest}: \code{"package"} (zzedc encrypts the stored file
+itself), \code{"server"} (only the database server can provide
+it; zzedc cannot observe whether it is enabled), or \code{"none"}
+\item \code{at_rest_configured}: \code{TRUE}/\code{FALSE} when zzedc can tell
+whether its own at-rest encryption is configured, \code{NA} when
+it cannot
+\item \code{in_transit}: \code{"enforced"} (the connection settings require
+TLS), \code{"optional"} (TLS possible but not required), or
+\code{"not_applicable"} (an embedded, file-based engine with no
+network connection)
+\item \code{detail}: a one-sentence explanation
+}
+  }
+}
+
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DatabaseAdapter-supports_encryption"></a>}}
 \if{latex}{\out{\hypertarget{method-DatabaseAdapter-supports_encryption}{}}}
 \subsection{\code{DatabaseAdapter$supports_encryption()}}{
-  Check if this backend supports encryption
+  Check whether zzedc itself can encrypt this backend's stored
+data. Transport encryption (TLS) does not count; see
+\code{encryption_capabilities()} for the full picture.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{DatabaseAdapter$supports_encryption()}
     \if{html}{\out{</div>}}
   }
   \subsection{Returns}{
-    Logical TRUE if encryption is supported
+    Logical TRUE only if \code{encryption_capabilities()$at_rest}
+is \code{"package"}
   }
 }
 

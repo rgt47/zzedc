@@ -14,45 +14,45 @@ set_encryption_for_existing_db(db_path, new_key = NULL)
 \value{
 List with encryption setup results:
 \itemize{
-\item success: Logical TRUE if successful
-\item encrypted: Logical TRUE if now encrypted
+\item success: Logical TRUE only if the rewritten file was verified to
+be encrypted
+\item encrypted: Logical TRUE if the file is now encrypted
 \item backup_created: Logical TRUE if backup saved
-\item new_key: The encryption key used (NA on failure). The function
-does not persist \code{new_key} to the user's environment after
-return; the caller is responsible for storing it (for example
+\item backup_path: Path to the plaintext backup. It contains every
+record in readable form; move it to protected storage or delete
+it once the encrypted file has been checked.
+\item new_key: The encryption key used. The function does not persist
+it; the caller is responsible for storing it (for example
 \code{Sys.setenv(DB_ENCRYPTION_KEY = result$new_key)} for the current
 session, or AWS Secrets Manager / a password manager for
 production). Losing the key makes the database unrecoverable.
 \item message: Status message
 }
+
+On failure the function stops with an error and leaves the original
+file unchanged.
 }
 \description{
-Converts an existing unencrypted database to use encryption.
+Converts an existing unencrypted SQLite or DuckDB database file into
+an encrypted one, keeping a backup of the original.
 }
 \details{
-Process:
-\enumerate{
-\item Verify database exists
-\item Create backup copy
-\item Generate or use provided encryption key
-\item Enable encryption on database
-\item Verify encryption working
-\item Return the key in the result list for the caller to persist
-}
+DuckDB files are rewritten with \verb{COPY FROM DATABASE} into a new file
+attached with \code{ENCRYPTION_KEY}, which then replaces the original.
 
-\strong{Important}: This enables encryption on the database file but does NOT
-re-encrypt existing data. New data written will be encrypted. For full
-re-encryption, use a database migration tool.
+SQLite files can be encrypted only when the installed RSQLite
+actually supports a cipher (\code{sqlite_cipher_available()}); stock
+CRAN RSQLite does not, and the function then stops with an error
+rather than reporting success. Earlier versions created a backup and
+a key but never rewrote the file.
 }
 \examples{
 \dontrun{
   result <- set_encryption_for_existing_db(
-    db_path = "./data/existing.db",
+    db_path = "./data/existing.duckdb",
     new_key = generate_db_key()
   )
-  if (result$success) {
-    cat("Encryption enabled!\n")
-  }
+  result$encrypted
 }
 
 }

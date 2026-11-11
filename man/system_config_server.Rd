@@ -4,7 +4,12 @@
 \alias{system_config_server}
 \title{System Configuration Server}
 \usage{
-system_config_server(id, db_pool = NULL)
+system_config_server(
+  id,
+  db_pool = NULL,
+  db_path = reactive("./data/zzedc.db"),
+  db_adapter = NULL
+)
 }
 \arguments{
 \item{id}{Namespace ID}

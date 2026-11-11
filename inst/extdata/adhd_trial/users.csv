@@ -1,5 +1,0 @@
-username,password,full_name,email,role,site_id,active
-drschen,<demo-only>,Dr. Sarah Chen,schen@university.edu,PI,1,1
-alex_r,<demo-only>,Alex Rodriguez,arodriguez@university.edu,Admin,1,1
-maria_s,<demo-only>,Maria Santos,msantos@university.edu,Coordinator,1,1
-backup_admin,<demo-only>,Backup Admin,backup@university.edu,Admin,1,0

@@ -40,9 +40,10 @@ initialize_gsheets_server <- function(input, output, session, user_input) {
   setup_global_validation_cache()
 
   tryCatch({
-    con <- RSQLite::dbConnect(RSQLite::SQLite(), cfg$database$path)
-    on.exit(RSQLite::dbDisconnect(con))
-    result <- load_validation_rules_from_db(con)
+    # The application's pool (global.R), not a direct RSQLite
+    # connection to cfg$database$path: the pool follows the configured
+    # backend and its encryption.
+    result <- load_validation_rules_from_db(db_pool)
     if (result$count > 0) {
       message("Loaded ", result$count, " validation rules for real-time validation")
     }
@@ -77,21 +78,18 @@ initialize_gsheets_server <- function(input, output, session, user_input) {
 
   # Forms overview outputs
   output$db_status <- renderText({
-    if (file.exists(cfg$database$path)) {
-      con <- RSQLite::dbConnect(RSQLite::SQLite(), cfg$database$path)
-      tables <- RSQLite::dbListTables(con)
+    tryCatch({
+      tables <- DBI::dbListTables(db_pool)
       user_count <- 0
       if ("edc_users" %in% tables) {
-        user_count <- RSQLite::dbGetQuery(con, "SELECT COUNT(*) as count FROM edc_users WHERE active = 1")$count
+        user_count <- DBI::dbGetQuery(db_pool, "SELECT COUNT(*) as count FROM edc_users WHERE active = 1")$count
       }
-      RSQLite::dbDisconnect(con)
-
-      paste("✅ Database connected\n",
+      paste("✅ Database connected (", db_config$db_backend, ")\n",
             "Tables:", length(tables), "\n",
             "Active users:", user_count)
-    } else {
-      "❌ Database not found"
-    }
+    }, error = function(e) {
+      paste("❌ Database not available:", e$message)
+    })
   })
 
   # Form management handlers
@@ -108,72 +106,77 @@ initialize_gsheets_server <- function(input, output, session, user_input) {
 
   observeEvent(input$confirm_refresh, {
     removeModal()
-
-    withProgress(message = "Refreshing from Google Sheets...", {
-      tryCatch({
-        # Re-run the Google Sheets setup
-        source("setup_from_gsheets.R")
-
-        # Get current project name from config or default
-        project_name <- "zzedc_project" # Would get from current config
-
-        incProgress(0.5, detail = "Reading Google Sheets...")
-
-        success <- setup_zzedc_from_gsheets_complete(
-          project_name = project_name
-        )
-
-        incProgress(1.0, detail = "Complete!")
-
-        if (success) {
-          shinyalert::shinyalert("Success",
-            "Configuration refreshed from Google Sheets! Please restart the application to see changes.",
-            type = "success")
-        } else {
-          shinyalert::shinyalert("Error",
-            "Failed to refresh from Google Sheets. Check the console for details.",
-            type = "error")
-        }
-
-      }, error = function(e) {
-        shinyalert::shinyalert("Error",
-          paste("Refresh failed:", e$message),
-          type = "error")
-      })
-    })
+    run_gsheets_import(input$refresh_sheet_id)
   })
 
+  # Verify through the application's pool, so it works on every
+  # backend. (It used to source the SQLite-only builders and check the
+  # legacy edc_forms tables, which the current importer does not use.)
   observeEvent(input$verify_setup, {
-    withProgress(message = "Verifying setup...", {
-      tryCatch({
-        source("gsheets_auth_builder.R")
-        source("gsheets_dd_builder.R")
-
-        incProgress(0.3, detail = "Checking authentication...")
-        auth_ok <- verify_auth_system(cfg$database$path)
-
-        incProgress(0.6, detail = "Checking data dictionary...")
-        dd_ok <- verify_dd_system(cfg$database$path)
-
-        incProgress(1.0, detail = "Complete!")
-
-        if (auth_ok && dd_ok) {
-          shinyalert::shinyalert("Success",
-            "✅ Setup verification passed! System is ready.",
-            type = "success")
-        } else {
-          shinyalert::shinyalert("Warning",
-            "⚠️ Setup verification found issues. Check console for details.",
-            type = "warning")
-        }
-
-      }, error = function(e) {
-        shinyalert::shinyalert("Error",
-          paste("Verification failed:", e$message),
-          type = "error")
-      })
+    tryCatch({
+      count <- function(sql) {
+        tryCatch(DBI::dbGetQuery(db_pool, sql)[[1]][1], error = function(e) NA)
+      }
+      users <- count("SELECT COUNT(*) FROM edc_users WHERE active = 1")
+      forms <- count("SELECT COUNT(*) FROM crf_definitions")
+      ok <- isTRUE(users > 0) && isTRUE(forms > 0)
+      shinyalert::shinyalert(
+        if (ok) "Setup looks complete" else "Setup incomplete",
+        paste0("Active users: ", users, "\nForms: ", forms,
+               if (!ok) "\n\nImport users and forms from Google Sheets, or add them in the application." else ""),
+        type = if (ok) "success" else "warning")
+    }, error = function(e) {
+      shinyalert::shinyalert("Error", paste("Verification failed:", e$message), type = "error")
     })
   })
+}
+
+
+#' Import from Google Sheets into the running study (any backend)
+#'
+#' The application's Google Sheets actions used to source
+#' setup_from_gsheets.R from the application directory, which does not
+#' contain it, and the legacy builders it used rebuilt SQLite tables.
+#' They now call the package's importer against this study's own
+#' database (global.R's db_config), adding new users, forms, and rules
+#' and leaving existing ones unchanged.
+run_gsheets_import <- function(sheet_id) {
+  if (is.null(sheet_id) || !nzchar(trimws(sheet_id))) {
+    shinyalert::shinyalert("Google Sheets ID needed",
+      "Enter the workbook's ID or URL first.", type = "error")
+    return(invisible(NULL))
+  }
+  withProgress(message = "Importing from Google Sheets...", value = 0.3, {
+    res <- tryCatch(
+      zzedc::setup_zzedc_from_gsheets(
+        sheet_id = trimws(sheet_id),
+        adapter_config = db_config,
+        create_database = FALSE,
+        imported_by = user_input$username %||% "gsheets_import",
+        salt = zzedc::resolve_auth_salt(cfg)
+      ),
+      error = function(e) list(success = FALSE, error = conditionMessage(e))
+    )
+  })
+  if (!is.null(res$error) && is.null(res$users)) {
+    shinyalert::shinyalert("Import failed", res$error, type = "error")
+    return(invisible(res))
+  }
+  summary <- paste0(
+    "Users: ", res$users$imported %||% 0, " added, ", res$users$skipped %||% 0,
+    " already present\n",
+    "Forms: ", res$forms$imported_forms %||% 0, " added (",
+    res$forms$imported_fields %||% 0, " fields), ", res$forms$skipped %||% 0,
+    " already present\n",
+    "Validation rules: ", res$validation_rules$imported %||% 0, " imported",
+    if (!isTRUE(res$success)) "\n\nSome items failed; see the R console for details." else
+      "\n\nReload the page to see new forms."
+  )
+  if (!isTRUE(res$success)) print(res$errors)
+  shinyalert::shinyalert(
+    if (isTRUE(res$success)) "Import complete" else "Import finished with errors",
+    summary, type = if (isTRUE(res$success)) "success" else "warning")
+  invisible(res)
 }
 
 #' Initialize traditional server modules
@@ -247,7 +250,13 @@ initialize_traditional_server <- function(input, output, session) {
     error = function(e) NULL
   )
   if (!is.null(admin_dashboard_server_fn)) {
-    admin_dashboard_server_fn("admin", db_pool = db_pool, user_session = user_input)
+    # db_path and db_adapter come from global.R. Without db_path the
+    # module defaulted to "./data/zzedc.db" relative to the app
+    # directory, so the Backup tab copied a file that was not the
+    # study database (or did not exist).
+    admin_dashboard_server_fn("admin", db_pool = db_pool, user_session = user_input,
+                              db_path = reactive(db_path),
+                              db_adapter = db_adapter)
   }
 
   if (file.exists("export.R")) {
@@ -267,18 +276,16 @@ initialize_setup_server <- function(input, output, session) {
   output$current_config_display <- renderText({
     config_info <- c()
 
-    # Database info
-    if (exists("cfg") && !is.null(cfg$database$path)) {
-      db_path <- cfg$database$path
-      config_info <- c(config_info, paste("Database:", db_path))
-      config_info <- c(config_info, paste("Database exists:", file.exists(db_path)))
-
-      if (file.exists(db_path)) {
-        con <- RSQLite::dbConnect(RSQLite::SQLite(), db_path)
-        tables <- RSQLite::dbListTables(con)
-        RSQLite::dbDisconnect(con)
-        config_info <- c(config_info, paste("Database tables:", length(tables)))
+    # Database info, from the database the application actually opened
+    # (global.R's db_config/db_path/db_pool).
+    if (exists("db_config")) {
+      config_info <- c(config_info, paste("Database backend:", db_config$db_backend))
+      if (!is.na(db_path)) {
+        config_info <- c(config_info, paste("Database:", db_path))
+        config_info <- c(config_info, paste("Database exists:", file.exists(db_path)))
       }
+      tables <- tryCatch(DBI::dbListTables(db_pool), error = function(e) character(0))
+      config_info <- c(config_info, paste("Database tables:", length(tables)))
     }
 
     # Google Sheets integration status
@@ -301,95 +308,12 @@ initialize_setup_server <- function(input, output, session) {
     paste(config_info, collapse = "\n")
   })
 
-  # Google Sheets setup handler
+  # Google Sheets import into this study. It used to source
+  # setup_from_gsheets.R from the application directory, which does
+  # not contain that file, so it failed every time; see
+  # run_gsheets_import().
   observeEvent(input$run_gsheets_setup, {
-
-    auth_sheet <- input$auth_sheet_name
-    dd_sheet <- input$dd_sheet_name
-    project <- input$project_name
-
-    if (auth_sheet == "" || dd_sheet == "" || project == "") {
-      shinyalert::shinyalert("Error", "Please fill in all required fields.", type = "error")
-      return()
-    }
-
-    # Show progress
-    shinyjs::show("setup_progress")
-    shinyjs::html("setup_progress .progress-bar", "")
-    shinyjs::runjs("$('#setup_progress .progress-bar').css('width', '0%');")
-
-    withProgress(message = "Setting up from Google Sheets...", {
-
-      tryCatch({
-        source("setup_from_gsheets.R")
-
-        incProgress(0.2, detail = "Authenticating with Google...")
-        shinyjs::runjs("$('#setup_progress .progress-bar').css('width', '20%');")
-
-        incProgress(0.4, detail = "Reading authentication data...")
-        shinyjs::runjs("$('#setup_progress .progress-bar').css('width', '40%');")
-
-        incProgress(0.6, detail = "Reading data dictionary...")
-        shinyjs::runjs("$('#setup_progress .progress-bar').css('width', '60%');")
-
-        incProgress(0.8, detail = "Building database...")
-        shinyjs::runjs("$('#setup_progress .progress-bar').css('width', '80%');")
-
-        success <- setup_zzedc_from_gsheets_complete(
-          auth_sheet_name = auth_sheet,
-          dd_sheet_name = dd_sheet,
-          project_name = project
-        )
-
-        incProgress(1.0, detail = "Complete!")
-        shinyjs::runjs("$('#setup_progress .progress-bar').css('width', '100%');")
-
-        if (success) {
-          shinyalert::shinyalert("Success",
-            paste("✅ Setup completed successfully!",
-                  "\n\nPlease restart the application to see your new forms.",
-                  "\nUse the generated launch script: launch_", gsub("[^A-Za-z0-9]", "_", project), ".R"),
-            type = "success")
-        } else {
-          shinyalert::shinyalert("Error",
-            "❌ Setup failed. Check the R console for detailed error messages.",
-            type = "error")
-        }
-
-      }, error = function(e) {
-        shinyalert::shinyalert("Error",
-          paste("Setup failed:", e$message,
-                "\n\nCommon issues:",
-                "\n• Google Sheets not found or not accessible",
-                "\n• Internet connection problems",
-                "\n• Google authentication expired"),
-          type = "error")
-      })
-    })
-
-    shinyjs::hide("setup_progress")
-  })
-
-  # Traditional setup handler
-  observeEvent(input$run_traditional_setup, {
-    withProgress(message = "Running traditional setup...", {
-      tryCatch({
-        if (file.exists("setup_database.R")) {
-          source("setup_database.R")
-          shinyalert::shinyalert("Success",
-            "Traditional setup completed! Please restart the application.",
-            type = "success")
-        } else {
-          shinyalert::shinyalert("Error",
-            "setup_database.R not found!",
-            type = "error")
-        }
-      }, error = function(e) {
-        shinyalert::shinyalert("Error",
-          paste("Traditional setup failed:", e$message),
-          type = "error")
-      })
-    })
+    run_gsheets_import(input$gsheets_sheet_id)
   })
 
   # Database import handler

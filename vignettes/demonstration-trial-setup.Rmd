@@ -28,10 +28,10 @@ This guide walks you through creating and running a complete, minimal clinical t
 - **Assessments**: MMSE (Mini-Cog Mental State Examination)
 - **Design**: Simple 1:1 randomization (10 active, 10 placebo)
 
-This demonstration trial is perfect for:
+This demonstration trial is well suited for:
 
 - Learning ZZedc workflow
-- Testing new features (like Feature #1 encryption)
+- Testing the encryption and security-profile features
 - Understanding the complete clinical trial data flow
 - Using as a template for real studies
 
@@ -221,7 +221,7 @@ ZZedc supports four database backends. Choose based on your deployment needs:
 
 ### Option A: SQLite (Default, Recommended for Getting Started)
 
-SQLite is file-based with zero configuration. Perfect for learning and
+SQLite is file-based with zero configuration. Well suited for learning and
 single-server deployments.
 
 ```{r sqlite_setup}
@@ -611,12 +611,33 @@ Once ZZedc launches:
 3. **Data Explorer**: Browse all subjects, randomization, assessments
 4. **Reports**: Generate reports by treatment arm
 5. **Exports**: Export data in CSV, Excel, or other formats
+6. **Compliance Tab**: Electronic signatures and training records
+7. **Admin Tab**: User management and the admin dashboard (backups,
+   security settings, database information)
 
 ---
 
-## Part 10: Testing Feature #1 (Encryption)
+## Part 10: Testing Encryption and Security Profiles
 
-The demonstration trial is perfect for testing ZZedc's encryption features:
+The demonstration trial is also a convenient place to see ZZedc's
+encryption-at-rest behavior and the `security.profile` setting that
+governs it (`?resolve_security_profile`). Three profiles exist:
+`development` (silent), `standard` (the built-in default; warns once
+per database), and `regulated` (refuses storage that cannot be shown
+to be encrypted, including at Shiny startup). The `config.yml`
+shipped with the package itself sets `security: profile: regulated`,
+but that file is only read when the working directory contains it;
+the plain `01-setup_demonstration_trial.R` script used in Parts 5-7
+connects with `DBI::dbConnect(RSQLite::SQLite(), ...)` directly and
+is unaffected by the profile either way. The profile only matters once
+you call zzedc's own encryption functions, as below. For a
+demonstration run on stock CRAN RSQLite (no SQLCipher), set the
+profile to `standard` or `development` first, or the calls below will
+stop under `regulated`:
+
+```{r}
+Sys.setenv(ZZEDC_SECURITY_PROFILE = "development")
+```
 
 ### Before Encryption
 
@@ -629,27 +650,53 @@ print(subjects)  # Can read subject names, ages, etc.
 dbDisconnect(conn)
 ```
 
-### After Encryption (with Feature #1 Step 4)
+### Creating an Encrypted Database
 
 ```{r}
-# Database encrypted with SQLCipher
-# Data only accessible with correct key
+# Real encryption at rest requires an RSQLite build with SQLCipher or
+# SQLite3MultipleCiphers support. On stock CRAN RSQLite the key is
+# accepted but not applied, and the file stays plaintext; check
+# before relying on it:
 library(zzedc)
-key <- get_encryption_key()  # From Feature #1
+sqlite_cipher_available()
 
-# Database connection now transparent
-conn <- dbConnect(RSQLite::SQLite(), "data/demonstration_trial_encrypted.db", key = key)
+# initialize_encrypted_database() creates the file, generates a key,
+# and reports the true encryption state (it no longer claims
+# 'encrypted' when the key was not actually applied):
+init <- initialize_encrypted_database(
+  db_path = "data/demonstration_trial_encrypted.db",
+  overwrite = TRUE
+)
+init$encrypted  # TRUE only with a SQLCipher/SQLite3MultipleCiphers build
+init$message
+
+key <- init$key
+Sys.setenv(DB_ENCRYPTION_KEY = key)
+
+conn <- connect_encrypted_db(
+  db_path = "data/demonstration_trial_encrypted.db", key = key
+)
 subjects <- dbGetQuery(conn, "SELECT * FROM subjects")
-print(subjects)  # Still works - encryption is transparent
+print(subjects)
 dbDisconnect(conn)
+
+# The reliable test: can the file be read WITHOUT the key?
+verify_database_encryption(
+  db_path = "data/demonstration_trial_encrypted.db", key = key
+)$encrypted
 ```
 
 ### Verify Encryption
 
 ```{r}
-# Verify file is encrypted (binary, not plaintext)
-file_content <- readBin("data/demonstration_trial_encrypted.db", "raw", n = 100)
-# Should be random binary data, not readable text
+# A binary-content spot check is not a substitute for
+# verify_database_encryption() above (ciphertext and ordinary binary
+# data look similar at a glance), but it is a quick sanity check:
+file_content <- readBin(
+  "data/demonstration_trial_encrypted.db", "raw", n = 100
+)
+# On a SQLCipher/SQLite3MultipleCiphers build this should be
+# unreadable binary data, not the plaintext 'SQLite format 3' header.
 ```
 
 ---
@@ -690,10 +737,13 @@ After setting up the demonstration trial:
    - Generate reports
    - Export data
 
-2. **Test Feature #1 (Encryption)**
-   - Convert to encrypted database
-   - Verify data accessibility
-   - Test key rotation
+2. **Test Encryption and Security Profiles**
+   - Create an encrypted database and verify the result with
+     `verify_database_encryption()`
+   - Check `sqlite_cipher_available()` on your R installation before
+     assuming encryption is active
+   - Try the `development`, `standard`, and `regulated` security
+     profiles (`?resolve_security_profile`)
 
 3. **Customize for Your Study**
    - Modify form definitions
@@ -746,6 +796,7 @@ source(script_path)
 ## Summary
 
 **Time to Complete**: ~10-15 minutes
+
 - 2 min: Create directories
 - 3 min: Run setup script
 - 2 min: Add users
@@ -760,9 +811,10 @@ source(script_path)
 - Test users ready to login
 - Database verified and validated
 
-**Perfect for**:
+**Well suited for**:
+
 - Learning ZZedc workflow
-- Testing new features
+- Testing the encryption and security-profile features
 - Demonstrating capabilities
 - Template for real studies
 

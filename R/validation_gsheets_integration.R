@@ -239,19 +239,45 @@ import_validation_rules_from_gsheets <- function(
     ))
   }
 
+  rules_df <- tryCatch(
+    googlesheets4::read_sheet(sheet_id, sheet = sheet_name),
+    error = function(e) e
+  )
+  if (inherits(rules_df, "error")) {
+    return(list(success = FALSE, imported = 0, error = conditionMessage(rules_df)))
+  }
+  .import_validation_rules_df(rules_df, imported_by = imported_by,
+                              validate_syntax = validate_syntax, dry_run = dry_run)
+}
+
+
+#' Import Validation Rules from a Data Frame (internal)
+#'
+#' The import logic shared by `import_validation_rules_from_gsheets()`,
+#' `setup_zzedc_from_gsheets()`, and `setup_zzedc_from_csv()`.
+#'
+#' @param rules_df Data frame with the `validation_rules` columns.
+#' @param imported_by,validate_syntax,dry_run As for
+#'   `import_validation_rules_from_gsheets()`.
+#' @param skip_existing Logical. `TRUE` skips rules whose `rule_id`
+#'   already exists in `dsl_validation_rules` (counted in
+#'   `already_present`), as an import into an existing study should.
+#' @return As for `import_validation_rules_from_gsheets()`.
+#' @keywords internal
+.import_validation_rules_df <- function(rules_df, imported_by, validate_syntax = TRUE,
+                                        dry_run = FALSE, skip_existing = FALSE) {
   results <- list(
     success = TRUE,
     imported = 0,
     skipped = 0,
+    already_present = 0,
     errors = list(),
     warnings = list(),
     rules = list()
   )
 
   tryCatch({
-    rules_df <- googlesheets4::read_sheet(sheet_id, sheet = sheet_name)
-
-    if (nrow(rules_df) == 0) {
+    if (is.null(rules_df) || nrow(rules_df) == 0) {
       return(list(success = TRUE, imported = 0, message = "No rules found in sheet"))
     }
 
@@ -269,9 +295,23 @@ import_validation_rules_from_gsheets <- function(
       }
     }
 
+    existing_ids <- character(0)
+    if (skip_existing && !dry_run) {
+      existing_ids <- tryCatch({
+        con <- connect_encrypted_db()
+        on.exit(DBI::dbDisconnect(con), add = TRUE)
+        as.character(DBI::dbGetQuery(con, "SELECT rule_id FROM dsl_validation_rules")$rule_id)
+      }, error = function(e) character(0))
+    }
+
     for (i in seq_len(nrow(rules_df))) {
       row <- rules_df[i, ]
       rule_id <- as.character(row$rule_id)
+
+      if (rule_id %in% existing_ids) {
+        results$already_present <- results$already_present + 1
+        next
+      }
 
       if (is.na(row$rule_dsl) || row$rule_dsl == "") {
         results$errors[[rule_id]] <- "Empty DSL rule"
@@ -1167,11 +1207,22 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   `FALSE`.
 #' @param salt Character. Salt used to hash each imported user's
 #'   initial password. Defaults to `NULL`, which resolves to the
-#'   `ZZEDC_SALT` environment variable if set, or otherwise to a
+#'   `zzedc.auth_salt` option (set by the running application), then
+#'   the `ZZEDC_SALT` environment variable if set, or otherwise to a
 #'   freshly generated random salt (returned as `result$salt`).
 #'   Earlier versions of this function hashed every import with a
 #'   single hardcoded salt shared across all installations; that
 #'   behavior is no longer present.
+#' @param adapter_config Optional configuration for `create_db_adapter()`
+#'   (for example `app_database_config(cfg)`), selecting the backend:
+#'   SQLite, DuckDB, PostgreSQL, or MySQL/MariaDB. When supplied,
+#'   `db_path` is taken from it (and is not needed for server
+#'   backends). When `NULL`, `db_path` is a SQLite file, as before.
+#' @param create_database Logical. `TRUE` (default) creates the database
+#'   first. `FALSE` imports into an existing study database, as the
+#'   application's Google Sheets actions do: users and forms that
+#'   already exist are skipped and counted (`users$skipped`,
+#'   `forms$skipped`), not reported as errors and not overwritten.
 #'
 #' @return List with one element per stage (`database`, `users`,
 #'   `forms`, `validation_rules`), each carrying its own
@@ -1193,7 +1244,9 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   `role`, `password_initial`. Optional: `site_id`, `active`.}
 #'   \item{Data_Dictionary}{One row per field across all CRFs.
 #'   Columns: `form_code`, `field_name`, `field_label`,
-#'   `field_type`, `required`. Optional: `validation`,
+#'   `field_type`, `required`. Optional: `form_name` (the form's
+#'   display name; the first non-blank value among a form's rows is
+#'   used, otherwise "<FORM_CODE> Form"), `validation`,
 #'   `description` (becomes the field's help text, shown beneath
 #'   it), `field_order` (an integer controlling the field's position
 #'   on the form; defaults to the field's own row position within
@@ -1259,9 +1312,10 @@ setup_zzedc_from_gsheets <- function(
   imported_by = "setup_from_gsheets",
   overwrite   = FALSE,
   dry_run     = FALSE,
-  salt        = NULL
+  salt        = NULL,
+  adapter_config  = NULL,
+  create_database = TRUE
 ) {
-
   if (!requireNamespace("googlesheets4", quietly = TRUE)) {
     return(list(
       success = FALSE,
@@ -1269,14 +1323,128 @@ setup_zzedc_from_gsheets <- function(
                     "Install with: install.packages('googlesheets4')")
     ))
   }
-  if (missing(db_path) || is.null(db_path) || !nzchar(db_path)) {
+  result <- .setup_zzedc_from_tables(
+    read_tab = function(tab) googlesheets4::read_sheet(sheet_id, sheet = tab),
+    db_path = if (missing(db_path)) NULL else db_path,
+    tabs = tabs, imported_by = imported_by, overwrite = overwrite,
+    dry_run = dry_run, salt = salt, adapter_config = adapter_config,
+    create_database = create_database
+  )
+  result$sheet_id <- sheet_id
+  result
+}
+
+
+#' Set Up or Update a Study from CSV Files
+#'
+#' The same import as `setup_zzedc_from_gsheets()`, reading the three
+#' tables from CSV files in a folder instead of from a Google Sheets
+#' workbook: `Study_Users.csv`, `Data_Dictionary.csv`, and
+#' `validation_rules.csv` (the names can be changed with `tabs`). Use it
+#' where Google Drive is not available. The columns are those documented
+#' in `setup_zzedc_from_gsheets()`; a missing file is treated like an
+#' empty tab.
+#'
+#' @param csv_dir Folder containing the CSV files.
+#' @inheritParams setup_zzedc_from_gsheets
+#'
+#' @return As for `setup_zzedc_from_gsheets()`, with `csv_dir` in place of
+#'   `sheet_id`.
+#'
+#' @examples
+#' \dontrun{
+#' # The bundled example study, into a new encrypted DuckDB database
+#' dir.create("adhd_study/data", recursive = TRUE)
+#' cfg <- list(db_backend = "duckdb",
+#'             duckdb = list(path = "adhd_study/data/study.duckdb",
+#'                           encryption_key = generate_db_key()))
+#' result <- setup_zzedc_from_csv(
+#'   system.file("extdata", "adhd_trial", package = "zzedc"),
+#'   adapter_config = cfg
+#' )
+#' }
+#' @export
+setup_zzedc_from_csv <- function(
+  csv_dir,
+  db_path = NULL,
+  tabs = list(
+    users           = "Study_Users",
+    data_dictionary = "Data_Dictionary",
+    validation      = "validation_rules"
+  ),
+  imported_by = "setup_from_csv",
+  overwrite   = FALSE,
+  dry_run     = FALSE,
+  salt        = NULL,
+  adapter_config  = NULL,
+  create_database = TRUE
+) {
+  if (!dir.exists(csv_dir)) {
+    return(list(success = FALSE, error = paste("CSV folder not found:", csv_dir)))
+  }
+  read_tab <- function(tab) {
+    f <- file.path(csv_dir, paste0(tab, ".csv"))
+    if (!file.exists(f)) return(NULL)
+    utils::read.csv(f, stringsAsFactors = FALSE, na.strings = c("", "NA"),
+                    check.names = FALSE)
+  }
+  result <- .setup_zzedc_from_tables(
+    read_tab = read_tab, db_path = db_path, tabs = tabs,
+    imported_by = imported_by, overwrite = overwrite, dry_run = dry_run,
+    salt = salt, adapter_config = adapter_config,
+    create_database = create_database
+  )
+  result$csv_dir <- csv_dir
+  result
+}
+
+
+#' Import Users, Forms, and Rules from Three Tables (internal)
+#'
+#' The logic shared by `setup_zzedc_from_gsheets()` and
+#' `setup_zzedc_from_csv()`. `read_tab(name)` returns a tab as a data
+#' frame, or `NULL` if it is absent.
+#'
+#' @keywords internal
+.setup_zzedc_from_tables <- function(read_tab, db_path, tabs, imported_by,
+                                     overwrite, dry_run, salt,
+                                     adapter_config, create_database) {
+
+  # Backend: from adapter_config when given (any backend), otherwise a
+  # SQLite file at db_path, as before. The adapter is cached so that the
+  # initializers and import functions below, which reach the database
+  # through connect_encrypted_db()/get_db_adapter(), use this backend.
+  backend <- "sqlite"
+  if (!is.null(adapter_config)) {
+    backend <- adapter_config$db_backend
+    db_path <- app_database_path(adapter_config)
+    if (is.na(db_path)) db_path <- NULL
+    if (!dry_run) {
+      # Inside the application the cached adapter is the one its pool
+      # was built from, with this same configuration: keep it, so the
+      # import shares the pool's database instance. A new adapter would
+      # attach the DuckDB file through a second in-process instance.
+      cache <- .db_adapter_cache
+      had_adapter <- exists("adapter", envir = cache)
+      previous <- if (had_adapter) cache$adapter else NULL
+      if (is.null(previous) || !identical(previous$config, adapter_config)) {
+        get_db_adapter(config = adapter_config, force_new = TRUE)
+        on.exit({
+          if (had_adapter) {
+            cache$adapter <- previous
+          } else if (exists("adapter", envir = cache)) {
+            rm("adapter", envir = cache)
+          }
+        }, add = TRUE)
+      }
+    }
+  } else if (is.null(db_path) || !nzchar(db_path)) {
     return(list(success = FALSE,
-                error = "`db_path` is required."))
+                error = "`db_path` or `adapter_config` is required."))
   }
 
   result <- list(
     success           = TRUE,
-    sheet_id          = sheet_id,
     db_path           = db_path,
     dry_run           = dry_run,
     database          = list(success = FALSE),
@@ -1288,34 +1456,45 @@ setup_zzedc_from_gsheets <- function(
     errors            = list()
   )
 
-  resolved_salt <- salt %||% Sys.getenv("ZZEDC_SALT", unset = "")
+  resolved_salt <- salt %||% getOption("zzedc.auth_salt") %||%
+    Sys.getenv("ZZEDC_SALT", unset = "")
   if (!nzchar(resolved_salt)) resolved_salt <- generate_security_salt()
   result$salt <- resolved_salt
 
   # --- Stage 1: database ------------------------------------------
+  db_key <- NULL
   if (dry_run) {
     result$database <- list(success = TRUE,
                             message = "dry_run: skipped database init")
-    db_key <- NA_character_
   } else {
-    init_res <- initialize_encrypted_database(
-      db_path  = db_path,
-      overwrite = overwrite
-    )
-    result$database <- init_res
-    if (!isTRUE(init_res$success)) {
-      result$success <- FALSE
-      result$errors$database <- init_res$error
-      return(result)
+    if (isTRUE(create_database)) {
+      init_res <- initialize_encrypted_database(
+        db_path   = db_path,
+        overwrite = overwrite,
+        key       = if (backend == "duckdb") adapter_config$duckdb$encryption_key
+      )
+      result$database <- init_res
+      if (!isTRUE(init_res$success)) {
+        result$success <- FALSE
+        result$errors$database <- init_res$error
+        return(result)
+      }
+      if (!is.na(init_res$key %||% NA)) {
+        db_key <- init_res$key
+        result$key <- db_key
+        if (backend == "sqlite") Sys.setenv(DB_ENCRYPTION_KEY = db_key)
+      }
+    } else {
+      result$database <- list(success = TRUE,
+                              message = "Imported into the existing database")
     }
-    db_key <- init_res$key
-    result$key <- db_key
-    Sys.setenv(DB_ENCRYPTION_KEY = db_key)
-    # The initializer functions below take no db_path argument and
-    # resolve the database location via get_db_path(), which falls
-    # back to ZZEDC_DB_PATH. Set it so they target this database
-    # even when db_path differs from the package default.
-    Sys.setenv(ZZEDC_DB_PATH = normalizePath(db_path, mustWork = FALSE))
+    # The initializer functions below take no db_path argument. On
+    # SQLite they resolve the file via get_db_path(), which falls back
+    # to ZZEDC_DB_PATH, so point it at this database; other backends
+    # are reached through the cached adapter set above.
+    if (backend == "sqlite") {
+      Sys.setenv(ZZEDC_DB_PATH = normalizePath(db_path, mustWork = FALSE))
+    }
 
     # initialize_encrypted_database() only creates `study_info` and
     # `subjects`. The CRF designer, CRF version-control, and DSL
@@ -1356,7 +1535,7 @@ setup_zzedc_from_gsheets <- function(
 
   # --- Stage 2: users ---------------------------------------------
   users_df <- tryCatch(
-    googlesheets4::read_sheet(sheet_id, sheet = tabs$users),
+    read_tab(tabs$users),
     error = function(e) NULL
   )
   if (is.null(users_df) || nrow(users_df) == 0) {
@@ -1368,14 +1547,29 @@ setup_zzedc_from_gsheets <- function(
     # reactive `db_pool` and an admin-UI signature.
     user_errors  <- list()
     n_imported   <- 0L
+    n_skipped    <- 0L
     salt_default <- resolved_salt
+    # SQLite through connect_encrypted_db() (path and key); other
+    # backends through the cached adapter, so the connection shares its
+    # database instance (DuckDB) rather than opening a second one.
+    user_adapter <- if (!dry_run && backend != "sqlite") get_db_adapter() else NULL
     user_conn    <- if (dry_run) NULL else
-      tryCatch(connect_encrypted_db(db_path = db_path,
-                                      key = db_key),
-                error = function(e) NULL)
+      tryCatch(
+        if (is.null(user_adapter)) {
+          connect_encrypted_db(db_path = db_path, key = db_key)
+        } else {
+          user_adapter$connect()
+        },
+        error = function(e) NULL
+      )
+    existing_users <- character(0)
     if (!is.null(user_conn)) {
-      on.exit(DBI::dbDisconnect(user_conn), add = TRUE)
+      on.exit(
+        if (is.null(user_adapter)) DBI::dbDisconnect(user_conn) else user_adapter$disconnect(user_conn),
+        add = TRUE
+      )
       ensure_edc_users_table(user_conn)
+      existing_users <- DBI::dbGetQuery(user_conn, "SELECT username FROM edc_users")$username
     }
     for (i in seq_len(nrow(users_df))) {
       row <- users_df[i, ]
@@ -1386,6 +1580,12 @@ setup_zzedc_from_gsheets <- function(
       if (is.null(user_conn)) {
         user_errors[[as.character(row$username)]] <-
           "encrypted connection unavailable"
+        next
+      }
+      # Importing into an existing study: an account that already
+      # exists is left as it is (its password is not reset).
+      if (as.character(row$username) %in% existing_users) {
+        n_skipped <- n_skipped + 1L
         next
       }
       pw <- as.character(row$password_initial %||%
@@ -1401,8 +1601,13 @@ setup_zzedc_from_gsheets <- function(
         email         = as.character(row$email %||% ""),
         role          = as.character(row$role),
         site_id       = as.character(row$site_id %||% "001"),
-        active        = TRUE,
-        created_by    = "gsheets_setup"
+        # The optional `active` column was documented but ignored:
+        # every imported account was created active.
+        active        = {
+          a <- row$active %||% NA
+          is.na(a) || as.character(a) %in% c("1", "TRUE", "true", "T", "yes", "Yes")
+        },
+        created_by    = imported_by
       )
       if (isTRUE(saved$success)) {
         n_imported <- n_imported + 1L
@@ -1413,6 +1618,7 @@ setup_zzedc_from_gsheets <- function(
     result$users <- list(
       success  = length(user_errors) == 0,
       imported = n_imported,
+      skipped  = n_skipped,
       errors   = user_errors
     )
     if (length(user_errors) > 0) result$success <- FALSE
@@ -1420,7 +1626,7 @@ setup_zzedc_from_gsheets <- function(
 
   # --- Stage 3: forms (data dictionary) ---------------------------
   dd <- tryCatch(
-    googlesheets4::read_sheet(sheet_id, sheet = tabs$data_dictionary),
+    read_tab(tabs$data_dictionary),
     error = function(e) NULL
   )
   if (is.null(dd) || nrow(dd) == 0) {
@@ -1431,6 +1637,7 @@ setup_zzedc_from_gsheets <- function(
     n_forms   <- 0L
     n_fields  <- 0L
     n_options <- 0L
+    n_forms_skipped <- 0L
     for (form_code in unique(as.character(dd$form_code))) {
       fields <- dd[as.character(dd$form_code) == form_code, ]
       if (dry_run) {
@@ -1438,16 +1645,38 @@ setup_zzedc_from_gsheets <- function(
         n_fields <- n_fields + nrow(fields)
         next
       }
+      # Optional `form_name` column: the form's display name, taken from
+      # the first of its rows that has one.
+      form_name <- .gsheets_cell(fields, "form_name", 1) %||%
+        paste(toupper(form_code), "Form")
       crf <- tryCatch(
         create_crf_definition(
           crf_code   = toupper(form_code),
-          crf_name   = paste(toupper(form_code), "Form"),
+          crf_name   = form_name,
           created_by = imported_by
         ),
         error = function(e) list(success = FALSE, error = e$message)
       )
       if (!isTRUE(crf$success)) {
-        form_errors[[form_code]] <- crf$error %||% "create_crf_definition failed"
+        # Importing into an existing study: a form that already exists
+        # is left as it is, not reported as a failure.
+        if (identical(crf$error, "crf_code already exists")) {
+          n_forms_skipped <- n_forms_skipped + 1L
+        } else {
+          form_errors[[form_code]] <- crf$error %||% "create_crf_definition failed"
+        }
+        next
+      }
+      # designer_fields.design_id is a foreign key to designer_forms;
+      # backends that enforce it (DuckDB, PostgreSQL) rejected every
+      # field without this row. See ensure_designer_form_row().
+      form_row <- tryCatch(
+        ensure_designer_form_row(crf$crf_id, toupper(form_code),
+                                 form_name, imported_by),
+        error = function(e) e
+      )
+      if (inherits(form_row, "error")) {
+        form_errors[[form_code]] <- paste("designer form:", conditionMessage(form_row))
         next
       }
       n_forms <- n_forms + 1L
@@ -1538,6 +1767,7 @@ setup_zzedc_from_gsheets <- function(
     }
     result$forms <- list(
       success          = length(form_errors) == 0,
+      skipped          = n_forms_skipped,
       imported_forms   = n_forms,
       imported_fields  = n_fields,
       imported_options = n_options,
@@ -1547,17 +1777,21 @@ setup_zzedc_from_gsheets <- function(
   }
 
   # --- Stage 4: validation rules ----------------------------------
-  rules_res <- tryCatch(
-    import_validation_rules_from_gsheets(
-      sheet_id        = sheet_id,
-      sheet_name      = tabs$validation,
-      imported_by     = imported_by,
-      validate_syntax = TRUE,
-      dry_run         = dry_run
-    ),
-    error = function(e) list(success = FALSE, error = e$message,
-                              imported = 0)
-  )
+  rules_df <- tryCatch(read_tab(tabs$validation), error = function(e) NULL)
+  rules_res <- if (is.null(rules_df)) {
+    list(success = TRUE, imported = 0, message = "No validation rules found or tab missing")
+  } else {
+    tryCatch(
+      .import_validation_rules_df(
+        rules_df,
+        imported_by     = imported_by,
+        validate_syntax = TRUE,
+        dry_run         = dry_run,
+        skip_existing   = !isTRUE(create_database)
+      ),
+      error = function(e) list(success = FALSE, error = e$message, imported = 0)
+    )
+  }
   result$validation_rules <- rules_res
   if (!isTRUE(rules_res$success)) result$success <- FALSE
 

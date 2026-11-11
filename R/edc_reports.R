@@ -31,14 +31,18 @@ NULL
 #' @param conn A DBI connection (or pool object).
 #' @param crf_code Optional: restrict to one form (matched
 #'   case-insensitively against `data_entries.form_name`).
+#' @param subject_id Optional: restrict to one subject (matched
+#'   exactly against `data_entries.subject_id`). Added for
+#'   [generate_subject_case_report()], which needs every entry for a
+#'   single subject rather than filtering the whole table in R.
 #' @param start_date,end_date Optional `Date`/character bounds
 #'   (inclusive) on `created_date`.
 #' @return A data frame with columns `entry_id`, `subject_id`,
-#'   `form_name`, `created_date`, `created_by`, plus a list-column
-#'   `fields` (one named list per row, the parsed `data_json`).
-#'   Zero rows (with the right columns) when nothing matches,
-#'   including when `data_entries` doesn't exist yet (it is only
-#'   created lazily, on first submission via
+#'   `form_name`, `visit_label`, `visit_date`, `created_date`,
+#'   `created_by`, plus a list-column `fields` (one named list per
+#'   row, the parsed `data_json`). Zero rows (with the right columns)
+#'   when nothing matches, including when `data_entries` doesn't
+#'   exist yet (it is only created lazily, on first submission via
 #'   [ensure_data_entries_table()] -- a freshly initialized or
 #'   freshly `setup_zzedc_from_gsheets()`-rebuilt database has no
 #'   entries, and so no reason yet to have this table). Every
@@ -49,11 +53,12 @@ NULL
 #'   entries" here -- rather than letting `dbGetQuery()` error --
 #'   is the one fix point that protects all of them at once.
 #' @keywords internal
-get_data_entries <- function(conn, crf_code = NULL,
+get_data_entries <- function(conn, crf_code = NULL, subject_id = NULL,
                               start_date = NULL, end_date = NULL) {
   empty <- data.frame(
     entry_id = character(0), subject_id = character(0),
-    form_name = character(0), created_date = character(0),
+    form_name = character(0), visit_label = character(0),
+    visit_date = character(0), created_date = character(0),
     created_by = character(0), stringsAsFactors = FALSE
   )
   empty$fields <- list()
@@ -66,6 +71,10 @@ get_data_entries <- function(conn, crf_code = NULL,
   if (!is.null(crf_code)) {
     clauses <- c(clauses, "LOWER(form_name) = LOWER(?)")
     params <- c(params, list(crf_code))
+  }
+  if (!is.null(subject_id)) {
+    clauses <- c(clauses, "subject_id = ?")
+    params <- c(params, list(subject_id))
   }
   if (!is.null(start_date)) {
     clauses <- c(clauses, "DATE(created_date) >= DATE(?)")
@@ -82,8 +91,8 @@ get_data_entries <- function(conn, crf_code = NULL,
   }
 
   sql <- paste(
-    "SELECT entry_id, subject_id, form_name, created_date, created_by,",
-    "       data_json",
+    "SELECT entry_id, subject_id, form_name, visit_label, visit_date,",
+    "       created_date, created_by, data_json",
     "FROM data_entries", where,
     "ORDER BY created_date DESC"
   )

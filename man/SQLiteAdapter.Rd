@@ -17,7 +17,11 @@ Database adapter implementation for SQLite backend.
 Configuration options (in config$sqlite):
 \itemize{
 \item path: Path to database file (required)
-\item encryption_key: Optional encryption key (requires RSQLCipher)
+\item encryption_key: Optional encryption key. It is applied only by an
+RSQLite build compiled with SQLCipher or SQLite3MultipleCiphers;
+stock CRAN RSQLite ignores it, and the file is written in
+plaintext. Whether that is allowed depends on the security
+profile (see \code{resolve_security_profile()}).
 }
 }
 \examples{
@@ -43,7 +47,7 @@ Configuration options (in config$sqlite):
     \item \href{#method-SQLiteAdapter-connect}{\code{SQLiteAdapter$connect()}}
     \item \href{#method-SQLiteAdapter-pool}{\code{SQLiteAdapter$pool()}}
     \item \href{#method-SQLiteAdapter-dialect}{\code{SQLiteAdapter$dialect()}}
-    \item \href{#method-SQLiteAdapter-supports_encryption}{\code{SQLiteAdapter$supports_encryption()}}
+    \item \href{#method-SQLiteAdapter-encryption_capabilities}{\code{SQLiteAdapter$encryption_capabilities()}}
     \item \href{#method-SQLiteAdapter-describe_table}{\code{SQLiteAdapter$describe_table()}}
     \item \href{#method-SQLiteAdapter-backend_name}{\code{SQLiteAdapter$backend_name()}}
     \item \href{#method-SQLiteAdapter-enable_wal}{\code{SQLiteAdapter$enable_wal()}}
@@ -64,6 +68,8 @@ Configuration options (in config$sqlite):
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="prepare_auto_increment"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-prepare_auto_increment'><code>DatabaseAdapter$prepare_auto_increment()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="shutdown"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-shutdown'><code>DatabaseAdapter$shutdown()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="supports_encryption"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-supports_encryption'><code>DatabaseAdapter$supports_encryption()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
@@ -133,17 +139,20 @@ Configuration options (in config$sqlite):
 }
 
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-SQLiteAdapter-supports_encryption"></a>}}
-\if{latex}{\out{\hypertarget{method-SQLiteAdapter-supports_encryption}{}}}
-\subsection{\code{SQLiteAdapter$supports_encryption()}}{
-  Check if encryption is supported (RSQLCipher available)
+\if{html}{\out{<a id="method-SQLiteAdapter-encryption_capabilities"></a>}}
+\if{latex}{\out{\hypertarget{method-SQLiteAdapter-encryption_capabilities}{}}}
+\subsection{\code{SQLiteAdapter$encryption_capabilities()}}{
+  Describe this backend's encryption. At-rest encryption is
+available only when the installed RSQLite actually encrypts a
+keyed file (\code{sqlite_cipher_available()}, a functional test), not
+merely when some package is installed.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{SQLiteAdapter$supports_encryption()}
+    \preformatted{SQLiteAdapter$encryption_capabilities()}
     \if{html}{\out{</div>}}
   }
   \subsection{Returns}{
-    Logical TRUE if RSQLCipher is available
+    List; see \code{DatabaseAdapter$encryption_capabilities()}
   }
 }
 

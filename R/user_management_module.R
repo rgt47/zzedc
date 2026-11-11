@@ -475,9 +475,12 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
       # Generate temporary password
       temp_password <- paste0(sample(c(letters, LETTERS, 0:9), 12, replace = TRUE), collapse = "")
 
-      # Update in database
-      salt <- Sys.getenv("ZZEDC_SALT")
-      if (salt == "") salt <- "default_salt"
+      # Update in database. The salt is the one login uses
+      # (resolve_auth_salt(), from the zzedc.auth_salt option the
+      # application sets); a fixed "default_salt" fallback here made
+      # reset passwords unusable whenever the configuration named no
+      # salt variable.
+      salt <- resolve_auth_salt()
       password_hash <- digest::digest(paste0(temp_password, salt), algo = "sha256")
 
       tryCatch({
@@ -608,8 +611,7 @@ save_user_to_db <- function(db_pool, user_id, username, full_name, email,
       # delegate to the canonical `db_insert_user()` helper so
       # the Shiny path, the gsheets setup, and the REDCap
       # importer all agree on the `edc_users` schema and INSERT.
-      salt <- Sys.getenv("ZZEDC_SALT")
-      if (salt == "") salt <- "default_salt"
+      salt <- resolve_auth_salt()
       password_hash <- digest::digest(paste0(password, salt),
                                        algo = "sha256")
       saved <- db_insert_user(
@@ -634,8 +636,7 @@ save_user_to_db <- function(db_pool, user_id, username, full_name, email,
         # button: an admin setting a user's password directly hands
         # them a password they didn't choose, so force a change on
         # next login.
-        salt <- Sys.getenv("ZZEDC_SALT")
-        if (salt == "") salt <- "default_salt"
+        salt <- resolve_auth_salt()
         password_hash <- digest::digest(paste0(password, salt), algo = "sha256")
 
         pool::dbExecute(db_pool, "

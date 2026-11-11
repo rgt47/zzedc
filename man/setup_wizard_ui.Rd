@@ -17,16 +17,12 @@ Setup Wizard UI
 }
 \examples{
 \dontrun{
-# Embed the guided setup wizard.
-# Most users will run the full application via
-# `zzedc::launch_zzedc()`; the example below shows how to
-# embed the module in a custom Shiny app instead.
+# The wizard is normally run with launch_setup_wizard() or
+# launch_zzedc(setup = TRUE); the example shows how to embed it.
 if (interactive()) {
-  ui <- shiny::fluidPage(
-    setup_wizard_ui("module_id")
-  )
+  ui <- bslib::page_fluid(shinyjs::useShinyjs(), setup_wizard_ui("wizard"))
   server <- function(input, output, session) {
-    setup_wizard_server("module_id")
+    setup_wizard_server("wizard", base_path = tempfile("zzedc_"))
   }
   shiny::shinyApp(ui, server)
 }

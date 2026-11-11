@@ -181,10 +181,29 @@ PostgreSQLAdapter <- R6::R6Class(
     },
 
     #' @description
-    #' Check if encryption is supported
-    #' @return Logical TRUE (PostgreSQL supports SSL/TLS)
-    supports_encryption = function() {
-      TRUE
+    #' Describe this backend's encryption. Community PostgreSQL has no
+    #' built-in encryption at rest; it must come from volume or
+    #' filesystem encryption, a cloud provider's storage encryption, or
+    #' a transparent-data-encryption fork, none of which zzedc can
+    #' observe. TLS is enforced only when `sslmode` requires it.
+    #' Earlier versions reported `supports_encryption() = TRUE` on the
+    #' strength of TLS alone, conflating transport with storage.
+    #' @return List; see `DatabaseAdapter$encryption_capabilities()`
+    encryption_capabilities = function() {
+      sslmode <- self$config$postgresql$sslmode %||% ""
+      list(
+        at_rest = "server",
+        at_rest_configured = NA,
+        in_transit = if (sslmode %in% c("require", "verify-ca", "verify-full")) {
+          "enforced"
+        } else {
+          "optional"
+        },
+        detail = paste(
+          "Encryption at rest must be configured on the PostgreSQL",
+          "server or its storage; TLS is set by postgresql.sslmode."
+        )
+      )
     },
 
     #' @description

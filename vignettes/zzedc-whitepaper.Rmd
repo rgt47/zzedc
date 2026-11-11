@@ -118,7 +118,19 @@ hash of the previous row, with a GENESIS sentinel at the head of the
 chain. The function `verify_audit_integrity()` walks the chain
 end-to-end and reports any break. This is the mechanism that
 substantiates the 21 CFR Part 11 §11.10(e) claim of 'continuity of
-record'.
+record'. *Updated 2026-11-10:* until v0.8.0, this function compared
+only the linkage fields (`previous_hash` against the prior row's
+stored `record_hash`) and never recomputed a row's hash from its own
+content, so rewriting who performed an action, which record it
+touched, or when it happened went undetected while the function still
+reported the chain as verified. The same fault, and the same fix
+(recomputing the hash from the stored row rather than trusting
+linkage alone), applied to `verify_correction_integrity()` and
+`verify_version_integrity()`. All three now recompute and report
+tampered rows separately from broken links. Rows written before the
+fix cannot be content-verified retroactively, because the timestamp
+behind their original hash was never stored; this is accurate
+reporting of a real limit, not a regression.
 
 The second is referential separation between subject identifiers and
 clinical data. The schema treats subject directory tables and clinical
@@ -147,8 +159,9 @@ breaking record continuity.
 ## The five-backend database adapter
 
 ZZedc supports five database backends through a single adapter
-interface: SQLite (with optional SQLCipher encryption), PostgreSQL,
-MySQL, DuckDB, and ClickHouse. The motivation for supporting multiple
+interface: SQLite (encrypted only with a SQLCipher-enabled RSQLite
+build), DuckDB (with native file encryption), PostgreSQL,
+MySQL, and ClickHouse. The motivation for supporting multiple
 backends is not performance abstraction in the usual sense; it is
 deployment-context match. SQLite suits single-investigator and
 solo-site studies where filesystem-level backup is adequate.
@@ -183,7 +196,15 @@ signature meaning (authorship, review, approval, responsibility),
 signature statement text, signer identity, and a hash that incorporates
 the signed record state. `verify_electronic_signature()` confirms a
 single signature; `verify_signature_chain()` confirms a sequence of
-signatures across a record's lifecycle.
+signatures across a record's lifecycle. *Updated 2026-11-10:* before
+v0.7.0, `verify_signature_chain()` had the same defect described above
+for the audit trail: it checked only that each row's linkage fields
+agreed with the prior row and never recomputed a signature's hash
+from its content, so a signer, a signature meaning, or a signed
+record's identity could be rewritten and the function would still
+report the chain verified. It now recomputes each signature's hash
+from the stored content and reports tampered rows separately from
+broken links.
 
 A second signature implementation exists at
 `R/cfr_part11_extensions.R::create_electronic_signature` and
@@ -221,7 +242,12 @@ and deadline tracking. Rectification (Article 16) is served by
 `R/rectification.R`. Erasure (Article 17) is served by `R/erasure.R`,
 including a legal-hold mechanism that reconciles the GDPR erasure
 obligation with 21 CFR Part 11 §11.10(c) record-retention obligations
-when both apply to the same subject. Restriction (Article 18) is
+when both apply to the same subject. *Updated 2026-11-10:* before
+v0.7.0, the hold was consulted only when an erasure item was created;
+`execute_erasure_item()` checked only that the item's status was
+`APPROVED`, so a hold placed after approval but before execution did
+not block deletion. The hold is now re-checked immediately before
+execution, not only at intake. Restriction (Article 18) is
 served by `R/restriction.R`, which implements both restriction-state
 storage and a processing-attempt log so that subsequent processing
 can be blocked with a record. Portability (Article 20) is served by
@@ -314,17 +340,21 @@ following obligations. They are listed here so that prospective
 adopters can estimate the operational work required around the
 package.
 
-Encryption at rest requires a SQLCipher-enabled build of RSQLite.
-The package provides `connect_encrypted()` and key-management
-utilities, and the test suite skips encryption tests on unsupported
-RSQLite builds. The default RSQLite distribution from CRAN does not
-include SQLCipher; deployments must explicitly link RSQLite against
-SQLCipher (for example via the SQLite3MultipleCiphers fork) to obtain
-at-rest encryption. Encryption support is therefore best described as
-'available but deployment-conditional', not 'bundled'. The same
-caveat applies to AWS KMS integration: the code is callable when AWS
-credentials are configured, but no integration test runs against a
-live KMS endpoint.
+Encryption at rest on SQLite requires a SQLCipher-enabled build of
+RSQLite. The default RSQLite distribution from CRAN does not include
+SQLCipher; on it, the key is accepted and ignored, and the file is
+written in plaintext. Before 2026-11-10 that happened silently (see
+the encryption remediation section below); it is now detected, and
+the `regulated` security profile refuses such a database. DuckDB
+encrypts its files natively with `ENCRYPTION_KEY`, using only CRAN
+software, and is the recommended route when encryption at rest is
+required. Server backends (PostgreSQL, MySQL/MariaDB, ClickHouse)
+depend on server-side encryption that zzedc cannot observe or verify.
+Encryption support is therefore best described as 'available and
+verifiable on DuckDB; deployment-conditional on SQLite; the server
+operator's responsibility on server backends', not 'bundled'. AWS KMS
+integration is callable when AWS credentials are configured, but no
+integration test runs against a live KMS endpoint.
 
 Outbound notification transport is out of scope. GDPR Articles 33,
 34, and 19 each require an outbound communication: to the
@@ -349,13 +379,31 @@ impact assessment, Standard Contractual Clauses tracking, adequacy
 lookup) are not implemented; a boolean flag and a UI label are
 present but do not constitute a transfer-governance mechanism.
 
-User training records under §11.10(i) have a schema-only presence;
-there is no exported function to record training events or block
-sign-off based on training status.
+*Updated 2026-11-10: the paragraph below described a schema-only gap
+that has since been closed; see the gap-analysis addendum's §11.10(i)
+row.* User training records under §11.10(i) previously had a
+schema-only presence, with no exported function to record training
+events or block sign-off based on training status.
+`ensure_user_training_table()`/`db_insert_training_record()` and a
+real `observeEvent()` handler in the Compliance tab now record
+training events from the live application; whether training status
+blocks sign-off anywhere in the workflow was not re-checked for this
+revision.
 
 Multi-factor authentication is documented in `R/auth_module.R`; this
 module was outside the scope of the most recent compliance audit and
 its claims are unverified at the present revision.
+
+Electronic-signature passwords are hashed with unsalted SHA-256 in
+`verify_password_for_signature()`, while the application's own login
+path (`inst/app/auth.R`) salts credentials via the `ZZEDC_SALT`
+environment variable. The two schemes are inconsistent, and an
+unsalted, single-round hash is a weak construction for a credential
+that gates a 21 CFR Part 11 electronic signature. This has been
+identified but deliberately not changed, because correcting it
+requires a migration (existing stored signature-password hashes would
+have to be rehashed under the new scheme), not a code edit; it is
+recorded here as an open item rather than fixed blind.
 
 **Audit trail gap, found and fixed 2026-11-08.** Two independent
 defects had left §11.10(e) ("secure, computer-generated, time-stamped
@@ -406,9 +454,17 @@ Across 50 audited features mapped to GDPR articles or 21 CFR Part 11
 sections, the canonical compliance reference classifies 35 as
 implemented, 8 as partial (most often because of an absent transport
 layer or a deployment-conditional prerequisite), 6 as documented only
-(schema present without code), and 1 as not implemented. We do not
-report a single 'compliance percentage'; the per-feature table in the
-canonical reference is the authoritative substitute. Earlier internal
+(schema present without code), and 1 as not implemented. *Note
+(2026-11-10): this 35/8/6/1 split predates the remediation documented
+in the gap-analysis addendum and the encryption-remediation sections
+below, several of which moved an individual feature from a worse
+category to a better one (for example, training records moved from
+documented-only to implemented). The canonical compliance reference
+has not yet been regenerated to reflect this, so the split above
+should be treated as stale pending that reconciliation, not as a
+current count.* We do not report a single 'compliance percentage';
+the per-feature table in the canonical reference is the authoritative
+substitute. Earlier internal
 summary documents quoted figures of 35%, 65%, 75%, and 90% with no
 shared denominator; those figures are superseded.
 
@@ -442,7 +498,7 @@ in ten others).
 | §11.300(b)/(d) | Password controls (lockout, periodic revision) | **FIXED (2026-11-10)** | `authenticate_user()` (`inst/app/auth.R` -- the live login path; `R/auth_module.R`'s copy of the same function is dead code for the shipped app, never called) now counts failed attempts, locks the account after `max_failed_attempts`, and auto-unlocks after `lockout_duration_minutes`; `unlock_user_account()` adds the manual admin path (both 2026-11-09). Periodic revision closed 2026-11-10: a new `password_changed_date` column (migrated by `ensure_edc_users_table()`, backfilled from `created_date` for existing rows rather than left `NULL`) is set by every write site that changes a password (`db_insert_user()`, the self-service change-password flow, both admin reset/edit paths). `authenticate_user()` compares its age against `cfg$auth$password_expiry_days` (default 90) and reuses the existing `must_change_password` gate to force a change -- no new UI, since that gate (`change_password_module.R`) already existed for the "password someone else chose" case. |
 | §11.10(i) | Training records | **FIXED (2026-11-09)** | `ensure_user_training_table()`/`db_insert_training_record()` (`R/db_users.R`) and a real `observeEvent(input$record_training, ...)` handler (`R/cfr_compliance_module.R`) replace the previously-dead button. |
 | §11.10(e) | Audit trail validation coverage | **FIXED (2026-11-09)** | OQ-003 now re-queries `audit_log` for the row it claims to have written instead of trusting `log_audit_event()`'s boolean return -- the exact gap that let it pass throughout the ten-site outage. Fixing it surfaced two further bugs in the same validation functions (below). |
-| §11.10(a) | IQ/OQ/PQ validation suite | **FIXED (2026-11-09); previously non-functional, not merely caveated** | IQ-005/IQ-006 and the whole of `run_oq_tests()`/`run_pq_tests()` generated an encryption key via `initialize_encrypted_database()` but never persisted it, so every one of them failed with "Database encryption key not found" in any session without a key already set from elsewhere -- the ordinary case for a deployer running the suite right after install. Separately, `get_db_adapter()` threw (and never cached a fallback) whenever `./config.yml` existed but predated the multi-backend `db_backend` schema, which is this package's own repo-root `config.yml`. Both fixed; the suite now passes end to end with no key pre-set, run from the package's own directory. |
+| §11.10(a) | IQ/OQ/PQ validation suite | **FIXED (2026-11-09); previously non-functional, not merely caveated** | IQ-005/IQ-006 and the whole of `run_oq_tests()`/`run_pq_tests()` generated an encryption key via `initialize_encrypted_database()` but never persisted it, so every one of them failed with "Database encryption key not found" in any session without a key already set from elsewhere -- the ordinary case for a deployer running the suite right after install. Separately, `get_db_adapter()` threw (and never cached a fallback) whenever `./config.yml` existed but predated the multi-backend `db_backend` schema, which is this package's own repo-root `config.yml`. Both fixed; the suite now passes end to end with no key pre-set, run from the package's own directory. *Update 2026-11-10:* IQ-003 claimed "Encryption working" while checking only key format; it is renamed and reworded. A new IQ-008 checks the deployment's storage encryption against the security profile, and under `regulated` it fails a stock-RSQLite SQLite deployment, as it should; the bundled `config.yml` now sets `regulated`, so running the suite against this repository's own demonstration database reports that failure (see "Encryption remediation, Phase 0" below). |
 | §11.10(k) | Change control | VERIFIED IMPLEMENTED | `R/change_control.R` has a real create, submit, impact-assessment, approval, implementation, verification pipeline, not a stub. |
 | §11.10(f) | Operational/sequencing checks | PARTIALLY IMPLEMENTED | `data_correction.R` enforces `status == "PENDING"` before approve/reject -- real sequencing, spot-checked only; not verified across every module's state machine. |
 | §11.50/§11.70 | Signature manifestation and record linkage | **FIXED (2026-11-09); the function was always correct, the live app was not** | `apply_electronic_signature()`/`verify_electronic_signature()` themselves were already correct (signer name, timestamp, meaning; password re-verification at signing; SHA-256 hash chain linking the signature to the record). The gap was that `R/cfr_compliance_module.R`'s UI -- the only way to apply or verify a signature in the shipped app -- never called either one: `apply_signature`'s handler fabricated a signature id with no password check, and `verify_signature`'s handler reported "verified successfully" for any non-empty id, real or not. Both now delegate to the real functions. |
@@ -450,8 +506,8 @@ in ten others).
 | §11.10(c) | Record retention | VERIFIED IMPLEMENTED at reasonable depth | `R/retention.R` has policy creation, record registration, expiry detection, legal hold, extension, and anonymize/delete-at-expiry; not independently verified end to end. |
 | §11.10(d) | Access limitation | PARTIALLY IMPLEMENTED, better than this document previously hedged | `authenticate_user()` does check `active = 1` and hash-compare the password -- a real gate exists. The lockout/expiry layer is now covered by the §11.300 fix above. |
 | §11.10(b) | Record-copy completeness | **PARTIALLY FIXED (2026-11-09)** | The signature and correction text reports (`generate_signature_report()`, `generate_correction_report()`) silently capped at the first 50 rows in their human-readable form, noting "... and N more" rather than reproducing them -- the json form already had everything; the txt form now does too. No single function yet assembles a complete case record (CRF data + audit trail + signatures for one subject); that remains a real feature addition, sized similarly to the UI-mounting work below, not attempted in this pass. |
-| §11.100 | Signature uniqueness, non-reassignment, pre-signature identity verification | **Scoped down, not fully fixed (2026-11-09)** | Username/`user_id` uniqueness is enforced by the schema's `UNIQUE`/`PRIMARY KEY` columns plus the absence of any `DELETE` path for `edc_users`; `db_insert_user()`'s UNIQUE-constraint error now names the real cause ("already in use, possibly by a deactivated account") instead of a generic "Database error". "Verify identity before granting signing authority" as a step distinct from ordinary login is not implemented and is treated here as a deployer-operational control (an SOP, not in-app code) outside the package's boundary, the same category as the encryption-no-op finding. |
-| §11.200(a) | Two distinct identification components at signing | **FIXED as a side effect of the §11.50/§11.70 fix above** | Login already used two components (username + password). The missing piece was that the live signing UI never checked the second component at all, since it never called `apply_electronic_signature()`; now that it does, `verify_password_for_signature()` runs on every signature. |
+| §11.100 | Signature uniqueness, non-reassignment, pre-signature identity verification | **Scoped down, not fully fixed (2026-11-09)** | Username/`user_id` uniqueness is enforced by the schema's `UNIQUE`/`PRIMARY KEY` columns plus the absence of any `DELETE` path for `edc_users`; `db_insert_user()`'s UNIQUE-constraint error now names the real cause ("already in use, possibly by a deactivated account") instead of a generic "Database error". "Verify identity before granting signing authority" as a step distinct from ordinary login is not implemented and is treated here as a deployer-operational control (an SOP, not in-app code) outside the package's boundary. (The encryption-no-op finding, previously grouped with this one as a deployer concern, was fixed in code on 2026-11-10; see "Encryption remediation, Phase 0".) |
+| §11.200(a) | Two distinct identification components at signing | **FIXED as a side effect of the §11.50/§11.70 fix above; a related credential-strength weakness remains open** | Login already used two components (username + password). The missing piece was that the live signing UI never checked the second component at all, since it never called `apply_electronic_signature()`; now that it does, `verify_password_for_signature()` runs on every signature. `verify_password_for_signature()` itself hashes with unsalted, single-round SHA-256, inconsistent with the salted scheme `inst/app/auth.R` uses for login; this is a known, deliberately unfixed weakness (see 'Where the package boundary ends' below), not addressed by this fix. |
 
 **A new finding surfaced only by actually running the live app for this remediation**, not by reading source: `inst/app/gsheets_ui_integration.R`'s `create_enhanced_ui()` -- the UI path actually used whenever no Google Sheets integration is configured, i.e. the common case -- fails on every single request with "object 'output' not found", a pre-existing, unrelated bug in `home.R`'s top-level `output$hometab <- renderUI(...)` assignment (that object does not exist at UI-generation time; `ui.R` is sourced once per app, not per session). `ui.R` catches the error and falls back to its own traditional `nav_panel` block, which is why the app has still been usable in practice -- but the "enhanced" path has likely never worked, in any deployment, for as long as `home.R` has had that line. Not fixed here (unrelated to Part 11); flagged because mounting the Compliance/Admin tabs (below) required adding them to both UI paths to be reachable at all.
 
@@ -463,7 +519,400 @@ A repo-wide sweep for the same pattern (2026-11-10) found four more instances, a
 
 **A fourth finding, more severe, surfaced immediately after the third while the CI test suite progressed further than it ever had before (2026-11-10) -- FIXED**: encrypted DuckDB database creation never actually worked on at least one DuckDB build (1.5.4.1, the version this package's CI pins). `R/db_adapter_duckdb.R`'s `connect()` and `pool()` both open an encrypted database via `ATTACH '<path>' AS zzedc (ENCRYPTION_KEY '<key>')`, which requires DuckDB's full (writable) mbedtls crypto module; that build loads only a read-only crypto module by default, so every such `ATTACH` failed outright with "DuckDB currently has a read-only crypto module loaded... ensure httpfs is loaded using `LOAD httpfs`". This is the same category of defect as the portfolio-wide "encryption silent no-op" finding (05-zzedc's own prior review flagged it as the most severe issue in the portfolio): a DuckDB deployment configured for at-rest encryption would never actually get it, on an affected build, with no caller-visible signal beyond a connection error on first use -- not a silent no-op this time, but still undiscovered until this session because no test or deployment had exercised DuckDB's encrypted path to completion before. Fixed by loading `httpfs` before the `ATTACH` call in both call sites; verified harmless on a newer DuckDB build (2.0.0) where it was not otherwise required, and verified to fix the actual failure end to end (encrypted file created, re-opened, and queried successfully).
 
-## Comparison with REDCap, condensed
+## Encryption remediation, Phase 0 (2026-11-10)
+
+The plan in `docs/encryption-compliance-plan-2026-11-10.md` sets
+out the work needed before zzedc can claim to support deployments
+subject to 21 CFR Part 11, the HIPAA Security Rule, GDPR Article 32,
+and institutional encryption policies. Its premise is that a package
+cannot itself satisfy those regimes, which bind the operating
+organization; it can provide validated technical controls and state
+which controls remain the deployer's. Part 11 does not require
+encryption at rest for closed systems, but §11.10(a) validation
+requires a system to do what it claims, and the package claimed
+encryption it did not provide. Phase 0 removes those false claims.
+
+**Defects confirmed by execution before the fix.** On stock CRAN
+RSQLite, `initialize_encrypted_database()` returned the message
+"Database created and encrypted" for a file whose header read
+`SQLite format 3` and which a keyless connection could read in full.
+`verify_database_encryption()` judged encryption by requiring more
+than 80 percent of the first kilobyte's bytes to exceed 127; random
+bytes, which ciphertext resembles, scored 0.476, so a correctly
+encrypted file would have failed the check, and the check could not
+distinguish encrypted from plaintext files. `set_encryption_for_existing_db()`
+generated a key and a backup but never rewrote the file.
+`export_encrypted_data(password = ...)` ignored the password and wrote
+a plaintext CSV.
+
+**Defects found by reading source and fixed.** The adapters'
+`supports_encryption()` returned `TRUE` for PostgreSQL, MySQL, and
+ClickHouse on the strength of TLS, which is not encryption at rest,
+and the SQLite adapter tested for a package name (`RSQLCipher`)
+rather than for a working cipher. `selective_field_export()` called
+`sha256(value || key)` under the database key "field-level
+encryption"; it is a non-standard, irreversible hash. An AWS KMS
+failure fell back to an environment-variable key with only an
+informational message. `test_encryption()` warned rather than failed
+on a plaintext file. The SQLite adapter applied `PRAGMA key` after
+other statements, which a cipher build rejects, and its connection
+pool applied no key at all.
+
+**A finding surfaced only during implementation.** The shipped Shiny
+application never used the encryption code. `inst/app/global.R`
+opens its SQLite connection pool directly with `RSQLite`, with no key
+and no check, so no configuration setting could have made the
+running application encrypt or refuse anything. A startup check,
+`check_storage_encryption()`, now runs before the pool is opened.
+
+**A finding about a dependency.** `openssl::aes_gcm_encrypt()` in
+openssl 2.4.2 returns no authentication tag (11 bytes of output for
+11 bytes of input), and a ciphertext with one bit flipped decrypted
+without error. The export encryption therefore uses AES-256-CTR with
+an HMAC-SHA256 tag over the whole file (encrypt-then-MAC) rather than
+GCM.
+
+**What changed.** A single setting, `security.profile`
+(`R/security_profile.R`), now governs every encryption-related
+decision: `development` allows unencrypted storage silently,
+`standard` (the built-in default, chosen so existing deployments keep
+running) allows it with a warning, and `regulated` refuses it,
+including at application startup, and refuses a KMS fallback. New
+configuration templates, the setup wizard, and the bundled
+`config.yml` write `regulated`. Result fields report the true state
+under every profile. Verification now tests the property encryption
+exists to provide (unreadable without the key, readable with it) for
+both SQLite and DuckDB files. `set_encryption_for_existing_db()`
+encrypts DuckDB files in place, with verification before the swap,
+and refuses rather than pretends on stock RSQLite. Exports are
+encrypted when a password of at least 12 characters is supplied
+(bcrypt-pbkdf key derivation, 64 rounds), and no plaintext copy is
+left in the export directory. Identifier pseudonymization uses
+HMAC-SHA256 under a key derived separately from the database key,
+and is documented as pseudonymization in the GDPR Article 4(5) sense,
+not encryption; its output values differ from those of earlier
+versions. The validation suite gained IQ-008, which judges the
+deployment's own storage under the active profile, while the
+functional IQ/OQ/PQ checks run their throwaway databases under a
+scoped `development` profile. Running the suite also no longer
+leaves the cached database adapter pointing at a deleted temporary
+file.
+
+**Evidence.** 89 new assertions in
+`inst/tinytest/test_security_profile.R` pass, including end-to-end
+DuckDB encryption, in-place conversion, and tamper detection on
+encrypted exports. A per-file run of the whole suite before and after
+the change showed no new failures beyond one (an IQ-008 abort caused
+by an empty `ZZEDC_DB_PATH` left by another test file), which was
+fixed and re-verified. Five assertion failures, in
+`test_change-password-module.R` and `test_home-module.R`, and one
+aborting file, `test_quality-dashboard.R`, fail identically on the
+unchanged code and are unrelated. `R CMD check --as-cran --no-manual`
+on the changed package: 0 errors, 0 warnings, 1 note (new submission,
+and one redirected URL in the content-author guide).
+
+**What Phase 0 does not do.** The SQLite path with a cipher-enabled
+RSQLite build was not executed, because no such build was available;
+only its refusal path on stock RSQLite is tested. Server-backend
+encryption at rest is still not verifiable; under `regulated`, IQ-008
+fails such deployments until an attestation mechanism exists (plan
+Phases 1.3 and 1.4). Backups are not yet encrypted by zzedc (Phase
+2.1). HTTPS settings in `config.yml` remain unenforced and are now
+labeled as such (Phase 3.1). DuckDB's `httpfs` extension, needed for
+encrypted files, is downloaded on first use and will fail on hosts
+without internet access unless pre-installed (Phase 1.2).
+
+## Encryption remediation, Phase 1.2: DuckDB extensions (2026-11-10)
+
+**A concurrency defect found while preparing this phase, and fixed.**
+The encrypted DuckDB connection pool (`DuckDBAdapter$pool()`) could
+never open a second concurrent connection. Every connection in the
+pool shares one in-process DuckDB instance, and each ran
+`ATTACH ... (ENCRYPTION_KEY ...)` again; DuckDB rejected the second
+attach with "Unique file handle conflict: ... already attached".
+Verified by execution: the first checkout succeeded and the second
+failed. Any multi-user application on an encrypted DuckDB pool would
+have failed under the first overlapping request. The pool now
+attaches once per instance and each connection only selects the
+attached database; two concurrent connections now see each other's
+writes, and the file still verifies as encrypted.
+
+**Extensions.** The R duckdb package keeps extensions in a
+per-session temporary directory, so every R session downloaded
+`httpfs` (required for encrypted files) again, and `icu` (required by
+`CURRENT_DATE`) on first use. That fails on hosts without internet
+access, and downloading unpinned code into a validated system is a
+change-control concern under §11.10(k). Configuration now accepts
+`duckdb.extension_directory` (a persistent directory) and
+`duckdb.allow_extension_download`, which defaults to `FALSE` under the
+`regulated` profile. `install_duckdb_extensions()` populates the
+directory on a connected machine and verifies an offline load in a
+fresh instance. Extensions are loaded when a connection opens, so a
+missing one is an error at startup, naming the remedy, rather than at
+the first deadline query. Verified: with downloads disabled and a
+pre-populated directory, an encrypted database opens and
+`CURRENT_DATE` evaluates; with an empty directory, connection fails
+with the documented message. 12 new assertions in
+`inst/tinytest/test_duckdb_extensions.R`.
+
+**A limitation this phase exposed (resolved the same day; see the
+next section).** The shipped Shiny application could not use DuckDB
+at all: `inst/app/global.R` built its connection pool directly with
+RSQLite, and 25 application files received that pool.
+
+## The application on the database adapter (2026-11-10)
+
+The application now opens whichever backend `config.yml` selects.
+`app_database_config()` translates the application's flat
+`database:` section (`backend`, `path`, `encryption_key`,
+`extension_directory`, server connection settings, `pool_size`) into
+an adapter configuration; `global.R` builds its pool from that
+adapter, applies the security profile to that backend before opening
+it, and caches the adapter so that package functions the application
+calls reach the same database. The launcher (`launch_zzedc()`) uses
+the same configuration for its initialization check, first-time
+initialization, and table migrations, which previously opened the
+file with RSQLite whatever the configuration said.
+
+**Defects found and fixed during the port.**
+
+1. *Two in-process DuckDB instances on one file.* Every call to
+   `DuckDBAdapter$connect()` created its own DuckDB instance. A
+   package function called by the application (for example audit
+   logging through `connect_encrypted_db()`) therefore attached the
+   study file through a second instance while the application's pool
+   held it through another; DuckDB's file lock is held per process
+   and does not prevent this. Observed directly: with the pool open, a
+   second instance attached and queried the same encrypted file. The
+   adapter now keeps one shared instance for all its connections and
+   its pool, with an explicit `shutdown()` for handing the file to
+   another adapter. Verified: adapters for different files stay
+   separate; a `connect()` connection and the pool see each other's
+   writes; an externally shut-down instance is recreated.
+2. *Audit tables never created at launch.* The launcher's default
+   initialization created `audit_trail` but not `audit_log`, the
+   hash-chained table that `log_audit_event()` and the login lockout
+   events write to. On SQLite this was masked, because those package
+   functions also opened a different file (`./data/zzedc.db` relative
+   to the application directory) and failed there instead. The
+   launcher now runs `init_audit_logging()` on the configured backend.
+   Verified: a failed login is recorded in `audit_log` inside the
+   encrypted DuckDB database, and `verify_audit_integrity()` passes.
+3. *Keyless SQLite deployments could not use package functions.*
+   `connect_encrypted_db()` demanded `DB_ENCRYPTION_KEY` even for a
+   plaintext file, which needs no key; it now opens a plaintext file
+   without one, still applying the security profile, and still
+   requires a key for an encrypted file.
+4. *The Admin tab backed up the wrong file.* `admin_dashboard_server()`
+   was mounted without a database path, so its backup, restore, and
+   database-information panels defaulted to `./data/zzedc.db` relative
+   to the application directory, not the study database. The
+   configured path is now passed. File backup is refused with an
+   explanation on server backends, and DuckDB is checkpointed before
+   copying.
+5. *The `standard` profile's warning was invisible in a running
+   application,* because R holds top-level warnings until the
+   top-level call returns, and `launch_zzedc()` does not return while
+   the application runs. It is now emitted immediately.
+6. *One SQLite-only statement in the application path*
+   (`date('now', '-30 days')` in the Compliance tab) was replaced with
+   a cutoff computed in R.
+
+**Live verification.** The installed package was launched with
+`launch_zzedc()` in three configurations. Encrypted DuckDB under
+`regulated`, with pre-installed extensions and downloads disabled:
+the launcher created the encrypted study database and the application
+served its page (HTTP 200). Plaintext SQLite under `regulated`: the
+launcher refused before creating anything, stating the reason and the
+remedy. SQLite under `standard`: the application started and logged
+the warning. Separately, the application's own `global.R` and
+`authenticate_user()` (from `inst/app/auth.R`) were run against an
+encrypted DuckDB study database: a wrong password was rejected and
+counted, the correct password succeeded with the forced password
+change set, the failed attempt was written to the audit log, and the
+file remained unreadable without the key. An interactive browser
+session was not run (the browser automation extension was not
+connected), so rendering and navigation of individual tabs on DuckDB
+remain unverified.
+
+**Left open at the time, fixed on 2026-11-11** (see "Follow-up fixes"
+below): the Google Sheets actions were SQLite-only; the backup
+module's restore copied over the open database and closed the shared
+pool; and `initialize_default_database()` hashed the default
+administrator's password with a different salt than the login used,
+so that account could not log in whenever `ZZEDC_SALT` was set.
+
+## Choosing the database when a study is created (2026-11-10)
+
+Before this change, a new study's database could be chosen only by
+editing `config.yml` by hand, and nothing explained the choice:
+`launch_zzedc()` wrote a SQLite configuration (with no security
+profile, so the `standard` default applied, contrary to the decision
+that new configurations be `regulated`), and the setup wizard had no
+database step.
+
+**What exists now.** `describe_backends()` holds one description of
+each backend (what it is, when to use it, how it encrypts stored
+data, and whether the `regulated` profile accepts it), used by all
+three entry points so they cannot drift apart. `launch_zzedc()` in a
+directory without `config.yml` prints that comparison and asks which
+backend to use, or offers the browser wizard; `launch_zzedc(backend =
+...)` skips the question. Choosing DuckDB checks for the encryption
+key first (in an interactive session it generates one, shows it once,
+and offers to add it to `~/.Renviron`, outside the project; it is
+never written to the project directory), then installs DuckDB's
+extensions for offline use, and only then writes `config.yml`, so a
+failure leaves no half-created study. Choosing SQLite under
+`regulated` without an encrypting RSQLite asks whether the study needs
+encrypted storage, and either points to DuckDB or records the
+`standard` profile.
+
+**The setup wizard is now reachable and works.** It is opened with
+`launch_setup_wizard()` or `launch_zzedc(setup = TRUE)`. It gained a
+security-profile choice and a Database step with a hover summary for
+each option, a comparison table, a check of the choice against the
+profile (it will not continue with a combination that would refuse to
+start), a generated DuckDB key that must be confirmed as saved, and
+server connection settings. Its **Launch ZZedc** button starts the new
+study in the same session.
+
+**Defects found and fixed in the wizard.**
+
+1. *Create Study created nothing.* The final step's handler contained
+   a placeholder comment and showed the success panel without calling
+   `complete_wizard_setup()`. It now creates the study and reports
+   each step's failure if one occurs.
+2. *The wizard's `config.yml` could not be read.* `create_wizard_config()`
+   wrote its settings at the top level; `config::get()`, which the
+   launcher and the application use, rejects such a file ("You must
+   provide a default configuration"). It now writes under `default:`,
+   and quotes free-text values, so a study name containing a colon no
+   longer breaks the file.
+3. *The launch script opened the wrong directory.* It called
+   `launch_zzedc()` from wherever it was run, which creates a new
+   default study there. It now changes to the study directory first,
+   and for DuckDB checks for the key.
+4. *The data-source options were never carried out.* The last step
+   offered example forms, CSV import, and Google Sheets import, none
+   of which the setup function implemented. It now states that the
+   study is created without forms and how to add them.
+5. The security salt was generated with `sample()`, which is not a
+   cryptographic random source; it now comes from `openssl`.
+
+**Verification.** 61 assertions in
+`inst/tinytest/test_backend_setup.R`, including a `shiny::testServer()`
+walk through all six steps that creates an encrypted DuckDB study and
+checks that the wizard refuses a server database under `regulated` and
+an unconfirmed key. With the installed package: the wizard page
+rendered (HTTP 200) with all six steps and nine tooltips;
+`launch_zzedc(backend = "duckdb")` with a key set installed the
+extensions, wrote a `regulated` DuckDB configuration, created the
+encrypted database, and served the application; without a key it
+stopped with instructions and wrote nothing. Not verified: the
+interactive console menu (it needs a terminal) and clicking through
+the wizard in a browser (the browser automation extension was not
+connected). The full test suite (3,910 assertions) shows no change
+from the unchanged code except the new tests, and
+`R CMD check --as-cran` reports 0 errors, 0 warnings, and 1 note (new
+submission; one redirected URL).
+
+**Left open at the time:** a separate first-run choice screen
+(`setup_choice_module.R`) was not mounted anywhere; it is now the
+first page of `launch_setup_wizard()` (see the next section).
+
+## Follow-up fixes (2026-11-11)
+
+**One password-salt rule.** Passwords were hashed with at least four
+different salt rules: the login and the change-password form used the
+configuration's salt variable, falling back to its default salt; the
+launcher's default administrator used the package's built-in salt; the
+Admin tab's user creation and password reset used `ZZEDC_SALT` or the
+literal `"default_salt"`; the Google Sheets builders used
+`"zzedc_default_salt"`. Accounts made by one path could fail to log in
+through another: the default administrator whenever `ZZEDC_SALT` was
+set, and users created in the Admin tab whenever the configuration
+named no salt variable. `resolve_auth_salt()` is now the single rule;
+the application sets it once at startup, and the launcher, login,
+change-password form, and user management all use it. Verified: with a
+custom `ZZEDC_SALT`, a study created by `launch_zzedc()` accepts the
+default administrator through the application's own login function.
+
+**Restore is staged and applied at startup.** The database cannot be
+replaced while the application holds it open. Restore now checks the
+backup (it must be a database of the study's backend) and stages it;
+`apply_pending_restore()`, called by the launcher and the application
+before any connection opens, keeps the current database and its
+write-ahead log, removes the old log, and swaps the file. Verified on
+SQLite (including a compressed backup and a stale write-ahead log) and
+on encrypted DuckDB, which remained encrypted. Three further defects in
+the backup module were fixed: SQLite backups are made with
+`VACUUM INTO` rather than a file copy that could miss commits still in
+the write-ahead log; "compressed" backups were never compressed (a
+file named `.gz` held an uncompressed copy, which a restore then failed
+to decompress); and backups were written into the installed package's
+directory, where a reinstall deleted them. A security defect was also
+fixed: the backup paths sent by the browser were used as given, so a
+crafted message could restore from, or delete, any file the
+application could reach; only files in the backup folder are now
+accepted.
+
+**Google Sheets import on every backend.** The application's Google
+Sheets actions sourced a setup script from the application directory,
+which does not contain it, so they failed on every backend; the legacy
+builders behind them rebuilt SQLite tables. The actions now call
+`setup_zzedc_from_gsheets()`, which gained `adapter_config` (any
+backend) and `create_database = FALSE` (import into an existing study,
+skipping users and forms that already exist rather than failing or
+overwriting). Inside the application it reuses the application's own
+database adapter, so on DuckDB the import shares the connection pool's
+database instance rather than attaching the study file a second time.
+Fixing this exposed a data-model defect: imported fields
+are attached to a form by `crf_definitions.crf_id`, but the schema
+declares `designer_fields.design_id` a foreign key to `designer_forms`.
+SQLite does not enforce that by default, so every import on SQLite
+wrote fields that point at a design that does not exist, and on
+backends that enforce foreign keys (DuckDB, PostgreSQL) every imported
+field was rejected. The importers (Google Sheets and REDCap) now create
+the matching `designer_forms` row, and `create_designer_form()` assigns
+ids above any existing one so the two cannot collide. Verified with the
+Google Sheets reader replaced by fixed tables: on encrypted DuckDB an
+import adds new users and a form with its fields and choice options,
+a second import adds nothing and reports no errors, and an existing
+user's password is not reset. A live import against Google Sheets was
+not run.
+
+**First-run choice screen.** It is now the first page of
+`launch_setup_wizard()`, offering the wizard or the console commands,
+with its content corrected (six steps, current commands, and no
+placeholder links or example email address).
+
+**Later the same day.** The legacy Google Sheets pipeline was removed:
+the three builder files in `inst/app/`, the setup scripts that called
+them (`inst/scripts/setup/setup_from_gsheets.R` and `setup_menu.R`),
+and a disabled test of them. They hashed passwords with a fixed salt
+shared by every installation (accounts they created could not log in)
+and rebuilt tables in place. The application's "Run Traditional Setup"
+button, which sourced a script the application directory does not
+contain, was removed. The technical-lead guide had documented a CSV
+setup path, `setup_zzedc_from_csv()`, that did not exist; it now
+exists, sharing the Google Sheets importer's logic, so the same three
+tables can be loaded from local files on any backend. Importing into
+an existing study now also skips validation rules already present, and
+honors the documented `active` column (it was ignored) and a new
+optional `form_name` column.
+
+**The bundled example study.** `inst/extdata/adhd_trial`, a fictional
+ADHD medication trial, was in a format only the removed scripts could
+read. It was converted to the three-table format (nine forms, 129
+fields, 57 validation rules, four demonstration accounts) and loads
+completely with `setup_zzedc_from_csv()` on SQLite and on encrypted
+DuckDB. One display condition, on a field whose controlling field is on
+another form, could not be expressed as a rule and was dropped; a form
+listed in the old example but never defined was also dropped.
+
+**Remaining.** The Backup tab's Download button has no handler.
+
+## Comparison with REDCap and other EDC platforms, condensed
 
 REDCap is the natural reference point. The two systems address a
 similar problem space and have substantially overlapping feature sets
@@ -482,15 +931,57 @@ maturity is less battle-tested. REDCap's implementation of GDPR data
 subject rights is module-level; ZZedc implements each right as a
 dedicated function set with cited line numbers and tinytests.
 
-The choice between the two is largely an institutional one. ZZedc is
-a defensible choice when source-level inspection of compliance code
-matters, when integration with R-based downstream analysis is the
-dominant workflow, when consortium licensing is unavailable, or when
-the deploying organization needs to extend or modify compliance
-behavior rather than configure it within fixed parameters. REDCap
-is the conservative default at institutions that already license it
-and have an established operational practice around it; switching to
-ZZedc has a justified case but is not a default recommendation.
+No EDC platform in this comparison, REDCap included, makes installing
+or running the software alone sufficient for 21 CFR Part 11, HIPAA, or
+GDPR compliance. Compliance in every case examined resolves to the
+same three layers: validated or validatable technical controls in the
+software, environment and procedure supplied by the deploying
+institution, and configuration and execution records supplied by the
+individual study. Institutions hosting the identical REDCap codebase
+have published materially different public answers to 'is this Part
+11 compliant', ranging from an unqualified 'fully complies' to 'has
+not been validated; consider a different product', which is itself
+evidence that the determination is institutional, not a property of
+any one platform's code. OpenClinica markets its hosted, paid tier as
+'compliant from day one' but makes no equivalent claim for its free,
+self-hosted Community Edition. Castor EDC publishes a versioned '21
+CFR Part 11 Statement of Compliance' tied to each named software
+release, naming the customer explicitly as the party the statement
+binds; this is the most disciplined documentation practice found
+across the platforms surveyed and a model ZZedc's own compliance
+documentation should move toward, rather than relying on a single
+internal markdown file. LibreClinica, a community fork of
+OpenClinica's original architecture, carries no compliance
+documentation of any kind in the sources reviewed.
+
+A separate question, often skipped by institutions and vendors alike,
+is whether 21 CFR Part 11 even applies to a given study. Part 11
+binds records required under an FDA predicate rule; most
+investigator-initiated academic trials are not conducted under an IND
+or IDE, in which case the governing requirements are more likely to
+be the HIPAA Security Rule, institutional data-security policy, and
+GDPR Article 32, not Part 11's electronic-signature and audit-trail
+provisions. A funder's or sponsor's contractual terms can still impose
+Part-11-like obligations independent of FDA law, so this is a
+determination to make deliberately for each study rather than an
+assumption to carry over from a prior IND-governed trial.
+
+The choice among these platforms is largely an institutional one.
+ZZedc is a defensible choice when source-level inspection of
+compliance code matters, when integration with R-based downstream
+analysis is the dominant workflow, when consortium licensing is
+unavailable, or when the deploying organization needs to extend or
+modify compliance behavior rather than configure it within fixed
+parameters. REDCap is the conservative default at institutions that
+already license it and have an established operational practice
+around it; switching to ZZedc has a justified case but is not a
+default recommendation. Prospective adopters should also weigh that
+ZZedc does not yet have a Castor-style versioned compliance statement
+of its own; the gap-analysis addendum and encryption-remediation
+sections below are the closest current substitute, and are a less
+mature artifact than what institutions have come to expect from
+REDCap's consortium validation process or Castor's per-release
+statement.
 
 ## Pointers to canonical references
 

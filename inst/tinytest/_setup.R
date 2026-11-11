@@ -21,6 +21,13 @@ suppressPackageStartupMessages({
   library(RSQLite)
 })
 
+# The suite builds many throwaway SQLite databases with synthetic data
+# on stock RSQLite, which cannot encrypt. Run under the 'development'
+# security profile so those are neither refused nor warned about;
+# test_security_profile.R sets the other profiles explicitly where it
+# tests them.
+options(zzedc.security_profile = "development")
+
 # Tinytest-friendly skip: in testthat, `skip("msg")` aborts the
 # current `test_that()` block. In tinytest, the closest analogue is
 # `exit_file("msg")` (aborts the current test file). For block-

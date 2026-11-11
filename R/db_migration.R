@@ -580,7 +580,8 @@ migrate_to_encrypted <- function(old_db_path, new_db_path = NULL,
     )
     if (!init_result$success) {
       return(list(success = FALSE,
-                   error = "Failed to initialize encrypted database"))
+                   error = paste("Failed to initialize encrypted database:",
+                                 init_result$error %||% "unknown error")))
     }
 
     new_conn <- connect_encrypted_db(db_path = new_db_path, key = new_key)
@@ -651,8 +652,16 @@ migrate_to_encrypted <- function(old_db_path, new_db_path = NULL,
       backup_path = prep_result$backup_path,
       records_migrated = total_records_migrated,
       integrity_verified = record_count_verified,
+      encrypted = isTRUE(init_result$encrypted),
       migration_time_ms = migration_time_ms,
-      message = paste("Migration successful:", total_records_migrated, "records migrated")
+      message = paste(
+        "Migration successful:", total_records_migrated, "records migrated",
+        if (isTRUE(init_result$encrypted)) {
+          "into an encrypted database"
+        } else {
+          "-- the destination is NOT encrypted at rest (stock RSQLite ignores the key)"
+        }
+      )
     ))
 
   }, error = function(e) {

@@ -373,14 +373,24 @@ cfr_compliance_server <- function(id, user_id = NULL) {
           ORDER BY s.signing_timestamp DESC
         ")
 
-        # Load recent audit trail
-        compliance_data$audit_trail <- pool::dbGetQuery(db_pool, "
+        # Load recent audit trail. The 30-day cutoff was SQLite's
+        # date('now', '-30 days'), which no other backend accepts. It is
+        # now computed in R; SQLite stores timestamps as text and compares
+        # the 'YYYY-MM-DD' string directly, while the other backends
+        # compare a TIMESTAMP column and need the parameter cast.
+        cutoff <- format(Sys.Date() - 30, "%Y-%m-%d")
+        cutoff_sql <- if (identical(tryCatch(get_db_backend(), error = function(e) "sqlite"), "sqlite")) {
+          "?"
+        } else {
+          "CAST(? AS TIMESTAMP)"
+        }
+        compliance_data$audit_trail <- pool::dbGetQuery(db_pool, paste0("
           SELECT e.*, u.full_name as user_name
           FROM enhanced_audit_trail e
           JOIN edc_users u ON e.user_id = u.user_id
-          WHERE e.timestamp >= date('now', '-30 days')
+          WHERE e.timestamp >= ", cutoff_sql, "
           ORDER BY e.timestamp DESC
-        ")
+        "), params = list(cutoff))
 
         # Load validation activities
         compliance_data$validations <- pool::dbGetQuery(db_pool, "

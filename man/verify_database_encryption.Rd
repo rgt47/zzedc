@@ -4,38 +4,61 @@
 \alias{verify_database_encryption}
 \title{Verify Database Encryption}
 \usage{
-verify_database_encryption(db_path = NULL)
+verify_database_encryption(db_path = NULL, key = NULL, adapter = NULL)
 }
 \arguments{
-\item{db_path}{Character: Database to verify (optional, uses get_db_path if NULL)}
+\item{db_path}{Character: Database file to verify. If \code{NULL}, the
+configured backend decides: the DuckDB adapter's \code{duckdb.path},
+otherwise \code{get_db_path()}.}
+
+\item{key}{Character: Encryption key to test with. If \code{NULL}, the
+cached DuckDB adapter's configured key (for DuckDB files) or
+\code{get_encryption_key()} (for SQLite files) is used.}
+
+\item{adapter}{Optional \code{DatabaseAdapter} whose configuration
+(backend, DuckDB extension directory and download policy) the
+check should follow; defaults to the cached adapter.}
 }
 \value{
 List with verification results:
 \itemize{
-\item encrypted: Logical TRUE if encryption working
-\item file_is_binary: Logical TRUE if file content is binary (encrypted)
-\item connection_works: Logical TRUE if can connect and query
-\item data_intact: Logical TRUE if data readable after encryption
-\item message: Detailed status message
+\item encrypted: \code{TRUE} only if the file could not be read without a
+key and could be read with one; \code{FALSE} otherwise; \code{NA} for
+server-hosted backends, where encryption at rest is a server
+setting not observable from here
+\item backend: \code{"sqlite"}, \code{"duckdb"}, or the server backend name
+\item readable_without_key: whether the schema could be read with no key
+\item connection_works: whether a keyed connection succeeded
+\item data_intact: whether the schema could be read through that
+connection
+\item file_is_binary: retained for compatibility; equal to
+\code{!readable_without_key}
+\item message: Status message
 }
 }
 \description{
-Comprehensive verification that database encryption is working correctly.
+Checks whether a SQLite or DuckDB database file is encrypted at
+rest, by testing the property encryption exists to provide: the
+file must be unreadable without the key, and readable with it.
 }
 \details{
-Verifies:
-\enumerate{
-\item Database file is binary (not plaintext)
-\item Can connect with encryption key
-\item Can write and read data
-\item Data is encrypted in file (no readable text)
-}
+Earlier versions judged encryption by the share of bytes above 127
+in the first kilobyte (requiring more than 80 percent). Ciphertext
+is close to uniformly distributed, so roughly half its bytes exceed
+127, and a correctly encrypted file failed that check; it could not
+distinguish encrypted from plaintext files. This version does not
+use byte statistics.
+
+A DuckDB file that another connection in the same process holds
+open read-write may fail the keyless probe with a lock error; the
+result is then \code{readable_without_key = NA} and \code{encrypted = FALSE}.
+Run the verification with no other connection open to the file.
 }
 \examples{
 \dontrun{
   verification <- verify_database_encryption()
   if (verification$encrypted) {
-    cat("Database encryption verified!\n")
+    cat("Database encryption verified\n")
   } else {
     cat("Encryption issues:", verification$message, "\n")
   }

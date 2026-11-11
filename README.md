@@ -12,6 +12,11 @@ The `zzedc` package provides a Shiny application for electronic data capture (ED
 - **Reporting functionality**: Data summarization, quality control metrics, and statistical reports
 - **Data management**: Interactive data visualization, filtering, and subset extraction
 - **Data export**: Multiple export formats including CSV, Excel, JSON, PDF, and HTML
+- **Compliance tooling**: Electronic signatures and training-record tracking
+- **Administration**: User management, audit-trail viewing, and backup/restore
+- **Security profiles**: A `security.profile` setting (`development`,
+  `standard`, or `regulated`) governs how the application reacts when
+  storage cannot be shown to be encrypted at rest; see `?resolve_security_profile`
 - **User interface**: Responsive design compatible with desktop and mobile devices
 - **Data validation**: Real-time validation with immediate user feedback
 
@@ -49,6 +54,9 @@ The application will open in your default web browser with the following interfa
    - Multiple format support
    - Batch export operations
    - Export templates and scheduling
+6. **Compliance**: Electronic signatures and training-record tracking
+7. **Admin**: User management, backup and restore, audit-trail viewing,
+   and system configuration
 
 ## Application Architecture
 
@@ -102,7 +110,7 @@ This implementation incorporates modern R/Shiny development patterns including:
 - Roxygen2 documentation for all functions
 - Modular code organization following R package best practices
 - Explicit NAMESPACE with package imports
-- Test suite with testthat
+- Test suite with tinytest
 
 ### System Capabilities
 - Full-screen expandable interface components
@@ -134,20 +142,76 @@ This package builds on several R packages:
 
 ## Regulatory Compliance
 
-ZZedc includes frameworks for regulatory compliance:
+No EDC software can itself 'be compliant' with 21 CFR Part 11, HIPAA,
+or GDPR: those regimes govern the operating organization and the
+individual study, not the software artifact. ZZedc provides technical
+controls intended to support compliance workflows when the application
+is deployed and configured appropriately; the deploying institution and
+study team remain responsible for the surrounding procedures,
+governance, and configuration. This three-layer structure (software
+controls, institutional procedures, per-study configuration) is the
+same one every comparable EDC platform's own compliance statement
+ultimately resolves to.
+
+Controls currently provided:
 
 - **GDPR**: Data subject rights, consent management, audit logging
-- **21 CFR Part 11**: Electronic signatures, audit trails, access controls
+- **21 CFR Part 11**: Electronic signatures, audit trails, access
+  controls, and a hash-chained audit log
+- **Security profiles**: A `security.profile` setting
+  (`development`, `standard`, or `regulated`) that decides whether
+  storage which cannot be shown to be encrypted at rest is allowed,
+  warned about, or refused; see `?resolve_security_profile`. At-rest
+  encryption is currently verified by execution for the DuckDB
+  backend only. SQLite is encrypted only when built against
+  SQLCipher or SQLite3MultipleCiphers (stock CRAN RSQLite ignores
+  the encryption key and stores plaintext); PostgreSQL, MySQL/MariaDB,
+  and ClickHouse depend on server-side configuration that zzedc does
+  not verify.
 
-See `vignette("regulatory-compliance-whitepaper")` for details.
+See `vignette("technical-lead-guide")` Appendix C for the current
+implementation details and `NEWS.md` for the encryption and
+security-profile changes made in this development cycle.
+
+## Comparison to Other EDC Systems
+
+Academic clinical trial groups most often use REDCap, with
+OpenClinica, Castor EDC, and LibreClinica as the next tier of
+self-hosted or low-cost alternatives. All of these are web
+applications configured through a browser-based GUI, with
+programmatic access, where offered, limited to an export API layered
+on top. ZZedc is distributed as an R package: it is installed,
+scripted, and tested with the same tools (`R CMD check`, `tinytest`,
+`devtools`) a biostatistics group already uses for its analysis
+code, which may suit groups whose technical staff are R-fluent
+statisticians or data managers rather than web-application
+administrators.
+
+On encryption at rest, REDCap, OpenClinica's self-hosted Community
+Edition, and LibreClinica all defer the question to infrastructure
+the deploying institution must configure itself; none of them
+verifies encryption at rest from within the application. ZZedc's
+DuckDB backend verifies encryption at rest by execution at startup
+under the `regulated` security profile, which is not yet the case
+for its own SQLite, PostgreSQL, or MySQL/MariaDB backends. As with
+every platform in this space, none of this amounts to a claim that
+installing the software satisfies 21 CFR Part 11, HIPAA, or GDPR on
+its own; see Regulatory Compliance above.
 
 ## Documentation
 
-- `vignette("quickstart")` - Quick start guide
-- `vignette("getting-started")` - Detailed setup
-- `vignette("small-project-guide")` - 10-50 participants
-- `vignette("medium-project-guide")` - 50-500 participants
-- `vignette("advanced-features")` - Custom development
+- `vignette("getting-started")` - Role-based entry point
+- `vignette("content-author-guide")` - Setting up trial content
+- `vignette("technical-lead-guide")` - Deployment and regulatory
+  implementation details
+- `vignette("backend-quickstart")` - Choosing and configuring a
+  database backend
+- `vignette("setup-wizard-guide")` - Guided setup for non-technical
+  users
+- `vignette("demonstration-trial-setup")` - Worked example with a
+  demonstration trial
+- `vignette("mysql-redcap-migration-roadmap")` - Migrating from
+  REDCap
 
 ## Reproducibility
 

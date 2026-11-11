@@ -11,7 +11,11 @@
 #' @details
 #' Configuration options (in config$sqlite):
 #' - path: Path to database file (required)
-#' - encryption_key: Optional encryption key (requires RSQLCipher)
+#' - encryption_key: Optional encryption key. It is applied only by an
+#'   RSQLite build compiled with SQLCipher or SQLite3MultipleCiphers;
+#'   stock CRAN RSQLite ignores it, and the file is written in
+#'   plaintext. Whether that is allowed depends on the security
+#'   profile (see `resolve_security_profile()`).
 #'
 #' @examples
 #' \dontrun{
@@ -61,28 +65,20 @@ SQLiteAdapter <- R6::R6Class(
         dir.create(db_dir, recursive = TRUE, showWarnings = FALSE)
       }
 
-      conn <- RSQLite::dbConnect(
-        RSQLite::SQLite(),
-        dbname = db_path
-      )
+      private$check_at_rest()
 
-      # Enable WAL mode for better concurrency
-      DBI::dbExecute(conn, "PRAGMA journal_mode = WAL")
-
-      # Enable foreign keys
-
-      DBI::dbExecute(conn, "PRAGMA foreign_keys = ON")
-
-      # Handle encryption if configured
+      # The key must be applied before any other statement: a cipher
+      # build reads the first page on the first statement, so running
+      # PRAGMA journal_mode first would fail on an encrypted file.
       encryption_key <- self$config$sqlite$encryption_key
-      if (!is.null(encryption_key) && nchar(encryption_key) > 0) {
-        if (self$supports_encryption()) {
-          DBI::dbExecute(conn, sprintf("PRAGMA key = '%s'", encryption_key))
-        } else {
-          warning("Encryption key provided but RSQLCipher not available. ",
-                  "Database will not be encrypted.")
-        }
+      conn <- if (!is.null(encryption_key) && nzchar(encryption_key)) {
+        .connect_sqlite_with_key(db_path, encryption_key)
+      } else {
+        RSQLite::dbConnect(RSQLite::SQLite(), dbname = db_path)
       }
+
+      DBI::dbExecute(conn, "PRAGMA journal_mode = WAL")
+      DBI::dbExecute(conn, "PRAGMA foreign_keys = ON")
 
       conn
     },
@@ -104,10 +100,30 @@ SQLiteAdapter <- R6::R6Class(
         dir.create(db_dir, recursive = TRUE, showWarnings = FALSE)
       }
 
-      pool::dbPool(
-        RSQLite::SQLite(),
-        dbname = db_path
-      )
+      private$check_at_rest()
+
+      encryption_key <- self$config$sqlite$encryption_key
+      min_size <- self$config$sqlite$pool_min %||% 1
+      max_size <- self$config$sqlite$pool_max %||% Inf
+      if (!is.null(encryption_key) && nzchar(encryption_key)) {
+        pool::dbPool(
+          RSQLite::SQLite(),
+          dbname = db_path,
+          minSize = min_size,
+          maxSize = max_size,
+          onCreate = function(conn) {
+            DBI::dbExecute(conn, "PRAGMA cipher = 'sqlcipher'")
+            DBI::dbExecute(conn, sprintf("PRAGMA key = '%s'", encryption_key))
+          }
+        )
+      } else {
+        pool::dbPool(
+          RSQLite::SQLite(),
+          dbname = db_path,
+          minSize = min_size,
+          maxSize = max_size
+        )
+      }
     },
 
     #' @description
@@ -165,10 +181,24 @@ SQLiteAdapter <- R6::R6Class(
     },
 
     #' @description
-    #' Check if encryption is supported (RSQLCipher available)
-    #' @return Logical TRUE if RSQLCipher is available
-    supports_encryption = function() {
-      requireNamespace("RSQLCipher", quietly = TRUE)
+    #' Describe this backend's encryption. At-rest encryption is
+    #' available only when the installed RSQLite actually encrypts a
+    #' keyed file (`sqlite_cipher_available()`, a functional test), not
+    #' merely when some package is installed.
+    #' @return List; see `DatabaseAdapter$encryption_capabilities()`
+    encryption_capabilities = function() {
+      cipher <- sqlite_cipher_available()
+      key <- self$config$sqlite$encryption_key
+      list(
+        at_rest = if (cipher) "package" else "none",
+        at_rest_configured = cipher && !is.null(key) && nzchar(key),
+        in_transit = "not_applicable",
+        detail = if (cipher) {
+          "The installed RSQLite encrypts keyed files (SQLCipher-compatible)."
+        } else {
+          "Stock RSQLite has no cipher; SQLite files are stored in plaintext."
+        }
+      )
     },
 
     #' @description
@@ -219,6 +249,33 @@ SQLiteAdapter <- R6::R6Class(
       } else {
         NA_integer_
       }
+    }
+  ),
+
+  private = list(
+    # Apply the security profile before opening the file. An in-memory
+    # database holds nothing at rest. An existing file is judged by its
+    # header; a new file is judged by whether a key can be applied at
+    # all, since its header does not exist yet.
+    check_at_rest = function() {
+      db_path <- self$config$sqlite$path
+      if (identical(db_path, ":memory:")) {
+        return(invisible(TRUE))
+      }
+      key <- self$config$sqlite$encryption_key
+      has_key <- !is.null(key) && nzchar(key)
+      on_disk <- sqlite_file_is_encrypted(db_path)
+      encrypted <- if (!is.na(on_disk)) {
+        on_disk
+      } else {
+        has_key && sqlite_cipher_available()
+      }
+      reason <- if (!has_key) {
+        "No sqlite.encryption_key is configured."
+      } else {
+        "The installed RSQLite does not support SQLCipher or SQLite3MultipleCiphers, so the key is ignored."
+      }
+      enforce_encryption_at_rest(encrypted, db_path, reason)
     }
   )
 )

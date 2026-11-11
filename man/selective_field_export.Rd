@@ -2,40 +2,56 @@
 % Please edit documentation in R/secure_export.R
 \name{selective_field_export}
 \alias{selective_field_export}
-\title{Selective Field Encryption on Export}
+\title{Export with Selected Fields Pseudonymized}
 \usage{
 selective_field_export(
   data_df,
-  fields_to_encrypt = NULL,
+  fields_to_pseudonymize = NULL,
   format = "csv",
-  export_dir = "./exports"
+  export_dir = "./exports",
+  fields_to_encrypt = NULL
 )
 }
 \arguments{
 \item{data_df}{Data frame: Data to export}
 
-\item{fields_to_encrypt}{Character vector: Column names to encrypt}
+\item{fields_to_pseudonymize}{Character vector: Column names to
+pseudonymize. Use for direct identifiers only.}
 
 \item{format}{Character: Output format ("csv", "xlsx", "json")}
 
 \item{export_dir}{Character: Directory for exports (default: "./exports")}
+
+\item{fields_to_encrypt}{Deprecated alias for
+\code{fields_to_pseudonymize}. The old name described the operation
+inaccurately: it never encrypted anything.}
 }
 \value{
 Character string with path to exported file
 }
 \description{
-Exports data with selective field-level encryption.
+Exports data with the chosen columns replaced by HMAC-SHA256
+pseudonyms (see \code{pseudonymize_values()}). Other columns are written
+unchanged, and the export file itself is not encrypted.
 }
 \details{
-Encrypts specified columns while leaving others plaintext.
-Creates metadata file describing encryption scheme.
+Earlier versions computed \code{sha256(value || key)} under the database
+encryption key and called the result "field-level encryption". That
+construction is not a standard keyed hash, it is not reversible (so
+it is not encryption), and it reused the database key. This version
+uses HMAC-SHA256 under a separate pseudonymization key, so its
+output values differ from those of earlier versions: exports made
+before and after this change cannot be linked on pseudonymized
+fields.
+
+A metadata file (\code{.metadata.json}) records which fields were
+pseudonymized and the method used.
 }
 \examples{
 \dontrun{
-  # Encrypt PII fields
   file_path <- selective_field_export(
     data_df = subjects_data,
-    fields_to_encrypt = c("subject_id", "age"),
+    fields_to_pseudonymize = c("subject_id", "initials"),
     format = "csv"
   )
 }

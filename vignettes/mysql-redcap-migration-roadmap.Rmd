@@ -77,8 +77,9 @@ backend works on MySQL / MariaDB:
 - Cross-backend migration via `migrate_between_backends()` (a
   study can be moved between any two of the five backends)
 - The full Shiny application, including the form designer,
-  data-correction module, audit viewer, and GDPR data-subject
-  modules
+  data-correction module, audit viewer, GDPR data-subject
+  modules, and the Compliance (electronic signatures, training
+  records) and Admin (user management, admin dashboard) tabs
 
 ### Recommended server versions
 
@@ -96,12 +97,32 @@ life and should not be used in clinical settings.
 
 1. **Encryption at rest is not driven by the adapter.** On
    SQLite, the package can request SQLCipher encryption per
-   database file. On MySQL / MariaDB, encryption is configured
-   at the server level (InnoDB tablespace encryption); the
-   `key` argument to `connect_encrypted_db()` and
-   `initialize_encrypted_database()` is ignored on the MySQL
-   path. This is a deployment-architecture issue rather than a
-   gap in the adapter.
+   database file, but this takes effect only with a
+   cipher-enabled RSQLite build; on stock CRAN RSQLite the key
+   is silently ignored and the file is written as plaintext.
+   DuckDB encrypts natively and is, as of this writing, the only
+   backend whose at-rest encryption has been verified by
+   execution rather than taken on faith. On MySQL / MariaDB,
+   encryption is configured at the server level (InnoDB
+   tablespace encryption, which ZZedc cannot inspect or verify
+   from the client); the `key` argument to
+   `connect_encrypted_db()` and `initialize_encrypted_database()`
+   is ignored on the MySQL path. This is a deployment-architecture
+   issue rather than a gap in the adapter, and it is the same
+   position REDCap itself is in for at-rest encryption: REDCap's
+   own codebase does not encrypt its database tables either, and
+   relies entirely on whatever disk, filesystem, or
+   database-engine encryption the hosting institution configures.
+   Neither tool's at-rest story for a server backend is something
+   the application layer can certify; both push that question to
+   infrastructure. The `security.profile` setting (`development`,
+   `standard`, or `regulated`; see `?resolve_security_profile`)
+   governs how ZZedc responds to this uncertainty: under
+   `regulated`, storage that cannot be shown to be encrypted at
+   rest is refused, including at Shiny application startup, which
+   on a MySQL / MariaDB backend means the deployer must either
+   configure and attest to server-side encryption or run under a
+   less restrictive profile.
 
 2. **No `RETURNING` clause.** PostgreSQL's `RETURNING` clause
    simplifies inserts that need to capture the new primary
@@ -167,20 +188,20 @@ length(result$skipped_rules)  # rules needing manual review
 
 The output directory contains:
 
-- `data_dictionary.csv` — REDCap fields translated to ZZedc
+- `data_dictionary.csv`: REDCap fields translated to ZZedc
   CRF-field shape (one row per field; ready for the data-
   dictionary import path)
-- `validation_rules.csv` — REDCap range validations translated
+- `validation_rules.csv`: REDCap range validations translated
   to ZZedc DSL (e.g., `age between 50 and 90`)
-- `users.csv` — REDCap user accounts with REDCap rights
+- `users.csv`: REDCap user accounts with REDCap rights
   translated to ZZedc roles (Admin, Researcher, Coordinator,
   Monitor)
-- `subjects.csv` — distinct record IDs from
+- `subjects.csv`: distinct record IDs from
   `redcap_data.record`
-- `subject_data.csv` — subject responses in long form
+- `subject_data.csv`: subject responses in long form
   (subject_id, field_name, value, event_id)
-- `audit_log.csv` — REDCap audit-log rows for human inspection
-- `manifest.json` — provenance record (REDCap project ID,
+- `audit_log.csv`: REDCap audit-log rows for human inspection
+- `manifest.json`: provenance record (REDCap project ID,
   imported-at timestamp, counts, importer phase)
 
 ### What Phase C1 covers
@@ -320,7 +341,7 @@ result$branching_translated          # branching rules translated
 - **Branching-logic translation.** A simple grammar handles
   REDCap's `[field] = value`-style expressions (equality,
   inequality, `>=`/`<=`/`>`/`<`, `or`/`and`/`not`,
-  parenthesised compounds). Constructs outside that grammar
+  parenthesized compounds). Constructs outside that grammar
   (`datediff()`, event-arm prefixes such as
   `[event_arm_1][field]`) are conservatively rejected and
   recorded in `result$skipped_rules` for manual review.
@@ -350,8 +371,8 @@ These are explicit limitations of the C2 release:
   matches roughly 60-70% of branching expressions in real
   REDCap projects; the rest land in `skipped_rules` for
   manual translation following the patterns in
-  `vignette('content-author-guide')` §"Define validation
-  rules".
+  `vignette('content-author-guide')` §'Define validation
+  rules'.
 - **`.sql`-dump source mode** is deferred to Phase C3b. Today,
   dumps must be loaded into a transient MySQL or MariaDB
   instance manually before invoking the importer.
@@ -361,9 +382,9 @@ These are explicit limitations of the C2 release:
 In addition to the live DBI connection (`source = "db"`), the
 importer now accepts a REDCap REST API endpoint
 (`source = "api"`). This removes the requirement for direct
-database access -- often unavailable on institutional REDCap
-instances -- and lets investigators migrate using nothing more
-than a project-scoped API token.
+database access, which is often unavailable on institutional
+REDCap instances, and lets investigators migrate using nothing
+more than a project-scoped API token.
 
 ```{r, eval = FALSE}
 library(zzedc)
@@ -389,13 +410,13 @@ permission-gated: tokens minted by a user without it receive a
 redacted or empty log. The importer detects this and degrades
 the continuity claim explicitly:
 
-- `audit_replay$completeness = "full"` -- the API returned
+- `audit_replay$completeness = "full"`: the API returned
   data-modification events; the chain is replayed exactly as in
   Phase C2.
-- `"partial"` -- the API returned only login/logout/view
+- `"partial"`: the API returned only login/logout/view
   events, no data modifications. A `MIGRATION_AUDIT_GAP` marker
   is prepended to the chain documenting the gap.
-- `"empty"` -- the API returned no events at all. A marker is
+- `"empty"`: the API returned no events at all. A marker is
   still prepended; the chain validates from the marker forward.
 
 In all three cases the resulting hash chain validates
@@ -503,11 +524,11 @@ For each ZZedc concept, the corresponding REDCap source:
 | User and role translation | 50-100 | Low |
 | Audit-trail replay (with hash-chain construction) | 150-250 | Medium: each ZZedc audit row has a hash that depends on the previous row; importing requires re-computing the chain |
 | Dry-run validator | 100 | Low |
-| Tests against fixture databases | 300-500 | Medium: need a sanitised REDCap fixture; cannot ship with real PHI |
+| Tests against fixture databases | 300-500 | Medium: need a sanitized REDCap fixture; cannot ship with real PHI |
 | Vignette and documentation | 200 | Low |
 
-**Total estimate: 1,300 -- 2,150 lines plus fixtures.**
-**Time estimate: 2 -- 3 weeks of focused work.**
+**Total estimate: 1,300-2,150 lines plus fixtures.**
+**Time estimate: 2-3 weeks of focused work.**
 
 ### Open design decisions
 
@@ -589,7 +610,7 @@ For each ZZedc concept, the corresponding REDCap source:
 2. **Branching-logic edge cases.** REDCap's syntax for
    branching logic accumulated incrementally; some real-world
    expressions are hard to parse correctly. The importer
-   should fall back to a "manual review required" diagnostic
+   should fall back to a 'manual review required' diagnostic
    when it encounters a construct it cannot translate, rather
    than guess.
 

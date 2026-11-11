@@ -8,7 +8,8 @@ create_wizard_database(
   config_list,
   db_path = NULL,
   backend = "sqlite",
-  pg_config = NULL
+  pg_config = NULL,
+  adapter_config = NULL
 )
 }
 \arguments{
@@ -16,16 +17,26 @@ create_wizard_database(
 
 \item{db_path}{Path where database file will be created (for SQLite/DuckDB)}
 
-\item{backend}{Database backend: "sqlite" (default), "duckdb", or "postgresql"}
+\item{backend}{Database backend: "sqlite" (default), "duckdb",
+"postgresql", "clickhouse", "mysql", or "mariadb"}
 
-\item{pg_config}{PostgreSQL configuration list (required if backend="postgresql")}
+\item{pg_config}{Server configuration list (required for the server
+backends: "postgresql", "clickhouse", "mysql", "mariadb")}
+
+\item{adapter_config}{Optional complete configuration for
+\code{create_db_adapter()} (for example from \code{app_database_config()}).
+When supplied it is used as is, so settings that \code{backend},
+\code{db_path}, and \code{pg_config} cannot express (an encryption key,
+DuckDB extension settings) reach the database being created;
+\code{backend} and \code{db_path} are then taken from it.}
 }
 \value{
 List with success status and messages
 }
 \description{
 Creates a complete database with all required tables.
-Supports SQLite (default), DuckDB, and PostgreSQL backends.
+Supports SQLite (default), DuckDB, PostgreSQL, ClickHouse, and
+MySQL/MariaDB backends.
 }
 \examples{
 \dontrun{

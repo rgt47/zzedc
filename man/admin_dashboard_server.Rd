@@ -8,7 +8,8 @@ admin_dashboard_server(
   id,
   db_pool = NULL,
   user_session = NULL,
-  db_path = reactive("./data/zzedc.db")
+  db_path = reactive("./data/zzedc.db"),
+  db_adapter = NULL
 )
 }
 \arguments{

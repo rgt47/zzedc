@@ -51,7 +51,7 @@ Configuration options (in config$postgresql):
     \item \href{#method-PostgreSQLAdapter-connect}{\code{PostgreSQLAdapter$connect()}}
     \item \href{#method-PostgreSQLAdapter-pool}{\code{PostgreSQLAdapter$pool()}}
     \item \href{#method-PostgreSQLAdapter-dialect}{\code{PostgreSQLAdapter$dialect()}}
-    \item \href{#method-PostgreSQLAdapter-supports_encryption}{\code{PostgreSQLAdapter$supports_encryption()}}
+    \item \href{#method-PostgreSQLAdapter-encryption_capabilities}{\code{PostgreSQLAdapter$encryption_capabilities()}}
     \item \href{#method-PostgreSQLAdapter-describe_table}{\code{PostgreSQLAdapter$describe_table()}}
     \item \href{#method-PostgreSQLAdapter-backend_name}{\code{PostgreSQLAdapter$backend_name()}}
     \item \href{#method-PostgreSQLAdapter-is_ssl_connected}{\code{PostgreSQLAdapter$is_ssl_connected()}}
@@ -74,6 +74,8 @@ Configuration options (in config$postgresql):
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="prepare_auto_increment"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-prepare_auto_increment'><code>DatabaseAdapter$prepare_auto_increment()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="shutdown"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-shutdown'><code>DatabaseAdapter$shutdown()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="supports_encryption"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-supports_encryption'><code>DatabaseAdapter$supports_encryption()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
@@ -143,17 +145,23 @@ Configuration options (in config$postgresql):
 }
 
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-PostgreSQLAdapter-supports_encryption"></a>}}
-\if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-supports_encryption}{}}}
-\subsection{\code{PostgreSQLAdapter$supports_encryption()}}{
-  Check if encryption is supported
+\if{html}{\out{<a id="method-PostgreSQLAdapter-encryption_capabilities"></a>}}
+\if{latex}{\out{\hypertarget{method-PostgreSQLAdapter-encryption_capabilities}{}}}
+\subsection{\code{PostgreSQLAdapter$encryption_capabilities()}}{
+  Describe this backend's encryption. Community PostgreSQL has no
+built-in encryption at rest; it must come from volume or
+filesystem encryption, a cloud provider's storage encryption, or
+a transparent-data-encryption fork, none of which zzedc can
+observe. TLS is enforced only when \code{sslmode} requires it.
+Earlier versions reported \code{supports_encryption() = TRUE} on the
+strength of TLS alone, conflating transport with storage.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{PostgreSQLAdapter$supports_encryption()}
+    \preformatted{PostgreSQLAdapter$encryption_capabilities()}
     \if{html}{\out{</div>}}
   }
   \subsection{Returns}{
-    Logical TRUE (PostgreSQL supports SSL/TLS)
+    List; see \code{DatabaseAdapter$encryption_capabilities()}
   }
 }
 

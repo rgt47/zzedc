@@ -85,7 +85,7 @@ load_validation_rules_from_db <- function(con) {
 
   tryCatch({
     # Get all fields with validation rules
-    fields_with_rules <- RSQLite::dbGetQuery(con,
+    fields_with_rules <- DBI::dbGetQuery(con,
       "SELECT field, form_name, validation_rule FROM edc_fields WHERE validation_rule IS NOT NULL AND validation_rule != ''"
     )
 

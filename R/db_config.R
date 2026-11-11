@@ -290,9 +290,12 @@ database:
     # Path to database file (relative or absolute)
     path: data/zzedc.db
 
-    # Optional: Encryption key for database encryption (requires RSQLCipher)
-    # Use environment variable for security
-    # encryption_key: ${ZZEDC_ENCRYPTION_KEY}
+    # Encryption key. Stock CRAN RSQLite ignores it and writes plaintext,
+    # which the 'regulated' profile below refuses: this template starts
+    # only with an RSQLite build compiled with SQLCipher or
+    # SQLite3MultipleCiphers. Otherwise use the DuckDB backend, or set
+    # security.profile to 'standard' and rely on full-disk encryption.
+    encryption_key: ${DB_ENCRYPTION_KEY}
 
 # Study configuration
 study:
@@ -301,6 +304,10 @@ study:
 
 # Security settings
 security:
+  # Security profile: development, standard, or regulated.
+  # 'regulated' refuses storage that cannot be shown to be encrypted at
+  # rest and refuses an AWS KMS fallback. See ?resolve_security_profile.
+  profile: regulated
   session_timeout_minutes: 30
   enforce_https: true
   salt: ${ZZEDC_SALT}
@@ -322,6 +329,17 @@ database:
     # Path to database file (use :memory: for in-memory database)
     path: data/zzedc.duckdb
 
+    # Encryption key (64 hex characters; generate with generate_db_key()).
+    # DuckDB encrypts the file when this is set. Keep the key out of this
+    # file: supply it through the environment or a secrets manager.
+    encryption_key: ${DB_ENCRYPTION_KEY}
+
+    # Persistent directory for DuckDB extensions (httpfs, icu). Populate
+    # it with install_duckdb_extensions() on a connected machine. Under
+    # the 'regulated' profile runtime downloads are disallowed, so the
+    # extensions must already be here.
+    extension_directory: data/duckdb_extensions
+
     # Optional: Number of threads for query execution
     threads: 4
 
@@ -335,6 +353,10 @@ study:
 
 # Security settings
 security:
+  # Security profile: development, standard, or regulated.
+  # 'regulated' refuses storage that cannot be shown to be encrypted at
+  # rest and refuses an AWS KMS fallback. See ?resolve_security_profile.
+  profile: regulated
   session_timeout_minutes: 30
   enforce_https: true
   salt: ${ZZEDC_SALT}
@@ -380,6 +402,10 @@ study:
 
 # Security settings
 security:
+  # Security profile: development, standard, or regulated.
+  # 'regulated' refuses storage that cannot be shown to be encrypted at
+  # rest and refuses an AWS KMS fallback. See ?resolve_security_profile.
+  profile: regulated
   session_timeout_minutes: 30
   enforce_https: true
   salt: ${ZZEDC_SALT}
@@ -425,6 +451,10 @@ study:
 
 # Security settings
 security:
+  # Security profile: development, standard, or regulated.
+  # 'regulated' refuses storage that cannot be shown to be encrypted at
+  # rest and refuses an AWS KMS fallback. See ?resolve_security_profile.
+  profile: regulated
   session_timeout_minutes: 30
   enforce_https: true
   salt: ${ZZEDC_SALT}

@@ -1488,6 +1488,17 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
         "create_crf_definition failed"
       next
     }
+    # designer_fields.design_id is a foreign key to designer_forms;
+    # backends that enforce it rejected every field without this row.
+    form_row <- tryCatch(
+      ensure_designer_form_row(crf$crf_id, toupper(form_code),
+                               paste(toupper(form_code), "Form"), imported_by),
+      error = function(e) e
+    )
+    if (inherits(form_row, "error")) {
+      form_errors[[form_code]] <- paste("designer form:", conditionMessage(form_row))
+      next
+    }
     n_forms <- n_forms + 1L
     # `add_form_field()` validates `field_type` against
     # `get_designer_field_types()`, whose keys are uppercase

@@ -237,14 +237,29 @@ MySQLAdapter <- R6::R6Class(
     },
 
     #' @description
-    #' Whether this backend supports encryption at rest. MySQL
-    #' supports InnoDB tablespace encryption at the server level;
-    #' the `key` argument used by the SQLite path is not honoured
-    #' here, but transport-level TLS is configured via
-    #' `mysql$ssl_mode`.
-    #' @return Logical TRUE.
-    supports_encryption = function() {
-      TRUE
+    #' Describe this backend's encryption. MySQL and MariaDB encrypt at
+    #' rest through InnoDB tablespace encryption, enabled on the server;
+    #' the `key` argument used by the SQLite and DuckDB paths is not
+    #' honored here. TLS is enforced only when `mysql$ssl_mode` requires
+    #' it. Earlier versions reported `supports_encryption() = TRUE`,
+    #' conflating server capability and TLS with encryption zzedc
+    #' provides.
+    #' @return List; see `DatabaseAdapter$encryption_capabilities()`
+    encryption_capabilities = function() {
+      ssl_mode <- toupper(self$config$mysql$ssl_mode %||% "")
+      list(
+        at_rest = "server",
+        at_rest_configured = NA,
+        in_transit = if (ssl_mode %in% c("REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY")) {
+          "enforced"
+        } else {
+          "optional"
+        },
+        detail = paste(
+          "Encryption at rest is InnoDB tablespace encryption on the",
+          "server; TLS is set by mysql.ssl_mode."
+        )
+      )
     },
 
     #' @description

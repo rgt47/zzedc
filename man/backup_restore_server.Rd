@@ -8,7 +8,9 @@ backup_restore_server(
   id,
   db_pool = NULL,
   db_path = reactive("./data/zzedc.db"),
-  backup_dir = "./backups"
+  backup_dir = "./backups",
+  db_adapter = NULL,
+  user_session = NULL
 )
 }
 \arguments{
@@ -19,12 +21,22 @@ backup_restore_server(
 \item{db_path}{Reactive expression returning path to database file}
 
 \item{backup_dir}{Directory where backups are stored}
+
+\item{db_adapter}{The application's \code{DatabaseAdapter}; decides whether
+file backup applies (SQLite and DuckDB only) and how to make a
+consistent copy.}
+
+\item{user_session}{The session's login state; its \code{username} is
+recorded with a restore request.}
 }
 \value{
 Invisible NULL
 }
 \description{
 Backup/Restore Server
+}
+\details{
+Restore is staged, not performed in place: see \code{?database_restore}.
 }
 \examples{
 \dontrun{

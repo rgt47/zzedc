@@ -4,7 +4,13 @@
 \alias{get_data_entries}
 \title{All data_entries rows, with data_json parsed}
 \usage{
-get_data_entries(conn, crf_code = NULL, start_date = NULL, end_date = NULL)
+get_data_entries(
+  conn,
+  crf_code = NULL,
+  subject_id = NULL,
+  start_date = NULL,
+  end_date = NULL
+)
 }
 \arguments{
 \item{conn}{A DBI connection (or pool object).}
@@ -12,16 +18,21 @@ get_data_entries(conn, crf_code = NULL, start_date = NULL, end_date = NULL)
 \item{crf_code}{Optional: restrict to one form (matched
 case-insensitively against \code{data_entries.form_name}).}
 
+\item{subject_id}{Optional: restrict to one subject (matched
+exactly against \code{data_entries.subject_id}). Added for
+\code{\link[=generate_subject_case_report]{generate_subject_case_report()}}, which needs every entry for a
+single subject rather than filtering the whole table in R.}
+
 \item{start_date, end_date}{Optional \code{Date}/character bounds
 (inclusive) on \code{created_date}.}
 }
 \value{
 A data frame with columns \code{entry_id}, \code{subject_id},
-\code{form_name}, \code{created_date}, \code{created_by}, plus a list-column
-\code{fields} (one named list per row, the parsed \code{data_json}).
-Zero rows (with the right columns) when nothing matches,
-including when \code{data_entries} doesn't exist yet (it is only
-created lazily, on first submission via
+\code{form_name}, \code{visit_label}, \code{visit_date}, \code{created_date},
+\code{created_by}, plus a list-column \code{fields} (one named list per
+row, the parsed \code{data_json}). Zero rows (with the right columns)
+when nothing matches, including when \code{data_entries} doesn't
+exist yet (it is only created lazily, on first submission via
 \code{\link[=ensure_data_entries_table]{ensure_data_entries_table()}} -- a freshly initialized or
 freshly \code{setup_zzedc_from_gsheets()}-rebuilt database has no
 entries, and so no reason yet to have this table). Every

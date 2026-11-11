@@ -39,6 +39,156 @@ create_validation_result <- function(test_id, test_name, category,
 }
 
 
+#' Scope a Validation Run (internal)
+#'
+#' The IQ/OQ/PQ functional checks build throwaway SQLite databases
+#' holding synthetic data, to exercise code paths rather than the
+#' deployment. Under the `regulated` profile those databases would be
+#' refused on any machine without a cipher-enabled RSQLite, even when
+#' the deployment itself is a properly encrypted DuckDB database, so
+#' they run under a scoped `development` profile. The deployment's own
+#' storage is judged separately, under the real profile, by IQ-008.
+#'
+#' The checks also repoint the cached database adapter at their
+#' temporary databases; the caller's adapter is restored on exit so a
+#' validation run inside a live session does not leave the application
+#' pointed at a deleted file.
+#'
+#' Registers its cleanup on the calling function's exit.
+#' @keywords internal
+.enter_validation_scope <- function() {
+  old_options <- options(zzedc.security_profile = "development")
+  had_adapter <- exists("adapter", envir = .db_adapter_cache)
+  saved_adapter <- if (had_adapter) .db_adapter_cache$adapter else NULL
+  restore <- function() {
+    options(old_options)
+    if (had_adapter) {
+      .db_adapter_cache$adapter <- saved_adapter
+    } else if (exists("adapter", envir = .db_adapter_cache)) {
+      rm("adapter", envir = .db_adapter_cache)
+    }
+  }
+  do.call(on.exit, list(substitute(f(), list(f = restore)), add = TRUE),
+          envir = parent.frame())
+  invisible(NULL)
+}
+
+
+#' Judge the Deployment's Storage Against the Security Profile (internal)
+#'
+#' @param config Optional configuration list with `db_adapter`.
+#' @param db_path Optional database file path.
+#' @return List with `passed`, `message`, and `details`.
+#' @keywords internal
+.check_deployment_storage <- function(config = NULL, db_path = NULL) {
+  # A failure while probing must surface as a failed IQ-008, never
+  # abort the whole qualification run.
+  tryCatch(
+    .check_deployment_storage_impl(config, db_path),
+    error = function(e) {
+      list(passed = FALSE,
+           message = paste("Storage encryption check could not run:",
+                           conditionMessage(e)),
+           details = list())
+    }
+  )
+}
+
+#' Database Path from the Application's config.yml (internal)
+#'
+#' The Shiny app reads `database.path` through `config::get()`, whose
+#' schema nests settings under an environment key (`default:`, or the
+#' one named by `R_CONFIG_ACTIVE`). `load_db_config()` does not read
+#' that schema, so IQ-008 consults it directly.
+#'
+#' @param config_path Path to `config.yml`.
+#' @return Character path or `NULL`.
+#' @keywords internal
+.app_config_db_path <- function(config_path = "./config.yml") {
+  if (!file.exists(config_path) || !requireNamespace("yaml", quietly = TRUE)) {
+    return(NULL)
+  }
+  parsed <- tryCatch(yaml::read_yaml(config_path), error = function(e) NULL)
+  active <- Sys.getenv("R_CONFIG_ACTIVE", unset = "default")
+  parsed[[active]]$database$path %||% parsed$default$database$path
+}
+
+#' @rdname dot-check_deployment_storage
+#' @keywords internal
+.check_deployment_storage_impl <- function(config = NULL, db_path = NULL) {
+  resolved <- tryCatch(resolve_security_profile(), error = function(e) e)
+  if (inherits(resolved, "error")) {
+    return(list(passed = FALSE, message = conditionMessage(resolved),
+                details = list()))
+  }
+
+  adapter <- config$db_adapter %||%
+    tryCatch(get_db_adapter(), error = function(e) NULL)
+  backend <- if (!is.null(db_path)) {
+    NA_character_
+  } else if (!is.null(adapter)) {
+    adapter$backend_name()
+  } else {
+    "sqlite"
+  }
+
+  encrypted <- NA
+  where <- NA_character_
+  if (!is.na(backend) && backend %in% c("postgresql", "mysql", "clickhouse")) {
+    where <- backend
+    note <- paste(
+      "encryption at rest is a server setting that cannot be verified",
+      "from the client; no attestation mechanism exists yet"
+    )
+  } else {
+    # Resolve the path without get_db_path(), which creates the
+    # parent directory: a qualification check must not modify the
+    # system it is checking.
+    env_path <- Sys.getenv("ZZEDC_DB_PATH", unset = "")
+    where <- db_path %||% if (identical(backend, "duckdb")) {
+      adapter$config$duckdb$path
+    } else if (nzchar(env_path)) {
+      env_path
+    } else {
+      .app_config_db_path() %||% "./data/zzedc.db"
+    }
+    if (is.null(where) || !file.exists(where)) {
+      note <- "no deployment database file was found to check"
+    } else {
+      verification <- verify_database_encryption(db_path = where)
+      encrypted <- verification$encrypted
+      note <- verification$message
+    }
+  }
+
+  passed <- if (resolved$profile == "regulated") isTRUE(encrypted) else TRUE
+  state <- if (isTRUE(encrypted)) {
+    "encrypted at rest"
+  } else if (isFALSE(encrypted)) {
+    "NOT encrypted at rest"
+  } else {
+    "encryption at rest not verified"
+  }
+
+  list(
+    passed = passed,
+    message = paste0(
+      "Profile '", resolved$profile, "' (from ", resolved$source, "): ",
+      where, " is ", state, " -- ", note, ".",
+      if (!passed) " The 'regulated' profile requires verified encryption at rest." else
+        if (resolved$profile != "regulated" && !isTRUE(encrypted))
+          paste0(" Permitted by profile '", resolved$profile, "'.") else ""
+    ),
+    details = list(
+      profile = resolved$profile,
+      profile_source = resolved$source,
+      target = where,
+      encrypted = encrypted
+    )
+  )
+}
+
+
 # =============================================================================
 # Installation Qualification (IQ)
 # =============================================================================
@@ -74,6 +224,14 @@ create_validation_result <- function(test_id, test_name, category,
 run_iq_tests <- function(config = NULL, db_path = NULL, verbose = TRUE) {
   results <- list()
   start_time <- Sys.time()
+
+  # IQ-008 judges the real deployment under the real profile, so it is
+  # evaluated before the functional checks below scope the profile to
+  # 'development' and repoint the adapter cache at temporary databases.
+  t_storage <- Sys.time()
+  storage_check <- .check_deployment_storage(config, db_path)
+  storage_ms <- as.numeric(difftime(Sys.time(), t_storage, units = "secs")) * 1000
+  .enter_validation_scope()
 
   if (verbose) cat("Running Installation Qualification (IQ) Tests...\n\n")
 
@@ -140,13 +298,19 @@ run_iq_tests <- function(config = NULL, db_path = NULL, verbose = TRUE) {
   enc_test <- tryCatch({
     key <- generate_db_key()
     valid <- verify_db_key(key)
-    list(success = valid, message = if (valid) "Encryption working" else "Key validation failed")
+    # This checks key generation and format only; whether storage is
+    # actually encrypted is IQ-008's job.
+    list(success = valid, message = if (valid) {
+      "Key generation and key-format validation working"
+    } else {
+      "Key validation failed"
+    })
   }, error = function(e) {
     list(success = FALSE, message = e$message)
   })
   results$IQ_003 <- create_validation_result(
     test_id = "IQ-003",
-    test_name = "Encryption Utilities",
+    test_name = "Encryption Key Utilities",
     category = "IQ",
     passed = enc_test$success,
     message = enc_test$message,
@@ -281,6 +445,19 @@ run_iq_tests <- function(config = NULL, db_path = NULL, verbose = TRUE) {
   )
   if (verbose) cat(if (results$IQ_007$passed) "PASSED\n" else "FAILED\n")
 
+  # IQ-008: Storage encryption against the security profile
+  if (verbose) cat("  IQ-008: Checking storage encryption against security profile... ")
+  results$IQ_008 <- create_validation_result(
+    test_id = "IQ-008",
+    test_name = "Storage Encryption vs Security Profile",
+    category = "IQ",
+    passed = storage_check$passed,
+    message = storage_check$message,
+    details = storage_check$details,
+    duration_ms = storage_ms
+  )
+  if (verbose) cat(if (results$IQ_008$passed) "PASSED\n" else "FAILED\n")
+
   # Summary
   total_tests <- length(results)
   passed_tests <- sum(sapply(results, function(r) r$passed))
@@ -337,6 +514,7 @@ run_iq_tests <- function(config = NULL, db_path = NULL, verbose = TRUE) {
 run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
   results <- list()
   start_time <- Sys.time()
+  .enter_validation_scope()
 
   if (verbose) cat("Running Operational Qualification (OQ) Tests...\n\n")
 
@@ -708,6 +886,7 @@ run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
 #' @keywords internal
 #' @export
 run_pq_tests <- function(db_path = NULL, verbose = TRUE, record_count = 1000) {
+  .enter_validation_scope()
   results <- list()
   start_time <- Sys.time()
 

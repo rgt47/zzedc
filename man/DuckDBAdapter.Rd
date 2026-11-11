@@ -19,7 +19,22 @@ Configuration options (in config$duckdb):
 \item path: Path to database file (required, use ":memory:" for in-memory)
 \item threads: Number of threads for query execution (optional)
 \item memory_limit: Maximum memory usage (optional, e.g., "4GB")
+\item encryption_key: Encrypts the database file when set (optional)
+\item extension_directory: Persistent directory for DuckDB extensions
+(optional). Without it, the R duckdb package uses a per-session
+temporary directory, so extensions are downloaded again in every
+session. Populate it in advance with \code{install_duckdb_extensions()}.
+\item allow_extension_download: Whether DuckDB may download missing
+extensions at runtime (optional). Defaults to \code{FALSE} under the
+\code{regulated} security profile, where downloading unpinned code into
+a validated system is a change-control concern, and \code{TRUE}
+otherwise.
 }
+
+Extensions are loaded when a connection opens: \code{httpfs} (needed for
+an encrypted file) and \code{icu} (needed by \code{CURRENT_DATE} in deadline
+queries). When downloads are disallowed, a missing extension is an
+error at connection time, not at the first query that needs it.
 }
 \examples{
 \dontrun{
@@ -43,11 +58,13 @@ Configuration options (in config$duckdb):
     \item \href{#method-DuckDBAdapter-initialize}{\code{DuckDBAdapter$new()}}
     \item \href{#method-DuckDBAdapter-connect}{\code{DuckDBAdapter$connect()}}
     \item \href{#method-DuckDBAdapter-pool}{\code{DuckDBAdapter$pool()}}
+    \item \href{#method-DuckDBAdapter-disconnect}{\code{DuckDBAdapter$disconnect()}}
+    \item \href{#method-DuckDBAdapter-shutdown}{\code{DuckDBAdapter$shutdown()}}
     \item \href{#method-DuckDBAdapter-dialect}{\code{DuckDBAdapter$dialect()}}
     \item \href{#method-DuckDBAdapter-auto_increment_column}{\code{DuckDBAdapter$auto_increment_column()}}
     \item \href{#method-DuckDBAdapter-prepare_auto_increment}{\code{DuckDBAdapter$prepare_auto_increment()}}
     \item \href{#method-DuckDBAdapter-describe_table}{\code{DuckDBAdapter$describe_table()}}
-    \item \href{#method-DuckDBAdapter-supports_encryption}{\code{DuckDBAdapter$supports_encryption()}}
+    \item \href{#method-DuckDBAdapter-encryption_capabilities}{\code{DuckDBAdapter$encryption_capabilities()}}
     \item \href{#method-DuckDBAdapter-backend_name}{\code{DuckDBAdapter$backend_name()}}
     \item \href{#method-DuckDBAdapter-export_parquet}{\code{DuckDBAdapter$export_parquet()}}
     \item \href{#method-DuckDBAdapter-export_csv}{\code{DuckDBAdapter$export_csv()}}
@@ -61,12 +78,12 @@ Configuration options (in config$duckdb):
 <ul>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="begin"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-begin'><code>DatabaseAdapter$begin()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="commit"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-commit'><code>DatabaseAdapter$commit()</code></a></span></li>
-  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="rollback"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-rollback'><code>DatabaseAdapter$rollback()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="supports_encryption"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-supports_encryption'><code>DatabaseAdapter$supports_encryption()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="transaction"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-transaction'><code>DatabaseAdapter$transaction()</code></a></span></li>
 </ul>
@@ -101,6 +118,16 @@ connection: DuckDB rejects a wrong key with an error (verified
 in \verb{docs/db-adapter-remediation-plan-2026-11-07.md}), and all
 existing unqualified table references resolve against the
 attached database with no call-site changes.
+
+Every connection from this adapter, including those of its
+\code{pool()}, comes from one shared DuckDB instance. Separate
+instances in one R process can each attach the same file, and
+DuckDB's file lock (an operating-system lock, held per process)
+does not stop them writing concurrently. Before 2026-11-10 each
+call created its own instance, so a package function called by
+the application (through \code{connect_encrypted_db()}) wrote to the
+study file through a second instance while the application's pool
+held it through another.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{DuckDBAdapter$connect()}
@@ -115,10 +142,8 @@ attached database with no call-site changes.
 \if{html}{\out{<a id="method-DuckDBAdapter-pool"></a>}}
 \if{latex}{\out{\hypertarget{method-DuckDBAdapter-pool}{}}}
 \subsection{\code{DuckDBAdapter$pool()}}{
-  Create a connection pool. Honors \code{config$duckdb$encryption_key}
-the same way \code{connect()} does, via a pool-wide \code{onCreate} hook
-that runs the \verb{ATTACH ... (ENCRYPTION_KEY ...)} + \code{USE} pair on
-every connection the pool opens.
+  Create a connection pool on this adapter's shared DuckDB instance
+(see \code{connect()}).
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{DuckDBAdapter$pool()}
@@ -126,6 +151,41 @@ every connection the pool opens.
   }
   \subsection{Returns}{
     Pool object
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DuckDBAdapter-disconnect"></a>}}
+\if{latex}{\out{\hypertarget{method-DuckDBAdapter-disconnect}{}}}
+\subsection{\code{DuckDBAdapter$disconnect()}}{
+  Close a connection. The shared instance stays open for this
+adapter's other connections; see \code{shutdown()}.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DuckDBAdapter$disconnect(conn)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection}
+    }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-DuckDBAdapter-shutdown"></a>}}
+\if{latex}{\out{\hypertarget{method-DuckDBAdapter-shutdown}{}}}
+\subsection{\code{DuckDBAdapter$shutdown()}}{
+  Shut down this adapter's shared DuckDB instance, releasing the
+database file. Call it when the adapter is finished with, before
+another adapter (for example a later application pool) opens the
+same file. Connections and pools from this adapter become invalid.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DuckDBAdapter$shutdown()}
+    \if{html}{\out{</div>}}
   }
 }
 
@@ -220,18 +280,19 @@ references, if it does not already exist.
 }
 
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-DuckDBAdapter-supports_encryption"></a>}}
-\if{latex}{\out{\hypertarget{method-DuckDBAdapter-supports_encryption}{}}}
-\subsection{\code{DuckDBAdapter$supports_encryption()}}{
-  Check if encryption is supported
+\if{html}{\out{<a id="method-DuckDBAdapter-encryption_capabilities"></a>}}
+\if{latex}{\out{\hypertarget{method-DuckDBAdapter-encryption_capabilities}{}}}
+\subsection{\code{DuckDBAdapter$encryption_capabilities()}}{
+  Describe this backend's encryption. DuckDB encrypts the database
+file itself via \verb{ATTACH ... (ENCRYPTION_KEY ...)} whenever
+\code{config$duckdb$encryption_key} is set (see \code{connect()}).
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{DuckDBAdapter$supports_encryption()}
+    \preformatted{DuckDBAdapter$encryption_capabilities()}
     \if{html}{\out{</div>}}
   }
   \subsection{Returns}{
-    Logical TRUE via \verb{ATTACH ... (ENCRYPTION_KEY ...)},
-when \code{config$duckdb$encryption_key} is set (see \code{connect()})
+    List; see \code{DatabaseAdapter$encryption_capabilities()}
   }
 }
 

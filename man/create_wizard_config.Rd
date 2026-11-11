@@ -7,7 +7,10 @@
 create_wizard_config(config_list, config_path, security_salt)
 }
 \arguments{
-\item{config_list}{List containing wizard configuration}
+\item{config_list}{List containing wizard configuration. Database
+fields: \code{db_backend} (default \code{"sqlite"}) and, for server backends,
+\code{db_settings} (\code{host}, \code{port}, \code{name}, \code{user}, \code{ssl}). Security
+fields: \code{security_profile} (default \code{"regulated"}), \code{enforce_https}.}
 
 \item{config_path}{Path where config.yml will be written}
 
@@ -17,6 +20,14 @@ create_wizard_config(config_list, config_path, security_salt)
 List with success status and messages
 }
 \description{
-Creates configuration file with all required application settings
+Creates the application's \code{config.yml} from the wizard's choices.
+}
+\details{
+Settings are written under \verb{default:}, the schema \code{config::get()} (and
+so \code{launch_zzedc()} and the application) reads. Before 2026-11-10 they
+were written at the top level, which \code{config::get()} rejects ("You
+must provide a default configuration"), so a wizard-created study
+could not be launched. Secrets are not written: a DuckDB study refers
+to \verb{$\{DB_ENCRYPTION_KEY\}}, a server study to \verb{$\{ZZEDC_DB_PASSWORD\}}.
 }
 \keyword{internal}

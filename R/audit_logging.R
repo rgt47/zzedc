@@ -264,7 +264,14 @@ log_audit_event <- function(event_type, table_name, record_id = NULL,
 #'
 #' Retrieve audit trail with optional filtering and verification.
 #'
-#' @param filters List: Filter criteria (user, table_name, event_type, date_from, date_to)
+#' @param filters List: Filter criteria (user, table_name, record_id,
+#'   event_type, date_from, date_to). `record_id` is bound as a
+#'   parameterized query argument rather than interpolated into the
+#'   SQL string, unlike the other filters here; it was added for
+#'   [generate_subject_case_report()], which needs one specific
+#'   record's audit trail and should not carry forward the
+#'   string-concatenation pattern the rest of this function already
+#'   uses for its other filters.
 #' @param include_chain Logical: Include hash chain info? (default: FALSE)
 #' @param db_path Character: Database path (optional)
 #'
@@ -314,10 +321,20 @@ get_audit_trail <- function(filters = list(), include_chain = FALSE, db_path = N
       query <- paste0(query, " AND DATE(timestamp) <= '", filters$date_to, "'")
     }
 
+    record_id_params <- list()
+    if (!is.null(filters$record_id)) {
+      query <- paste0(query, " AND record_id = ?")
+      record_id_params <- list(as.character(filters$record_id))
+    }
+
     query <- paste0(query, " ORDER BY audit_id DESC")
 
     # Execute query
-    audit_trail <- DBI::dbGetQuery(conn, query)
+    audit_trail <- if (length(record_id_params) > 0) {
+      DBI::dbGetQuery(conn, query, params = record_id_params)
+    } else {
+      DBI::dbGetQuery(conn, query)
+    }
 
     # Add chain verification if requested
     if (include_chain && nrow(audit_trail) > 0) {

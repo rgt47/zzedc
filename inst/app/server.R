@@ -1,6 +1,23 @@
 
 server <- function(input, output, session) {
 
+  # HTTPS (security.https_only, or the 'regulated' profile). A session
+  # that did not arrive over HTTPS gets a notice and nothing else: no
+  # module starts, so no login form or data is served over it.
+  if (zzedc::https_required(cfg)) {
+    https <- zzedc::session_https_status(session)
+    if (!https$ok) {
+      message("Refused session: HTTPS is required (", https$reason, ")")
+      shiny::showModal(shiny::modalDialog(
+        title = "A secure (HTTPS) connection is required",
+        "This study can only be used over HTTPS. Use the study's https:// ",
+        "address, or ask the study's technical lead.",
+        footer = NULL, easyClose = FALSE
+      ))
+      return(invisible(NULL))
+    }
+  }
+
   # Per-session authentication state. Previously created once in
   # global.R, which runs once per R process and so was the same
   # single reactiveValues object shared by every concurrent browser

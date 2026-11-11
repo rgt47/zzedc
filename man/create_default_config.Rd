@@ -4,21 +4,40 @@
 \alias{create_default_config}
 \title{Create default configuration file}
 \usage{
-create_default_config(path = "config.yml")
+create_default_config(
+  path = "config.yml",
+  backend = "sqlite",
+  profile = "regulated"
+)
 }
 \arguments{
 \item{path}{Path to create config file. Default is "config.yml".}
+
+\item{backend}{Database backend: \code{"sqlite"} (default), \code{"duckdb"},
+\code{"postgresql"}, or \code{"mysql"}. See \code{describe_backends()}.}
+
+\item{profile}{Security profile written to the file: \code{"regulated"}
+(default), \code{"standard"}, or \code{"development"}. Under \code{regulated}, a
+SQLite database on the standard CRAN build of RSQLite is refused at
+startup; DuckDB with an encryption key is the CRAN-only route.}
 }
 \value{
 Invisibly returns the path to the created file.
 }
 \description{
-Creates a minimal config.yml in the current working directory.
+Creates a commented config.yml for the chosen database backend and
+security profile.
+}
+\details{
+Secrets are not written to the file. A DuckDB configuration refers to
+\verb{$\{DB_ENCRYPTION_KEY\}}, and server configurations to
+\verb{$\{ZZEDC_DB_HOST\}}, \verb{$\{ZZEDC_DB_USER\}}, and \verb{$\{ZZEDC_DB_PASSWORD\}},
+which are read from the environment when the application starts.
 }
 \examples{
 # Write a default configuration to a temporary file (the
 # production call writes to the current working directory).
 tmp_config <- tempfile(fileext = ".yml")
-create_default_config(path = tmp_config)
+create_default_config(path = tmp_config, backend = "duckdb")
 file.exists(tmp_config)
 }

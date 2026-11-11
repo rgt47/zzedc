@@ -73,10 +73,118 @@ verify_db_key <- function(key) {
 }
 
 
+#' Open a SQLite connection and apply a key, without verification (internal)
+#'
+#' Supports both SQLite3MultipleCiphers (PRAGMA) and standard SQLCipher
+#' (key param). On a stock CRAN RSQLite build neither mechanism exists,
+#' and SQLite ignores the unknown PRAGMAs without error, so the
+#' connection opens a plaintext file. Callers must therefore verify the
+#' result with `sqlite_file_is_encrypted()`; `connect_encrypted()` does
+#' this for them.
+#'
+#' @param db_path Character: Path to database file
+#' @param key Character: Encryption key
+#'
+#' @return SQLiteConnection object
+#'
+#' @keywords internal
+.connect_sqlite_with_key <- function(db_path, key) {
+  tryCatch({
+    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path, synchronous = NULL)
+    DBI::dbExecute(conn, "PRAGMA cipher = 'sqlcipher'")
+    DBI::dbExecute(conn, sprintf("PRAGMA key = '%s'", key))
+    conn
+  }, error = function(e) {
+    DBI::dbConnect(RSQLite::SQLite(), db_path, key = key)
+  })
+}
+
+
+#' Determine Whether a SQLite File Is Encrypted
+#'
+#' Inspects the first 16 bytes of the file. Every plaintext SQLite
+#' database begins with the magic string `"SQLite format 3\\0"`; a
+#' SQLCipher or SQLite3MultipleCiphers file does not (with default
+#' settings), because the header is encrypted along with the pages.
+#'
+#' @param db_path Character: Path to the database file.
+#'
+#' @return `TRUE` if the file exists, is non-empty, and lacks the
+#'   plaintext SQLite header; `FALSE` if it carries the plaintext
+#'   header; `NA` if the file does not exist or is empty (nothing has
+#'   been written yet, so there is nothing to judge).
+#'
+#' @details
+#' A file that lacks the header could also be corrupt or not a SQLite
+#' file at all; this function reports only that its contents are not
+#' readable as plaintext SQLite. A cipher configured to leave the header
+#' unencrypted (SQLite3MultipleCiphers `plaintext_header_size`) would be
+#' reported as unencrypted; zzedc never sets that option.
+#'
+#' @examples
+#' f <- tempfile(fileext = ".db")
+#' con <- DBI::dbConnect(RSQLite::SQLite(), f)
+#' DBI::dbWriteTable(con, "t", data.frame(x = 1))
+#' DBI::dbDisconnect(con)
+#' sqlite_file_is_encrypted(f)
+#' unlink(f)
+#'
+#' @export
+sqlite_file_is_encrypted <- function(db_path) {
+  if (is.null(db_path) || !file.exists(db_path) ||
+      isTRUE(file.size(db_path) == 0)) {
+    return(NA)
+  }
+  header <- readBin(db_path, "raw", n = 16)
+  plaintext_magic <- c(charToRaw("SQLite format 3"), as.raw(0))
+  !identical(header, plaintext_magic)
+}
+
+
+#' Check Whether the Installed RSQLite Can Encrypt
+#'
+#' Performs a functional test rather than checking for a package name:
+#' it creates a temporary database with a key, writes a row, and
+#' inspects the resulting file header. The result is cached for the
+#' session.
+#'
+#' @param refresh Logical: re-run the probe instead of using the cached
+#'   result.
+#'
+#' @return `TRUE` if a keyed SQLite file is actually written encrypted,
+#'   `FALSE` otherwise (including on stock CRAN RSQLite).
+#'
+#' @examples
+#' sqlite_cipher_available()
+#'
+#' @export
+sqlite_cipher_available <- function(refresh = FALSE) {
+  if (!refresh && !is.null(.zzedc_env$sqlite_cipher_available)) {
+    return(.zzedc_env$sqlite_cipher_available)
+  }
+  probe <- tempfile(fileext = ".db")
+  on.exit(unlink(probe), add = TRUE)
+  available <- tryCatch({
+    conn <- .connect_sqlite_with_key(probe, generate_db_key())
+    on.exit(DBI::dbDisconnect(conn), add = TRUE, after = FALSE)
+    DBI::dbWriteTable(conn, "zzedc_cipher_probe", data.frame(x = 1L))
+    isTRUE(sqlite_file_is_encrypted(probe))
+  }, error = function(e) FALSE)
+  .zzedc_env$sqlite_cipher_available <- available
+  available
+}
+
+
 #' Create encrypted database connection (internal)
 #'
-#' Creates a database connection with encryption enabled.
-#' Supports both SQLite3MultipleCiphers (PRAGMA) and standard SQLCipher (key param).
+#' Opens a SQLite connection with the key applied, then checks whether
+#' the file is in fact encrypted and applies the active security
+#' profile (see `resolve_security_profile()`): under `regulated` a
+#' plaintext file is an error, under `standard` a warning, under
+#' `development` silent. A new or empty file cannot be judged until
+#' something is written to it; callers that create databases
+#' (`initialize_encrypted_database()`, `test_encryption()`) check again
+#' after writing.
 #'
 #' @param db_path Character: Path to database file
 #' @param key Character: Encryption key
@@ -85,17 +193,14 @@ verify_db_key <- function(key) {
 #'
 #' @keywords internal
 connect_encrypted <- function(db_path, key) {
-  # Try SQLite3MultipleCiphers PRAGMA approach first (JeremyPasco/RSQLite fork)
-  conn <- tryCatch({
-    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path, synchronous = NULL)
-    DBI::dbExecute(conn, "PRAGMA cipher = 'sqlcipher'")
-    DBI::dbExecute(conn, sprintf("PRAGMA key = '%s'", key))
-    conn
-  }, error = function(e) {
-    # Fall back to standard SQLCipher API (key parameter)
-    DBI::dbConnect(RSQLite::SQLite(), db_path, key = key)
-  })
-  conn
+  encrypted <- sqlite_file_is_encrypted(db_path)
+  if (!is.na(encrypted)) {
+    enforce_encryption_at_rest(
+      encrypted, db_path,
+      "The file has a plaintext SQLite header; the installed RSQLite does not apply the key."
+    )
+  }
+  .connect_sqlite_with_key(db_path, key)
 }
 
 
@@ -107,14 +212,18 @@ connect_encrypted <- function(db_path, key) {
 #' @param db_path Character: Path to test database file (will be created and deleted)
 #' @param key Character: Encryption key to test
 #'
-#' @return Logical TRUE if all tests pass, otherwise stops with error
+#' @return Logical TRUE if all tests pass, otherwise stops with an
+#'   error. Under every security profile, a file that is written in
+#'   plaintext is an error: this function exists to answer whether
+#'   encryption works, so a warning would defeat its purpose.
 #'
 #' @details
 #' Test procedure:
 #' 1. Connect to database with key
 #' 2. Write test data
 #' 3. Disconnect
-#' 4. Verify file is encrypted (random bytes, not readable text)
+#' 4. Verify the file lacks the plaintext SQLite header and does not
+#'    contain the written values as plaintext bytes
 #' 5. Reconnect with correct key -> data readable
 #' 6. Verify data integrity
 #' 7. Cleanup temporary database
@@ -131,51 +240,43 @@ connect_encrypted <- function(db_path, key) {
 #' @export
 test_encryption <- function(db_path, key) {
   verify_db_key(key)
+  on.exit(unlink(db_path), add = TRUE)
 
-  # Create test database with encryption
   conn <- tryCatch({
-    connect_encrypted(db_path, key)
+    .connect_sqlite_with_key(db_path, key)
   }, error = function(e) {
     stop("Failed to connect with encryption key: ", e$message)
   })
 
-  # Write test data
   test_df <- data.frame(
     id = 1:3,
-    value = c("test1", "test2", "test3")
+    value = c("zzedc_probe_1", "zzedc_probe_2", "zzedc_probe_3")
   )
   DBI::dbWriteTable(conn, "test_table", test_df, overwrite = TRUE)
+  DBI::dbDisconnect(conn)
 
-  # Read back and verify
+  if (!isTRUE(sqlite_file_is_encrypted(db_path))) {
+    stop(
+      "Encryption is not active: the test database was written with a ",
+      "plaintext SQLite header. The installed RSQLite does not support ",
+      "SQLCipher or SQLite3MultipleCiphers, so keys are ignored."
+    )
+  }
+
+  file_bytes <- readBin(db_path, "raw", n = file.size(db_path))
+  if (length(grepRaw(charToRaw("zzedc_probe_"), file_bytes, fixed = TRUE)) > 0) {
+    stop("Encryption is not active: test values appear as plaintext in the file.")
+  }
+
+  conn <- .connect_sqlite_with_key(db_path, key)
   result <- DBI::dbReadTable(conn, "test_table")
   DBI::dbDisconnect(conn)
 
   if (!identical(test_df, result)) {
-    unlink(db_path)
     stop("Test data mismatch after encryption/decryption")
   }
 
-  # Verify file is encrypted (should not contain readable text)
-  file_content <- readBin(db_path, "raw", n = 1000)
-  # Use tryCatch since encrypted binary data may contain null bytes
-  file_text <- tryCatch(rawToChar(file_content), error = function(e) "")
-
-  if (grepl("test1|test2|test3", file_text, fixed = TRUE)) {
-    unlink(db_path)
-    warning("Database file appears to contain unencrypted text - encryption may not be active")
-  }
-
-  # Also check for SQLite header signature (should not be present in encrypted file)
-  sqlite_sig <- as.raw(c(0x53, 0x51, 0x4c, 0x69, 0x74, 0x65))  # "SQLite"
-  if (identical(file_content[1:6], sqlite_sig)) {
-    unlink(db_path)
-    warning("Database file has SQLite header - encryption may not be active")
-  }
-
-  # Cleanup
-  unlink(db_path)
-
-  return(TRUE)
+  TRUE
 }
 
 
@@ -237,16 +338,34 @@ get_encryption_key <- function(aws_kms_key_id = NULL) {
     cached <- .zzedc_env$encryption_keys[[cache_key]]
     if (!is.null(cached)) return(cached)
 
-    tryCatch({
-      key <- get_encryption_key_from_aws_kms(aws_kms_key_id)
-      .zzedc_env$encryption_keys[[cache_key]] <- key
-      return(key)
-    }, error = function(e) {
-      message(
-        "AWS KMS error, falling back to environment variable: ",
-        e$message
+    kms_key <- tryCatch(
+      get_encryption_key_from_aws_kms(aws_kms_key_id),
+      error = function(e) e
+    )
+    if (!inherits(kms_key, "error")) {
+      .zzedc_env$encryption_keys[[cache_key]] <- kms_key
+      return(kms_key)
+    }
+
+    # Falling back from KMS to an environment variable changes who
+    # holds the key, so the profile decides whether that is allowed.
+    profile <- get_security_profile()
+    fallback_msg <- paste0(
+      "AWS KMS error; falling back to the DB_ENCRYPTION_KEY ",
+      "environment variable: ", conditionMessage(kms_key)
+    )
+    if (profile == "regulated") {
+      stop(
+        "AWS KMS key retrieval failed and the 'regulated' security ",
+        "profile does not allow falling back to an environment ",
+        "variable: ", conditionMessage(kms_key),
+        call. = FALSE
       )
-    })
+    } else if (profile == "standard") {
+      warning(fallback_msg, call. = FALSE)
+    } else {
+      message(fallback_msg)
+    }
   }
 
   current <- Sys.getenv("DB_ENCRYPTION_KEY")
@@ -347,6 +466,16 @@ get_encryption_key_from_aws_kms <- function(key_id = NULL) {
 
   verify_db_key(key)
   return(key)
+}
+
+
+#' Convert a Hex String to Raw Bytes (internal)
+#' @param hex Character scalar of even length.
+#' @return Raw vector.
+#' @keywords internal
+.hex_to_raw <- function(hex) {
+  starts <- seq(1, nchar(hex), by = 2)
+  as.raw(strtoi(substring(hex, starts, starts + 1), 16L))
 }
 
 

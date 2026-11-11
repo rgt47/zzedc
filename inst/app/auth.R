@@ -100,23 +100,10 @@ authenticate_user <- function(username, password) {
       )
     }
 
-    # Verify password using configuration.
-    # cfg$auth$salt_env_var is absent from config.yml files scaffolded
-    # by launch_zzedc() (only default_salt is written), and
-    # Sys.getenv(NULL) returns every environment variable on the
-    # machine rather than "" or erroring, which made the salt == ""
-    # check below throw "the condition has length > 1" on every
-    # login attempt against a freshly-scaffolded config.
-    salt_env_var <- cfg$auth$salt_env_var
-    salt <- if (is.character(salt_env_var) && length(salt_env_var) == 1 &&
-                  nzchar(salt_env_var)) {
-      Sys.getenv(salt_env_var)
-    } else {
-      ""
-    }
-    if (salt == "") {
-      salt <- cfg$auth$default_salt
-    }
+    # Verify password using the package's single salt rule, the same
+    # one the launcher, the change-password form, and the Admin tab's
+    # user management use (see ?zzedc::resolve_auth_salt).
+    salt <- zzedc::resolve_auth_salt(cfg)
     password_hash <- digest(paste0(password, salt), algo = "sha256")
 
     if (user_record$password_hash == password_hash) {

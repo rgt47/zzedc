@@ -44,8 +44,9 @@ get_db_path <- function() {
   # Try environment variable first
   db_path <- Sys.getenv("ZZEDC_DB_PATH", unset = NA_character_)
 
-  # Use default if not set
-  if (is.na(db_path)) {
+  # Use default if not set; an empty value is treated as unset, since
+  # dirname("") would make dir.create() fail with a zero-length path.
+  if (is.na(db_path) || !nzchar(db_path)) {
     db_path <- "./data/zzedc.db"
   }
 
@@ -460,9 +461,17 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
       return(adapter$connect())
     }
 
-    # Get database path
+    # Path: explicit argument, then ZZEDC_DB_PATH, then the cached SQLite
+    # adapter's path (which the Shiny application sets from its own
+    # config.yml, so package functions it calls write to the same file
+    # as its connection pool), then the default.
+    sqlite_cfg <- if (!is.null(adapter)) adapter$config$sqlite else NULL
     if (is.null(db_path)) {
-      db_path <- get_db_path()
+      db_path <- if (nzchar(Sys.getenv("ZZEDC_DB_PATH", unset = ""))) {
+        get_db_path()
+      } else {
+        sqlite_cfg$path %||% get_db_path()
+      }
     }
 
     # Verify database exists
@@ -471,9 +480,32 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
            "\nUse initialize_encrypted_database() to create a new database")
     }
 
-    # Resolve encryption key: explicit > AWS KMS > env var
+    # Resolve encryption key: explicit > adapter config > AWS KMS > env var
     if (is.null(key)) {
-      key <- get_encryption_key(aws_kms_key_id = aws_kms_key_id)
+      adapter_key <- sqlite_cfg$encryption_key
+      key <- if (!is.null(adapter_key) && nzchar(adapter_key) &&
+                 identical(normalizePath(db_path, mustWork = FALSE),
+                           normalizePath(sqlite_cfg$path %||% "", mustWork = FALSE))) {
+        adapter_key
+      } else {
+        tryCatch(get_encryption_key(aws_kms_key_id = aws_kms_key_id),
+                 error = function(e) e)
+      }
+    }
+
+    # A plaintext SQLite file needs no key to open. Requiring one
+    # anyway made every package function (audit logging included) fail
+    # in a keyless SQLite deployment; the security profile, applied by
+    # connect_encrypted() below, still decides whether that deployment
+    # is acceptable. An encrypted file without a key is still an error.
+    if (inherits(key, "error")) {
+      if (isFALSE(sqlite_file_is_encrypted(db_path))) {
+        enforce_encryption_at_rest(
+          FALSE, db_path, "The file has a plaintext SQLite header and no key is configured."
+        )
+        return(DBI::dbConnect(RSQLite::SQLite(), db_path))
+      }
+      stop(conditionMessage(key), call. = FALSE)
     }
 
     # Create encrypted connection using connect_encrypted helper
@@ -508,7 +540,20 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
 #'     it (for example via `Sys.setenv(DB_ENCRYPTION_KEY = result$key)`
 #'     or AWS Secrets Manager). Losing the key makes the database
 #'     unrecoverable.
-#'   - message: Status message
+#'   - encrypted: Logical. Whether the created file was verified to be
+#'     encrypted at rest. On SQLite with a stock CRAN RSQLite build this
+#'     is `FALSE`: the key is accepted but not applied. `NA` on
+#'     server-hosted backends, where encryption at rest is a server
+#'     setting this function cannot observe.
+#'   - message: Status message, which states plainly when the database
+#'     is not encrypted
+#'
+#' Under the `regulated` security profile (see
+#' `resolve_security_profile()`), a SQLite database that would be
+#' written unencrypted is removed and the function returns
+#' `success = FALSE`. Under `standard` it succeeds with a warning;
+#' under `development`, silently. In all profiles `encrypted` reports
+#' the true state.
 #'
 #' @details
 #' This function:
@@ -607,39 +652,63 @@ init_encrypted_sqlite_database <- function(db_path = NULL, overwrite = FALSE,
       verify_db_key(key)
     }
 
-    # Create connection using connect_encrypted helper. The key is
-    # passed explicitly; we deliberately do not write it to the user's
-    # environment here. Callers who want it in the environment can do
-    # so themselves with the key returned in the result list.
-    conn <- connect_encrypted(db_path, key)
-    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    # The key is passed explicitly; we deliberately do not write it to
+    # the user's environment here. Callers who want it in the
+    # environment can do so themselves with the key returned in the
+    # result list.
+    local({
+      conn <- .connect_sqlite_with_key(db_path, key)
+      on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    # Create base tables
-    # (You would add actual schema creation here)
-    DBI::dbExecute(conn, "
-      CREATE TABLE IF NOT EXISTS study_info (
-        study_id VARCHAR(64) PRIMARY KEY,
-        study_name TEXT NOT NULL,
-        protocol_id VARCHAR(64) UNIQUE NOT NULL,
-        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    ")
+      DBI::dbExecute(conn, "
+        CREATE TABLE IF NOT EXISTS study_info (
+          study_id VARCHAR(64) PRIMARY KEY,
+          study_name TEXT NOT NULL,
+          protocol_id VARCHAR(64) UNIQUE NOT NULL,
+          created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      ")
 
-    DBI::dbExecute(conn, "
-      CREATE TABLE IF NOT EXISTS subjects (
-        subject_id VARCHAR(64) PRIMARY KEY,
-        study_id VARCHAR(64) NOT NULL REFERENCES study_info(study_id),
-        enrollment_date TIMESTAMP,
-        status TEXT,
-        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    ")
+      DBI::dbExecute(conn, "
+        CREATE TABLE IF NOT EXISTS subjects (
+          subject_id VARCHAR(64) PRIMARY KEY,
+          study_id VARCHAR(64) NOT NULL REFERENCES study_info(study_id),
+          enrollment_date TIMESTAMP,
+          status TEXT,
+          created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      ")
+    })
+
+    # Judge the file only after the connection is closed and the
+    # schema has been written, since an empty file has no header yet.
+    encrypted <- isTRUE(sqlite_file_is_encrypted(db_path))
+    tryCatch(
+      enforce_encryption_at_rest(
+        encrypted, db_path,
+        "The installed RSQLite does not support SQLCipher or SQLite3MultipleCiphers, so the key was not applied."
+      ),
+      error = function(e) {
+        # Do not leave a plaintext database behind when the profile
+        # refuses one.
+        unlink(db_path)
+        stop(conditionMessage(e), call. = FALSE)
+      }
+    )
 
     return(list(
       success = TRUE,
       path = normalizePath(db_path, winslash = "/"),
       key = key,
-      message = paste("Database created and encrypted at:", db_path)
+      encrypted = encrypted,
+      message = if (encrypted) {
+        paste("Database created and encrypted at:", db_path)
+      } else {
+        paste(
+          "Database created at:", db_path,
+          "-- NOT encrypted at rest (stock RSQLite ignores the key)"
+        )
+      }
     ))
 
   }, error = function(e) {
@@ -721,10 +790,13 @@ init_encrypted_duckdb_database <- function(adapter, overwrite = FALSE,
       )
     ")
 
+    # DuckDB refuses ATTACH ... ENCRYPTION_KEY outright when it cannot
+    # encrypt, so reaching this point means the file is encrypted.
     list(
       success = TRUE,
       path = normalizePath(db_path, winslash = "/"),
       key = key,
+      encrypted = TRUE,
       message = paste("Database created and encrypted at:", db_path)
     )
   }, error = function(e) {
@@ -796,6 +868,7 @@ init_server_backend_database <- function(adapter, backend, overwrite = FALSE) {
       success = TRUE,
       path = NA_character_,
       key = NA_character_,
+      encrypted = NA,
       message = sprintf(
         "Database tables created on %s at %s:%s/%s. Encryption at rest is not managed by this function on this backend; configure it at the server/infrastructure level (see docs/edc-encryption-decision-2026-10-29.md).",
         backend, backend_config$host %||% "?", backend_config$port %||% "?",
@@ -808,193 +881,401 @@ init_server_backend_database <- function(adapter, backend, overwrite = FALSE) {
 }
 
 
+#' Detect a Database File's Format (internal)
+#'
+#' @param db_path Character: path to the file.
+#' @return `"sqlite"` (plaintext SQLite header), `"duckdb"` (DuckDB
+#'   magic bytes at offset 8, present whether or not the file is
+#'   encrypted), `"unknown"` (neither, which for a zzedc SQLite file
+#'   means SQLCipher-style encryption), or `NA` if the file is missing
+#'   or empty.
+#' @keywords internal
+.detect_db_file_format <- function(db_path) {
+  if (is.null(db_path) || !file.exists(db_path) ||
+      isTRUE(file.size(db_path) == 0)) {
+    return(NA_character_)
+  }
+  header <- readBin(db_path, "raw", n = 16)
+  if (identical(header, c(charToRaw("SQLite format 3"), as.raw(0)))) {
+    return("sqlite")
+  }
+  if (length(header) >= 12 &&
+      identical(header[9:12], charToRaw("DUCK"))) {
+    return("duckdb")
+  }
+  "unknown"
+}
+
+
+#' Test Whether a Database File Opens Without a Key (internal)
+#'
+#' This is the property that encryption at rest exists to deny, so it
+#' is tested directly rather than inferred from byte statistics.
+#'
+#' @param db_path Character: path to the file.
+#' @param format Character: result of `.detect_db_file_format()`.
+#' @return `TRUE` if the schema could be read with no key, `FALSE` if
+#'   the engine refused, `NA` if the result could not be determined.
+#' @keywords internal
+.readable_without_key <- function(db_path, format) {
+  if (is.na(format)) {
+    return(NA)
+  }
+  if (format == "duckdb") {
+    if (!requireNamespace("duckdb", quietly = TRUE)) {
+      return(NA)
+    }
+    return(tryCatch({
+      drv <- duckdb::duckdb(dbdir = db_path, read_only = TRUE)
+      conn <- DBI::dbConnect(drv)
+      on.exit(DBI::dbDisconnect(conn, shutdown = TRUE), add = TRUE)
+      DBI::dbGetQuery(conn, "SELECT count(*) AS n FROM duckdb_tables()")
+      TRUE
+    }, error = function(e) {
+      if (grepl("encrypted", conditionMessage(e), ignore.case = TRUE)) FALSE else NA
+    }))
+  }
+  tryCatch({
+    conn <- DBI::dbConnect(RSQLite::SQLite(), db_path, flags = RSQLite::SQLITE_RO)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    DBI::dbGetQuery(conn, "SELECT count(*) AS n FROM sqlite_master")
+    TRUE
+  }, error = function(e) FALSE)
+}
+
+
 #' Verify Database Encryption
 #'
-#' Comprehensive verification that database encryption is working correctly.
+#' Checks whether a SQLite or DuckDB database file is encrypted at
+#' rest, by testing the property encryption exists to provide: the
+#' file must be unreadable without the key, and readable with it.
 #'
-#' @param db_path Character: Database to verify (optional, uses get_db_path if NULL)
+#' @param db_path Character: Database file to verify. If `NULL`, the
+#'   configured backend decides: the DuckDB adapter's `duckdb.path`,
+#'   otherwise `get_db_path()`.
+#' @param key Character: Encryption key to test with. If `NULL`, the
+#'   cached DuckDB adapter's configured key (for DuckDB files) or
+#'   `get_encryption_key()` (for SQLite files) is used.
+#' @param adapter Optional `DatabaseAdapter` whose configuration
+#'   (backend, DuckDB extension directory and download policy) the
+#'   check should follow; defaults to the cached adapter.
 #'
 #' @return List with verification results:
-#'   - encrypted: Logical TRUE if encryption working
-#'   - file_is_binary: Logical TRUE if file content is binary (encrypted)
-#'   - connection_works: Logical TRUE if can connect and query
-#'   - data_intact: Logical TRUE if data readable after encryption
-#'   - message: Detailed status message
+#'   - encrypted: `TRUE` only if the file could not be read without a
+#'     key and could be read with one; `FALSE` otherwise; `NA` for
+#'     server-hosted backends, where encryption at rest is a server
+#'     setting not observable from here
+#'   - backend: `"sqlite"`, `"duckdb"`, or the server backend name
+#'   - readable_without_key: whether the schema could be read with no key
+#'   - connection_works: whether a keyed connection succeeded
+#'   - data_intact: whether the schema could be read through that
+#'     connection
+#'   - file_is_binary: retained for compatibility; equal to
+#'     `!readable_without_key`
+#'   - message: Status message
 #'
 #' @details
-#' Verifies:
-#' 1. Database file is binary (not plaintext)
-#' 2. Can connect with encryption key
-#' 3. Can write and read data
-#' 4. Data is encrypted in file (no readable text)
+#' Earlier versions judged encryption by the share of bytes above 127
+#' in the first kilobyte (requiring more than 80 percent). Ciphertext
+#' is close to uniformly distributed, so roughly half its bytes exceed
+#' 127, and a correctly encrypted file failed that check; it could not
+#' distinguish encrypted from plaintext files. This version does not
+#' use byte statistics.
+#'
+#' A DuckDB file that another connection in the same process holds
+#' open read-write may fail the keyless probe with a lock error; the
+#' result is then `readable_without_key = NA` and `encrypted = FALSE`.
+#' Run the verification with no other connection open to the file.
 #'
 #' @examples
 #' \dontrun{
 #'   verification <- verify_database_encryption()
 #'   if (verification$encrypted) {
-#'     cat("Database encryption verified!\n")
+#'     cat("Database encryption verified\n")
 #'   } else {
 #'     cat("Encryption issues:", verification$message, "\n")
 #'   }
 #' }
 #'
 #' @export
-verify_database_encryption <- function(db_path = NULL) {
+verify_database_encryption <- function(db_path = NULL, key = NULL,
+                                       adapter = NULL) {
+  results <- list(
+    encrypted = FALSE,
+    backend = NA_character_,
+    readable_without_key = NA,
+    connection_works = FALSE,
+    data_intact = FALSE,
+    file_is_binary = NA,
+    message = NA_character_
+  )
+
   tryCatch({
-    # Get database path
+    adapter <- adapter %||% tryCatch(get_db_adapter(), error = function(e) NULL)
+    configured_backend <- if (!is.null(adapter)) adapter$backend_name() else "sqlite"
+
     if (is.null(db_path)) {
-      db_path <- get_db_path()
+      if (configured_backend %in% c("postgresql", "mysql", "clickhouse")) {
+        results$backend <- configured_backend
+        results$encrypted <- NA
+        results$message <- paste(
+          "Encryption at rest on", configured_backend,
+          "is configured on the database server and cannot be verified",
+          "from the client; see encryption_capabilities()."
+        )
+        return(results)
+      }
+      db_path <- if (configured_backend == "duckdb") {
+        adapter$config$duckdb$path
+      } else {
+        get_db_path()
+      }
     }
 
-    results <- list(
-      encrypted = FALSE,
-      file_is_binary = FALSE,
-      connection_works = FALSE,
-      data_intact = FALSE
-    )
-
-    # Check file is binary
-    if (file.exists(db_path)) {
-      file_content <- readBin(db_path, "raw", n = 1000)
-      # If mostly non-ASCII bytes, it's binary
-      non_ascii_ratio <- sum(file_content > 127) / length(file_content)
-      results$file_is_binary <- non_ascii_ratio > 0.8
+    if (!file.exists(db_path)) {
+      stop("Database file not found at: ", db_path)
     }
 
-    conn <- connect_encrypted_db(db_path = db_path)
-    on.exit(DBI::dbDisconnect(conn), add = TRUE)
-    results$connection_works <- TRUE
+    format <- .detect_db_file_format(db_path)
+    results$backend <- if (identical(format, "duckdb")) "duckdb" else "sqlite"
+    results$readable_without_key <- .readable_without_key(db_path, format)
+    results$file_is_binary <- !results$readable_without_key
 
-    test_query <- DBI::dbGetQuery(conn, "SELECT COUNT(*) FROM subjects")
-    if (!is.null(test_query)) {
-      results$data_intact <- TRUE
+    schema_query <- if (results$backend == "duckdb") {
+      "SELECT count(*) AS n FROM duckdb_tables()"
+    } else {
+      "SELECT count(*) AS n FROM sqlite_master"
     }
 
-    # Overall encryption status
-    results$encrypted <- results$file_is_binary &&
-                        results$connection_works &&
-                        results$data_intact
+    if (is.null(key)) {
+      key <- if (results$backend == "duckdb" && configured_backend == "duckdb") {
+        adapter$config$duckdb$encryption_key
+      } else {
+        tryCatch(get_encryption_key(), error = function(e) NULL)
+      }
+    }
 
-    results$message <- ifelse(
-      results$encrypted,
-      "Database encryption verified: file is binary, connection works, data intact",
-      paste("Encryption check:", if (results$file_is_binary) "binary OK" else "binary FAIL",
-            "connection:", if (results$connection_works) "OK" else "FAIL",
-            "data:", if (results$data_intact) "OK" else "FAIL")
-    )
+    keyed <- tryCatch({
+      conn <- if (results$backend == "duckdb") {
+        # Inherit the configured DuckDB settings (extension directory,
+        # download policy), so the keyed test connection can load httpfs
+        # the same way the application will.
+        duck <- if (configured_backend == "duckdb") adapter$config$duckdb else list()
+        duck$path <- db_path
+        duck$encryption_key <- key
+        create_db_adapter(list(db_backend = "duckdb", duckdb = duck))$connect()
+      } else {
+        .connect_sqlite_with_key(db_path, key %||% "")
+      }
+      on.exit(
+        if (results$backend == "duckdb") {
+          DBI::dbDisconnect(conn, shutdown = TRUE)
+        } else {
+          DBI::dbDisconnect(conn)
+        },
+        add = TRUE
+      )
+      out <- DBI::dbGetQuery(conn, schema_query)
+      list(works = TRUE, intact = nrow(out) == 1)
+    }, error = function(e) list(works = FALSE, intact = FALSE))
 
-    return(results)
+    results$connection_works <- keyed$works
+    results$data_intact <- keyed$intact
+    results$encrypted <- isFALSE(results$readable_without_key) &&
+      results$connection_works && results$data_intact
 
+    results$message <- if (results$encrypted) {
+      paste("Encryption verified:", db_path,
+            "cannot be read without the key and can be read with it")
+    } else if (isTRUE(results$readable_without_key)) {
+      paste("NOT encrypted:", db_path, "can be read without any key")
+    } else {
+      paste("Encryption not verified for", db_path, "-- readable without key:",
+            results$readable_without_key, "; keyed connection works:",
+            results$connection_works)
+    }
+
+    results
   }, error = function(e) {
-    return(list(
-      encrypted = FALSE,
-      file_is_binary = NA,
-      connection_works = FALSE,
-      data_intact = FALSE,
-      error = paste("Verification failed:", e$message)
-    ))
+    results$error <- paste("Verification failed:", conditionMessage(e))
+    results$message <- results$error
+    results
   })
 }
 
 
 #' Enable Encryption on Existing Database
 #'
-#' Converts an existing unencrypted database to use encryption.
+#' Converts an existing unencrypted SQLite or DuckDB database file into
+#' an encrypted one, keeping a backup of the original.
 #'
 #' @param db_path Character: Path to existing database
 #' @param new_key Character: Encryption key to use (optional, generates if NULL)
 #'
 #' @return List with encryption setup results:
-#'   - success: Logical TRUE if successful
-#'   - encrypted: Logical TRUE if now encrypted
+#'   - success: Logical TRUE only if the rewritten file was verified to
+#'     be encrypted
+#'   - encrypted: Logical TRUE if the file is now encrypted
 #'   - backup_created: Logical TRUE if backup saved
-#'   - new_key: The encryption key used (NA on failure). The function
-#'     does not persist `new_key` to the user's environment after
-#'     return; the caller is responsible for storing it (for example
+#'   - backup_path: Path to the plaintext backup. It contains every
+#'     record in readable form; move it to protected storage or delete
+#'     it once the encrypted file has been checked.
+#'   - new_key: The encryption key used. The function does not persist
+#'     it; the caller is responsible for storing it (for example
 #'     `Sys.setenv(DB_ENCRYPTION_KEY = result$new_key)` for the current
 #'     session, or AWS Secrets Manager / a password manager for
 #'     production). Losing the key makes the database unrecoverable.
 #'   - message: Status message
 #'
-#' @details
-#' Process:
-#' 1. Verify database exists
-#' 2. Create backup copy
-#' 3. Generate or use provided encryption key
-#' 4. Enable encryption on database
-#' 5. Verify encryption working
-#' 6. Return the key in the result list for the caller to persist
+#' On failure the function stops with an error and leaves the original
+#' file unchanged.
 #'
-#' **Important**: This enables encryption on the database file but does NOT
-#' re-encrypt existing data. New data written will be encrypted. For full
-#' re-encryption, use a database migration tool.
+#' @details
+#' DuckDB files are rewritten with `COPY FROM DATABASE` into a new file
+#' attached with `ENCRYPTION_KEY`, which then replaces the original.
+#'
+#' SQLite files can be encrypted only when the installed RSQLite
+#' actually supports a cipher (`sqlite_cipher_available()`); stock
+#' CRAN RSQLite does not, and the function then stops with an error
+#' rather than reporting success. Earlier versions created a backup and
+#' a key but never rewrote the file.
 #'
 #' @examples
 #' \dontrun{
 #'   result <- set_encryption_for_existing_db(
-#'     db_path = "./data/existing.db",
+#'     db_path = "./data/existing.duckdb",
 #'     new_key = generate_db_key()
 #'   )
-#'   if (result$success) {
-#'     cat("Encryption enabled!\n")
-#'   }
+#'   result$encrypted
 #' }
 #'
 #' @export
 set_encryption_for_existing_db <- function(db_path, new_key = NULL) {
-  tryCatch({
-    results <- list(
-      success = FALSE,
-      encrypted = FALSE,
-      backup_created = FALSE,
-      new_key = NA_character_
+  if (!file.exists(db_path)) {
+    stop("Database not found at: ", db_path)
+  }
+
+  format <- .detect_db_file_format(db_path)
+  if (is.na(format)) {
+    stop("Database file is empty: ", db_path)
+  }
+  if (isFALSE(.readable_without_key(db_path, format))) {
+    stop("Database is already encrypted (it cannot be read without a key): ", db_path)
+  }
+  if (format == "sqlite" && !sqlite_cipher_available()) {
+    stop(
+      "Cannot encrypt ", db_path, ": the installed RSQLite does not ",
+      "support SQLCipher or SQLite3MultipleCiphers, so any key would be ",
+      "ignored. Migrate to the DuckDB backend (which encrypts with ",
+      "ENCRYPTION_KEY) or install a cipher-enabled RSQLite build."
     )
+  }
+  if (!format %in% c("sqlite", "duckdb")) {
+    stop("Unrecognized database file format: ", db_path)
+  }
 
-    # Verify database exists
-    if (!file.exists(db_path)) {
-      stop("Database not found at: ", db_path)
-    }
+  if (is.null(new_key)) {
+    new_key <- generate_db_key()
+  } else {
+    verify_db_key(new_key)
+  }
 
-    # Create backup
-    backup_path <- paste0(db_path, ".backup.", format(Sys.time(), "%Y%m%d_%H%M%S"))
-    file.copy(db_path, backup_path, overwrite = FALSE)
-    results$backup_created <- file.exists(backup_path)
+  backup_path <- paste0(db_path, ".backup.", format(Sys.time(), "%Y%m%d_%H%M%S"))
+  if (!file.copy(db_path, backup_path, overwrite = FALSE)) {
+    stop("Could not create backup at: ", backup_path)
+  }
 
-    # Generate or validate key
-    if (is.null(new_key)) {
-      new_key <- generate_db_key()
-    } else {
-      verify_db_key(new_key)
-    }
+  tmp_path <- paste0(db_path, ".encrypting")
+  unlink(tmp_path)
+  on.exit(unlink(tmp_path), add = TRUE)
 
-    # Surface the key in the result list. We deliberately do not write
-    # it to the user's environment; the caller decides how to persist
-    # it (e.g., AWS Secrets Manager, password manager, or
-    # `Sys.setenv(DB_ENCRYPTION_KEY = result$new_key)` for the current
-    # session).
-    results$new_key <- new_key
+  if (format == "duckdb") {
+    .encrypt_duckdb_file(db_path, tmp_path, new_key)
+  } else {
+    .encrypt_sqlite_file(db_path, tmp_path, new_key)
+  }
 
-    # Verify encryption (try to connect)
-    verification <- verify_database_encryption(db_path)
-    results$encrypted <- verification$encrypted
+  check <- verify_database_encryption(db_path = tmp_path, key = new_key)
+  if (!isTRUE(check$encrypted)) {
+    stop("Rewritten file failed encryption verification: ", check$message,
+         ". Original left unchanged; backup at ", backup_path)
+  }
 
-    results$success <- results$backup_created && results$encrypted &&
-      !is.na(results$new_key)
-    results$message <- ifelse(
-      results$success,
-      paste("Encryption enabled. Backup at:", backup_path),
-      paste("Encryption setup completed with status:",
-            "backup=", results$backup_created,
-            "encrypted=", results$encrypted,
-            "key_returned=", !is.na(results$new_key))
+  if (!file.rename(tmp_path, db_path)) {
+    stop("Could not replace ", db_path, " with the encrypted copy. ",
+         "Original left unchanged; backup at ", backup_path)
+  }
+
+  list(
+    success = TRUE,
+    encrypted = TRUE,
+    backup_created = TRUE,
+    backup_path = backup_path,
+    new_key = new_key,
+    message = paste0(
+      "Encryption enabled for ", db_path, ". The plaintext backup at ",
+      backup_path, " still contains every record unencrypted."
     )
+  )
+}
 
-    return(results)
 
-  }, error = function(e) {
-    return(list(
-      success = FALSE,
-      error = paste("Failed to enable encryption:", e$message)
-    ))
-  })
+#' Rewrite a DuckDB File Encrypted (internal)
+#' @param src Character: plaintext DuckDB file.
+#' @param dest Character: path for the encrypted copy.
+#' @param key Character: encryption key.
+#' @keywords internal
+.encrypt_duckdb_file <- function(src, dest, key) {
+  if (!requireNamespace("duckdb", quietly = TRUE)) {
+    stop("duckdb package required to encrypt a DuckDB file")
+  }
+  conn <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(DBI::dbDisconnect(conn, shutdown = TRUE), add = TRUE)
+  # See DuckDBAdapter$connect(): ENCRYPTION_KEY needs httpfs loaded
+  # first on at least one DuckDB build.
+  DBI::dbExecute(conn, "INSTALL httpfs")
+  DBI::dbExecute(conn, "LOAD httpfs")
+  DBI::dbExecute(conn, sprintf("ATTACH '%s' AS zzedc_src (READ_ONLY)", src))
+  DBI::dbExecute(conn, sprintf(
+    "ATTACH '%s' AS zzedc_dest (ENCRYPTION_KEY '%s')", dest, key
+  ))
+  DBI::dbExecute(conn, "COPY FROM DATABASE zzedc_src TO zzedc_dest")
+  DBI::dbExecute(conn, "DETACH zzedc_dest")
+  DBI::dbExecute(conn, "DETACH zzedc_src")
+  invisible(dest)
+}
+
+
+#' Rewrite a SQLite File Encrypted (internal)
+#'
+#' Copies every table, then replays index, trigger, and view
+#' definitions. Requires a cipher-enabled RSQLite; callers check
+#' `sqlite_cipher_available()` first.
+#'
+#' @param src Character: plaintext SQLite file.
+#' @param dest Character: path for the encrypted copy.
+#' @param key Character: encryption key.
+#' @keywords internal
+.encrypt_sqlite_file <- function(src, dest, key) {
+  src_conn <- DBI::dbConnect(RSQLite::SQLite(), src, flags = RSQLite::SQLITE_RO)
+  on.exit(DBI::dbDisconnect(src_conn), add = TRUE)
+  dest_conn <- .connect_sqlite_with_key(dest, key)
+  on.exit(DBI::dbDisconnect(dest_conn), add = TRUE)
+
+  objects <- DBI::dbGetQuery(src_conn, "
+    SELECT type, name, sql FROM sqlite_master
+    WHERE name NOT LIKE 'sqlite_%' AND sql IS NOT NULL
+  ")
+
+  for (i in which(objects$type == "table")) {
+    DBI::dbExecute(dest_conn, objects$sql[i])
+    rows <- DBI::dbReadTable(src_conn, objects$name[i])
+    if (nrow(rows) > 0) {
+      DBI::dbAppendTable(dest_conn, objects$name[i], rows)
+    }
+  }
+  for (i in which(objects$type %in% c("index", "trigger", "view"))) {
+    DBI::dbExecute(dest_conn, objects$sql[i])
+  }
+  invisible(dest)
 }

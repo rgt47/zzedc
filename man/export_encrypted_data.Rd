@@ -2,7 +2,7 @@
 % Please edit documentation in R/secure_export.R
 \name{export_encrypted_data}
 \alias{export_encrypted_data}
-\title{Export Encrypted Data with Integrity Verification}
+\title{Export Data with Integrity Verification and Optional Encryption}
 \usage{
 export_encrypted_data(
   query,
@@ -18,7 +18,10 @@ export_encrypted_data(
 
 \item{format}{Character: Output format ("csv", "xlsx", "json", default: "csv")}
 
-\item{password}{Character: Optional password for additional encryption}
+\item{password}{Character: Optional password. When supplied, the
+export is written only in encrypted form (\code{.enc}, see
+\code{encrypt_export_file()}), and no plaintext copy is left in
+\code{export_dir}. Must be at least 12 characters.}
 
 \item{include_hash}{Logical: Add SHA-256 hash file? (default: TRUE)}
 
@@ -27,22 +30,30 @@ export_encrypted_data(
 \item{db_path}{Character: Path to database (optional, uses default if NULL)}
 }
 \value{
-Character string with path to exported file
+Character string with path to exported file (ending in
+\code{.enc} when \code{password} was supplied)
 }
 \description{
-Exports query results to multiple formats with cryptographic integrity hashing.
+Exports query results to multiple formats with cryptographic
+integrity hashing. The export file is encrypted only when a
+\code{password} is supplied; without one it is written in plaintext,
+whatever the encryption state of the source database.
 }
 \details{
 This function:
 \enumerate{
-\item Connects to encrypted database
+\item Connects to the database
 \item Executes provided SQL query
-\item Generates SHA-256 hash of export content
 \item Exports to requested format (CSV, XLSX, JSON)
-\item Stores hash in separate verification file
+\item If \code{password} is supplied, encrypts the export and removes the
+plaintext
+\item Generates a SHA-256 hash of the file actually written
 \item Logs export to audit trail
 \item Returns file path
 }
+
+Earlier versions accepted \code{password} but ignored it, always writing
+a plaintext file.
 
 Formats:
 \itemize{
@@ -55,18 +66,19 @@ Hash files (.sha256) enable verification using verify_exported_data()
 }
 \examples{
 \dontrun{
-  # Export all subjects
+  # Export all subjects (plaintext file)
   file_path <- export_encrypted_data(
     query = "SELECT * FROM subjects",
     format = "csv"
   )
 
-  # Export with password protection
+  # Export with password protection (encrypted .enc file)
   file_path <- export_encrypted_data(
     query = "SELECT * FROM mmse_assessments WHERE visit_label = 'Baseline'",
     format = "xlsx",
-    password = "secure_password"
+    password = "a long passphrase only the recipient knows"
   )
+  decrypt_export_file(file_path, "a long passphrase only the recipient knows")
 }
 
 }

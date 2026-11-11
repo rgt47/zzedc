@@ -4,10 +4,24 @@
 \alias{initialize_default_database}
 \title{Initialize database with default configuration}
 \usage{
-initialize_default_database(db_path)
+initialize_default_database(
+  db_path,
+  adapter_config = NULL,
+  salt = DEFAULT_SECURITY_SALT
+)
 }
 \arguments{
 \item{db_path}{Path where database will be created}
+
+\item{adapter_config}{Optional configuration for
+\code{create_db_adapter()} (see \code{app_database_config()}); when supplied,
+the database is created on that backend, with its encryption
+settings.}
+
+\item{salt}{Password salt for the default administrator. It must be
+the salt the application's login will use; \code{launch_zzedc()} passes
+\code{resolve_auth_salt(cfg)}. Defaults to the package's built-in salt,
+which is what a \code{create_default_config()} configuration resolves to.}
 }
 \value{
 List with success status and message

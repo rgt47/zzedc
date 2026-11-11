@@ -47,11 +47,15 @@ and whether analytics or transactions dominate the workload.
   any deployment with fewer than approximately 200 subjects and one
   to three concurrent users. It is the default and requires nothing
   beyond an R installation.
-- **PostgreSQL** for multi-site production deployments, regulated
-  studies (21 CFR Part 11, GDPR Article 32), and any context where
-  the institution already operates a PostgreSQL server. It offers
-  true multi-user concurrency, streaming replication, and
-  point-in-time recovery.
+- **PostgreSQL** for multi-site production deployments, studies
+  operating under a regulatory framework such as 21 CFR Part 11 or
+  GDPR Article 32, and any context where the institution already
+  operates a PostgreSQL server. It offers true multi-user concurrency,
+  streaming replication, and point-in-time recovery, and its
+  server-level access controls are a better fit for a regulated study
+  than a single-user file backend. Meeting a regulatory framework is
+  never a property of the database alone; it also depends on zzedc's
+  own controls and the institution's procedures (Section 9).
 - **MySQL or MariaDB** for the same multi-site profile when the
   institution standardizes on MySQL or MariaDB rather than
   PostgreSQL, or when an existing REDCap deployment is the source of
@@ -89,12 +93,18 @@ rubric.
 | Best dataset size  | <1M rows  | <100M     | <1B rows      | <1B rows   | Unlimited  |
 | Parquet export     | Via R pkg | Native    | Via R pkg     | Via R pkg  | Native     |
 | Replication / HA   | No        | No        | Yes           | Yes        | Yes        |
-| Compliance posture | Basic     | Basic     | Full          | Full       | Full       |
+| Server access controls | Basic | Basic     | Full          | Full       | Full       |
 | Setup complexity   | None      | Minimal   | Moderate      | Moderate   | High       |
 
 `OLTP` denotes online transaction processing, the typical CRF
 data-entry pattern. `OLAP` denotes online analytical processing, the
-aggregation-heavy pattern statisticians use during analysis.
+aggregation-heavy pattern statisticians use during analysis. The
+'server access controls' row describes the database server's own
+user- and role-based access model, not regulatory compliance:
+compliance with a framework such as 21 CFR Part 11 or GDPR Article 32
+depends on zzedc's application-level controls, the institution's
+procedures, and the per-study configuration together, not on the
+database backend alone. See Section 9 and `?resolve_security_profile`.
 
 ---
 
@@ -199,6 +209,9 @@ default:
     sqlite:
       path: 'data/my_study.db'
 
+  security:
+    profile: regulated
+
   session_timeout_minutes: 30
   max_login_attempts: 3
 
@@ -206,7 +219,7 @@ default:
   debug_mode: false
 ```
 
-Two conventions are worth flagging:
+Three conventions are worth flagging:
 
 - The `${ZZEDC_DB_PASSWORD}` syntax interpolates from the process
   environment. Use it for any client-server backend so the password is
@@ -216,6 +229,18 @@ Two conventions are worth flagging:
   individual keys (e.g., a shorter `session_timeout_minutes`). This is
   the recommended pattern when the same `config.yml` is used in both
   development and production.
+- `security.profile` controls how zzedc reacts when it cannot show
+  that storage is encrypted at rest; see `?resolve_security_profile`.
+  The setup wizard and the bundled `config.yml` write `regulated`,
+  which refuses to start, including at Shiny app startup, when
+  encryption at rest cannot be confirmed. The plain SQLite block shown
+  above, with no `encryption_key`, will *not* start under `regulated`
+  on a stock CRAN RSQLite build (Section 6 and Appendix A explain why).
+  Set `profile: standard` deliberately if the deployment is
+  intentionally unencrypted (synthetic data, a local pilot), or switch
+  to an encrypted DuckDB configuration. `development` silences even the
+  `standard`-profile warning and is intended for tests and
+  demonstrations, not for any dataset involving real subjects.
 
 ---
 
@@ -269,6 +294,16 @@ if (!isTRUE(result$success)) {
   stop('Database initialization failed: ', result$message)
 }
 ```
+
+The `config` list above has no `security` entry, so this call resolves
+the security profile from `./config.yml`, an environment variable, or
+the built-in default of `standard`, which allows the resulting
+plaintext SQLite file but warns once per session. Add
+`security: profile: regulated` to `config.yml`, or set the
+`zzedc.security_profile` R option or the `ZZEDC_SECURITY_PROFILE`
+environment variable, and the same call will instead stop with an
+error, because stock CRAN RSQLite cannot apply an encryption key. See
+`?resolve_security_profile` and the encryption note in Appendix A.
 
 The `default_db_config()` helper reduces the boilerplate when the
 study-level fields are inherited from elsewhere:
@@ -366,8 +401,8 @@ result$tables  # per-table row counts and timing
 The reverse direction (e.g., PostgreSQL to SQLite for an offline
 archive) works by swapping the two configuration objects. Migration
 preserves the audit-trail hash chain; the integrity check in
-`verify_audit_chain()` should pass on the destination database after
-migration.
+`verify_audit_integrity()` should pass on the destination database
+after migration.
 
 ---
 
@@ -388,10 +423,18 @@ the appendix. The principles below apply universally:
   custody chain.
 
 The application-level audit trail in `audit_trail` is a separate
-artifact from the database backup and complies with 21 CFR Part 11
-ALCOA-C requirements. It is preserved by every backup mechanism the
-appendices describe, but its hash-chained integrity should be
-verified after any restore.
+artifact from the database backup and is designed to support the
+ALCOA-C attributes (attributable, legible, contemporaneous, original,
+accurate, and complete) that 21 CFR Part 11 audit trails are expected
+to exhibit. Whether a given deployment actually satisfies Part 11 is a
+three-layer question, not a property of the software alone: it depends
+on this application-level control, on the institution's validation and
+operating procedures, and on how the study is configured (security
+profile, user access, retention). zzedc's own documentation does not
+assert Part 11 compliance on the software's behalf. The audit trail is
+preserved by every backup mechanism the appendices describe, but its
+hash-chained integrity should be verified after any restore, with
+`verify_audit_integrity()`.
 
 ---
 
@@ -495,10 +538,14 @@ dbDisconnect(conn)
   cost of zero-configuration concurrency.
 - For studies that outgrow SQLite, the most common promotion path is
   to PostgreSQL via `migrate_between_backends()`.
-- Encryption at rest is supported via the encrypted-database helpers
-  documented in
-  [Technical-Lead Guide Chapter 5](technical-lead-guide.html).
-  The other backends configure encryption at the server level instead.
+- Encryption at rest on SQLite requires an RSQLite build with
+  SQLCipher or SQLite3MultipleCiphers support. The stock CRAN build
+  ignores the key and writes plaintext; `sqlite_cipher_available()`
+  reports which build is installed, and the `regulated` security
+  profile refuses such a database. DuckDB encrypts natively and is the
+  recommended file-based backend when encryption at rest is required.
+  See [Technical-Lead Guide Chapter 5](technical-lead-guide.html).
+  The server backends configure encryption at the server level instead.
 
 ---
 
@@ -576,6 +623,28 @@ addition to file-level backup for long-term retention.
   filters.
 - Concurrent writers are limited (similar to SQLite). DuckDB is best
   treated as a single-writer analytical store.
+- Encryption at rest is native: set `duckdb.encryption_key` in
+  `config.yml` and DuckDB encrypts the file itself
+  (`encryption_capabilities()` reports `at_rest = "package"`). This is
+  the only backend whose at-rest encryption zzedc has verified by
+  execution (see NEWS.md); the SQLite, PostgreSQL, MySQL/MariaDB, and
+  ClickHouse paths remain, respectively, dependent on a non-stock
+  RSQLite build or on server/infrastructure configuration zzedc
+  cannot observe. `verify_database_encryption()` confirms a given file
+  is unreadable without the key and readable with it; it takes a
+  `key` argument.
+- The encrypted connection pool previously could not open a second
+  concurrent connection ("Unique file handle conflict"); this is fixed,
+  and each pooled connection now attaches to one shared instance.
+- `httpfs` and `icu` are required extensions and load when a
+  connection opens. Under the `regulated` security profile, runtime
+  extension downloads are disallowed by default
+  (`duckdb.allow_extension_download`), so a deployment with no network
+  access to the DuckDB extension repository should pre-install them
+  with `install_duckdb_extensions()` into a directory configured via
+  `duckdb.extension_directory`, and copy that directory to the
+  deployment host. A missing extension under that configuration fails
+  at connection time rather than at the first query that needs it.
 
 ---
 
@@ -692,9 +761,18 @@ direct REDCap-to-ZZedc importer is on the roadmap; see
 ### Backend-specific notes
 
 - Encryption at rest is configured at the server level (InnoDB
-  tablespace encryption), not through the adapter. The `key` argument
-  used by the SQLite encrypted-database helpers is ignored on this
-  backend.
+  tablespace encryption), not through the adapter, and zzedc cannot
+  yet verify it: `encryption_capabilities()` reports `at_rest =
+  "server"`, and `supports_encryption()` is `FALSE` because zzedc does
+  not provide it. The `key` argument used by the SQLite and DuckDB
+  encrypted-database helpers is ignored on this backend. Set
+  `ssl_mode: VERIFY_IDENTITY` to require TLS in transit. This is the
+  same infrastructure-dependent posture REDCap itself has for at-rest
+  encryption on MySQL/MariaDB: REDCap's own community documentation
+  states that encrypting project tables is done at the operating
+  system or database-engine level, not by REDCap's application code.
+  Migrating from REDCap to zzedc on this backend does not, by itself,
+  change who is responsible for at-rest encryption.
 - The most common error is the host pattern in the `CREATE USER`
   grant: `'zzedc_user'@'%'` allows any host;
   `'zzedc_user'@'10.0.0.0/8'` restricts to a subnet. Mismatches
@@ -857,8 +935,21 @@ top, which is complementary.
 
 ### Backend-specific notes
 
-- PostgreSQL is the recommended backend for any deployment that needs
-  to satisfy 21 CFR Part 11 audit and access-control requirements.
+- PostgreSQL is the recommended backend for a multi-site or
+  regulated-trial deployment that needs server-level access control,
+  concurrency, and replication; it is not, by itself, a 21 CFR Part 11
+  audit-trail mechanism, which zzedc provides at the application layer
+  (Section 9).
+- Community PostgreSQL has no built-in transparent data encryption.
+  Encryption at rest must come from volume, filesystem, or
+  cloud-provider storage encryption, or a transparent-data-encryption
+  fork, none of which zzedc can observe:
+  `encryption_capabilities()` reports `at_rest = "server"` and
+  `at_rest_configured = NA`, and `supports_encryption()` is `FALSE`
+  because zzedc does not provide at-rest encryption for this backend.
+  Set `sslmode` to `require`, `verify-ca`, or `verify-full` so
+  `encryption_capabilities()$in_transit` reports `"enforced"` rather
+  than `"optional"`.
 - The maintenance commands worth scheduling are `ANALYZE` (cheap, run
   weekly) and `VACUUM FULL ANALYZE` (requires an exclusive lock, run
   during a maintenance window only when bloat is significant).
@@ -1040,6 +1131,12 @@ fallback, taken with the container stopped.
 
 - ClickHouse's transactional guarantees are limited; do not use it as
   the system of record for transactional CRF entry.
+- Encryption at rest and in transit are both ClickHouse server
+  settings zzedc cannot observe: `encryption_capabilities()` reports
+  `at_rest = "server"`, `at_rest_configured = NA`, and
+  `in_transit = "optional"`, and `supports_encryption()` is `FALSE`.
+  Configure disk-level or storage-level encryption on the server and
+  TLS on the connection independently of zzedc.
 - For genuinely large deployments, the cluster configuration in
   `/etc/clickhouse-server/config.d/cluster.xml` distributes a study
   across shards and replicas. This is out of scope for the quick
@@ -1061,6 +1158,8 @@ fallback, taken with the container stopped.
 - [Demonstration Trial via Google Sheets](demonstration-trial-via-gsheets.html)
 - `?create_db_adapter`, `?default_db_config`,
   `?create_wizard_database`, `?migrate_between_backends`
+- `?resolve_security_profile`, `?check_storage_encryption`,
+  `?verify_database_encryption`
 - Driver documentation:
   [RSQLite](https://rsqlite.r-dbi.org),
   [duckdb](https://duckdb.org/docs/api/r),

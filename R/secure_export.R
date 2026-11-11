@@ -1,25 +1,36 @@
-#' Export Encrypted Data with Integrity Verification
+#' Export Data with Integrity Verification and Optional Encryption
 #'
-#' Exports query results to multiple formats with cryptographic integrity hashing.
+#' Exports query results to multiple formats with cryptographic
+#' integrity hashing. The export file is encrypted only when a
+#' `password` is supplied; without one it is written in plaintext,
+#' whatever the encryption state of the source database.
 #'
 #' @param query Character: SQL SELECT query to export
 #' @param format Character: Output format ("csv", "xlsx", "json", default: "csv")
-#' @param password Character: Optional password for additional encryption
+#' @param password Character: Optional password. When supplied, the
+#'   export is written only in encrypted form (`.enc`, see
+#'   `encrypt_export_file()`), and no plaintext copy is left in
+#'   `export_dir`. Must be at least 12 characters.
 #' @param include_hash Logical: Add SHA-256 hash file? (default: TRUE)
 #' @param export_dir Character: Directory for exports (default: "./exports")
 #' @param db_path Character: Path to database (optional, uses default if NULL)
 #'
-#' @return Character string with path to exported file
+#' @return Character string with path to exported file (ending in
+#'   `.enc` when `password` was supplied)
 #'
 #' @details
 #' This function:
-#' 1. Connects to encrypted database
+#' 1. Connects to the database
 #' 2. Executes provided SQL query
-#' 3. Generates SHA-256 hash of export content
-#' 4. Exports to requested format (CSV, XLSX, JSON)
-#' 5. Stores hash in separate verification file
+#' 3. Exports to requested format (CSV, XLSX, JSON)
+#' 4. If `password` is supplied, encrypts the export and removes the
+#'    plaintext
+#' 5. Generates a SHA-256 hash of the file actually written
 #' 6. Logs export to audit trail
 #' 7. Returns file path
+#'
+#' Earlier versions accepted `password` but ignored it, always writing
+#' a plaintext file.
 #'
 #' Formats:
 #' - csv: Comma-separated values (default)
@@ -30,24 +41,29 @@
 #'
 #' @examples
 #' \dontrun{
-#'   # Export all subjects
+#'   # Export all subjects (plaintext file)
 #'   file_path <- export_encrypted_data(
 #'     query = "SELECT * FROM subjects",
 #'     format = "csv"
 #'   )
 #'
-#'   # Export with password protection
+#'   # Export with password protection (encrypted .enc file)
 #'   file_path <- export_encrypted_data(
 #'     query = "SELECT * FROM mmse_assessments WHERE visit_label = 'Baseline'",
 #'     format = "xlsx",
-#'     password = "secure_password"
+#'     password = "a long passphrase only the recipient knows"
 #'   )
+#'   decrypt_export_file(file_path, "a long passphrase only the recipient knows")
 #' }
 #'
 #' @export
 export_encrypted_data <- function(query, format = "csv", password = NULL,
                                    include_hash = TRUE, export_dir = "./exports",
                                    db_path = NULL) {
+  if (!is.null(password)) {
+    .check_export_password(password)
+  }
+
   tryCatch({
     # Create export directory if needed
     if (!dir.exists(export_dir)) {
@@ -66,7 +82,14 @@ export_encrypted_data <- function(query, format = "csv", password = NULL,
       "csv"  # default
     )
 
-    export_file <- file.path(export_dir, paste0(base_filename, ".", ext))
+    final_file <- file.path(export_dir, paste0(base_filename, ".", ext))
+    # With a password, the plaintext is staged outside export_dir so a
+    # readable copy never appears where exports are collected.
+    export_file <- if (is.null(password)) {
+      final_file
+    } else {
+      tempfile(fileext = paste0(".", ext))
+    }
 
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
@@ -79,6 +102,14 @@ export_encrypted_data <- function(query, format = "csv", password = NULL,
       writexl::write_xlsx(data, export_file)
     } else if (format == "json") {
       jsonlite::write_json(data, export_file, pretty = TRUE)
+    }
+
+    if (!is.null(password)) {
+      staged_plaintext <- export_file
+      on.exit(unlink(staged_plaintext), add = TRUE)
+      export_file <- encrypt_export_file(
+        staged_plaintext, password, output_path = paste0(final_file, ".enc")
+      )
     }
 
     # Generate hash if requested
@@ -103,6 +134,157 @@ export_encrypted_data <- function(query, format = "csv", password = NULL,
   }, error = function(e) {
     stop("Export failed: ", e$message)
   })
+}
+
+
+.export_enc_magic <- charToRaw("ZZEDCENC")
+.export_enc_version <- as.raw(1)
+.export_enc_default_rounds <- 64L
+.export_password_min_chars <- 12L
+
+#' Validate an Export Password (internal)
+#' @param password Character scalar.
+#' @keywords internal
+.check_export_password <- function(password) {
+  if (!is.character(password) || length(password) != 1 || is.na(password)) {
+    stop("Export password must be a single character string")
+  }
+  if (nchar(password) < .export_password_min_chars) {
+    stop("Export password must be at least ", .export_password_min_chars,
+         " characters")
+  }
+  invisible(TRUE)
+}
+
+#' Derive Encryption and MAC Keys from a Password (internal)
+#' @keywords internal
+.derive_export_keys <- function(password, salt, rounds) {
+  material <- openssl::bcrypt_pbkdf(password, salt, rounds = rounds, size = 64L)
+  list(enc = material[1:32], mac = material[33:64])
+}
+
+#' Encrypt an Export File with a Password
+#'
+#' Writes an encrypted copy of `input_path` using AES-256-CTR with an
+#' HMAC-SHA256 tag over the whole file (encrypt-then-MAC). Keys are
+#' derived from the password with bcrypt-pbkdf and a random 16-byte
+#' salt.
+#'
+#' @param input_path Character: plaintext file to encrypt.
+#' @param password Character: at least 12 characters.
+#' @param output_path Character: destination (default
+#'   `paste0(input_path, ".enc")`).
+#' @param rounds Integer: bcrypt-pbkdf rounds (default 64, roughly half
+#'   a second on current hardware). Stored in the file header.
+#'
+#' @return The output path, invisibly.
+#'
+#' @details
+#' File layout: the 8-byte magic `"ZZEDCENC"`, a version byte, the
+#' round count (4 bytes, big-endian), the 16-byte salt, the 16-byte
+#' counter IV, the ciphertext, and a 32-byte HMAC-SHA256 tag computed
+#' over everything before it.
+#'
+#' AES-GCM is not used because `openssl::aes_gcm_encrypt()` (openssl
+#' R package 2.4.2) returns no authentication tag, and a modified
+#' ciphertext decrypts without error; the separate HMAC provides the
+#' integrity check GCM would otherwise supply.
+#'
+#' @examples
+#' f <- tempfile(fileext = ".csv")
+#' write.csv(data.frame(x = 1:3), f, row.names = FALSE)
+#' enc <- encrypt_export_file(f, "correct horse battery staple")
+#' out <- decrypt_export_file(enc, "correct horse battery staple")
+#' read.csv(out)
+#' unlink(c(f, enc, out))
+#'
+#' @export
+encrypt_export_file <- function(input_path, password, output_path = NULL,
+                                rounds = .export_enc_default_rounds) {
+  .check_export_password(password)
+  if (!file.exists(input_path)) {
+    stop("File not found: ", input_path)
+  }
+  rounds <- as.integer(rounds)
+  if (is.na(rounds) || rounds < 16L) {
+    stop("rounds must be an integer of at least 16")
+  }
+  output_path <- output_path %||% paste0(input_path, ".enc")
+
+  plaintext <- readBin(input_path, "raw", n = file.size(input_path))
+  salt <- openssl::rand_bytes(16)
+  iv <- openssl::rand_bytes(16)
+  keys <- .derive_export_keys(password, salt, rounds)
+  ciphertext <- if (length(plaintext) == 0) {
+    raw(0)
+  } else {
+    as.raw(openssl::aes_ctr_encrypt(plaintext, key = keys$enc, iv = iv))
+  }
+
+  rounds_bytes <- writeBin(rounds, raw(), size = 4, endian = "big")
+  body <- c(.export_enc_magic, .export_enc_version, rounds_bytes, salt, iv,
+            ciphertext)
+  tag <- as.raw(openssl::sha256(body, key = keys$mac))
+
+  writeBin(c(body, tag), output_path)
+  invisible(output_path)
+}
+
+#' Decrypt an Export File Created by `encrypt_export_file()`
+#'
+#' Checks the HMAC tag before decrypting, so a wrong password or any
+#' modification of the file is reported as an error and no output is
+#' written.
+#'
+#' @param input_path Character: `.enc` file.
+#' @param password Character: the password used to encrypt it.
+#' @param output_path Character: destination for the plaintext
+#'   (default: `input_path` with the `.enc` suffix removed, in
+#'   `tempdir()`, so decrypted data is not written next to the
+#'   encrypted file by accident).
+#'
+#' @return The output path, invisibly.
+#'
+#' @export
+decrypt_export_file <- function(input_path, password, output_path = NULL) {
+  if (!file.exists(input_path)) {
+    stop("File not found: ", input_path)
+  }
+  bytes <- readBin(input_path, "raw", n = file.size(input_path))
+  header_len <- 8 + 1 + 4 + 16 + 16
+  if (length(bytes) < header_len + 32 ||
+      !identical(bytes[1:8], .export_enc_magic)) {
+    stop("Not a zzedc encrypted export: ", input_path)
+  }
+  if (!identical(bytes[9], .export_enc_version)) {
+    stop("Unsupported zzedc encrypted export version: ", as.integer(bytes[9]))
+  }
+
+  rounds <- readBin(bytes[10:13], "integer", size = 4, endian = "big")
+  salt <- bytes[14:29]
+  iv <- bytes[30:45]
+  body <- bytes[seq_len(length(bytes) - 32)]
+  tag <- bytes[(length(bytes) - 31):length(bytes)]
+
+  keys <- .derive_export_keys(password, salt, rounds)
+  expected <- as.raw(openssl::sha256(body, key = keys$mac))
+  # Compare every byte rather than stopping at the first difference.
+  if (sum(as.integer(xor(expected, tag))) != 0) {
+    stop("Decryption failed: wrong password, or the file has been modified")
+  }
+
+  ct_len <- length(bytes) - 32 - header_len
+  plaintext <- if (ct_len == 0) {
+    raw(0)
+  } else {
+    ciphertext <- bytes[header_len + seq_len(ct_len)]
+    openssl::aes_ctr_decrypt(ciphertext, key = keys$enc, iv = iv)
+  }
+
+  output_path <- output_path %||%
+    file.path(tempdir(), sub("\\.enc$", "", basename(input_path)))
+  writeBin(as.raw(plaintext), output_path)
+  invisible(output_path)
 }
 
 
@@ -274,35 +456,129 @@ get_export_history <- function(filters = list()) {
 }
 
 
-#' Selective Field Encryption on Export
+#' Get the Pseudonymization Key
 #'
-#' Exports data with selective field-level encryption.
+#' Returns the key used by `pseudonymize_values()` and
+#' `selective_field_export()`. It is kept distinct from the database
+#' encryption key so that a pseudonymized export does not depend on, or
+#' reveal anything about, the key protecting the database.
+#'
+#' @return Raw vector of 32 bytes.
+#'
+#' @details
+#' Resolution order:
+#' 1. `ZZEDC_PSEUDONYM_KEY` environment variable (64 hex characters).
+#' 2. Otherwise, derived from the database key returned by
+#'    `get_encryption_key()` as HMAC-SHA256(db key,
+#'    `"zzedc-pseudonymization-v1"`). This keeps pseudonyms stable for a
+#'    study without a second secret to manage, while the domain
+#'    separation means the two keys are not interchangeable.
+#'
+#' Pseudonyms stay linkable across exports only while this key is
+#' unchanged. Rotating it, or rotating the database key when no
+#' explicit pseudonymization key is set, produces new pseudonyms.
+#'
+#' @export
+get_pseudonymization_key <- function() {
+  explicit <- Sys.getenv("ZZEDC_PSEUDONYM_KEY", unset = "")
+  if (nzchar(explicit)) {
+    verify_db_key(explicit)
+    return(.hex_to_raw(explicit))
+  }
+  db_key <- .hex_to_raw(get_encryption_key())
+  as.raw(openssl::sha256(charToRaw("zzedc-pseudonymization-v1"), key = db_key))
+}
+
+#' Pseudonymize Values with HMAC-SHA256
+#'
+#' Replaces each value with a keyed hash. The same value always maps to
+#' the same pseudonym under the same key, so records stay linkable, but
+#' the original cannot be recovered without the key.
+#'
+#' @param x Vector of values; `NA` stays `NA`.
+#' @param key Raw key (default `get_pseudonymization_key()`).
+#'
+#' @return Character vector of 64-character hex pseudonyms.
+#'
+#' @details
+#' This is pseudonymization in the sense of GDPR Article 4(5): the
+#' output is still personal data, because whoever holds the key can
+#' re-identify by hashing candidate values. It is not encryption, and
+#' it does not protect low-variety fields (age, sex, site, visit) even
+#' from someone who lacks the key if the key leaks; generalize or
+#' suppress such fields instead of pseudonymizing them. Apply it to
+#' direct identifiers.
+#'
+#' @examples
+#' k <- openssl::rand_bytes(32)
+#' pseudonymize_values(c("SUBJ-001", "SUBJ-002", NA), key = k)
+#'
+#' @export
+pseudonymize_values <- function(x, key = get_pseudonymization_key()) {
+  out <- rep(NA_character_, length(x))
+  present <- !is.na(x)
+  if (any(present)) {
+    out[present] <- as.character(
+      openssl::sha256(as.character(x[present]), key = key)
+    )
+  }
+  out
+}
+
+#' Export with Selected Fields Pseudonymized
+#'
+#' Exports data with the chosen columns replaced by HMAC-SHA256
+#' pseudonyms (see `pseudonymize_values()`). Other columns are written
+#' unchanged, and the export file itself is not encrypted.
 #'
 #' @param data_df Data frame: Data to export
-#' @param fields_to_encrypt Character vector: Column names to encrypt
+#' @param fields_to_pseudonymize Character vector: Column names to
+#'   pseudonymize. Use for direct identifiers only.
 #' @param format Character: Output format ("csv", "xlsx", "json")
 #' @param export_dir Character: Directory for exports (default: "./exports")
+#' @param fields_to_encrypt Deprecated alias for
+#'   `fields_to_pseudonymize`. The old name described the operation
+#'   inaccurately: it never encrypted anything.
 #'
 #' @return Character string with path to exported file
 #'
 #' @details
-#' Encrypts specified columns while leaving others plaintext.
-#' Creates metadata file describing encryption scheme.
+#' Earlier versions computed `sha256(value || key)` under the database
+#' encryption key and called the result "field-level encryption". That
+#' construction is not a standard keyed hash, it is not reversible (so
+#' it is not encryption), and it reused the database key. This version
+#' uses HMAC-SHA256 under a separate pseudonymization key, so its
+#' output values differ from those of earlier versions: exports made
+#' before and after this change cannot be linked on pseudonymized
+#' fields.
+#'
+#' A metadata file (`.metadata.json`) records which fields were
+#' pseudonymized and the method used.
 #'
 #' @examples
 #' \dontrun{
-#'   # Encrypt PII fields
 #'   file_path <- selective_field_export(
 #'     data_df = subjects_data,
-#'     fields_to_encrypt = c("subject_id", "age"),
+#'     fields_to_pseudonymize = c("subject_id", "initials"),
 #'     format = "csv"
 #'   )
 #' }
 #'
 #' @keywords internal
 #' @export
-selective_field_export <- function(data_df, fields_to_encrypt = NULL,
-                                   format = "csv", export_dir = "./exports") {
+selective_field_export <- function(data_df, fields_to_pseudonymize = NULL,
+                                   format = "csv", export_dir = "./exports",
+                                   fields_to_encrypt = NULL) {
+  if (!is.null(fields_to_encrypt)) {
+    warning(
+      "selective_field_export(): 'fields_to_encrypt' is deprecated; use ",
+      "'fields_to_pseudonymize'. The fields are pseudonymized ",
+      "(HMAC-SHA256), not encrypted.",
+      call. = FALSE
+    )
+    fields_to_pseudonymize <- fields_to_pseudonymize %||% fields_to_encrypt
+  }
+
   tryCatch({
     # Create export directory if needed
     if (!dir.exists(export_dir)) {
@@ -316,22 +592,16 @@ selective_field_export <- function(data_df, fields_to_encrypt = NULL,
     ext <- switch(format, "csv" = "csv", "xlsx" = "xlsx", "json" = "json", "csv")
     export_file <- file.path(export_dir, paste0(base_filename, ".", ext))
 
-    # Encrypt specified fields
-    if (!is.null(fields_to_encrypt) && length(fields_to_encrypt) > 0) {
-      data_export <- data_df
-
-      for (field in fields_to_encrypt) {
-        if (field %in% names(data_export)) {
-          # Convert to character, encrypt, convert back
-          key <- get_encryption_key()
-          data_export[[field]] <- sapply(data_export[[field]], function(x) {
-            if (is.na(x)) return(NA_character_)
-            digest::digest(paste0(as.character(x), key), algo = "sha256")
-          }, USE.NAMES = FALSE)
-        }
+    data_export <- data_df
+    missing_fields <- setdiff(fields_to_pseudonymize, names(data_df))
+    if (length(missing_fields) > 0) {
+      stop("Fields not found in data: ", paste(missing_fields, collapse = ", "))
+    }
+    if (length(fields_to_pseudonymize) > 0) {
+      key <- get_pseudonymization_key()
+      for (field in fields_to_pseudonymize) {
+        data_export[[field]] <- pseudonymize_values(data_export[[field]], key = key)
       }
-    } else {
-      data_export <- data_df
     }
 
     # Export
@@ -348,7 +618,9 @@ selective_field_export <- function(data_df, fields_to_encrypt = NULL,
       export_file = basename(export_file),
       export_date = Sys.time(),
       format = format,
-      encrypted_fields = fields_to_encrypt,
+      pseudonymized_fields = fields_to_pseudonymize,
+      pseudonymization_method = "HMAC-SHA256",
+      file_encrypted = FALSE,
       total_rows = nrow(data_export),
       total_columns = ncol(data_export)
     )

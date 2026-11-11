@@ -12,7 +12,10 @@ test_encryption(db_path, key)
 \item{key}{Character: Encryption key to test}
 }
 \value{
-Logical TRUE if all tests pass, otherwise stops with error
+Logical TRUE if all tests pass, otherwise stops with an
+error. Under every security profile, a file that is written in
+plaintext is an error: this function exists to answer whether
+encryption works, so a warning would defeat its purpose.
 }
 \description{
 Creates a test encrypted database, writes data, reads it back,
@@ -24,7 +27,8 @@ Test procedure:
 \item Connect to database with key
 \item Write test data
 \item Disconnect
-\item Verify file is encrypted (random bytes, not readable text)
+\item Verify the file lacks the plaintext SQLite header and does not
+contain the written values as plaintext bytes
 \item Reconnect with correct key -> data readable
 \item Verify data integrity
 \item Cleanup temporary database

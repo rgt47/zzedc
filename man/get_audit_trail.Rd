@@ -7,7 +7,14 @@
 get_audit_trail(filters = list(), include_chain = FALSE, db_path = NULL)
 }
 \arguments{
-\item{filters}{List: Filter criteria (user, table_name, event_type, date_from, date_to)}
+\item{filters}{List: Filter criteria (user, table_name, record_id,
+event_type, date_from, date_to). \code{record_id} is bound as a
+parameterized query argument rather than interpolated into the
+SQL string, unlike the other filters here; it was added for
+\code{\link[=generate_subject_case_report]{generate_subject_case_report()}}, which needs one specific
+record's audit trail and should not carry forward the
+string-concatenation pattern the rest of this function already
+uses for its other filters.}
 
 \item{include_chain}{Logical: Include hash chain info? (default: FALSE)}
 
