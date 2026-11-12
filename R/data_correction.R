@@ -691,13 +691,51 @@ reject_correction <- function(request_id,
 
 #' Apply Correction
 #'
-#' Applies an approved correction to the actual data.
+#' Applies an approved correction to the stored data.
 #'
 #' @param request_id Integer: Request identifier
 #' @param applied_by Character: User applying the correction
 #' @param db_path Character: Database path (optional)
 #'
-#' @return List with application status
+#' @return List with `success`; on success `status = "APPLIED"`,
+#'   `table_name`, `record_id`, `field_name`, `old_value`, `new_value`,
+#'   `version_recorded`, and `message`; otherwise `error` (and
+#'   `requires_override = TRUE` when the record is locked).
+#'
+#' @details
+#' Until 2026-11-11 this function marked the request applied, wrote an
+#' audit record saying the value had changed, and returned success,
+#' without changing the stored value. It also never honored record
+#' locks: it tested a field (`is_locked`) that `check_record_lock()`
+#' does not return. Now, in one transaction:
+#'
+#' 1. The record is read and the field's current value compared with
+#'    the request's `original_value`. If they differ (the record changed
+#'    after the request was made), nothing is applied.
+#' 2. The field is updated: a column of the table, or, for a table that
+#'    stores its fields as JSON (`data_entries.data_json`), the named
+#'    field inside the JSON. Numeric and logical fields keep their type;
+#'    a corrected value that is not of the field's type is refused.
+#'    `modified_by` and `modified_date` are set where the table has them.
+#' 3. The request is marked `APPLIED` (only if it is still `APPROVED`, so
+#'    it cannot be applied twice), a history entry is added, and an
+#'    `UPDATE` audit record is written with the old value, new value,
+#'    reason, and approver.
+#'
+#' If any step fails, none of them takes effect. A record locked by
+#' someone else (`version_locks`), or a `data_entries` row marked
+#' `locked`, is corrected only when an override for this request has
+#' been approved (`request_correction_override()`, `approve_override()`).
+#' Audit, signature, version, user, and correction tables cannot be
+#' corrected through this workflow, nor can a table's primary key or
+#' `data_json` column as a whole.
+#'
+#' After the transaction, the record's state is stored as a version
+#' (`create_record_version()`): a baseline of the state before the
+#' correction if the record had no versions, then the corrected state.
+#' A failure there does not undo the correction, which is already
+#' recorded in the audit trail; it is reported as
+#' `version_recorded = FALSE`.
 #'
 #' @keywords internal
 #' @export
@@ -713,7 +751,6 @@ apply_correction <- function(request_id, applied_by, db_path = NULL) {
     if (nrow(request) == 0) {
       return(list(success = FALSE, error = "Request not found"))
     }
-
     if (request$status != "APPROVED") {
       return(list(
         success = FALSE,
@@ -722,118 +759,239 @@ apply_correction <- function(request_id, applied_by, db_path = NULL) {
       ))
     }
 
-    lock_status <- tryCatch({
-      check_record_lock(request$table_name, request$record_id, db_path = db_path)
-    }, error = function(e) list(is_locked = FALSE))
-
-    if (isTRUE(lock_status$is_locked) && lock_status$locked_by != applied_by) {
-      return(list(
-        success = FALSE,
-        error = paste("Record is locked by", lock_status$locked_by),
-        requires_override = TRUE
-      ))
+    tbl <- request$table_name
+    field <- request$field_name
+    if (tbl %in% .correction_protected_tables ||
+        grepl("^(audit_|correction_|signature|version_)", tbl)) {
+      return(list(success = FALSE, error = paste(
+        "Table", tbl, "cannot be changed through the data-correction workflow.")))
     }
-
-    table_exists <- DBI::dbExistsTable(conn, request$table_name)
-    if (!table_exists) {
-      return(list(
-        success = FALSE,
-        error = paste("Table does not exist:", request$table_name)
-      ))
+    if (!DBI::dbExistsTable(conn, tbl)) {
+      return(list(success = FALSE, error = paste("Table does not exist:", tbl)))
     }
-
-    tryCatch({
-      pk_col <- resolve_table_pk_column(conn, request$table_name)
-      current_data <- DBI::dbGetQuery(conn, sprintf(
-        "SELECT * FROM %s WHERE %s = ? LIMIT 1",
-        DBI::dbQuoteIdentifier(conn, request$table_name),
-        DBI::dbQuoteIdentifier(conn, pk_col)
-      ), list(request$record_id))
-
-      if (nrow(current_data) > 0) {
-        create_record_version(
-          table_name = request$table_name,
-          record_id = request$record_id,
-          data = as.list(current_data),
-          change_type = "UPDATE",
-          change_reason = paste("Data correction:", request$correction_reason,
-                                "-", request$reason_details),
-          changed_by = applied_by,
-          field_changes = list(
-            field = list(
-              old_value = request$original_value,
-              new_value = request$corrected_value
-            )
-          ),
-          db_path = db_path
-        )
+    cols <- DBI::dbListFields(conn, tbl)
+    pk_col <- resolve_table_pk_column(conn, tbl)
+    target <- if (field %in% cols) {
+      if (field %in% c(pk_col, "data_json")) {
+        return(list(success = FALSE, error = paste(
+          "Field", field, "cannot be changed through the data-correction workflow.")))
       }
-    }, error = function(e) NULL)
+      "column"
+    } else if ("data_json" %in% cols) {
+      "json"
+    } else {
+      return(list(success = FALSE, error = paste("Table", tbl, "has no field", field)))
+    }
+
+    select_row <- sprintf("SELECT * FROM %s WHERE %s = ?",
+                          DBI::dbQuoteIdentifier(conn, tbl),
+                          DBI::dbQuoteIdentifier(conn, pk_col))
+    before <- DBI::dbGetQuery(conn, select_row, list(request$record_id))
+    if (nrow(before) == 0) {
+      return(list(success = FALSE, error = paste("Record", request$record_id, "not found in", tbl)))
+    }
+
+    # Locks: a version lock held by someone else, or a locked
+    # data_entries row, needs an approved override for this request.
+    lock_status <- check_record_lock(tbl, request$record_id, db_path = db_path)
+    if (!is.null(lock_status$error) && DBI::dbExistsTable(conn, "version_locks")) {
+      return(list(success = FALSE, error = paste(
+        "Could not check whether the record is locked:", lock_status$error)))
+    }
+    locked_by_other <- isTRUE(lock_status$locked) && !identical(lock_status$locked_by, applied_by)
+    row_locked <- "locked" %in% cols && isTRUE(as.logical(as.integer(before$locked[1])))
+    if (locked_by_other || row_locked) {
+      override <- DBI::dbGetQuery(conn, "
+        SELECT COUNT(*) AS n FROM correction_overrides
+        WHERE request_id = ? AND approved_by IS NOT NULL
+      ", list(request_id))$n
+      if (override == 0) {
+        return(list(
+          success = FALSE,
+          error = if (locked_by_other) paste("Record is locked by", lock_status$locked_by)
+                  else "Record is locked",
+          requires_override = TRUE
+        ))
+      }
+    }
 
     timestamp <- as.character(Sys.time())
 
-    DBI::dbExecute(conn, "
-      UPDATE correction_requests
-      SET status = 'APPLIED',
-          applied_by = ?,
-          applied_at = ?
-      WHERE request_id = ?
-    ", list(
-      safe_scalar_dc(applied_by),
-      timestamp,
-      request_id
-    ))
+    .with_db_transaction(conn, function(c) {
+      row <- DBI::dbGetQuery(c, select_row, list(request$record_id))
+      if (nrow(row) == 0) stop("Record ", request$record_id, " not found in ", tbl)
 
-    history_hash <- digest::digest(
-      paste(request_id, "APPLIED", applied_by, timestamp, sep = "|"),
-      algo = "sha256"
-    )
+      if (target == "column") {
+        current <- row[[field]][1]
+        if (!.correction_value_matches(current, request$original_value)) {
+          stop("The record has changed since the correction was requested: ", field,
+               " is now '", .correction_display(current), "', not '",
+               .correction_display(request$original_value), "'. Nothing was applied.")
+        }
+        new_value <- .correction_coerce(request$corrected_value, current)
+        sets <- sprintf("%s = ?", DBI::dbQuoteIdentifier(c, field))
+        values <- list(new_value)
+      } else {
+        fields <- jsonlite::fromJSON(row$data_json[1] %||% "{}", simplifyVector = FALSE)
+        current <- fields[[field]]
+        if (!.correction_value_matches(current, request$original_value)) {
+          stop("The entry has changed since the correction was requested: ", field,
+               " is now '", .correction_display(current), "', not '",
+               .correction_display(request$original_value), "'. Nothing was applied.")
+        }
+        fields[[field]] <- .correction_coerce(request$corrected_value, current)
+        sets <- "data_json = ?"
+        values <- list(as.character(jsonlite::toJSON(fields, auto_unbox = TRUE, null = "null")))
+      }
+      if ("modified_by" %in% cols) {
+        sets <- c(sets, "modified_by = ?")
+        values <- c(values, list(safe_scalar_dc(applied_by)))
+      }
+      if ("modified_date" %in% cols) {
+        sets <- c(sets, "modified_date = ?")
+        values <- c(values, list(format(Sys.time(), tz = "UTC", "%Y-%m-%d %H:%M:%S")))
+      }
+      n <- DBI::dbExecute(c, sprintf("UPDATE %s SET %s WHERE %s = ?",
+                                     DBI::dbQuoteIdentifier(c, tbl),
+                                     paste(sets, collapse = ", "),
+                                     DBI::dbQuoteIdentifier(c, pk_col)),
+                          params = c(values, list(request$record_id)))
+      if (n != 1) stop("Expected to update one record, updated ", n)
 
-    DBI::dbExecute(conn, "
-      INSERT INTO correction_history (
-        request_id, action, action_by, action_at, action_details, action_hash
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    ", list(
-      request_id,
-      "APPLIED",
-      safe_scalar_dc(applied_by),
-      timestamp,
-      paste("Correction applied:", request$field_name,
-            "changed from", request$original_value,
-            "to", request$corrected_value),
-      history_hash
-    ))
+      n <- DBI::dbExecute(c, "
+        UPDATE correction_requests
+        SET status = 'APPLIED', applied_by = ?, applied_at = ?
+        WHERE request_id = ? AND status = 'APPROVED'
+      ", params = list(safe_scalar_dc(applied_by), timestamp, request_id))
+      if (n != 1) stop("The request is no longer approved; nothing was applied.")
 
-    tryCatch({
-      log_audit_event(
-        event_type = "UPDATE",
-        user_id = applied_by,
-        table_name = request$table_name,
-        record_id = request$record_id,
-        operation = paste("Data correction applied:", request$field_name),
-        details = paste("Data correction applied:",
-                        request$field_name, "from", request$original_value,
-                        "to", request$corrected_value,
-                        "| Reason:", request$correction_reason),
-        db_path = db_path
+      DBI::dbExecute(c, "
+        INSERT INTO correction_history (
+          request_id, action, action_by, action_at, action_details, action_hash
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      ", params = list(
+        request_id, "APPLIED", safe_scalar_dc(applied_by), timestamp,
+        paste("Correction applied:", field, "changed from",
+              .correction_display(current), "to", request$corrected_value),
+        digest::digest(paste(request_id, "APPLIED", applied_by, timestamp, sep = "|"),
+                       algo = "sha256")
+      ))
+
+      .append_audit_record(
+        c, event_type = "UPDATE", table_name = tbl, record_id = request$record_id,
+        operation = paste("Data correction applied:", field),
+        details = as.character(jsonlite::toJSON(list(
+          field = field,
+          old_value = .correction_display(current),
+          new_value = request$corrected_value,
+          reason = request$correction_reason,
+          reason_details = request$reason_details,
+          correction_request_id = request_id,
+          requested_by = request$requested_by,
+          approved_by = request$reviewed_by
+        ), auto_unbox = TRUE, null = "null")),
+        user_id = applied_by
       )
-    }, error = function(e) NULL)
+    })
+
+    after <- DBI::dbGetQuery(conn, select_row, list(request$record_id))
+    version_recorded <- tryCatch({
+      reason <- paste("Data correction:", request$correction_reason,
+                      if (!is.na(request$reason_details)) paste("-", request$reason_details) else "")
+      had_versions <- tryCatch(
+        DBI::dbGetQuery(conn, "SELECT COUNT(*) AS n FROM record_versions WHERE table_name = ? AND record_id = ?",
+                        list(tbl, request$record_id))$n > 0,
+        error = function(e) FALSE)
+      if (!had_versions) {
+        create_record_version(tbl, request$record_id, as.list(before),
+                              change_type = "CREATE",
+                              change_reason = "State before the first correction",
+                              changed_by = applied_by, db_path = db_path)
+      }
+      v <- create_record_version(
+        tbl, request$record_id, as.list(after), change_type = "UPDATE",
+        change_reason = reason, changed_by = applied_by,
+        field_changes = stats::setNames(list(list(
+          old_value = request$original_value, new_value = request$corrected_value)), field),
+        db_path = db_path)
+      isTRUE(v$success)
+    }, error = function(e) FALSE)
 
     list(
       success = TRUE,
       request_id = request_id,
       status = "APPLIED",
-      table_name = request$table_name,
+      table_name = tbl,
       record_id = request$record_id,
-      field_name = request$field_name,
+      field_name = field,
       old_value = request$original_value,
       new_value = request$corrected_value,
+      version_recorded = version_recorded,
       message = "Correction applied successfully"
     )
 
   }, error = function(e) {
-    list(success = FALSE, error = e$message)
+    list(success = FALSE, error = conditionMessage(e))
   })
+}
+
+
+.correction_protected_tables <- c(
+  "audit_log", "audit_chain", "audit_events", "record_versions",
+  "version_locks", "edc_users", "electronic_signatures", "data_entries_audit"
+)
+
+
+#' Display Form of a Stored Value (internal)
+#' @keywords internal
+.correction_display <- function(x) {
+  if (is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))) "" else as.character(x[[1]])
+}
+
+
+#' Whether a Stored Value Equals a Request's Original Value (internal)
+#'
+#' Compares as text after trimming, and numerically when both parse as
+#' numbers (so `70.5` stored as a double equals the request's `"70.50"`).
+#' A missing stored value equals an empty or missing original value.
+#' @keywords internal
+.correction_value_matches <- function(current, original) {
+  cur <- trimws(.correction_display(current))
+  orig <- trimws(.correction_display(original))
+  if (identical(cur, orig)) return(TRUE)
+  cn <- suppressWarnings(as.numeric(cur))
+  on <- suppressWarnings(as.numeric(orig))
+  !is.na(cn) && !is.na(on) && isTRUE(all.equal(cn, on, tolerance = 1e-9))
+}
+
+
+#' Convert a Corrected Value to the Stored Field's Type (internal)
+#'
+#' @param value The corrected value (text, as stored on the request).
+#' @param template The field's current value.
+#' @return `value` as a number or logical when the field is one (an
+#'   error if it does not convert), otherwise as text. An empty value
+#'   becomes `NA`.
+#' @keywords internal
+.correction_coerce <- function(value, template) {
+  value <- trimws(as.character(value))
+  if (!nzchar(value)) return(NA)
+  if (is.null(template) || length(template) == 0 || (length(template) == 1 && is.na(template) && is.logical(template))) {
+    return(value)
+  }
+  if (is.numeric(template)) {
+    v <- suppressWarnings(as.numeric(value))
+    if (is.na(v)) stop("The corrected value '", value, "' is not a number, but the field is numeric.")
+    if (is.integer(template) && v == round(v)) return(as.integer(v))
+    return(v)
+  }
+  if (is.logical(template)) {
+    v <- switch(toupper(value), "TRUE" = TRUE, "T" = TRUE, "1" = TRUE, "YES" = TRUE,
+                "FALSE" = FALSE, "F" = FALSE, "0" = FALSE, "NO" = FALSE, NA)
+    if (is.na(v)) stop("The corrected value '", value, "' is not true/false, but the field is.")
+    return(v)
+  }
+  value
 }
 
 

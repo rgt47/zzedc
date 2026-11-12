@@ -16,6 +16,11 @@ if (!exists("generate_subject_case_report")) {
   exit_file("generate_subject_case_report not available")
 }
 
+# Internal helpers, bound from the namespace so the file also runs
+# against the installed package (R CMD check), not only under load_all().
+for (fn in c("ensure_data_entries_table", "ensure_edc_users_table",
+             "db_insert_data_entry", "db_insert_user")) assign(fn, get(fn, envir = asNamespace("zzedc")))
+
 setup_case_report_db <- function() {
   old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
   if (old_key != "") Sys.setenv("ZZEDC_OLD_KEY" = old_key)

@@ -14,9 +14,48 @@ apply_correction(request_id, applied_by, db_path = NULL)
 \item{db_path}{Character: Database path (optional)}
 }
 \value{
-List with application status
+List with \code{success}; on success \code{status = "APPLIED"},
+\code{table_name}, \code{record_id}, \code{field_name}, \code{old_value}, \code{new_value},
+\code{version_recorded}, and \code{message}; otherwise \code{error} (and
+\code{requires_override = TRUE} when the record is locked).
 }
 \description{
-Applies an approved correction to the actual data.
+Applies an approved correction to the stored data.
+}
+\details{
+Until 2026-11-11 this function marked the request applied, wrote an
+audit record saying the value had changed, and returned success,
+without changing the stored value. It also never honored record
+locks: it tested a field (\code{is_locked}) that \code{check_record_lock()}
+does not return. Now, in one transaction:
+\enumerate{
+\item The record is read and the field's current value compared with
+the request's \code{original_value}. If they differ (the record changed
+after the request was made), nothing is applied.
+\item The field is updated: a column of the table, or, for a table that
+stores its fields as JSON (\code{data_entries.data_json}), the named
+field inside the JSON. Numeric and logical fields keep their type;
+a corrected value that is not of the field's type is refused.
+\code{modified_by} and \code{modified_date} are set where the table has them.
+\item The request is marked \code{APPLIED} (only if it is still \code{APPROVED}, so
+it cannot be applied twice), a history entry is added, and an
+\code{UPDATE} audit record is written with the old value, new value,
+reason, and approver.
+}
+
+If any step fails, none of them takes effect. A record locked by
+someone else (\code{version_locks}), or a \code{data_entries} row marked
+\code{locked}, is corrected only when an override for this request has
+been approved (\code{request_correction_override()}, \code{approve_override()}).
+Audit, signature, version, user, and correction tables cannot be
+corrected through this workflow, nor can a table's primary key or
+\code{data_json} column as a whole.
+
+After the transaction, the record's state is stored as a version
+(\code{create_record_version()}): a baseline of the state before the
+correction if the record had no versions, then the corrected state.
+A failure there does not undo the correction, which is already
+recorded in the audit trail; it is reported as
+\code{version_recorded = FALSE}.
 }
 \keyword{internal}

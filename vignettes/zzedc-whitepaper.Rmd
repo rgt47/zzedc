@@ -1026,9 +1026,16 @@ Its table rendered audit content as raw HTML; since failed logins now
 record the username as typed, that would have let a crafted username
 run script in an administrator's browser, so all content is escaped.
 
-**Not done.** Reads of records are not logged. Data corrections record
-the old value, new value, and reason, but `apply_correction()` does
-not change the stored value, a separate defect. The triggers and the
+**Corrections.** The correction workflow recorded each correction's
+old value, new value, reason, and approval, marked it applied, and
+wrote an audit record saying the value had changed, but never changed
+the stored value; its lock check also read a field the lock function
+does not return, so locked records were never protected. A correction
+now changes the field and writes its audit record in one transaction,
+refuses a request whose original value no longer matches the record,
+and requires an approved override for a locked record.
+
+**Not done.** Reads of records are not logged. The triggers and the
 chain lock on PostgreSQL and MySQL are untested against live servers.
 The REDCap importer's replay of historical audit events still writes
 the chain through its own code, without the lock.

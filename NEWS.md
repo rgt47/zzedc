@@ -59,9 +59,22 @@ trail missed the core clinical data and could be removed or rewritten.
   `COMPLIANCE_CHECK` record reports the audit protection and
   checkpoint configuration.
 
-* Known, not changed: `apply_correction()` records a correction's old
-  value, new value, and reason, and marks it applied, but does not
-  change the stored value. Reads of records are not logged.
+* **`apply_correction()` now applies the correction.** It marked a
+  request `APPLIED` and wrote an audit record of the change without
+  changing the stored value. It now updates the field (a table column,
+  or a field inside `data_entries.data_json`), keeping numeric and
+  logical types, and in the same transaction marks the request applied
+  and writes an `UPDATE` audit record with old value, new value,
+  reason, and approver. A request whose original value no longer
+  matches the record is refused, as is a second application. Record
+  locks are honored: the lock check tested a field `check_record_lock()`
+  does not return, so locked records could be corrected; a locked
+  record now needs an approved override. Audit, signature, version,
+  user, and correction tables, primary keys, and `data_json` as a whole
+  cannot be corrected. The prior and corrected states are stored as
+  record versions.
+
+* Known, not changed: reads of records are not logged.
 
 ## Encryption plan completed: backups, HTTPS, keys, server databases, evidence
 
