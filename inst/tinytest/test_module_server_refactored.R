@@ -50,20 +50,31 @@ if (file.exists("_setup.R")) source("_setup.R")
 
 # ============================================================
 # Section 1: audit_log_viewer_server
-# Verifies: load_audit_logs returns the sample-data fallback
-# when db_pool is NULL; apply_filters() returns the unfiltered
-# 20-row sample when all filter inputs are blank; stat_counts()
-# computes the per-category counts. We exercise the underlying
-# helpers directly rather than reading output$stat_* through
-# testServer's output proxy, which does not cleanly surface
-# shiny::renderText errors during test sessions.
+# Verifies: load_audit_logs reads the hash-chained audit_log
+# (it formerly read a table nothing wrote, and showed 20 randomly
+# generated "sample" rows when the query failed or db_pool was
+# NULL); apply_filters() returns every row when all filter inputs
+# are blank. We exercise the underlying helpers directly rather
+# than reading output$stat_* through testServer's output proxy,
+# which does not cleanly surface shiny::renderText errors during
+# test sessions.
 # ============================================================
 local({
   if (!exists("audit_log_viewer_server", envir = asNamespace("zzedc"))) return(invisible())
 
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  zzedc:::.ensure_audit_tables(con)
+  for (k in 1:20) {
+    zzedc:::.with_db_transaction(con, function(c) {
+      zzedc:::.append_audit_record(c, "UPDATE", "subjects", paste0("R", k),
+                                   "edit", user_id = "alice")
+    })
+  }
+
   shiny::testServer(
     zzedc:::audit_log_viewer_server,
-    args = list(db_pool = NULL),
+    args = list(db_pool = con),
     {
       session$setInputs(
         filter_user        = "",
@@ -74,7 +85,7 @@ local({
         search_text        = ""
       )
 
-      # Sample-data fallback: 20 rows are seeded into log_state.
+      # The 20 audit_log rows written above are loaded.
       expect_equal(nrow(log_state$all_logs), 20L)
 
       # apply_filters with all-blank filters returns every row.

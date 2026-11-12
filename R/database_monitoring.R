@@ -542,52 +542,24 @@ monitor_data_entry_rate <- function(conn, days = 30) {
 # MAINTENANCE FUNCTIONS
 # ============================================================================
 
-#' Cleanup old audit logs
+#' Audit Log Records Are Not Deleted
 #'
-#' Archive and remove old audit log entries (configurable retention)
+#' This function deleted audit-log records older than `days_to_keep`.
+#' That conflicts with 21 CFR 11.10(c) and (e), which require the audit
+#' trail to be kept for at least as long as the records it describes,
+#' and it broke the hash chain, so `verify_audit_integrity()` then
+#' reported the whole trail as invalid. It now refuses. The audit tables
+#' are append-only (`?audit_protection`); retain them for the study's
+#' record-retention period and archive the whole database at study
+#' close.
 #'
-#' @param conn Database connection
-#' @param days_to_keep How many days of audit logs to keep (default: 365)
-#' @return Number of records deleted
-#'
-#' @examples
-#' \dontrun{
-#' # Connect to an initialized study database. See
-#' # `?initialize_encrypted_database` for the prerequisite setup.
-#' conn <- connect_encrypted_db(db_path = "data/study.db",
-#'                               key      = Sys.getenv("DB_ENCRYPTION_KEY"))
-#' on.exit(DBI::dbDisconnect(conn), add = TRUE)
-#' # Trim audit-log records older than the retention window.
-#' # Verify retention policy with the IRB before running.
-#' cleanup_audit_logs(conn, days_to_keep = 365 * 7)
-#' }
+#' @param conn,days_to_keep Ignored.
+#' @return Does not return; always an error.
 #' @keywords internal
 cleanup_audit_logs <- function(conn, days_to_keep = 365) {
-  cat("\n===== AUDIT LOG CLEANUP =====\n")
-  cat("Keeping logs from last", days_to_keep, "days...\n\n")
-
-  tryCatch({
-    # Get count before
-    before <- dbGetQuery(conn, "SELECT COUNT(*) as count FROM audit_log")[[1]]
-
-    # Delete old records
-    sql <- paste0(
-      "DELETE FROM audit_log WHERE timestamp < datetime('now', '-", days_to_keep, " days')"
-    )
-    deleted <- dbExecute(conn, sql)
-
-    # Get count after
-    after <- dbGetQuery(conn, "SELECT COUNT(*) as count FROM audit_log")[[1]]
-
-    cat("Deleted", deleted, "old audit log records\n")
-    cat("  Before: ", before, " records\n")
-    cat("  After: ", after, " records\n")
-
-    return(invisible(deleted))
-  }, error = function(e) {
-    cat("Error cleaning up audit logs:", e$message, "\n")
-    return(invisible(0))
-  })
+  stop("Audit-log records are not deleted: the audit trail must be kept for ",
+       "the record-retention period (21 CFR 11.10(c), (e)). Archive the ",
+       "database at study close instead. See ?audit_protection.", call. = FALSE)
 }
 
 #' Backup database

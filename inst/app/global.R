@@ -119,12 +119,56 @@ if (!is.na(db_path) && !identical(db_path, ":memory:")) {
 # Apply the security profile before any connection is opened. Under
 # the 'regulated' profile this stops the app when the database cannot
 # be shown to be encrypted at rest.
-zzedc::check_storage_encryption(adapter = db_adapter,
-                                config_profile = cfg$security$profile)
+storage_state <- zzedc::check_storage_encryption(adapter = db_adapter,
+                                                 config_profile = cfg$security$profile)
+
+# The database key must come from the environment or a secrets
+# manager, not be written into config.yml ('regulated' refuses it).
+zzedc::check_key_custody(cfg)
 
 # Connection pool from the adapter: applies the backend's encryption
 # (DuckDB ENCRYPTION_KEY, SQLCipher key) and extension settings.
 db_pool <- db_adapter$pool()
+
+# Audit tables, and the triggers that make them append-only (on
+# SQLite, PostgreSQL, MySQL/MariaDB; DuckDB has no triggers). This also
+# installs the triggers on databases created before they existed.
+audit_protection <- local({
+  conn <- pool::poolCheckout(db_pool)
+  on.exit(pool::poolReturn(conn))
+  zzedc:::.ensure_audit_tables(conn)
+  zzedc::audit_protection_status(conn)
+})
+
+# Record in the audit log that the database key was loaded, and from
+# where (never the key itself).
+key_source <- zzedc:::.key_source_description(cfg)
+if (!is.null(key_source)) zzedc::log_key_access(key_source)
+
+# Record the security configuration actually in force (profile,
+# backend, at-rest mechanism, TLS, key source, extensions, HTTPS) as a
+# COMPLIANCE_CHECK audit event: evidence for the validation report.
+compliance_check <- zzedc::compliance_self_check(cfg, storage_state, db_config,
+                                                 audit_protection = audit_protection)
+zzedc::record_compliance_check(compliance_check)
+
+# External checkpoint of the audit chain (audit.checkpoint_dir in
+# config.yml; key in ZZEDC_AUDIT_CHECKPOINT_KEY). Without checkpoints,
+# someone able to write to the database could rewrite the trail and
+# recompute every hash undetected. See ?audit_protection.
+checkpoint_dir <- cfg$audit$checkpoint_dir
+if (!is.null(checkpoint_dir) && nzchar(checkpoint_dir)) {
+  local({
+    conn <- pool::poolCheckout(db_pool)
+    on.exit(pool::poolReturn(conn))
+    zzedc::audit_checkpoint(checkpoint_dir, conn = conn,
+                            database = if (is.na(db_path)) db_config$db_backend else basename(db_path))
+  })
+} else if (zzedc::get_security_profile() == "regulated") {
+  warning("No audit.checkpoint_dir is configured, so the audit trail is ",
+          "not checkpointed outside the database (see ?audit_protection).",
+          call. = FALSE, immediate. = TRUE)
+}
 
 # Verify database connection on startup
 tryCatch({

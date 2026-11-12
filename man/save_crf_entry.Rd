@@ -4,7 +4,14 @@
 \alias{save_crf_entry}
 \title{Save a submitted CRF entry to \code{data_entries}}
 \usage{
-save_crf_entry(conn, crf_code, field_data, created_by)
+save_crf_entry(
+  conn,
+  crf_code,
+  field_data,
+  created_by,
+  ip_address = NULL,
+  session_id = NULL
+)
 }
 \arguments{
 \item{conn}{A DBI connection (or pool object).}
@@ -18,6 +25,9 @@ lower-case \code{form_code} convention already used by
 \code{field_code}.}
 
 \item{created_by}{String identifying who submitted the entry.}
+
+\item{ip_address, session_id}{Recorded in the entry's audit record
+(see \code{session_audit_context()}).}
 }
 \value{
 The \code{list(success=, entry_id=)} / \code{list(success=FALSE, error=)} result from \code{\link[=db_insert_data_entry]{db_insert_data_entry()}}.

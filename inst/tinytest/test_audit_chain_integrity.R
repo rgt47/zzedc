@@ -62,6 +62,12 @@ for (nm in names(tampers)) {
   expect_true(verify_audit_integrity(db_path = db)$valid,
     info = "an untampered trail verifies")
   conn <- connect_encrypted_db(db_path = db)
+  # The append-only trigger refuses the edit outright; drop it first,
+  # as someone with rights over the schema could, to test that the
+  # hash chain still detects the change.
+  expect_error(DBI::dbExecute(conn, tampers[[nm]]), "append-only",
+               info = paste("trigger blocks the edit when", nm))
+  DBI::dbExecute(conn, "DROP TRIGGER zzedc_audit_log_no_update")
   DBI::dbExecute(conn, tampers[[nm]])
   DBI::dbDisconnect(conn)
   res <- verify_audit_integrity(db_path = db)

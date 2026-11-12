@@ -16,7 +16,9 @@
 #' 3. audit_chain - Hash-chained records for tamper detection
 #'
 #' Implements hash-chaining where each record's hash depends on
-#' the previous record's hash, making tampering detectable.
+#' the previous record's hash, and installs triggers that make the
+#' three tables append-only where the backend supports triggers
+#' (not DuckDB). See `?audit_protection`.
 #'
 #' @examples
 #' \dontrun{
@@ -31,89 +33,21 @@ init_audit_logging <- function(db_path = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
-
-    # Create main audit log table with enhanced event types
-    prepare_auto_increment(conn, "audit_log", "audit_id")
-    DBI::dbExecute(conn, sprintf("
-      CREATE TABLE IF NOT EXISTS audit_log (
-        audit_id %s,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        user_id TEXT,
-        event_type TEXT NOT NULL CHECK(event_type IN
-          ('INSERT', 'UPDATE', 'DELETE', 'SELECT', 'EXPORT',
-           'LOGIN', 'LOGOUT', 'ACCESS', 'SESSION_START', 'SESSION_END',
-           'LOGIN_FAILED', 'PASSWORD_CHANGE', 'ROLE_CHANGE',
-           'PERMISSION_CHANGE', 'LOCKOUT', 'UNLOCK',
-           'BACKUP', 'RESTORE', 'MAINTENANCE', 'STARTUP', 'SHUTDOWN',
-           'ERROR', 'WARNING',
-           'CONFIG_CHANGE', 'SETTING_UPDATE', 'FEATURE_TOGGLE',
-           'SIGNATURE_REQUEST', 'SIGNATURE_APPLIED', 'SIGNATURE_REJECTED',
-           'SIGNATURE_REVOKED',
-           'AUDIT_REVIEW', 'COMPLIANCE_CHECK', 'REPORT_GENERATED',
-           'INTEGRITY_VERIFIED',
-           'MIGRATION_AUDIT_GAP')),
-        table_name TEXT,
-        record_id TEXT,
-        operation TEXT,
-        details TEXT,
-        ip_address TEXT,
-        session_id TEXT,
-        audit_hash TEXT,
-        previous_hash TEXT,
-        hash_verified BOOLEAN DEFAULT 1,
-        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    ", auto_increment_ddl("audit_log", "audit_id")))
-
-    # Create audit events table
-    prepare_auto_increment(conn, "audit_events", "event_id")
-    DBI::dbExecute(conn, sprintf("
-      CREATE TABLE IF NOT EXISTS audit_events (
-        event_id %s,
-        audit_id INTEGER NOT NULL REFERENCES audit_log(audit_id),
-        event_category TEXT,
-        event_severity TEXT CHECK(event_severity IN ('info', 'warning', 'error', 'critical')),
-        event_message TEXT,
-        recovery_action TEXT,
-        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    ", auto_increment_ddl("audit_events", "event_id")))
-
-    # Create hash-chain table
-    prepare_auto_increment(conn, "audit_chain", "chain_id")
-    DBI::dbExecute(conn, sprintf("
-      CREATE TABLE IF NOT EXISTS audit_chain (
-        chain_id %s,
-        audit_id INTEGER NOT NULL UNIQUE REFERENCES audit_log(audit_id),
-        record_hash TEXT NOT NULL UNIQUE,
-        previous_hash TEXT,
-        chain_order INTEGER,
-        verified BOOLEAN DEFAULT 1,
-        verification_date TIMESTAMP,
-        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    ", auto_increment_ddl("audit_chain", "chain_id")))
-
-    # Create indexes
-    DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)")
-    DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_table ON audit_log(table_name)")
-    DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_date ON audit_log(timestamp)")
-    DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event_type)")
-    DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_chain_order ON audit_chain(chain_order)")
-
-    return(list(
+    .ensure_audit_tables(conn)
+    list(
       success = TRUE,
       tables_created = 3,
+      protection = audit_protection_status(conn),
       message = "Audit logging initialized successfully"
-    ))
-
+    )
   }, error = function(e) {
-    return(list(
+    list(
       success = FALSE,
       error = paste("Initialization failed:", e$message)
-    ))
+    )
   })
 }
+
 
 
 #' Log Audit Event
@@ -127,16 +61,21 @@ init_audit_logging <- function(db_path = NULL) {
 #' @param details Character: Additional details (JSON format)
 #' @param user_id Character: User ID (optional)
 #' @param db_path Character: Database path (optional)
+#' @param ip_address,session_id Character: client address and Shiny
+#'   session token of the request, when known (optional).
 #'
-#' @return Logical TRUE if successfully logged
+#' @return `TRUE` if the record was written. If it could not be
+#'   written: under the `regulated` security profile, an error; under
+#'   the other profiles, a warning and `FALSE`.
 #'
 #' @details
-#' Each audit event is:
-#' 1. Assigned unique audit_id
-#' 2. Timestamped with timezone
-#' 3. Hashed using SHA-256
-#' 4. Linked to previous record (hash-chaining)
-#' 5. Made immutable by hash dependency
+#' Each audit event is assigned an `audit_id`, timestamped in UTC,
+#' hashed with SHA-256 over its content and the previous record's
+#' hash, and linked into `audit_chain`, all in one transaction. A
+#' change to data should instead write its audit record in the same
+#' transaction as the change (as `db_insert_data_entry()` does), so
+#' that one cannot commit without the other. See `?audit_protection`
+#' for how the trail is protected against alteration.
 #'
 #' @examples
 #' \dontrun{
@@ -153,111 +92,30 @@ init_audit_logging <- function(db_path = NULL) {
 #' @export
 log_audit_event <- function(event_type, table_name, record_id = NULL,
                              operation, details = NULL, user_id = NULL,
-                             db_path = NULL) {
-  safe_scalar <- function(x, default = NA_character_) {
-    if (is.null(x) || length(x) == 0) {
-      default
-    } else if (length(x) > 1) {
-      paste(x, collapse = "; ")
-    } else {
-      as.character(x)
-    }
-  }
-
-  event_type <- safe_scalar(event_type)
-  table_name <- safe_scalar(table_name)
-  record_id <- safe_scalar(record_id)
-  operation <- safe_scalar(operation)
-  details <- safe_scalar(details)
-  user_id <- safe_scalar(user_id)
-
-  tryCatch({
-    # Validate event_type - includes all enhanced event types
-    valid_events <- c(
-      "INSERT", "UPDATE", "DELETE", "SELECT", "EXPORT",
-      "LOGIN", "LOGOUT", "ACCESS", "SESSION_START", "SESSION_END",
-      "LOGIN_FAILED", "PASSWORD_CHANGE", "ROLE_CHANGE",
-      "PERMISSION_CHANGE", "LOCKOUT", "UNLOCK",
-      "BACKUP", "RESTORE", "MAINTENANCE", "STARTUP", "SHUTDOWN",
-      "ERROR", "WARNING",
-      "CONFIG_CHANGE", "SETTING_UPDATE", "FEATURE_TOGGLE",
-      "SIGNATURE_REQUEST", "SIGNATURE_APPLIED", "SIGNATURE_REJECTED",
-      "SIGNATURE_REVOKED",
-      "AUDIT_REVIEW", "COMPLIANCE_CHECK", "REPORT_GENERATED",
-      "INTEGRITY_VERIFIED",
-      "MIGRATION_AUDIT_GAP"
-    )
-    if (!event_type %in% valid_events) {
-      stop("Invalid event_type. Must be one of: ", paste(valid_events, collapse = ", "))
-    }
-
+                             db_path = NULL, ip_address = NULL,
+                             session_id = NULL) {
+  ok <- tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
-
-    DBI::dbWithTransaction(conn, {
-      # Previous hash for chaining
-      prev_hash_query <- DBI::dbGetQuery(conn, "
-        SELECT audit_hash FROM audit_log
-        ORDER BY audit_id DESC LIMIT 1
-      ")
-      previous_hash <- if (nrow(prev_hash_query) > 0) {
-        prev_hash_query[1, 1]
-      } else {
-        "GENESIS"
-      }
-
-      # Record hash.
-      #
-      # The timestamp that goes into the hash must be the one that gets
-      # stored. It previously hashed Sys.time() while letting the
-      # column take the database's CURRENT_TIMESTAMP default, so the
-      # value inside the hash was never recorded anywhere: local time
-      # against UTC, and a different rendering besides. The hash was
-      # therefore impossible to recompute from the row it describes,
-      # which is why nothing ever checked it and why tampering with an
-      # audit record's content could not be detected. The timestamp is
-      # now generated once, hashed, and written to the column.
-      timestamp <- format(Sys.time(), tz = "UTC", "%Y-%m-%d %H:%M:%S")
-      record_content <- .audit_hash_content(
-        event_type, table_name, record_id, operation, details,
-        user_id, NULL, NULL, timestamp, previous_hash
-      )
-      audit_hash <- digest::digest(record_content, algo = "sha256")
-
-      # Insert audit record
-      audit_id <- DBI::dbGetQuery(conn, "
-        INSERT INTO audit_log
-        (timestamp, event_type, table_name, record_id, operation, details,
-         user_id, audit_hash, previous_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING audit_id AS id
-      ", list(
-        timestamp, event_type, table_name, record_id, operation, details,
-        user_id, audit_hash, previous_hash
-      ))[1, 1]
-
-      # Chain order: MAX is O(1) with the index; COUNT(*) is a full scan.
-      chain_order <- DBI::dbGetQuery(
-        conn,
-        "SELECT COALESCE(MAX(chain_order), 0) + 1 AS next_order FROM audit_chain"
-      )[1, 1]
-
-      DBI::dbExecute(conn, "
-        INSERT INTO audit_chain
-        (audit_id, record_hash, previous_hash, chain_order, verified)
-        VALUES (?, ?, ?, ?, 1)
-      ", list(
-        audit_id, audit_hash, previous_hash, chain_order
-      ))
+    .with_db_transaction(conn, function(c) {
+      .append_audit_record(c, event_type, table_name, record_id, operation,
+                           details, user_id, ip_address, session_id)
     })
+    TRUE
+  }, error = function(e) e)
 
-    return(TRUE)
-
-  }, error = function(e) {
-    warning("Failed to log audit event: ", e$message)
-    return(FALSE)
-  })
+  if (isTRUE(ok)) return(TRUE)
+  # An action whose audit record cannot be written must not pass
+  # silently. Under the 'regulated' profile this is an error, so a
+  # caller that does not catch it stops; elsewhere it remains a
+  # warning, as before.
+  if (get_security_profile() == "regulated") {
+    stop("Audit record could not be written: ", conditionMessage(ok), call. = FALSE)
+  }
+  warning("Failed to log audit event: ", conditionMessage(ok))
+  FALSE
 }
+
 
 
 #' Get Audit Trail
@@ -265,13 +123,8 @@ log_audit_event <- function(event_type, table_name, record_id = NULL,
 #' Retrieve audit trail with optional filtering and verification.
 #'
 #' @param filters List: Filter criteria (user, table_name, record_id,
-#'   event_type, date_from, date_to). `record_id` is bound as a
-#'   parameterized query argument rather than interpolated into the
-#'   SQL string, unlike the other filters here; it was added for
-#'   [generate_subject_case_report()], which needs one specific
-#'   record's audit trail and should not carry forward the
-#'   string-concatenation pattern the rest of this function already
-#'   uses for its other filters.
+#'   event_type, date_from, date_to). All are bound as query
+#'   parameters.
 #' @param include_chain Logical: Include hash chain info? (default: FALSE)
 #' @param db_path Character: Database path (optional)
 #'
@@ -297,41 +150,29 @@ get_audit_trail <- function(filters = list(), include_chain = FALSE, db_path = N
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    query <- "SELECT * FROM audit_log WHERE 1=1"
-
-    if (!is.null(filters$user)) {
-      query <- paste0(query, " AND user_id = '", filters$user, "'")
+    # Every filter is a bound parameter. They were pasted into the SQL
+    # string, so a filter value containing a quote could rewrite the
+    # query against the audit trail.
+    where <- character(0)
+    params <- list()
+    add <- function(clause, value) {
+      where <<- c(where, clause)
+      params <<- c(params, list(as.character(value)))
     }
+    if (!is.null(filters$user)) add("user_id = ?", filters$user)
+    if (!is.null(filters$table_name)) add("table_name = ?", filters$table_name)
+    if (!is.null(filters$event_type)) add("event_type = ?", filters$event_type)
+    if (!is.null(filters$record_id)) add("record_id = ?", filters$record_id)
+    if (!is.null(filters$date_from)) add("DATE(timestamp) >= ?", as.Date(filters$date_from))
+    if (!is.null(filters$date_to)) add("DATE(timestamp) <= ?", as.Date(filters$date_to))
 
-    if (!is.null(filters$table_name)) {
-      query <- paste0(query, " AND table_name = '", filters$table_name, "'")
-    }
-
-    if (!is.null(filters$event_type)) {
-      query <- paste0(query, " AND event_type = '", filters$event_type, "'")
-    }
-
-    if (!is.null(filters$date_from)) {
-      filters$date_from <- as.character(filters$date_from)
-      query <- paste0(query, " AND DATE(timestamp) >= '", filters$date_from, "'")
-    }
-
-    if (!is.null(filters$date_to)) {
-      filters$date_to <- as.character(filters$date_to)
-      query <- paste0(query, " AND DATE(timestamp) <= '", filters$date_to, "'")
-    }
-
-    record_id_params <- list()
-    if (!is.null(filters$record_id)) {
-      query <- paste0(query, " AND record_id = ?")
-      record_id_params <- list(as.character(filters$record_id))
-    }
-
-    query <- paste0(query, " ORDER BY audit_id DESC")
-
-    # Execute query
-    audit_trail <- if (length(record_id_params) > 0) {
-      DBI::dbGetQuery(conn, query, params = record_id_params)
+    query <- paste0(
+      "SELECT * FROM audit_log",
+      if (length(where)) paste0(" WHERE ", paste(where, collapse = " AND ")) else "",
+      " ORDER BY audit_id DESC"
+    )
+    audit_trail <- if (length(params)) {
+      DBI::dbGetQuery(conn, query, params = params)
     } else {
       DBI::dbGetQuery(conn, query)
     }

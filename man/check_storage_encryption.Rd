@@ -47,9 +47,16 @@ whether a key is configured and the installed RSQLite can apply it.
 not yet created by whether \code{encryption_key} is configured (DuckDB
 creates it encrypted or refuses).
 \item In-memory databases hold nothing at rest and pass.
-\item PostgreSQL, MySQL/MariaDB, ClickHouse: encryption at rest is a
-server setting zzedc cannot observe, so the state is \code{NA}, which
-the \code{regulated} profile refuses until an attestation mechanism
-exists (plan Phases 1.3 and 1.4).
+\item MySQL/MariaDB: by asking InnoDB whether every tablespace of the
+study database is encrypted; failing that, by the deployer's
+\code{database.at_rest_attestation}.
+\item PostgreSQL: by the deployer's \code{database.at_rest_attestation}
+(community PostgreSQL exposes no encryption state to query). An
+attestation is recorded as such, not as a verification.
+\item PostgreSQL and MySQL/MariaDB, in transit: under \code{regulated}, the
+connection settings must require verified TLS and the live
+connection must use it (see \code{?server_encryption}).
+\item ClickHouse: not checked; the state is \code{NA}, which \code{regulated}
+refuses.
 }
 }

@@ -17,6 +17,7 @@ Depends:
     R (>= 4.1.0)
 Imports:
     shiny (>= 1.9.0),
+    htmltools,
     shinyjs (>= 2.1.0),
     DBI,
     R6,

@@ -61,6 +61,20 @@ server <- function(input, output, session) {
   }
   if (enhanced_loaded) return(invisible(NULL))
 
+  # The fallback below logs in through the package's auth_server(),
+  # which has no lockout and records nothing in the audit trail. Under
+  # the 'regulated' profile it is not served.
+  if (zzedc::get_security_profile() == "regulated") {
+    message("Refused session: the main server failed to load and the ",
+            "fallback login is not audited")
+    shiny::showModal(shiny::modalDialog(
+      title = "The application could not start correctly",
+      "Contact the study's technical lead (see the application log).",
+      footer = NULL, easyClose = FALSE
+    ))
+    return(invisible(NULL))
+  }
+
   message("Using traditional server implementation")
 
   # Module functions are provided by the zzedc package namespace

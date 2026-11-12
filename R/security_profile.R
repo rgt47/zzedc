@@ -239,10 +239,17 @@ enforce_encryption_at_rest <- function(encrypted, target, reason) {
 #'   not yet created by whether `encryption_key` is configured (DuckDB
 #'   creates it encrypted or refuses).
 #' - In-memory databases hold nothing at rest and pass.
-#' - PostgreSQL, MySQL/MariaDB, ClickHouse: encryption at rest is a
-#'   server setting zzedc cannot observe, so the state is `NA`, which
-#'   the `regulated` profile refuses until an attestation mechanism
-#'   exists (plan Phases 1.3 and 1.4).
+#' - MySQL/MariaDB: by asking InnoDB whether every tablespace of the
+#'   study database is encrypted; failing that, by the deployer's
+#'   `database.at_rest_attestation`.
+#' - PostgreSQL: by the deployer's `database.at_rest_attestation`
+#'   (community PostgreSQL exposes no encryption state to query). An
+#'   attestation is recorded as such, not as a verification.
+#' - PostgreSQL and MySQL/MariaDB, in transit: under `regulated`, the
+#'   connection settings must require verified TLS and the live
+#'   connection must use it (see `?server_encryption`).
+#' - ClickHouse: not checked; the state is `NA`, which `regulated`
+#'   refuses.
 #'
 #' @export
 check_storage_encryption <- function(db_path = NULL, config_profile = NULL,
@@ -265,10 +272,13 @@ check_storage_encryption <- function(db_path = NULL, config_profile = NULL,
   message(
     "zzedc security profile: ", resolved$profile, " (from ", resolved$source,
     "); backend: ", state$backend, "; database encrypted at rest: ",
-    if (isTRUE(state$encrypted)) "yes" else if (isFALSE(state$encrypted)) "NO" else "not verifiable"
+    if (isTRUE(state$encrypted)) "yes" else if (isFALSE(state$encrypted)) "NO" else "not verifiable",
+    if (identical(state$basis, "attested")) " (attested by the deployer, not verified)" else ""
   )
   invisible(list(profile = resolved$profile, source = resolved$source,
-                 backend = state$backend, encrypted = state$encrypted))
+                 backend = state$backend, encrypted = state$encrypted,
+                 basis = state$basis %||% if (is.na(state$encrypted)) "unknown" else "verified",
+                 tls = state$tls, reason = state$reason))
 }
 
 #' Storage Encryption State for a SQLite File (internal)
@@ -318,6 +328,12 @@ check_storage_encryption <- function(db_path = NULL, config_profile = NULL,
                                     adapter = adapter)
     return(list(backend = backend, target = cfg$path, encrypted = isTRUE(v$encrypted),
                 reason = v$message))
+  }
+  if (backend %in% c("postgresql", "mysql")) {
+    s <- .check_server_storage(adapter)
+    return(list(backend = backend, target = paste(backend, "server"),
+                encrypted = s$at_rest, basis = s$at_rest_basis,
+                tls = isTRUE(s$tls_live), reason = s$reason))
   }
   list(
     backend = backend, target = paste(backend, "server"), encrypted = NA,

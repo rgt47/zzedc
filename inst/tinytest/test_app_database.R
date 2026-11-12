@@ -77,13 +77,20 @@ if (!sqlite_cipher_available()) {
   })
 }
 
+# Fake server adapter (no live server here): connects, reports TLS.
+fake_pg <- function(section = list(sslmode = "verify-full"), tls = TRUE) {
+  list(backend_name = function() "postgresql",
+       config = list(postgresql = section),
+       connect = function() "conn", disconnect = function(conn) invisible(TRUE),
+       is_ssl_connected = function(conn) tls)
+}
 with_profile("regulated", {
-  pg <- list(backend_name = function() "postgresql", config = list())
+  pg <- fake_pg()
   expect_error(suppressMessages(check_storage_encryption(adapter = pg)),
-               "cannot verify", info = "server at-rest encryption unverifiable: refused under regulated")
+               "cannot be checked", info = "server at-rest encryption unknown, no attestation: refused under regulated")
 })
 with_profile("standard", {
-  pg <- list(backend_name = function() "postgresql", config = list())
+  pg <- fake_pg()
   res <- suppressWarnings(suppressMessages(check_storage_encryption(adapter = pg)))
   expect_true(is.na(res$encrypted), info = "standard: reported as not verifiable, not as encrypted")
 })

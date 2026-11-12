@@ -21,7 +21,22 @@
 # must_change_password gate to force a change -- no new UI needed,
 # since that gate (change_password_module.R) already exists for the
 # "password someone else chose" case.
-authenticate_user <- function(username, password) {
+#
+# Audit note (2026-11-11): successful logins and attempts on unknown
+# or inactive accounts were not recorded; only wrong passwords and
+# lockouts were. Every outcome is now recorded with the client address
+# and session token. Under the 'regulated' profile a security event
+# that cannot be written fails the login (audit_security_event()).
+audit_security_event <- function(...) {
+  tryCatch(log_security_event(...), error = function(e) {
+    if (zzedc::get_security_profile() == "regulated") stop(e)
+    NULL
+  })
+}
+
+authenticate_user <- function(username, password, audit_ctx = list()) {
+  ip <- audit_ctx$ip_address
+  sid <- audit_ctx$session_id
 
   # Check if database pool exists
   if (!exists("db_pool")) {
@@ -53,6 +68,12 @@ authenticate_user <- function(username, password) {
     user_record <- pool::dbGetQuery(db_pool, user_query, params = list(username))
 
     if (nrow(user_record) == 0) {
+      audit_security_event(
+        event_type = "LOGIN_FAILED", user_id = username,
+        description = "Failed login: unknown or inactive account",
+        details = list(reason = "unknown_or_inactive"),
+        ip_address = ip, session_id = sid
+      )
       return(list(success = FALSE, message = "Invalid username or account inactive"))
     }
 
@@ -72,6 +93,12 @@ authenticate_user <- function(username, password) {
       unlock_time <- locked_at_time + lockout_duration_minutes * 60
       if (Sys.time() < unlock_time) {
         remaining_min <- ceiling(as.numeric(difftime(unlock_time, Sys.time(), units = "mins")))
+        audit_security_event(
+          event_type = "LOGIN_FAILED", user_id = username,
+          description = "Failed login: account locked",
+          details = list(reason = "account_locked"),
+          ip_address = ip, session_id = sid
+        )
         return(list(
           success = FALSE,
           message = paste0(
@@ -91,12 +118,10 @@ authenticate_user <- function(username, password) {
         WHERE user_id = ?
       ", params = list(user_id))
       failed_attempts <- 0L
-      tryCatch(
-        log_security_event(
-          event_type = "UNLOCK", user_id = username,
-          description = "Account automatically unlocked after lockout period expired"
-        ),
-        error = function(e) NULL
+      audit_security_event(
+        event_type = "UNLOCK", user_id = username,
+        description = "Account automatically unlocked after lockout period expired",
+        ip_address = ip, session_id = sid
       )
     }
 
@@ -142,17 +167,24 @@ authenticate_user <- function(username, password) {
         pool::dbExecute(db_pool, "
           UPDATE edc_users SET must_change_password = 1 WHERE user_id = ?
         ", params = list(user_id))
-        tryCatch(
-          log_security_event(
-            event_type = "PASSWORD_CHANGE", user_id = username,
-            description = paste0(
-              "Password expired after ", password_expiry_days,
-              " days; change forced at next login"
-            )
+        audit_security_event(
+          event_type = "PASSWORD_CHANGE", user_id = username,
+          description = paste0(
+            "Password expired after ", password_expiry_days,
+            " days; change forced at next login"
           ),
-          error = function(e) NULL
+          ip_address = ip, session_id = sid
         )
       }
+
+      # Under 'regulated', a login that cannot be recorded is refused
+      # (the error reaches the handler below and the login fails).
+      audit_security_event(
+        event_type = "LOGIN", user_id = username,
+        description = "Successful login", severity = "info",
+        details = list(role = user_record$role[1]),
+        ip_address = ip, session_id = sid
+      )
 
       return(list(
         success = TRUE,
@@ -183,10 +215,12 @@ authenticate_user <- function(username, password) {
         ", params = list(new_failed_attempts, user_id))
       }
 
-      tryCatch(
-        log_failed_login(username = username, reason = "invalid_password",
-                          attempt_count = new_failed_attempts),
-        error = function(e) NULL
+      audit_security_event(
+        event_type = "LOGIN_FAILED", user_id = username,
+        description = "Failed login: invalid_password",
+        details = list(reason = "invalid_password", attempt_count = new_failed_attempts),
+        severity = if (new_failed_attempts >= 3) "error" else "warning",
+        ip_address = ip, session_id = sid
       )
 
       if (now_locked) {
@@ -196,7 +230,10 @@ authenticate_user <- function(username, password) {
             reason = paste(new_failed_attempts, "failed attempts"),
             duration_minutes = lockout_duration_minutes
           ),
-          error = function(e) NULL
+          error = function(e) {
+            if (zzedc::get_security_profile() == "regulated") stop(e)
+            NULL
+          }
         )
         return(list(
           success = FALSE,
@@ -246,12 +283,9 @@ unlock_user_account <- function(username, unlocked_by) {
       WHERE user_id = ?
     ", params = list(user_record$user_id[1]))
 
-    tryCatch(
-      log_security_event(
-        event_type = "UNLOCK", user_id = username,
-        description = paste("Account manually unlocked by", unlocked_by)
-      ),
-      error = function(e) NULL
+    audit_security_event(
+      event_type = "UNLOCK", user_id = username,
+      description = paste("Account manually unlocked by", unlocked_by)
     )
 
     list(success = TRUE)
@@ -271,7 +305,8 @@ observeEvent(input$login_button, {
   }
   
   # Authenticate user
-  auth_result <- authenticate_user(input$username, input$password)
+  auth_result <- authenticate_user(input$username, input$password,
+                                   audit_ctx = zzedc::session_audit_context(session))
   
   if (auth_result$success) {
     # Store user session info

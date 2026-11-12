@@ -348,11 +348,14 @@ the encryption remediation section below); it is now detected, and
 the `regulated` security profile refuses such a database. DuckDB
 encrypts its files natively with `ENCRYPTION_KEY`, using only CRAN
 software, and is the recommended route when encryption at rest is
-required. Server backends (PostgreSQL, MySQL/MariaDB, ClickHouse)
-depend on server-side encryption that zzedc cannot observe or verify.
-Encryption support is therefore best described as 'available and
-verifiable on DuckDB; deployment-conditional on SQLite; the server
-operator's responsibility on server backends', not 'bundled'. AWS KMS
+required. Server backends depend on server-side encryption: zzedc
+verifies it on MySQL/MariaDB by asking InnoDB whether the study's
+tables are encrypted, accepts a recorded deployer attestation on
+PostgreSQL (labeled as attested, not verified), and does not check
+ClickHouse. Encryption support is therefore best described as
+'available and verifiable on DuckDB; deployment-conditional on SQLite;
+provided by the server operator and checked or attested on server
+backends', not 'bundled'. AWS KMS
 integration is callable when AWS credentials are configured, but no
 integration test runs against a live KMS endpoint.
 
@@ -620,7 +623,9 @@ Phases 1.3 and 1.4). Backups are not yet encrypted by zzedc (Phase
 2.1). HTTPS settings in `config.yml` remain unenforced and are now
 labeled as such (Phase 3.1). DuckDB's `httpfs` extension, needed for
 encrypted files, is downloaded on first use and will fail on hosts
-without internet access unless pre-installed (Phase 1.2).
+without internet access unless pre-installed (Phase 1.2). Each of these
+was addressed later; see the sections that follow, through "The
+encryption plan completed".
 
 ## Encryption remediation, Phase 1.2: DuckDB extensions (2026-11-10)
 
@@ -910,7 +915,123 @@ DuckDB. One display condition, on a field whose controlling field is on
 another form, could not be expressed as a rule and was dropped; a form
 listed in the old example but never defined was also dropped.
 
-**Remaining.** The Backup tab's Download button has no handler.
+**Remaining.** The Backup tab's Download button had no handler; it was
+fixed in the next section.
+
+## The encryption plan completed (2026-11-11)
+
+This section records the remaining phases of the encryption and
+compliance plan except Phase 5 (Part 11 gaps), which is being
+addressed separately.
+
+**Backups and the Backup tab.** Backups of a database that is not
+encrypted at rest held every record in readable form. With
+`ZZEDC_BACKUP_PASSPHRASE` set, backups are now encrypted with the same
+authenticated scheme as exports, under a passphrase held apart from
+the database key; under `regulated`, an unencrypted backup of an
+unencrypted database is refused before anything is written. The
+Download button, which did nothing, now serves the selected backup
+and records an `EXPORT` audit event.
+
+**HTTPS.** The `https_only` setting existed in `config.yml` but nothing
+read it. The application now blocks sessions that did not arrive over
+HTTPS when `https_only` is set and always under `regulated`. Because
+Shiny does not terminate TLS, HTTPS comes from a reverse proxy; the
+proxy's `X-Forwarded-Proto` header is believed only when the request
+came from the same machine, since a client reaching the application
+directly could otherwise claim HTTPS by sending the header.
+
+**Keys.** A key written into `config.yml` defeats encryption for
+anyone who can read the project; it is now refused under `regulated`.
+Each start records in the audit log that the key was loaded and from
+where. `rotate_database_key()` re-encrypts a DuckDB database by copying
+it into a new file under the new key, verifying the copy, and only
+then swapping it in, keeping the old file until the operator removes
+it. The documentation states what the software cannot do: recover a
+lost key.
+
+**Server databases.** Until now `regulated` refused PostgreSQL and
+MySQL/MariaDB outright, because their storage encryption is not
+visible to zzedc. MySQL and MariaDB report, per InnoDB tablespace,
+whether it is encrypted, and zzedc now checks every table of the study
+database. Community PostgreSQL reports nothing comparable, so the
+deployer records the mechanism as `at_rest_attestation`; zzedc accepts
+it under `regulated` and labels it everywhere as attested. Both
+require a TLS mode that verifies the server and a live connection that
+uses TLS. No database server was available for this work, so the
+decision logic is tested against a fake adapter; the SQL queries sent
+to real servers have not been executed.
+
+**Evidence.** Each start of the application writes a
+`COMPLIANCE_CHECK` audit event stating the security configuration in
+force, including the basis of the at-rest claim (package-enforced,
+server-verified, server-attested, or none). The record is protected by
+the audit hash chain rather than by a separate signature. Operational
+qualification gains OQ-011 to OQ-018, one per security control. Four
+documents for reviewers are installed under
+`system.file("compliance", package = "zzedc")`: a responsibility
+matrix covering Part 11, HIPAA 164.312, and GDPR Article 32(1); a HIPAA
+encryption worksheet; a GDPR Article 32 statement template; and a
+one-page IRB security summary.
+
+**Not verified here.** The SQLite cipher route (Phase 1.1) is
+documented with build steps but was not exercised, as no cipher-enabled
+RSQLite was available. The OQ tests target the behavior each control
+replaced but were not run against the pre-fix code.
+
+## The audit trail against 21 CFR 11.10(e) (2026-11-11)
+
+A review of the audit trail against 11.10(e) and HIPAA 164.312(b)
+found that its design (a SHA-256 chain whose hashes recompute from the
+stored rows) was sound but that it did not cover, or protect, what
+those provisions require.
+
+**Coverage.** The EDC tab saved case report form entries with no audit
+record at all; the audit trail recorded signatures, corrections, and
+security events, but not the primary data. Each entry is now written
+together with an `INSERT` audit record (submitted values, user, UTC
+time, client address, session) in one transaction, so neither can
+commit without the other. Successful logins, attempts on unknown or
+locked accounts, logoffs, and session ends are now recorded; before,
+only wrong passwords and lockouts were. Automatic logoff, which
+existed as code but was never activated and could not have fired, now
+works and is recorded.
+
+**Failure.** Every audit writer caught its own errors and issued a
+warning, and callers discarded even that, so an action whose audit
+record failed proceeded unrecorded. Under `regulated`, a failed audit
+write is now an error, and a login that cannot be recorded is refused.
+
+**Protection.** Nothing prevented the application's own database
+account from changing or deleting audit rows, and an internal
+maintenance function deleted rows older than a year. The hash chain
+detects an edit only if the editor does not recompute the later
+hashes; with write access, recomputing them is straightforward, and a
+test in the suite now demonstrates it. Three layers apply instead:
+the chain; triggers that make the audit tables append-only on SQLite,
+PostgreSQL, and MySQL/MariaDB; and keyed checkpoints of the chain's
+head written outside the database, which detect a rewrite up to the
+latest checkpoint even when every hash was recomputed. DuckDB supports
+no triggers, so there the checkpoints carry the protection. A database
+administrator can still drop triggers; the remaining defense is
+privilege separation on server backends and frequent checkpoints to
+storage the database host cannot rewrite, both deployer
+responsibilities.
+
+**Review.** The Admin tab's audit viewer read a table that nothing in
+the application wrote, and when its query failed it displayed twenty
+randomly generated entries as though they were the study's audit
+trail. It now reads the chained log, and shows an error when it cannot.
+Its table rendered audit content as raw HTML; since failed logins now
+record the username as typed, that would have let a crafted username
+run script in an administrator's browser, so all content is escaped.
+
+**Not done.** Reads of records are not logged. Data corrections record
+the old value, new value, and reason, but `apply_correction()` does
+not change the stored value, a separate defect. The triggers and the
+chain lock on PostgreSQL and MySQL are untested against live servers.
+The REDCap importer's replay of historical audit events still writes
+the chain through its own code, without the lock.
 
 ## Comparison with REDCap and other EDC platforms, condensed
 

@@ -241,12 +241,38 @@ install.packages("duckdb")      # DuckDB
 # ClickHouse: see vignette('backend-quickstart') Appendix E
 ```
 
-For SQLCipher-enabled SQLite (required if you want at-rest
-encryption on a SQLite-backed deployment), install a
-SQLCipher-aware build of RSQLite. The stock CRAN build of
-`RSQLite` does not include SQLCipher; consult the
-SQLite3MultipleCiphers project or your distribution for a
-suitable build.
+For encryption at rest on SQLite, the installed `RSQLite` must
+be built with a cipher. The CRAN build is not: it accepts
+`PRAGMA key` and ignores it, and the file stays plaintext. For
+most deployments that need encryption, DuckDB (encrypted by its
+own engine) is the simpler choice. If SQLite is required, the
+route zzedc is written for is SQLite3MultipleCiphers:
+
+1. Download the SQLite3MultipleCiphers amalgamation
+   (`sqlite3mc_amalgamation.c` and `.h`) for a SQLite version
+   close to the one your `RSQLite` vendors
+   (`RSQLite::rsqliteVersion()`).
+2. In the `RSQLite` source package, replace the vendored
+   amalgamation (`sqlite3.c` and `sqlite3.h` under `src/vendor/`
+   at the time of writing; confirm the location in the version
+   you build) with it, renamed to those file names.
+3. Install from that source (`R CMD INSTALL`), and record the
+   build in the deployment's validation documentation, since it
+   is no longer the CRAN package.
+4. Confirm the build:
+   `zzedc::sqlite_cipher_available()` must return `TRUE`. It
+   writes a keyed test file and checks that the file's header is
+   not plaintext, so it tests the cipher itself, not a package
+   name.
+
+zzedc selects the SQLCipher-compatible scheme
+(`PRAGMA cipher = 'sqlcipher'`, AES-256) on every keyed
+connection, so a file it creates can also be opened by
+SQLCipher tools. Under the `regulated` profile, zzedc refuses a
+SQLite database that it cannot show to be encrypted, so an
+incorrectly built driver stops the application rather than
+storing data in plaintext. This route has not been exercised in
+zzedc's own test suite, which runs on the CRAN build.
 
 ## 3.3 Reproducibility: pin dependencies with renv
 
@@ -1799,24 +1825,30 @@ weekly and after every restore.
 
 ## 10.1 Run the integrity check
 
+Run it in the study directory, with the database key in
+`DB_ENCRYPTION_KEY`, so the configured database is opened:
+
 ```{r}
 library(zzedc)
-res <- verify_audit_log_integrity(
-  db_path = "/srv/zzedc/MEMORY-001/study.db",
-  key     = Sys.getenv("DB_ENCRYPTION_KEY")
-)
+dbc <- app_database_config(config::get(file = "config.yml"))
+get_db_adapter(config = dbc, force_new = TRUE)
 
-res$valid                  # TRUE if chain validates end-to-end
-res$first_audit_id         # earliest audit_id in the chain
-res$last_audit_id          # latest
-res$chain_length           # total entries
-res$tampered_entries       # empty if chain valid
+res <- verify_audit_integrity()
+res$valid             # TRUE if the chain validates end-to-end
+res$records_checked   # entries checked
+res$tampered_records  # audit_ids whose content no longer matches
+res$message
 ```
 
+(An earlier version of this guide called
+`verify_audit_log_integrity(db_path =, key =)`; that function
+checks an in-memory log in a running session, not the
+database.)
+
 If `valid` is `TRUE`, every row in `audit_log` chains to its
-predecessor and no entry has been tampered with since it was
-written. If `valid` is `FALSE`, `tampered_entries` lists the
-rows where the chain breaks. Treat any chain break as a
+predecessor and every record's content still matches its
+hash. If `valid` is `FALSE`, `tampered_records` lists the
+rows that fail. Treat any chain break as a
 serious incident: stop new writes, capture the database state,
 and contact your compliance lead before continuing.
 
@@ -1846,6 +1878,67 @@ DBI::dbDisconnect(conn)
 If the marker is present, document it in the DMP: the trial's
 21 CFR Part 11 continuity argument is anchored at the marker,
 not at the source-side genesis.
+
+## 10.3 What protects the trail, and checkpoints
+
+A hash chain alone detects a change made by someone who does
+not also recompute every later hash. Someone with write access
+to the database can do exactly that, and the chain will still
+verify. zzedc therefore adds two further layers
+(`?audit_protection`):
+
+- **Append-only tables.** On SQLite, PostgreSQL, and
+  MySQL/MariaDB, triggers reject `UPDATE` and `DELETE` on the
+  audit tables. They are installed at every start. A database
+  administrator can drop them, so on server backends run the
+  application under a database role that does not own the
+  schema and lacks `TRIGGER`/`ALTER` rights, and keep the
+  owner credentials elsewhere. DuckDB has no triggers; on
+  DuckDB this layer is absent and checkpoints carry the weight.
+  The startup `COMPLIANCE_CHECK` record states which applies
+  (`audit_protection`).
+- **External checkpoints.** A checkpoint records the chain's
+  latest position and hash, with an HMAC under a key held
+  outside the database, in a file outside the database. A
+  rewrite of any record up to that position changes the hash
+  there and is detected. Configure a directory on storage the
+  database host cannot rewrite (another machine, or object
+  storage with a retention lock):
+
+```yaml
+audit:
+  checkpoint_dir: /mnt/zzedc-audit-checkpoints
+```
+
+and set `ZZEDC_AUDIT_CHECKPOINT_KEY` (a long random string,
+kept like the database key but separately from it). The
+application writes a checkpoint at every start; under
+`regulated` it warns when none is configured. Add more often
+with cron, for example hourly:
+
+```bash
+0 * * * * cd /srv/zzedc/MEMORY-001 && Rscript -e 'zzedc::get_db_adapter(config = zzedc::app_database_config(config::get(file = "config.yml")), force_new = TRUE); zzedc::audit_checkpoint("/mnt/zzedc-audit-checkpoints")'
+```
+
+Records written after the latest checkpoint are protected only
+by the chain and the triggers, so the interval is the window an
+undetected rewrite could cover. Verify the trail against all
+checkpoints weekly and after every restore:
+
+```{r}
+v <- verify_audit_checkpoints("/mnt/zzedc-audit-checkpoints/audit_checkpoints.jsonl")
+v$valid      # chain verifies and matches every checkpoint
+v$failures   # which checkpoints fail, and why
+```
+
+A restore replaces the database with an earlier copy, so
+checkpoints written after that copy was made will report the
+positions it lacks as removed. Record each restore, and start a
+new checkpoint file after it.
+
+Audit records are never deleted by zzedc. Keep the database,
+including the audit tables, for the study's record-retention
+period.
 
 ---
 
@@ -2058,6 +2151,13 @@ file:
 | Privacy impact assessment | `R/privacy_impact.R` |
 | REDCap migration with audit replay | `R/redcap_import.R` |
 | Multi-backend portability | `R/portability.R`, `R/db_adapter_*.R` |
+| Server database at-rest check (InnoDB) or attestation (PostgreSQL); verified TLS | `R/server_encryption.R`, `R/security_profile.R` |
+| Key custody, key-access record, key rotation | `R/key_management.R` |
+| Encrypted backups; staged restore | `R/database_restore.R` |
+| HTTPS required under `regulated` | `R/security_profile.R::session_https_status()`, `inst/app/server.R` |
+| Startup compliance record (`COMPLIANCE_CHECK`) | `R/compliance_self_check.R`, `inst/app/global.R` |
+| Qualification of the security controls (OQ-011 to OQ-020) | `R/oq_security.R` |
+| Audit trail: same-transaction data auditing, append-only triggers, external checkpoints | `R/audit_append.R`, `R/db_data_entries.R` |
 
 ## Mapping regulatory clauses to ZZedc behavior
 
@@ -2131,6 +2231,57 @@ The canonical compliance write-up is
 `docs/compliance/gdpr-and-cfr-part11.md`. That document is
 the authoritative source for the partial vs. full
 classification of each control.
+
+## Documents for sponsors, privacy officers, and IRBs
+
+The package installs four documents for the deployer to
+complete or hand to reviewers. Locate them with
+`system.file("compliance", package = "zzedc")`:
+
+- `responsibility-matrix.md`: for each Part 11 section, HIPAA
+  164.312 specification, and GDPR Article 32(1) item,
+  whether zzedc enforces it, supports it, or leaves it to
+  the deployer, with the test ID or function that is the
+  evidence.
+- `hipaa-encryption-worksheet.md`: the risk-analysis record
+  for the encryption specifications (164.312(a)(2)(iv) and
+  (e)(2)(ii)).
+- `gdpr-art32-statement-template.md`: a statement of
+  technical measures for the record of processing, a DPIA,
+  or a processing agreement.
+- `irb-security-summary.md`: one page on algorithms, key
+  location, fail-closed behavior, and how a reviewer can
+  verify encryption on the deployed instance.
+
+Each relies on the startup compliance record. Every time the
+application starts it writes a `COMPLIANCE_CHECK` event to
+the audit log stating the profile, backend, whether storage
+is encrypted and on what basis (package-enforced,
+server-verified, server-attested, or none), TLS to the
+database server, where the key came from, DuckDB extension
+settings, and whether HTTPS is required:
+
+```{r, eval = FALSE}
+get_audit_trail(filters = list(event_type = "COMPLIANCE_CHECK"))
+```
+
+For PostgreSQL, record the storage encryption mechanism in
+`config.yml`, since zzedc cannot observe it:
+
+```yaml
+database:
+  backend: postgresql
+  sslmode: verify-full
+  at_rest_attestation: "AWS RDS storage encryption, KMS key alias/zzedc-prod"
+```
+
+The `regulated` profile accepts PostgreSQL only with an
+attestation and verified TLS, and the startup record labels
+the claim as attested, not verified. For MySQL and MariaDB,
+zzedc asks InnoDB whether every table of the study database
+is encrypted and refuses the database if any is not; the
+attestation is used only when the server does not report
+tablespace encryption.
 
 ---
 

@@ -2,31 +2,24 @@
 % Please edit documentation in R/database_monitoring.R
 \name{cleanup_audit_logs}
 \alias{cleanup_audit_logs}
-\title{Cleanup old audit logs}
+\title{Audit Log Records Are Not Deleted}
 \usage{
 cleanup_audit_logs(conn, days_to_keep = 365)
 }
 \arguments{
-\item{conn}{Database connection}
-
-\item{days_to_keep}{How many days of audit logs to keep (default: 365)}
+\item{conn, days_to_keep}{Ignored.}
 }
 \value{
-Number of records deleted
+Does not return; always an error.
 }
 \description{
-Archive and remove old audit log entries (configurable retention)
-}
-\examples{
-\dontrun{
-# Connect to an initialized study database. See
-# `?initialize_encrypted_database` for the prerequisite setup.
-conn <- connect_encrypted_db(db_path = "data/study.db",
-                              key      = Sys.getenv("DB_ENCRYPTION_KEY"))
-on.exit(DBI::dbDisconnect(conn), add = TRUE)
-# Trim audit-log records older than the retention window.
-# Verify retention policy with the IRB before running.
-cleanup_audit_logs(conn, days_to_keep = 365 * 7)
-}
+This function deleted audit-log records older than \code{days_to_keep}.
+That conflicts with 21 CFR 11.10(c) and (e), which require the audit
+trail to be kept for at least as long as the records it describes,
+and it broke the hash chain, so \code{verify_audit_integrity()} then
+reported the whole trail as invalid. It now refuses. The audit tables
+are append-only (\code{?audit_protection}); retain them for the study's
+record-retention period and archive the whole database at study
+close.
 }
 \keyword{internal}

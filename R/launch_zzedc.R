@@ -217,6 +217,7 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
   on.exit(options(zzedc.security_profile = prior_profile), add = TRUE)
   check_storage_encryption(adapter = create_db_adapter(db_config),
                            config_profile = cfg$security$profile)
+  check_key_custody(cfg)
 
   if (!check_database_initialized(db_path, adapter_config = db_config)) {
     message("\n")

@@ -29,7 +29,9 @@ Creates three tables:
 }
 
 Implements hash-chaining where each record's hash depends on
-the previous record's hash, making tampering detectable.
+the previous record's hash, and installs triggers that make the
+three tables append-only where the backend supports triggers
+(not DuckDB). See \code{?audit_protection}.
 }
 \examples{
 \dontrun{

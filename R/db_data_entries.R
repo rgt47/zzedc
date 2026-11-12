@@ -47,6 +47,10 @@ ensure_data_entries_table <- function(conn) {
       locked         INTEGER DEFAULT 0
     )
   ")
+  # Every insert is audited in its own transaction (see
+  # db_insert_data_entry()), so the audit tables must exist wherever
+  # data_entries does.
+  .ensure_audit_tables(conn)
   invisible(NULL)
 }
 
@@ -66,8 +70,16 @@ ensure_data_entries_table <- function(conn) {
 #'   (typically the logged-in username).
 #' @param entry_id Optional pre-generated identifier;
 #'   auto-generated from a timestamp if `NULL`.
+#' @param ip_address,session_id Client address and Shiny session token,
+#'   recorded in the audit record when known.
 #' @return Named list with `success` (logical) and either
 #'   `entry_id` (on success) or `error` (the DBI error message).
+#'
+#' @details
+#' The row and its audit record (an `INSERT` event on `data_entries`
+#' whose details hold the submitted values) are written in one
+#' transaction: if the audit record cannot be written, the entry is not
+#' saved (21 CFR 11.10(e)).
 #' @keywords internal
 db_insert_data_entry <- function(conn,
                                   subject_id,
@@ -77,7 +89,9 @@ db_insert_data_entry <- function(conn,
                                   visit_date = NULL,
                                   is_complete = TRUE,
                                   created_by,
-                                  entry_id = NULL) {
+                                  entry_id = NULL,
+                                  ip_address = NULL,
+                                  session_id = NULL) {
   if (is.null(entry_id)) {
     entry_id <- paste0(
       "DE-", format(Sys.time(), "%Y%m%d%H%M%OS3", tz = "UTC"),
@@ -86,27 +100,42 @@ db_insert_data_entry <- function(conn,
     entry_id <- gsub("[^A-Za-z0-9-]", "", entry_id)
   }
 
+  data_json <- as.character(jsonlite::toJSON(data, auto_unbox = TRUE, null = "null"))
   result <- tryCatch({
-    DBI::dbExecute(
-      conn,
-      paste(
-        "INSERT INTO data_entries",
-        "(entry_id, subject_id, form_name, visit_label, visit_date,",
-        " data_json, is_complete, created_by)",
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-      ),
-      params = list(
-        entry_id,
-        subject_id,
-        form_name,
-        if (is.null(visit_label)) NA_character_ else visit_label,
-        if (is.null(visit_date)) NA_character_ else visit_date,
-        as.character(jsonlite::toJSON(data, auto_unbox = TRUE,
-                                       null = "null")),
-        if (isTRUE(is_complete)) 1L else 0L,
-        created_by
+    .with_db_transaction(conn, function(c) {
+      DBI::dbExecute(
+        c,
+        paste(
+          "INSERT INTO data_entries",
+          "(entry_id, subject_id, form_name, visit_label, visit_date,",
+          " data_json, is_complete, created_by)",
+          "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ),
+        params = list(
+          entry_id,
+          subject_id,
+          form_name,
+          if (is.null(visit_label)) NA_character_ else visit_label,
+          if (is.null(visit_date)) NA_character_ else visit_date,
+          data_json,
+          if (isTRUE(is_complete)) 1L else 0L,
+          created_by
+        )
       )
-    )
+      .append_audit_record(
+        c, event_type = "INSERT", table_name = "data_entries",
+        record_id = entry_id,
+        operation = paste0("Case report form entry created (form ", form_name,
+                           ", subject ", subject_id, ")"),
+        details = as.character(jsonlite::toJSON(list(
+          subject_id = subject_id, form_name = form_name,
+          visit_label = visit_label, visit_date = visit_date,
+          is_complete = isTRUE(is_complete),
+          new_values = jsonlite::fromJSON(data_json, simplifyVector = FALSE)
+        ), auto_unbox = TRUE, null = "null")),
+        user_id = created_by, ip_address = ip_address, session_id = session_id
+      )
+    })
     list(success = TRUE, entry_id = entry_id)
   }, error = function(e) {
     list(success = FALSE, error = conditionMessage(e))

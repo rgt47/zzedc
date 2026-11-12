@@ -13,7 +13,9 @@ db_insert_data_entry(
   visit_date = NULL,
   is_complete = TRUE,
   created_by,
-  entry_id = NULL
+  entry_id = NULL,
+  ip_address = NULL,
+  session_id = NULL
 )
 }
 \arguments{
@@ -37,6 +39,9 @@ for the visit this entry belongs to.}
 
 \item{entry_id}{Optional pre-generated identifier;
 auto-generated from a timestamp if \code{NULL}.}
+
+\item{ip_address, session_id}{Client address and Shiny session token,
+recorded in the audit record when known.}
 }
 \value{
 Named list with \code{success} (logical) and either
@@ -44,5 +49,11 @@ Named list with \code{success} (logical) and either
 }
 \description{
 Insert a single row into \code{data_entries}
+}
+\details{
+The row and its audit record (an \code{INSERT} event on \code{data_entries}
+whose details hold the submitted values) are written in one
+transaction: if the audit record cannot be written, the entry is not
+saved (21 CFR 11.10(e)).
 }
 \keyword{internal}

@@ -26,6 +26,13 @@ OQ tests verify:
 \item Search and filter functionality
 \item Export operations
 \item Integrity verification
+\item Security controls (OQ-011 to OQ-020): refusal of unencrypted
+storage under \code{regulated}, encryption verification, export
+encryption and tamper detection, keyed pseudonymization, key
+custody, backup encryption, HTTPS enforcement, and the server
+database TLS and at-rest rules, audit records written with the
+data they describe, and an append-only, checkpointed audit trail
+(see \code{R/oq_security.R})
 }
 }
 \keyword{internal}

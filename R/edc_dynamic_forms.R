@@ -431,10 +431,13 @@ reset_crf_field_inputs <- function(session, metadata) {
 #' @param field_data Named list of submitted field values, keyed by
 #'   `field_code`.
 #' @param created_by String identifying who submitted the entry.
+#' @param ip_address,session_id Recorded in the entry's audit record
+#'   (see `session_audit_context()`).
 #' @return The `list(success=, entry_id=)` / `list(success=FALSE,
 #'   error=)` result from [db_insert_data_entry()].
 #' @keywords internal
-save_crf_entry <- function(conn, crf_code, field_data, created_by) {
+save_crf_entry <- function(conn, crf_code, field_data, created_by,
+                           ip_address = NULL, session_id = NULL) {
   ensure_data_entries_table(conn)
 
   subject_id <- field_data$tracking_id
@@ -451,6 +454,8 @@ save_crf_entry <- function(conn, crf_code, field_data, created_by) {
     form_name   = tolower(crf_code),
     data        = field_data,
     is_complete = TRUE,
-    created_by  = created_by
+    created_by  = created_by,
+    ip_address  = ip_address,
+    session_id  = session_id
   )
 }

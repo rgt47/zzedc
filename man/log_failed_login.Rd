@@ -9,7 +9,8 @@ log_failed_login(
   reason = "Invalid credentials",
   ip_address = NULL,
   attempt_count = 1,
-  db_path = NULL
+  db_path = NULL,
+  session_id = NULL
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ log_failed_login(
 \item{attempt_count}{Integer: Number of failed attempts}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{session_id}{Character: Shiny session token (optional)}
 }
 \value{
 Logical TRUE if successfully logged

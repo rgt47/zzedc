@@ -10,7 +10,7 @@ log_audit_action(
   action,
   entity_type,
   entity_id,
-  ip_address = "127.0.0.1",
+  ip_address = NULL,
   old_values = NULL,
   new_values = NULL
 )

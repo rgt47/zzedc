@@ -8,11 +8,13 @@
 # Replace with your study's actual persistence logic. In a real
 # study, `saveData()` would:
 #   1. Validate the submitted form data against the field metadata.
-#   2. Insert / update the corresponding row in the study database
-#      via `pool::dbExecute()` against the `db_pool` reactive.
-#   3. Append an audit-trail entry via `log_audit_action()` from
-#      `R/audit_log_viewer_module.R`.
-#   4. Optionally trigger downstream notifications (data review,
+#   2. Save the entry with `zzedc:::save_crf_entry()` or
+#      `zzedc:::db_insert_data_entry()` against `db_pool`. These write
+#      the row and its audit-trail record in one transaction, so an
+#      entry cannot be saved without its audit record
+#      (21 CFR 11.10(e)). Do not write study data with a bare
+#      `pool::dbExecute()`: nothing would audit it.
+#   3. Optionally trigger downstream notifications (data review,
 #      monitoring queries, etc.).
 
 saveData <- function(form_data) {

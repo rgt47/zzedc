@@ -1,5 +1,125 @@
 # zzedc (development version)
 
+## Audit trail: coverage, fail-closed writes, protection, review
+
+A review against 21 CFR 11.10(e) and HIPAA 164.312(b) found the audit
+trail missed the core clinical data and could be removed or rewritten.
+
+* **Case report form entries are audited.** `db_insert_data_entry()`
+  (and so the EDC tab's save) wrote study data with no audit record.
+  Each entry is now saved with an `INSERT` audit record holding the
+  submitted values, user, time, client address, and session, in the
+  same transaction: if the audit record cannot be written, the entry
+  is not saved.
+
+* **Failed audit writes are errors under `regulated`.**
+  `log_audit_event()`, `log_audit_event_extended()`, and
+  `log_audit_action()` previously warned and carried on. Login events
+  that cannot be recorded now fail the login under `regulated`.
+
+* **Append-only audit tables.** Triggers reject `UPDATE` and `DELETE`
+  on `audit_log`, `audit_chain` (except its verification columns), and
+  `audit_events` on SQLite, PostgreSQL, and MySQL/MariaDB; installed at
+  every start. DuckDB has no triggers. `cleanup_audit_logs()`, which
+  deleted old audit records and broke the chain, now refuses.
+
+* **External checkpoints** (`audit_checkpoint()`,
+  `verify_audit_checkpoints()`; `audit.checkpoint_dir`,
+  `ZZEDC_AUDIT_CHECKPOINT_KEY`). A rewrite that recomputes every hash
+  passes `verify_audit_integrity()`; it does not pass a keyed
+  checkpoint stored outside the database. See `?audit_protection`.
+
+* **One chain writer** (`R/audit_append.R`), serialized on PostgreSQL
+  (advisory lock) and MySQL/MariaDB (locking read) so concurrent writes
+  cannot fork the chain. The extended writer had no transaction and
+  numbered the chain by `COUNT(*)`.
+
+* **Sign-in events.** Successful logins, attempts on unknown, inactive,
+  or locked accounts, automatic logoffs, and session ends are recorded,
+  with client address and session token (`session_audit_context()`).
+  Previously only wrong passwords and lockouts were.
+
+* **Automatic logoff works.** `enable_session_timeout()` was never
+  called, referred to an out-of-scope `input`, and reset its own clock
+  when it showed its warning, so sessions never timed out. Under
+  `regulated`, the fallback login path (no lockout, no audit) is no
+  longer served.
+
+* **Audit viewer.** The Admin tab's viewer read a table (`audit_trail`)
+  that nothing wrote, and showed 20 randomly generated "sample"
+  entries when its query failed. It now reads `audit_log` and shows an
+  error instead. Audit content is HTML-escaped: the table and detail
+  view rendered it as raw HTML, so a username typed at a failed login
+  could run script in an administrator's browser.
+
+* `get_audit_trail()` binds all filters as parameters (they were pasted
+  into the SQL).
+
+* OQ-019 and OQ-020 qualify the new controls. The startup
+  `COMPLIANCE_CHECK` record reports the audit protection and
+  checkpoint configuration.
+
+* Known, not changed: `apply_correction()` records a correction's old
+  value, new value, and reason, and marks it applied, but does not
+  change the stored value. Reads of records are not logged.
+
+## Encryption plan completed: backups, HTTPS, keys, server databases, evidence
+
+Phases 1.1, 1.3, 1.4, 2.1, 3.1, 4, and 6 of
+`docs/encryption-compliance-plan-2026-11-10.md`.
+
+* **Encrypted backups.** Set `ZZEDC_BACKUP_PASSPHRASE` (at least 12
+  characters, held apart from the database key) and backups are
+  written as `.db.enc` or `.db.gz.enc` (AES-256-CTR with HMAC-SHA256).
+  Under `regulated`, an unencrypted backup of an unencrypted database
+  is refused. Restore accepts encrypted and compressed backups.
+
+* **The Backup tab's Download button works** (it did nothing). Each
+  download is recorded as an `EXPORT` audit event.
+
+* **HTTPS.** New `security.https_only` setting; HTTPS is always
+  required under `regulated`. Sessions that did not arrive over HTTPS
+  are blocked. `X-Forwarded-Proto` is trusted only from a reverse
+  proxy on the same machine. A proxy template is installed at
+  `system.file("templates", "nginx-zzedc.conf", package = "zzedc")`.
+
+* **Key management** (`?key_management`). `check_key_custody()`
+  refuses (under `regulated`) or warns about a database key written
+  into `config.yml`; `log_key_access()` records each load of the key
+  in the audit log, without the key; `rotate_database_key()`
+  re-encrypts a DuckDB database under a new key (and a SQLite database
+  on a cipher-enabled RSQLite).
+
+* **PostgreSQL and MySQL/MariaDB under `regulated`** (previously
+  always refused). MySQL/MariaDB: zzedc asks InnoDB whether every
+  table of the study database is encrypted. PostgreSQL: the deployer
+  records the storage encryption in `database.at_rest_attestation`,
+  and zzedc labels it as attested, not verified. Both require
+  `sslmode: verify-full`/`verify-ca` or `ssl_mode:
+  VERIFY_IDENTITY`/`VERIFY_CA`, and the live connection must use TLS.
+  See `?server_encryption`.
+
+* **Startup compliance record.** Each application start writes a
+  `COMPLIANCE_CHECK` audit event with the profile, backend, at-rest
+  state and its basis, TLS, key source, DuckDB extension settings, and
+  HTTPS requirement (`compliance_self_check()`,
+  `record_compliance_check()`).
+
+* **Operational qualification of the security controls**: OQ-011 to
+  OQ-018 in `run_oq_tests()`.
+
+* **Compliance documents** installed in
+  `system.file("compliance", package = "zzedc")`: a responsibility
+  matrix (Part 11, HIPAA 164.312, GDPR Art. 32(1)), a HIPAA encryption
+  worksheet, a GDPR Article 32 statement template, and an IRB security
+  summary.
+
+* The technical-lead guide now gives the steps for building RSQLite
+  with SQLite3MultipleCiphers (not tested by zzedc's own suite).
+
+* The content-author guide's Google Sheets link pointed at a
+  redirected address; corrected.
+
 ## Encryption: false claims removed, security profiles added
 
 Phase 0 of `docs/encryption-compliance-plan-2026-11-10.md`. Several

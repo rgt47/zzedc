@@ -4,7 +4,13 @@
 \alias{.encrypt_duckdb_file}
 \title{Rewrite a DuckDB File Encrypted (internal)}
 \usage{
-.encrypt_duckdb_file(src, dest, key)
+.encrypt_duckdb_file(
+  src,
+  dest,
+  key,
+  src_key = NULL,
+  extension_directory = NULL
+)
 }
 \arguments{
 \item{src}{Character: plaintext DuckDB file.}

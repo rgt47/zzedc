@@ -11,11 +11,14 @@ log_security_event(
   details = NULL,
   ip_address = NULL,
   severity = "warning",
-  db_path = NULL
+  db_path = NULL,
+  session_id = NULL
 )
 }
 \arguments{
-\item{event_type}{Character: Security event type}
+\item{event_type}{Character: Security event type: \code{LOGIN},
+\code{LOGOUT}, \code{SESSION_END}, \code{LOGIN_FAILED}, \code{PASSWORD_CHANGE},
+\code{ROLE_CHANGE}, \code{PERMISSION_CHANGE}, \code{LOCKOUT}, or \code{UNLOCK}.}
 
 \item{user_id}{Character: User ID involved}
 
@@ -28,6 +31,8 @@ log_security_event(
 \item{severity}{Character: Event severity}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{session_id}{Character: Shiny session token (optional)}
 }
 \value{
 Logical TRUE if successfully logged

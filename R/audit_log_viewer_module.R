@@ -33,10 +33,14 @@ audit_log_viewer_ui <- function(id) {
             selectInput(ns("filter_action"), NULL,
                        choices = list(
                          "All Actions" = "",
-                         "Login/Logout" = c("login", "logout"),
-                         "Data Entry" = c("create_entry", "update_entry", "delete_entry"),
-                         "User Management" = c("create_user", "update_user", "delete_user"),
-                         "System" = c("backup", "restore", "config_change")
+                         "Sign-in" = c("LOGIN", "LOGOUT", "SESSION_END",
+                                       "LOGIN_FAILED", "LOCKOUT", "UNLOCK"),
+                         "Data" = c("INSERT", "UPDATE", "DELETE", "EXPORT"),
+                         "Signatures" = c("SIGNATURE_APPLIED", "SIGNATURE_REVOKED"),
+                         "Accounts" = c("PASSWORD_CHANGE", "ROLE_CHANGE",
+                                        "PERMISSION_CHANGE"),
+                         "System" = c("BACKUP", "RESTORE", "CONFIG_CHANGE",
+                                      "COMPLIANCE_CHECK", "ACCESS")
                        ))
           ),
 
@@ -167,64 +171,39 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
       all_logs = data.frame(),
       filtered_logs = data.frame(),
       users_list = character(),
-      selected_log = NULL
+      selected_log = NULL,
+      load_error = NULL
     )
 
-    # Load all audit logs
+    # Load the audit trail. This read a table named audit_trail, which
+    # nothing in the application writes, and when its query failed it
+    # displayed 20 randomly generated "sample" entries as though they
+    # were the study's audit trail. It now reads audit_log, the table
+    # every audit writer appends to, and an unreadable trail is shown
+    # as an error with no rows.
     load_audit_logs <- function() {
-      if (is.null(db_pool)) {
-        # Return empty sample data for testing
-        return(create_sample_audit_logs())
+      pool_obj <- if (is.function(db_pool) && !inherits(db_pool, "Pool")) db_pool() else db_pool
+      if (is.null(pool_obj)) {
+        log_state$load_error <- "No database connection."
+        return(empty_audit_logs())
       }
-
       tryCatch({
-        query <- "
-          SELECT
-            audit_id,
-            user_id,
-            action,
-            entity_type,
-            entity_id,
-            action_date,
-            ip_address
-          FROM audit_trail
-          ORDER BY action_date DESC
+        logs <- DBI::dbGetQuery(pool_obj, "
+          SELECT audit_id, user_id, event_type, table_name, record_id,
+                 timestamp, ip_address, session_id, operation, details
+          FROM audit_log
+          ORDER BY audit_id DESC
           LIMIT 10000
-        "
-        logs <- pool::dbGetQuery(db_pool, query)
-
-        # Format datetime
-        if (nrow(logs) > 0) {
-          logs$action_date <- format(
-            as.POSIXct(logs$action_date),
-            "%Y-%m-%d %H:%M:%S"
-          )
-        }
-
-        log_state$all_logs <- logs
-        return(logs)
-
+        ")
+        log_state$load_error <- NULL
+        audit_log_display_frame(logs)
       }, error = function(e) {
-        # Return sample data if database query fails
-        return(create_sample_audit_logs())
+        log_state$load_error <- paste("The audit trail could not be read:", conditionMessage(e))
+        empty_audit_logs()
       })
     }
 
-    # Create sample audit logs for demonstration
-    create_sample_audit_logs <- function() {
-      data.frame(
-        audit_id = paste0("AUDIT_", 1:20),
-        user_id = rep(c("USER_001", "USER_002", "USER_003"), length.out = 20),
-        action = sample(c("login", "logout", "create_entry", "update_entry", "delete_entry",
-                         "create_user", "update_user", "config_change"),
-                       20, replace = TRUE),
-        entity_type = sample(c("data", "user", "form", "system"), 20, replace = TRUE),
-        entity_id = paste0("ENT_", 1:20),
-        action_date = format(Sys.time() - sample(1:(30*24*3600), 20), "%Y-%m-%d %H:%M:%S"),
-        ip_address = sample(c("192.168.1.100", "192.168.1.101", "10.0.0.50"), 20, replace = TRUE),
-        stringsAsFactors = FALSE
-      )
-    }
+    empty_audit_logs <- function() audit_log_display_frame(NULL)
 
     # Get unique users for filter dropdown
     update_user_list <- function() {
@@ -312,39 +291,27 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
       logs <- apply_filters()
 
       if (nrow(logs) == 0) {
+        msg <- log_state$load_error %||% "No audit logs match your filters"
         return(DT::datatable(
-          data.frame(Message = "No audit logs match your filters"),
+          data.frame(Message = msg),
           options = list(dom = 't', searching = FALSE, paging = FALSE)
         ))
       }
 
-      # Create clickable action column
-      action_links <- sapply(1:nrow(logs), function(i) {
-        audit_id <- logs$audit_id[i]
-        action <- logs$action[i]
-        paste0(
-          '<a href="javascript:void(0)" onclick="Shiny.setInputValue(\'', ns("view_details"), '\', \'', audit_id, '\', {priority: \'event\'})">',
-          action,
-          '</a>'
-        )
-      })
-
-      display_data <- logs[, c("user_id", "action", "entity_type", "entity_id", "action_date")]
-      display_data$action <- action_links
-      colnames(display_data) <- c("User", "Action", "Type", "Entity ID", "Timestamp")
+      display_data <- audit_log_table_data(logs, ns("view_details"))
 
       DT::datatable(
         display_data,
         escape = FALSE,
         options = list(
           pageLength = 20,
-          order = list(list(4, "desc")),
+          order = list(list(5, "desc")),
           columnDefs = list(
             list(targets = 0, width = "100px"),
             list(targets = 1, width = "120px"),
             list(targets = 2, width = "80px"),
-            list(targets = 3, width = "100px"),
-            list(targets = 4, width = "160px")
+            list(targets = 4, width = "100px"),
+            list(targets = 5, width = "160px")
           )
         )
       )
@@ -381,53 +348,33 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
         return()
       }
 
-      # Create detailed view
-      details_html <- sprintf("
-        <table class='table'>
-          <tr>
-            <td><strong>Audit ID:</strong></td>
-            <td>%s</td>
-          </tr>
-          <tr>
-            <td><strong>User:</strong></td>
-            <td>%s</td>
-          </tr>
-          <tr>
-            <td><strong>Action:</strong></td>
-            <td><span class='badge bg-primary'>%s</span></td>
-          </tr>
-          <tr>
-            <td><strong>Entity Type:</strong></td>
-            <td>%s</td>
-          </tr>
-          <tr>
-            <td><strong>Entity ID:</strong></td>
-            <td><code>%s</code></td>
-          </tr>
-          <tr>
-            <td><strong>Timestamp:</strong></td>
-            <td>%s</td>
-          </tr>
-          <tr>
-            <td><strong>IP Address:</strong></td>
-            <td><code>%s</code></td>
-          </tr>
-        </table>
-      ",
-        log_entry$audit_id[1],
-        log_entry$user_id[1],
-        log_entry$action[1],
-        log_entry$entity_type[1],
-        log_entry$entity_id[1],
-        log_entry$action_date[1],
-        log_entry$ip_address[1]
+      # Built from tags, which escape their text, rather than raw HTML:
+      # audit content can contain text chosen by whoever caused the
+      # event (see the table above).
+      e1 <- log_entry[1, ]
+      row <- function(label, value, code = FALSE) {
+        value <- if (is.na(value)) "" else value
+        shiny::tags$tr(shiny::tags$td(shiny::tags$strong(label)),
+                       shiny::tags$td(if (code) shiny::tags$code(value) else value))
+      }
+      details_ui <- shiny::tags$table(class = "table",
+        row("Audit ID:", e1$audit_id),
+        row("User:", e1$user_id),
+        row("Action:", e1$action),
+        row("Description:", e1$operation),
+        row("Table:", e1$table_name, code = TRUE),
+        row("Record ID:", e1$entity_id, code = TRUE),
+        row("Timestamp (UTC):", e1$action_date),
+        row("IP Address:", e1$ip_address, code = TRUE),
+        row("Session:", e1$session_id, code = TRUE),
+        row("Details:", e1$details, code = TRUE)
       )
 
       shiny::showModal(shiny::modalDialog(
         title = "Action Details",
         size = "l",
         easyClose = TRUE,
-        shiny::HTML(details_html),
+        details_ui,
         footer = shiny::modalButton("Close")
       ))
     })
@@ -486,29 +433,113 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
 #' @keywords internal
 #' @export
 log_audit_action <- function(db_pool, user_id, action, entity_type, entity_id,
-                            ip_address = "127.0.0.1", old_values = NULL, new_values = NULL) {
-
+                            ip_address = NULL, old_values = NULL, new_values = NULL) {
+  # This wrote to a separate audit_trail table, outside the hash chain,
+  # that the audit viewer no longer reads. It now appends to the
+  # hash-chained audit_log through the same path as every other writer.
   if (is.null(db_pool)) {
     return(invisible(NULL))
   }
-
+  event_type <- toupper(action)
+  if (!event_type %in% .audit_event_types) event_type <- "ACCESS"
+  details <- if (!is.null(old_values) || !is.null(new_values)) {
+    as.character(jsonlite::toJSON(list(action = action, old_values = old_values,
+                                       new_values = new_values),
+                                  auto_unbox = TRUE, null = "null"))
+  } else {
+    NULL
+  }
   tryCatch({
-    audit_id <- paste0("AUDIT_", as.integer(Sys.time()), "_", sample(1000:9999, 1))
-
-    pool::dbExecute(db_pool, "
-      INSERT INTO audit_trail
-      (audit_id, user_id, action, entity_type, entity_id, old_values, new_values,
-       action_date, ip_address)
-      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-    ", params = list(
-      audit_id, user_id, action, entity_type, entity_id,
-      old_values, new_values, ip_address
-    ))
-
-    return(invisible(audit_id))
-
+    audit_id <- .with_db_transaction(db_pool, function(c) {
+      .append_audit_record(c, event_type, table_name = entity_type,
+                           record_id = entity_id, operation = action,
+                           details = details, user_id = user_id,
+                           ip_address = ip_address)
+    })
+    invisible(audit_id)
   }, error = function(e) {
+    if (get_security_profile() == "regulated") {
+      stop("Audit record could not be written: ", conditionMessage(e), call. = FALSE)
+    }
     warning(paste("Failed to log audit action:", e$message))
-    return(invisible(NULL))
+    invisible(NULL)
   })
+}
+
+
+#' Shape Audit-Log Rows for the Audit Viewer (internal)
+#'
+#' @param logs Rows of `audit_log`, or `NULL`.
+#' @return A data frame with the viewer's columns (`action` is the event
+#'   type, `entity_type` one of `user`, `data`, `form`, `system`,
+#'   `entity_id` the record acted on, `action_date` the UTC timestamp)
+#'   plus `table_name`, `operation`, `details`, and `session_id`.
+#' @keywords internal
+audit_log_display_frame <- function(logs) {
+  cols <- c("audit_id", "user_id", "action", "entity_type", "entity_id",
+            "action_date", "ip_address", "table_name", "operation",
+            "details", "session_id")
+  if (is.null(logs) || nrow(logs) == 0) {
+    out <- as.data.frame(stats::setNames(replicate(length(cols), character(0), simplify = FALSE), cols),
+                         stringsAsFactors = FALSE)
+    return(out)
+  }
+  user_events <- c("LOGIN", "LOGOUT", "SESSION_START", "SESSION_END", "LOGIN_FAILED",
+                   "PASSWORD_CHANGE", "ROLE_CHANGE", "PERMISSION_CHANGE", "LOCKOUT", "UNLOCK")
+  data_events <- c("INSERT", "UPDATE", "DELETE", "SELECT", "EXPORT", "SIGNATURE_REQUEST",
+                   "SIGNATURE_APPLIED", "SIGNATURE_REJECTED", "SIGNATURE_REVOKED")
+  form_tables <- c("designer_forms", "designer_fields", "crf_definitions", "crf_fields")
+  tbl <- as.character(logs$table_name)
+  ev <- as.character(logs$event_type)
+  entity <- ifelse(ev %in% user_events | tbl %in% "edc_users", "user",
+            ifelse(tbl %in% form_tables, "form",
+            ifelse(ev %in% data_events, "data", "system")))
+  data.frame(
+    audit_id = as.character(logs$audit_id),
+    user_id = as.character(logs$user_id),
+    action = ev,
+    entity_type = entity,
+    entity_id = as.character(logs$record_id),
+    action_date = as.character(logs$timestamp),
+    ip_address = as.character(logs$ip_address),
+    table_name = tbl,
+    operation = as.character(logs$operation),
+    details = as.character(logs$details),
+    session_id = as.character(logs$session_id),
+    stringsAsFactors = FALSE
+  )
+}
+
+
+#' Rows of the Audit Viewer's Table, HTML-Escaped (internal)
+#'
+#' Audit content includes text chosen by whoever caused the event (a
+#' username typed at a failed login, a record identifier), and the table
+#' is rendered with `escape = FALSE` so the action column can carry
+#' links. Every value is HTML-escaped here so that such text cannot run
+#' as script in an administrator's browser.
+#'
+#' @param logs From `audit_log_display_frame()`.
+#' @param details_input Namespaced input id the action links set.
+#' @return A data frame for `DT::datatable(escape = FALSE)`.
+#' @keywords internal
+audit_log_table_data <- function(logs, details_input) {
+  esc <- function(v) htmltools::htmlEscape(ifelse(is.na(v), "", as.character(v)))
+  action_links <- vapply(seq_len(nrow(logs)), function(i) {
+    paste0(
+      '<a href="javascript:void(0)" onclick="Shiny.setInputValue(\'', details_input,
+      '\', \'', esc(as.integer(logs$audit_id[i])), '\', {priority: \'event\'})">',
+      esc(logs$action[i]),
+      '</a>'
+    )
+  }, character(1))
+  data.frame(
+    User = esc(logs$user_id),
+    Action = action_links,
+    Type = esc(logs$entity_type),
+    Description = esc(logs$operation),
+    `Entity ID` = esc(logs$entity_id),
+    Timestamp = esc(logs$action_date),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
 }

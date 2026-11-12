@@ -21,7 +21,9 @@
 #'   `extension_directory`, `allow_extension_download`, `threads`,
 #'   `memory_limit`.
 #' - Server backends: `host`, `port`, `name`, `user`, `password`, and
-#'   `sslmode` (PostgreSQL) or `ssl_mode` (MySQL/MariaDB).
+#'   `sslmode` (PostgreSQL) or `ssl_mode` (MySQL/MariaDB), and
+#'   `at_rest_attestation`: the deployer's statement of how the server
+#'   encrypts its storage (see `?server_encryption`).
 #' - All backends: `pool_size` (maximum pool connections).
 #'
 #' Values of the form `${VAR}` are replaced from the environment, so
@@ -67,11 +69,13 @@ app_database_config <- function(cfg, work_dir = getwd()) {
     )),
     postgresql = compact(list(
       host = db$host, port = db$port, name = db$name, user = db$user,
-      password = db$password, sslmode = db$sslmode, pool_max = pool_max
+      password = db$password, sslmode = db$sslmode,
+      at_rest_attestation = db$at_rest_attestation, pool_max = pool_max
     )),
     mysql = compact(list(
       host = db$host, port = db$port, name = db$name, user = db$user,
-      password = db$password, ssl_mode = db$ssl_mode, pool_max = pool_max
+      password = db$password, ssl_mode = db$ssl_mode,
+      at_rest_attestation = db$at_rest_attestation, pool_max = pool_max
     )),
     stop("Unsupported database backend in config.yml: '", backend,
          "'. Use sqlite, duckdb, postgresql, or mysql.", call. = FALSE)

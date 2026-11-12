@@ -11,7 +11,9 @@ log_audit_event(
   operation,
   details = NULL,
   user_id = NULL,
-  db_path = NULL
+  db_path = NULL,
+  ip_address = NULL,
+  session_id = NULL
 )
 }
 \arguments{
@@ -28,22 +30,26 @@ log_audit_event(
 \item{user_id}{Character: User ID (optional)}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{ip_address, session_id}{Character: client address and Shiny
+session token of the request, when known (optional).}
 }
 \value{
-Logical TRUE if successfully logged
+\code{TRUE} if the record was written. If it could not be
+written: under the \code{regulated} security profile, an error; under
+the other profiles, a warning and \code{FALSE}.
 }
 \description{
 Records a database operation to the immutable audit trail.
 }
 \details{
-Each audit event is:
-\enumerate{
-\item Assigned unique audit_id
-\item Timestamped with timezone
-\item Hashed using SHA-256
-\item Linked to previous record (hash-chaining)
-\item Made immutable by hash dependency
-}
+Each audit event is assigned an \code{audit_id}, timestamped in UTC,
+hashed with SHA-256 over its content and the previous record's
+hash, and linked into \code{audit_chain}, all in one transaction. A
+change to data should instead write its audit record in the same
+transaction as the change (as \code{db_insert_data_entry()} does), so
+that one cannot commit without the other. See \code{?audit_protection}
+for how the trail is protected against alteration.
 }
 \examples{
 \dontrun{

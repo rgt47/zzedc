@@ -25,7 +25,11 @@ if (file.exists("_setup.R")) source("_setup.R")
 .load_auth_env <- function() {
   app_dir <- system.file("app", package = "zzedc")
   lines <- readLines(file.path(app_dir, "auth.R"))
-  end <- grep("^}", lines)[2]
+  # Evaluate through the closing brace of unlock_user_account(), located
+  # by name (a helper defined above authenticate_user() means it is no
+  # longer the second top-level `}`).
+  closes <- grep("^}", lines)
+  end <- closes[closes > grep("^unlock_user_account <- function", lines)][1]
   env <- new.env(parent = globalenv())
   eval(parse(text = lines[1:end]), envir = env)
   env

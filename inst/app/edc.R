@@ -619,8 +619,11 @@ observeEvent(input$submitcrf, {
     "unknown"
   }
 
+  audit_ctx <- zzedc::session_audit_context(session)
   result <- zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
-                                    created_by = created_by)
+                                    created_by = created_by,
+                                    ip_address = audit_ctx$ip_address,
+                                    session_id = audit_ctx$session_id)
   if (isTRUE(result$success)) {
     shiny::showNotification(
       sprintf("Entry saved (%s, %s).", crf_row$crf_name[1], result$entry_id),

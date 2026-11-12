@@ -32,10 +32,10 @@ enable_session_timeout <- function(session, user_input, timeout_config, on_timeo
   # Create session tracking
   session_tracker <- init_session_timeout()
 
-  # Update activity on any input
+  # Update activity on any input. This read `input`, which is not in
+  # this function's scope; the session's own input is used instead.
   observe({
-    # Trigger on any input change
-    reactive_inputs <- reactiveValuesToList(input)
+    reactive_inputs <- reactiveValuesToList(session$input)
 
     # Update last activity time
     session_tracker$last_activity(Sys.time())
@@ -68,8 +68,10 @@ enable_session_timeout <- function(session, user_input, timeout_config, on_timeo
         closeOnClickOutside = FALSE
       )
 
-      # Update activity on warning (user interaction)
-      session_tracker$last_activity(Sys.time())
+      # Showing the warning is not user activity. It used to reset the
+      # activity clock here, so every warning postponed the timeout and
+      # an unattended session never expired; activity is now recorded
+      # only by the input observer above.
       return()
     }
 
@@ -81,7 +83,17 @@ enable_session_timeout <- function(session, user_input, timeout_config, on_timeo
       if (!is.null(on_timeout_callback)) {
         on_timeout_callback()
       } else {
-        # Default timeout behavior
+        # Default timeout behavior: record the automatic logoff, then
+        # clear the session's identity.
+        ctx <- session_audit_context(session)
+        tryCatch(
+          log_security_event(
+            event_type = "LOGOUT", user_id = user_input$username,
+            description = sprintf("Automatic logoff after %s minutes of inactivity", timeout_minutes),
+            severity = "info", ip_address = ctx$ip_address, session_id = ctx$session_id
+          ),
+          error = function(e) message("Could not record automatic logoff: ", conditionMessage(e))
+        )
         user_input$authenticated <- FALSE
         user_input$username <- NULL
         user_input$user_id <- NULL

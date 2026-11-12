@@ -42,6 +42,13 @@ default:
     # which also sets HSTS. Connections to localhost are allowed.
     https_only: false
 
+  # Audit trail. checkpoint_dir: where the application writes a
+  # keyed checkpoint of the audit chain at every start (key in the
+  # ZZEDC_AUDIT_CHECKPOINT_KEY environment variable). Put it on
+  # storage the database host cannot rewrite. See ?audit_protection.
+  # audit:
+  #   checkpoint_dir: /mnt/zzedc-audit-checkpoints
+
   # UI settings
   ui:
     theme: "flatly"

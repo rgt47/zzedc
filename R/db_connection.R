@@ -1225,17 +1225,35 @@ set_encryption_for_existing_db <- function(db_path, new_key = NULL) {
 #' @param dest Character: path for the encrypted copy.
 #' @param key Character: encryption key.
 #' @keywords internal
-.encrypt_duckdb_file <- function(src, dest, key) {
+.encrypt_duckdb_file <- function(src, dest, key, src_key = NULL,
+                                 extension_directory = NULL) {
   if (!requireNamespace("duckdb", quietly = TRUE)) {
     stop("duckdb package required to encrypt a DuckDB file")
   }
   conn <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(conn, shutdown = TRUE), add = TRUE)
   # See DuckDBAdapter$connect(): ENCRYPTION_KEY needs httpfs loaded
-  # first on at least one DuckDB build.
-  DBI::dbExecute(conn, "INSTALL httpfs")
-  DBI::dbExecute(conn, "LOAD httpfs")
-  DBI::dbExecute(conn, sprintf("ATTACH '%s' AS zzedc_src (READ_ONLY)", src))
+  # first on at least one DuckDB build. Load it from the configured
+  # extension directory; download it only where downloads are allowed.
+  if (!is.null(extension_directory) && nzchar(extension_directory)) {
+    DBI::dbExecute(conn, sprintf("SET extension_directory = '%s'",
+                                 normalizePath(extension_directory, mustWork = FALSE)))
+  }
+  loaded <- tryCatch({ DBI::dbExecute(conn, "LOAD httpfs"); TRUE },
+                     error = function(e) FALSE)
+  if (!loaded) {
+    if (!duckdb_extension_download_allowed(list())) {
+      stop("DuckDB extension 'httpfs' is not installed and downloads are not ",
+           "allowed; see install_duckdb_extensions().", call. = FALSE)
+    }
+    DBI::dbExecute(conn, "INSTALL httpfs")
+    DBI::dbExecute(conn, "LOAD httpfs")
+  }
+  DBI::dbExecute(conn, if (is.null(src_key)) {
+    sprintf("ATTACH '%s' AS zzedc_src (READ_ONLY)", src)
+  } else {
+    sprintf("ATTACH '%s' AS zzedc_src (READ_ONLY, ENCRYPTION_KEY '%s')", src, src_key)
+  })
   DBI::dbExecute(conn, sprintf(
     "ATTACH '%s' AS zzedc_dest (ENCRYPTION_KEY '%s')", dest, key
   ))

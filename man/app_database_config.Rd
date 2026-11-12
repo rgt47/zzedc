@@ -31,7 +31,9 @@ The \verb{database:} section is flat. \code{backend} (or the setup wizard's
 \code{extension_directory}, \code{allow_extension_download}, \code{threads},
 \code{memory_limit}.
 \item Server backends: \code{host}, \code{port}, \code{name}, \code{user}, \code{password}, and
-\code{sslmode} (PostgreSQL) or \code{ssl_mode} (MySQL/MariaDB).
+\code{sslmode} (PostgreSQL) or \code{ssl_mode} (MySQL/MariaDB), and
+\code{at_rest_attestation}: the deployer's statement of how the server
+encrypts its storage (see \code{?server_encryption}).
 \item All backends: \code{pool_size} (maximum pool connections).
 }
 

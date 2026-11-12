@@ -508,6 +508,13 @@ run_iq_tests <- function(config = NULL, db_path = NULL, verbose = TRUE) {
 #' - Search and filter functionality
 #' - Export operations
 #' - Integrity verification
+#' - Security controls (OQ-011 to OQ-020): refusal of unencrypted
+#'   storage under `regulated`, encryption verification, export
+#'   encryption and tamper detection, keyed pseudonymization, key
+#'   custody, backup encryption, HTTPS enforcement, and the server
+#'   database TLS and at-rest rules, audit records written with the
+#'   data they describe, and an append-only, checkpointed audit trail
+#'   (see `R/oq_security.R`)
 #'
 #' @keywords internal
 #' @export
@@ -828,6 +835,9 @@ run_oq_tests <- function(db_path = NULL, verbose = TRUE) {
     duration_ms = as.numeric(difftime(Sys.time(), t1, units = "secs")) * 1000
   )
   if (verbose) cat(if (results$OQ_010$passed) "PASSED\n" else "FAILED\n")
+
+  # OQ-011 to OQ-020: security controls (R/oq_security.R)
+  results <- c(results, .run_security_oq_tests(verbose = verbose))
 
   # Cleanup
   unlink(test_db)

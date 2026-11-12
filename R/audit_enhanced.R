@@ -165,13 +165,16 @@ log_backup_event <- function(backup_path, backup_type = "full",
 #'
 #' Records security-related events such as failed logins and access changes.
 #'
-#' @param event_type Character: Security event type
+#' @param event_type Character: Security event type: `LOGIN`,
+#'   `LOGOUT`, `SESSION_END`, `LOGIN_FAILED`, `PASSWORD_CHANGE`,
+#'   `ROLE_CHANGE`, `PERMISSION_CHANGE`, `LOCKOUT`, or `UNLOCK`.
 #' @param user_id Character: User ID involved
 #' @param description Character: Description of the event
 #' @param details List: Additional event details
 #' @param ip_address Character: IP address of request (optional)
 #' @param severity Character: Event severity
 #' @param db_path Character: Database path (optional)
+#' @param session_id Character: Shiny session token (optional)
 #'
 #' @return Logical TRUE if successfully logged
 #'
@@ -190,8 +193,10 @@ log_backup_event <- function(backup_path, backup_type = "full",
 #' @export
 log_security_event <- function(event_type, user_id, description,
                                 details = NULL, ip_address = NULL,
-                                severity = "warning", db_path = NULL) {
-  valid_types <- c("LOGIN_FAILED", "PASSWORD_CHANGE", "ROLE_CHANGE",
+                                severity = "warning", db_path = NULL,
+                                session_id = NULL) {
+  valid_types <- c("LOGIN", "LOGOUT", "SESSION_END",
+                   "LOGIN_FAILED", "PASSWORD_CHANGE", "ROLE_CHANGE",
                    "PERMISSION_CHANGE", "LOCKOUT", "UNLOCK")
 
   if (!event_type %in% valid_types) {
@@ -214,6 +219,7 @@ log_security_event <- function(event_type, user_id, description,
     severity = severity,
     user_id = user_id,
     ip_address = ip_address,
+    session_id = session_id,
     db_path = db_path
   )
 }
@@ -228,6 +234,7 @@ log_security_event <- function(event_type, user_id, description,
 #' @param ip_address Character: IP address of request
 #' @param attempt_count Integer: Number of failed attempts
 #' @param db_path Character: Database path (optional)
+#' @param session_id Character: Shiny session token (optional)
 #'
 #' @return Logical TRUE if successfully logged
 #'
@@ -246,7 +253,7 @@ log_security_event <- function(event_type, user_id, description,
 #' @export
 log_failed_login <- function(username, reason = "Invalid credentials",
                               ip_address = NULL, attempt_count = 1,
-                              db_path = NULL) {
+                              db_path = NULL, session_id = NULL) {
   log_security_event(
     event_type = "LOGIN_FAILED",
     user_id = username,
@@ -258,7 +265,8 @@ log_failed_login <- function(username, reason = "Invalid credentials",
     ),
     ip_address = ip_address,
     severity = ifelse(attempt_count >= 3, "error", "warning"),
-    db_path = db_path
+    db_path = db_path,
+    session_id = session_id
   )
 }
 
@@ -496,63 +504,32 @@ log_audit_event_extended <- function(event_type, event_category = "DATA",
   ip_address <- safe_scalar(ip_address)
   session_id <- safe_scalar(session_id)
 
-  tryCatch({
+  ok <- tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
-
-    prev_hash_query <- DBI::dbGetQuery(conn, "
-      SELECT audit_hash FROM audit_log
-      ORDER BY audit_id DESC LIMIT 1
-    ")
-    previous_hash <- if (nrow(prev_hash_query) > 0) {
-      prev_hash_query[1, 1]
-    } else {
-      "GENESIS"
-    }
-
-    # Same canonical content as log_audit_event(), so one verifier can
-    # check rows from either writer. event_category is deliberately not
-    # hashed: it lives in audit_events, not audit_log, so it could not
-    # be recovered when recomputing the hash from the stored row.
-    timestamp <- format(Sys.time(), tz = "UTC", "%Y-%m-%d %H:%M:%S")
-    record_content <- .audit_hash_content(
-      event_type, table_name, record_id, operation, details,
-      user_id, ip_address, session_id, timestamp, previous_hash
-    )
-    audit_hash <- digest::digest(record_content, algo = "sha256")
-
-    audit_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO audit_log
-      (timestamp, event_type, table_name, record_id, operation, details,
-       user_id, ip_address, session_id, audit_hash, previous_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING audit_id AS id
-    ", list(
-      timestamp, event_type, table_name, record_id, operation, details,
-      user_id, ip_address, session_id, audit_hash, previous_hash
-    ))[1, 1]
-
-    chain_order <- DBI::dbGetQuery(conn,
-                                    "SELECT COUNT(*) FROM audit_chain")[1, 1] + 1
-
-    DBI::dbExecute(conn, "
-      INSERT INTO audit_chain
-      (audit_id, record_hash, previous_hash, chain_order, verified)
-      VALUES (?, ?, ?, ?, 1)
-    ", list(audit_id, audit_hash, previous_hash, chain_order))
-
-    DBI::dbExecute(conn, "
-      INSERT INTO audit_events
-      (audit_id, event_category, event_severity, event_message)
-      VALUES (?, ?, ?, ?)
-    ", list(audit_id, event_category, severity, operation))
-
+    # Same append path as log_audit_event() (one locked, transactional
+    # chain writer). event_category is not hashed: it lives in
+    # audit_events, not audit_log, so it could not be recovered when
+    # recomputing the hash from the stored row.
+    .with_db_transaction(conn, function(c) {
+      audit_id <- .append_audit_record(c, event_type, table_name, record_id,
+                                       operation, details, user_id,
+                                       ip_address, session_id)
+      DBI::dbExecute(c, "
+        INSERT INTO audit_events
+        (audit_id, event_category, event_severity, event_message)
+        VALUES (?, ?, ?, ?)
+      ", params = list(audit_id, event_category, severity, operation))
+    })
     TRUE
+  }, error = function(e) e)
 
-  }, error = function(e) {
-    warning("Failed to log audit event: ", e$message)
-    FALSE
-  })
+  if (isTRUE(ok)) return(TRUE)
+  if (get_security_profile() == "regulated") {
+    stop("Audit record could not be written: ", conditionMessage(ok), call. = FALSE)
+  }
+  warning("Failed to log audit event: ", conditionMessage(ok))
+  FALSE
 }
 
 

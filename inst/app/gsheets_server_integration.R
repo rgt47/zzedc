@@ -24,9 +24,31 @@ create_enhanced_server <- function(input, output, session) {
   # Initialize setup management
   initialize_setup_server(input, output, session)
 
-  # Session management
+  # Automatic logoff after cfg$auth$session_timeout_minutes of
+  # inactivity (HIPAA 164.312(a)(2)(iii)). enable_session_timeout()
+  # existed but was never called, so sessions never timed out. The
+  # timeout itself is recorded in the audit log as a LOGOUT.
+  zzedc:::enable_session_timeout(session, user_input, cfg$auth %||% list())
+
+  # Record the end of an authenticated session (browser closed or
+  # connection lost) in the audit log. reactiveValues are read with
+  # isolate(): this callback runs outside any reactive context.
   session$onSessionEnded(function() {
-    message("Session ended for user: ", user_input$username %||% "unknown")
+    who <- shiny::isolate(user_input$username)
+    was_authenticated <- isTRUE(shiny::isolate(user_input$authenticated))
+    message("Session ended for user: ", who %||% "unknown")
+    if (was_authenticated && !is.null(who)) {
+      ctx <- zzedc::session_audit_context(session)
+      tryCatch(
+        log_security_event(
+          event_type = "SESSION_END", user_id = who,
+          description = "Session ended (browser closed or connection lost)",
+          severity = "info", ip_address = ctx$ip_address,
+          session_id = ctx$session_id
+        ),
+        error = function(e) message("Could not record session end: ", conditionMessage(e))
+      )
+    }
   })
 }
 
