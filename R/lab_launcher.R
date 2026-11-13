@@ -7,9 +7,11 @@
 # inst/app/global.R sets up db_pool/cfg/db_path as process-wide state
 # for exactly one already-open study, and nothing in this package
 # supports two studies' global state coexisting in one process. So
-# this landing page never opens a study itself; it only lists what the
-# registry (R/lab_registry.R) knows about and shows the exact command
-# to run, in the user's own console/session, to open or create one.
+# opening or creating a study from this landing page always spawns a
+# second, detached R process for it (.spawn_background_r()) rather
+# than running it in-process, and then opens that process's own port
+# in a new browser tab -- a non-technical user never sees or copies R
+# code themselves.
 #
 # The UI-building pieces below are plain top-level functions (not
 # closures nested inside launch_lab()), the same shape
@@ -18,6 +20,65 @@
 # smoke-tested directly against real list_studies() output without
 # starting a Shiny session, the same way create_enhanced_ui() is
 # tested elsewhere in this session's test additions.
+
+
+#' Find an available TCP port
+#' @keywords internal
+.find_free_port <- function() {
+  if (requireNamespace("httpuv", quietly = TRUE)) {
+    httpuv::randomPort()
+  } else {
+    sample(49152:65535, 1)
+  }
+}
+
+
+#' Is something already listening on this host/port?
+#' @keywords internal
+.port_is_alive <- function(host, port) {
+  if (is.null(port) || is.na(port)) {
+    return(FALSE)
+  }
+  con <- tryCatch(
+    suppressWarnings(socketConnection(host = host, port = port, timeout = 1, open = "r+")),
+    error = function(e) NULL
+  )
+  if (is.null(con)) {
+    return(FALSE)
+  }
+  close(con)
+  TRUE
+}
+
+
+#' Block (briefly) until a port starts accepting connections
+#' @keywords internal
+.wait_for_port <- function(host, port, timeout_s = 25, poll_s = 0.5) {
+  deadline <- Sys.time() + timeout_s
+  while (Sys.time() < deadline) {
+    if (.port_is_alive(host, port)) {
+      return(TRUE)
+    }
+    Sys.sleep(poll_s)
+  }
+  FALSE
+}
+
+
+#' Run an R expression in a new, detached background process
+#'
+#' Used so that opening or creating a study starts its own R session
+#' (required -- see this file's top comment) without the person running
+#' the lab ever seeing or typing R code themselves.
+#'
+#' @param code A single string of R code to run in the new process.
+#' @keywords internal
+.spawn_background_r <- function(code) {
+  rscript <- file.path(R.home("bin"), "Rscript")
+  system2(rscript, args = c("--vanilla", "-e", shQuote(code)),
+          stdout = FALSE, stderr = FALSE, wait = FALSE)
+  invisible(NULL)
+}
 
 
 #' One study's tile on the lab landing page
@@ -147,19 +208,46 @@
 
     if (identical(action, "open")) {
       .touch_study_last_opened(id)
+
+      host <- "127.0.0.1"
+      port <- row$last_port[1]
+      already_running <- .port_is_alive(host, port)
+
+      if (!already_running) {
+        showModal(modalDialog(
+          title = paste("Opening", row$name[1]),
+          p("Starting this study in its own R session..."),
+          footer = NULL
+        ))
+
+        port <- .find_free_port()
+        code <- sprintf(
+          'setwd(%s); zzedc::launch_zzedc(launch.browser = FALSE, host = %s, port = %dL)',
+          deparse(row$path[1]), deparse(host), port
+        )
+        .spawn_background_r(code)
+        .set_study_last_port(id, port)
+        ready <- .wait_for_port(host, port)
+
+        if (!ready) {
+          showModal(modalDialog(
+            title = "Could not start",
+            p(row$name[1], " did not start within 25 seconds. Try Open ",
+              "again, or ask whoever manages this lab to check it."),
+            footer = modalButton("Close")
+          ))
+          refresh_trigger(refresh_trigger() + 1)
+          return(invisible(NULL))
+        }
+      }
+
       refresh_trigger(refresh_trigger() + 1)
-      command <- sprintf('setwd("%s")\nzzedc::launch_zzedc()', row$path[1])
+      url <- sprintf("http://%s:%d/", host, port)
+      shinyjs::runjs(sprintf("window.open(%s, '_blank')", jsonlite::toJSON(url, auto_unbox = TRUE)))
       showModal(modalDialog(
-        title = paste("Open", row$name[1]),
-        p("Each study runs in its own R session. Copy and run this ",
-          "in a fresh R console:"),
-        tags$pre(id = "open_command_text", command),
-        tags$button(
-          class = "btn btn-outline-primary btn-sm",
-          type = "button",
-          onclick = "navigator.clipboard.writeText(document.getElementById('open_command_text').innerText)",
-          "Copy command"
-        ),
+        title = paste(row$name[1], "is open"),
+        p("Opened in a new browser tab. If a tab did not open, ",
+          tags$a(href = url, target = "_blank", "click here"), "."),
         footer = modalButton("Close")
       ))
     } else if (identical(action, "unregister")) {
@@ -205,30 +293,49 @@
     path <- normalizePath(input$new_study_path, mustWork = FALSE)
     config_path <- file.path(path, "config.yml")
 
-    output$create_modal_body <- renderUI({
-      if (file.exists(config_path)) {
+    if (file.exists(config_path)) {
+      output$create_modal_body <- renderUI({
         div(class = "alert alert-warning",
           "This directory already contains a study (config.yml): ", path,
           ". Choose a new, empty directory, or register the existing ",
           "one from its own tile instead."
         )
-      } else {
-        command <- sprintf('zzedc::launch_setup_wizard(base_path = "%s")', path)
-        tagList(
-          p("Run this in a fresh R console. When the wizard finishes ",
-            "(after \"Launch ZZedc\" or \"Create Study\"), come back here ",
-            "and click Register below."),
-          tags$pre(id = "create_command_text", command),
-          tags$button(
-            class = "btn btn-outline-primary btn-sm mb-2",
-            type = "button",
-            onclick = "navigator.clipboard.writeText(document.getElementById('create_command_text').innerText)",
-            "Copy command"
-          ),
-          br(),
-          actionButton("register_new_study", "Register this study", class = "btn btn-success btn-sm")
-        )
-      }
+      })
+      return(invisible(NULL))
+    }
+
+    output$create_modal_body <- renderUI({
+      p("Starting the setup wizard in its own R session...")
+    })
+
+    host <- "127.0.0.1"
+    port <- .find_free_port()
+    code <- sprintf(
+      'zzedc::launch_setup_wizard(base_path = %s, launch.browser = FALSE, host = %s, port = %dL)',
+      deparse(path), deparse(host), port
+    )
+    .spawn_background_r(code)
+    ready <- .wait_for_port(host, port)
+
+    if (!ready) {
+      output$create_modal_body <- renderUI({
+        div(class = "alert alert-danger",
+            "The setup wizard did not start within 25 seconds. Try again.")
+      })
+      return(invisible(NULL))
+    }
+
+    url <- sprintf("http://%s:%d/", host, port)
+    shinyjs::runjs(sprintf("window.open(%s, '_blank')", jsonlite::toJSON(url, auto_unbox = TRUE)))
+    output$create_modal_body <- renderUI({
+      tagList(
+        p("Opened the setup wizard in a new browser tab. If a tab did ",
+          "not open, ", tags$a(href = url, target = "_blank", "click here"), "."),
+        p("Fill it in there. Once you reach \"Launch ZZedc\" or ",
+          "\"Create Study\" in that tab, come back here and click ",
+          "Register below."),
+        actionButton("register_new_study", "Register this study", class = "btn btn-success btn-sm")
+      )
     })
   })
 
@@ -254,13 +361,14 @@
 #'
 #' Shows every study [register_study()] knows about as a tile (name,
 #' backend, path, when it was last opened), plus a tile to set up a new
-#' one. Clicking a tile's **Open** button does not launch that study
-#' in this process -- it shows the exact command to run yourself in a
-#' fresh R console, since each study needs its own process (see this
-#' file's top comment for why). The same applies to **+ Create New
-#' Database**: it shows the `launch_setup_wizard()` command to run, and
-#' a **Register this study** button to add it to the lab once you have
-#' actually run that command.
+#' one. Clicking a tile's **Open** button never launches that study in
+#' this process (each study needs its own process -- see this file's
+#' top comment for why); instead it starts a detached background R
+#' session running [launch_zzedc()] for that study and opens its page
+#' in a new browser tab automatically, with no R code for the person
+#' running the lab to see or type. **+ Create New Database** does the
+#' same for [launch_setup_wizard()], plus a **Register this study**
+#' button to add it to the lab once the wizard has finished.
 #'
 #' @param launch.browser,host,port Passed to [shiny::runApp()].
 #' @return Invisibly, whatever [shiny::runApp()] returns.

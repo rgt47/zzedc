@@ -25,7 +25,9 @@ truncates: every entry, every audit event, and every signature
 for the subject is included.}
 
 \item{organization, prepared_by}{Report header fields, matching
-\code{\link[=generate_signature_report]{generate_signature_report()}}'s convention.}
+\code{\link[=generate_signature_report]{generate_signature_report()}}'s convention. \code{prepared_by} is also
+the user recorded in the audit trail as having generated the
+report (see \code{\link[=log_record_read]{log_record_read()}}).}
 
 \item{db_path}{Character: database path (optional).}
 }

@@ -4,10 +4,15 @@
 \alias{data_server}
 \title{Data Explorer Module Server}
 \usage{
-data_server(id)
+data_server(id, user_id = NULL)
 }
 \arguments{
 \item{id}{Character. The module namespace ID matching the UI id}
+
+\item{user_id}{The signed-in user's identifier, or a reactive
+returning it. Each load of study records, and each download, is
+recorded in the audit trail under this user (see
+\code{\link[=log_record_read]{log_record_read()}}).}
 }
 \value{
 A Shiny module server function that manages:

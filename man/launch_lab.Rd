@@ -15,13 +15,14 @@ Invisibly, whatever \code{\link[shiny:runApp]{shiny::runApp()}} returns.
 \description{
 Shows every study \code{\link[=register_study]{register_study()}} knows about as a tile (name,
 backend, path, when it was last opened), plus a tile to set up a new
-one. Clicking a tile's \strong{Open} button does not launch that study
-in this process -- it shows the exact command to run yourself in a
-fresh R console, since each study needs its own process (see this
-file's top comment for why). The same applies to \strong{+ Create New
-Database}: it shows the \code{launch_setup_wizard()} command to run, and
-a \strong{Register this study} button to add it to the lab once you have
-actually run that command.
+one. Clicking a tile's \strong{Open} button never launches that study in
+this process (each study needs its own process -- see this file's
+top comment for why); instead it starts a detached background R
+session running \code{\link[=launch_zzedc]{launch_zzedc()}} for that study and opens its page
+in a new browser tab automatically, with no R code for the person
+running the lab to see or type. \strong{+ Create New Database} does the
+same for \code{\link[=launch_setup_wizard]{launch_setup_wizard()}}, plus a \strong{Register this study}
+button to add it to the lab once the wizard has finished.
 }
 \examples{
 \dontrun{

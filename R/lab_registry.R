@@ -190,7 +190,9 @@ unregister_study <- function(id) {
 #' List every registered study
 #'
 #' @return A data frame with columns `id`, `name`, `path`, `backend`,
-#'   `created_date`, `last_opened`, `exists` (whether `path` and its
+#'   `created_date`, `last_opened`, `last_port` (the port its background
+#'   R session was last started on from the landing page, `NA` if it has
+#'   never been auto-launched that way), `exists` (whether `path` and its
 #'   `config.yml` are still present on disk -- `FALSE` for a moved or
 #'   deleted study, not an error). Zero rows, with the right columns,
 #'   when nothing is registered yet.
@@ -200,7 +202,8 @@ list_studies <- function() {
   empty <- data.frame(
     id = character(0), name = character(0), path = character(0),
     backend = character(0), created_date = character(0),
-    last_opened = character(0), exists = logical(0),
+    last_opened = character(0), last_port = integer(0),
+    exists = logical(0),
     stringsAsFactors = FALSE
   )
   if (length(entries) == 0) {
@@ -214,6 +217,7 @@ list_studies <- function() {
       backend = e$backend %||% NA_character_,
       created_date = as.character(e$created_date %||% NA),
       last_opened = as.character(e$last_opened %||% NA),
+      last_port = as.integer(e$last_port %||% NA),
       exists = isTRUE(dir.exists(e$path %||% "") &&
                         file.exists(file.path(e$path %||% "", "config.yml"))),
       stringsAsFactors = FALSE
@@ -231,6 +235,19 @@ list_studies <- function() {
     return(invisible(NULL))
   }
   entries[[id]]$last_opened <- as.character(Sys.time())
+  .write_registry(entries)
+  invisible(NULL)
+}
+
+
+#' Record the port a study's background R session was last started on
+#' @keywords internal
+.set_study_last_port <- function(id, port) {
+  entries <- .read_registry()
+  if (is.null(entries[[id]])) {
+    return(invisible(NULL))
+  }
+  entries[[id]]$last_port <- as.integer(port)
   .write_registry(entries)
   invisible(NULL)
 }

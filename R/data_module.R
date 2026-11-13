@@ -157,6 +157,10 @@ data_ui <- function(id) {
 #' Handles data loading from multiple sources, reactive updates, and visualization generation.
 #'
 #' @param id Character. The module namespace ID matching the UI id
+#' @param user_id The signed-in user's identifier, or a reactive
+#'   returning it. Each load of study records, and each download, is
+#'   recorded in the audit trail under this user (see
+#'   [log_record_read()]).
 #'
 #' @return A Shiny module server function that manages:
 #'   - Data loading and validation from various sources
@@ -182,8 +186,19 @@ data_ui <- function(id) {
 #' }
 #'
 #' @export
-data_server <- function(id) {
+data_server <- function(id, user_id = NULL) {
   moduleServer(id, function(input, output, session) {
+
+    study_conn <- function() {
+      if (exists("db_pool", envir = globalenv())) get("db_pool", envir = globalenv()) else NULL
+    }
+    log_read <- function(data, event_type, view) {
+      if (!identical(input$data_source, "zzedc")) return(invisible(NULL))
+      ctx <- session_audit_context(session)
+      log_record_read(study_conn(), view, data = data, event_type = event_type,
+                      user_id = if (is.function(user_id)) user_id() else user_id,
+                      ip_address = ctx$ip_address, session_id = ctx$session_id)
+    }
 
     # OPTIMIZATION: Memoized data loading with caching
     # current_data() is called multiple times by different outputs
@@ -192,15 +207,14 @@ data_server <- function(id) {
       req(input$data_source)
 
       if (input$data_source == "zzedc") {
-        conn <- if (exists("db_pool", envir = globalenv())) {
-          get("db_pool", envir = globalenv())
-        } else {
-          NULL
-        }
+        conn <- study_conn()
         if (is.null(conn)) {
           data.frame(Message = "No database connection available.")
         } else {
-          flatten_all_entries_for_explorer(conn)
+          input$refresh_data
+          data <- flatten_all_entries_for_explorer(conn)
+          log_read(data, "SELECT", "data_explorer")
+          data
         }
       } else if (input$data_source == "local") {
         req(input$data_file)
@@ -386,7 +400,9 @@ data_server <- function(id) {
         paste("data_export_", Sys.Date(), ".csv", sep = "")
       },
       content = function(file) {
-        write.csv(current_data(), file, row.names = FALSE)
+        data <- current_data()
+        log_read(data, "EXPORT", "data_explorer_csv")
+        write.csv(data, file, row.names = FALSE)
       }
     )
 
@@ -396,6 +412,7 @@ data_server <- function(id) {
       },
       content = function(file) {
         data <- current_data()
+        log_read(data, "EXPORT", "data_explorer_summary")
         summary_text <- paste(
           "Data Summary Report",
           "==================",

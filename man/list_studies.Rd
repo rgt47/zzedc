@@ -8,7 +8,9 @@ list_studies()
 }
 \value{
 A data frame with columns \code{id}, \code{name}, \code{path}, \code{backend},
-\code{created_date}, \code{last_opened}, \code{exists} (whether \code{path} and its
+\code{created_date}, \code{last_opened}, \code{last_port} (the port its background
+R session was last started on from the landing page, \code{NA} if it has
+never been auto-launched that way), \code{exists} (whether \code{path} and its
 \code{config.yml} are still present on disk -- \code{FALSE} for a moved or
 deleted study, not an error). Zero rows, with the right columns,
 when nothing is registered yet.

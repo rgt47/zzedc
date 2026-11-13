@@ -38,7 +38,9 @@
 #'   truncates: every entry, every audit event, and every signature
 #'   for the subject is included.
 #' @param organization,prepared_by Report header fields, matching
-#'   [generate_signature_report()]'s convention.
+#'   [generate_signature_report()]'s convention. `prepared_by` is also
+#'   the user recorded in the audit trail as having generated the
+#'   report (see [log_record_read()]).
 #' @param db_path Character: database path (optional).
 #' @return List with `success`; on success also `output_file` and
 #'   `entry_count`; on failure, `error`.
@@ -136,6 +138,12 @@ generate_subject_case_report <- function(subject_id,
         signatures = signatures
       )
     })
+
+    # Recorded before the file is written: under 'regulated' a report
+    # whose disclosure cannot be audited is not produced.
+    log_record_read(conn, "subject_case_report", data = entries,
+                    subject_ids = subject_id, event_type = "REPORT_GENERATED",
+                    filters = list(format = format), user_id = prepared_by)
 
     if (identical(format, "json")) {
       report_data <- list(

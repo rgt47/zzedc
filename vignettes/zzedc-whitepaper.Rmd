@@ -1035,7 +1035,22 @@ now changes the field and writes its audit record in one transaction,
 refuses a request whose original value no longer matches the record,
 and requires an approved override for a locked record.
 
-**Not done.** Reads of records are not logged. The triggers and the
+**Reads.** HIPAA 164.312(b) asks for a record of activity, not only of
+change, and nothing recorded who saw or took participant records. Each
+retrieval that shows or hands over participant-level data now writes
+one audit record (`log_record_read()`): Data Explorer loads and
+downloads, Export Center previews and downloads, the EDC entries list,
+the data-quality report, and subject case reports. The record names
+the user, client address, session, screen, number of records, and the
+subject identifiers disclosed; it does not copy field values, which
+would make the audit trail a second copy of the data. Under
+`regulated`, a read that cannot be recorded is not shown, and a case
+report is not written. `get_record_access_log()` answers which users
+read a given subject's records.
+
+**Not done.** Viewing the audit trail itself is not recorded: the
+viewer loads the trail when the session starts, before anyone has
+signed in, and would need to load on demand first. The triggers and the
 chain lock on PostgreSQL and MySQL are untested against live servers.
 The REDCap importer's replay of historical audit events still writes
 the chain through its own code, without the lock.
