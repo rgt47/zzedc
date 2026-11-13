@@ -100,17 +100,31 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
   # package. Ship demonstration stubs in inst/extdata/forms/ so a
   # bare `launch_zzedc()` call lands a working EDC tab; users
   # then replace the stubs with their study's actual scaffolding.
+  #
+  # Checked by file, not by `!dir.exists("forms")`: create_wizard_
+  # directories() (run by both launch_setup_wizard() and any
+  # programmatic provisioning that calls it directly) always
+  # pre-creates an empty forms/ directory as part of the standard
+  # scaffold, which silently defeated this check for every
+  # wizard-provisioned study -- the directory already existed, so
+  # the stub files were never copied in, and the EDC tab reported
+  # "EDC form configuration not found" with no further action taken.
   if (!dir.exists("forms")) {
+    dir.create("forms", showWarnings = FALSE)
+  }
+  required_forms <- c("blfieldlist.R", "renderpanels.R", "save.R")
+  missing_forms <- required_forms[!file.exists(file.path("forms", required_forms))]
+  if (length(missing_forms) > 0) {
     forms_src <- system.file("extdata", "forms", package = "zzedc")
     if (nzchar(forms_src) && dir.exists(forms_src)) {
-      dir.create("forms", showWarnings = FALSE)
       file.copy(
-        from = list.files(forms_src, full.names = TRUE),
+        from = file.path(forms_src, missing_forms),
         to   = "forms",
         overwrite = FALSE
       )
       message(
-        "Created 'forms/' directory with demonstration stubs.\n",
+        "Created missing 'forms/' file(s) with demonstration stubs: ",
+        paste(missing_forms, collapse = ", "), "\n",
         "  Replace forms/blfieldlist.R, forms/renderpanels.R, ",
         "and forms/save.R\n  with your study's case-report-form ",
         "scaffolding."

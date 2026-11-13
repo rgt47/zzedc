@@ -186,10 +186,24 @@ NULL
 #' (`.protect_audit_tables()`).
 #'
 #' @param conn A DBI connection.
+#' @param adapter Optional `DatabaseAdapter` to resolve dialect-specific
+#'   DDL (auto-increment columns) from directly. When `NULL` (the
+#'   default), falls back to `get_db_adapter()`'s cached/`config.yml`-
+#'   derived adapter -- which is wrong whenever `conn` was opened
+#'   before a matching `config.yml` exists (e.g. a brand-new database
+#'   being provisioned), since that fallback silently defaults to
+#'   SQLite regardless of `conn`'s real backend. A caller that already
+#'   holds the adapter that produced `conn` (as
+#'   `create_wizard_database()` does) must pass it explicitly to avoid
+#'   that mismatch -- confirmed to otherwise fail DuckDB with "syntax
+#'   error at or near AUTOINCREMENT" (SQLite's DDL, issued against a
+#'   DuckDB connection).
 #' @return `invisible(TRUE)`.
 #' @keywords internal
-.ensure_audit_tables <- function(conn) {
-  prepare_auto_increment(conn, "audit_log", "audit_id")
+.ensure_audit_tables <- function(conn, adapter = NULL) {
+  adapter <- adapter %||% get_db_adapter()
+
+  adapter$prepare_auto_increment(conn, "audit_log", "audit_id")
   DBI::dbExecute(conn, sprintf("
     CREATE TABLE IF NOT EXISTS audit_log (
       audit_id %s,
@@ -207,10 +221,10 @@ NULL
       hash_verified BOOLEAN DEFAULT 1,
       created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  ", auto_increment_ddl("audit_log", "audit_id"),
+  ", adapter$auto_increment_column("audit_log", "audit_id"),
      paste0("'", .audit_event_types, "'", collapse = ", ")))
 
-  prepare_auto_increment(conn, "audit_events", "event_id")
+  adapter$prepare_auto_increment(conn, "audit_events", "event_id")
   DBI::dbExecute(conn, sprintf("
     CREATE TABLE IF NOT EXISTS audit_events (
       event_id %s,
@@ -221,9 +235,9 @@ NULL
       recovery_action TEXT,
       created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  ", auto_increment_ddl("audit_events", "event_id")))
+  ", adapter$auto_increment_column("audit_events", "event_id")))
 
-  prepare_auto_increment(conn, "audit_chain", "chain_id")
+  adapter$prepare_auto_increment(conn, "audit_chain", "chain_id")
   DBI::dbExecute(conn, sprintf("
     CREATE TABLE IF NOT EXISTS audit_chain (
       chain_id %s,
@@ -235,7 +249,7 @@ NULL
       verification_date TIMESTAMP,
       created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  ", auto_increment_ddl("audit_chain", "chain_id")))
+  ", adapter$auto_increment_column("audit_chain", "chain_id")))
 
   DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)")
   DBI::dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_audit_table ON audit_log(table_name)")

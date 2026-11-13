@@ -108,6 +108,11 @@ ensure_edc_users_table <- function(conn) {
       "UPDATE edc_users SET password_changed_date = created_date
        WHERE password_changed_date IS NULL")
   }
+  # db_insert_user() audits every account it creates (see there), so
+  # the audit tables must exist wherever edc_users does -- including
+  # the setup wizard's bootstrap call, which runs before
+  # init_audit_logging() is ever invoked.
+  .ensure_audit_tables(conn)
   invisible(NULL)
 }
 
@@ -171,24 +176,38 @@ db_insert_user <- function(conn,
   must_change_int <- if (isTRUE(as.logical(must_change_password))) 1L else 0L
 
   tryCatch({
-    DBI::dbExecute(conn, "
-      INSERT INTO edc_users
-        (user_id, username, password_hash, full_name, email,
-         role, site_id, active, must_change_password, created_date,
-         password_changed_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-    ", list(
-      as.character(user_id),
-      as.character(username),
-      as.character(password_hash),
-      as.character(full_name %||% username),
-      as.character(email %||% ""),
-      as.character(role),
-      as.character(site_id),
-      active_int,
-      must_change_int,
-      as.character(created_by)
-    ))
+    .with_db_transaction(conn, function(c) {
+      DBI::dbExecute(c, "
+        INSERT INTO edc_users
+          (user_id, username, password_hash, full_name, email,
+           role, site_id, active, must_change_password, created_date,
+           password_changed_date, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+      ", list(
+        as.character(user_id),
+        as.character(username),
+        as.character(password_hash),
+        as.character(full_name %||% username),
+        as.character(email %||% ""),
+        as.character(role),
+        as.character(site_id),
+        active_int,
+        must_change_int,
+        as.character(created_by)
+      ))
+      .append_audit_record(
+        c, event_type = "INSERT", table_name = "edc_users",
+        record_id = user_id,
+        operation = paste0("User account created (username: ", username,
+                           ", role: ", role, ")"),
+        details = as.character(jsonlite::toJSON(list(
+          role = role, site_id = site_id,
+          active = isTRUE(as.logical(active)),
+          must_change_password = isTRUE(as.logical(must_change_password))
+        ), auto_unbox = TRUE)),
+        user_id = created_by
+      )
+    })
     list(success = TRUE, user_id = user_id)
   }, error = function(e) {
     # §11.100: usernames are never deleted, only deactivated, so a

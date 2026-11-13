@@ -4,10 +4,23 @@
 \alias{.ensure_audit_tables}
 \title{Create the Audit Tables on a Connection (internal)}
 \usage{
-.ensure_audit_tables(conn)
+.ensure_audit_tables(conn, adapter = NULL)
 }
 \arguments{
 \item{conn}{A DBI connection.}
+
+\item{adapter}{Optional \code{DatabaseAdapter} to resolve dialect-specific
+DDL (auto-increment columns) from directly. When \code{NULL} (the
+default), falls back to \code{get_db_adapter()}'s cached/\code{config.yml}-
+derived adapter -- which is wrong whenever \code{conn} was opened
+before a matching \code{config.yml} exists (e.g. a brand-new database
+being provisioned), since that fallback silently defaults to
+SQLite regardless of \code{conn}'s real backend. A caller that already
+holds the adapter that produced \code{conn} (as
+\code{create_wizard_database()} does) must pass it explicitly to avoid
+that mismatch -- confirmed to otherwise fail DuckDB with "syntax
+error at or near AUTOINCREMENT" (SQLite's DDL, issued against a
+DuckDB connection).}
 }
 \value{
 \code{invisible(TRUE)}.

@@ -14,7 +14,8 @@ save_user_to_db(
   password,
   active,
   mode,
-  actor_role = NULL
+  actor_role = NULL,
+  actor_username = NULL
 )
 }
 \arguments{

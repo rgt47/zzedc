@@ -758,7 +758,55 @@ This produces an admin user (whose password the admin must
 change on first login) and the empty `study_info` /
 `edc_roles` rows the application expects.
 
-## 5.9 Encryption-key rotation
+## 5.9 Bootstrapping the first admin account
+
+This is the step-by-step order `launch_setup_wizard()` actually
+follows, for anyone who needs to reason about or reproduce it
+outside the wizard's own UI (for example via
+`create_wizard_database()` directly, as in §5.8).
+
+1. The wizard collects, in this order: study metadata (name,
+   protocol ID, PI); the admin account (username, full name,
+   email, a password of at least 8 characters, confirmed); the
+   security profile (regulated/standard/development); the
+   database backend; and, optionally, additional team members
+   (username/role) to provision at the same time.
+2. The security salt is generated before any of this is typed
+   (`generate_db_key()`, truncated to 32 characters), so it is
+   already available when the admin password needs hashing.
+3. `complete_wizard_setup()` then runs in a fixed order:
+   create the trial's directories; create the database and
+   insert the admin user (and any team members) into it; only
+   *then* write `config.yml`; then write the `.env`/launch
+   script holding the salt. In other words, the first admin
+   account and the database exist before `config.yml` does.
+4. The admin insert itself hashes the password with that salt
+   and writes directly to `edc_users` -- role hardcoded to
+   `"Admin"`, `active = 1`, `must_change_password = 1`. The
+   same step seeds `edc_roles` with six roles: Admin, PI,
+   StudyManager, Coordinator, Data Manager, Monitor.
+
+**Which role is "master."** `"Admin"` is this system's literal
+top-tier role string -- there is no separate "master" or "owner"
+role. Role tiers (lower is more privileged): `Admin` and `PI` are
+both tier 1; `StudyManager`/`Data Manager` are tier 2;
+`Coordinator` is tier 3; `Monitor` is tier 4. A tier-1 user can
+assign any role strictly below their own tier to someone else,
+but the application never lets anyone assign `Admin` or `PI` to
+another account -- there is no in-app path to create a second
+tier-1 user. If a trial needs more than one, provision the
+additional tier-1 account the same way the wizard provisions the
+first one (`create_wizard_database()`'s `admin_username`/
+`admin_password` arguments, or a second call for a PI account),
+not through the running application's own user-management screen.
+
+One operational gap worth knowing: the Admin dashboard's
+navigation tab itself is not role-gated -- any logged-in user can
+open it. The actual role-assignment action is blocked server-side
+(`require_role()`), not at the navigation level, so a
+non-privileged user can see the screen but cannot act on it.
+
+## 5.10 Encryption-key rotation
 
 Rotate the encryption key once a year, or sooner if you
 suspect compromise. Plan a 30-minute maintenance window;
@@ -785,7 +833,7 @@ Document the rotation in the trial's DMP. Keep the prior
 key in escrow long enough to decrypt any backups taken
 before rotation.
 
-## 5.10 Performance and security notes
+## 5.11 Performance and security notes
 
 Encryption overhead in practice: connection establishment
 adds <10ms; query execution adds <5% for typical clinical
@@ -807,7 +855,7 @@ Operational hygiene:
 - Conduct a periodic security review of who holds the key
   and who can read the secrets store.
 
-## 5.11 How this compares to REDCap, OpenClinica, and Castor
+## 5.12 How this compares to REDCap, OpenClinica, and Castor
 
 A technical lead arriving from REDCap or a self-hosted
 OpenClinica deployment will recognize most of this chapter,
@@ -1814,7 +1862,7 @@ Document at minimum: backup schedule and retention,
 recovery runbooks per scenario, DR test results,
 incident reports, and the change log of the procedures
 themselves. The encryption-key rotation procedure
-(§5.9) belongs in the same document set.
+(§5.10) belongs in the same document set.
 
 ---
 
@@ -2158,6 +2206,47 @@ the file plainly has one. The study itself -- directory,
 `config.yml`, and an initialized database -- is still real and
 opens normally; only the example data dictionary did not import.
 Tracked as a separate open item, not fixed here.)
+
+## 13.5 Standard role mapping for Lab studies
+
+Every study registered with the Lab needs, at minimum, four
+people in four distinct capacities. These map directly onto the
+role tiers already described in §5.9 -- nothing new to build,
+just a consistent naming and onboarding convention to apply each
+time a new study is provisioned:
+
+| Lab role | zzedc role | Tier | Typical person | Responsibility |
+|---|---|---|---|---|
+| PI | `PI` | 1 | Lab director; usually non-technical | Ultimate authority over the study; root-equivalent access to its database, but does not run the provisioning steps themselves. |
+| Technical manager | `Admin` | 1 | Whoever runs `launch_setup_wizard()` | Installs/provisions zzedc for the study; the only person who can bootstrap tier-1 accounts (see below). |
+| Project manager | `StudyManager` | 2 | Non-technical; works day to day in Google Sheets and the running Shiny app | Assigns and manages project-staff access (tier 3/4) once the study is live. |
+| Project staff | `Coordinator` (or `Monitor` for read-only/audit staff) | 3 (4) | Works day to day in Google Sheets and the running Shiny app | Day-to-day data entry/CRF work; access assigned by the project manager, not self-assigned. |
+
+This mapping follows directly from a hard constraint already
+noted in §5.9: **tier-1 roles (`Admin`, `PI`) can only be created
+at bootstrap time**, through the setup wizard -- there is no
+in-app path for anyone, including another tier-1 user, to grant
+`Admin` or `PI` to a different account later. Practically, this
+means the technical manager's job happens once, during
+provisioning:
+
+1. Run `launch_setup_wizard()` (or `create_wizard_database()`
+   directly, §5.8) and create their own account as `Admin`.
+2. Use the wizard's optional separate PI-account step to create
+   the PI's account at the same time.
+3. Add the project manager as a team member with role
+   `StudyManager` in the same wizard pass.
+
+After that point, the technical manager's work on this study is
+done -- day-to-day access control belongs to the project manager,
+who assigns `Coordinator`/`Monitor` to project staff from the
+running application's user-management screen as people join or
+leave (`.assignable_roles()`, §5.9), without ever needing the
+technical manager, the wizard, or console access again. Neither
+the PI nor the project manager is expected to touch an R console
+or the setup wizard at any point; both interact with the study
+only through the running Shiny app (and, for the project manager,
+Google Sheets for content authoring, Chapter 6).
 
 ---
 

@@ -89,6 +89,15 @@ create_wizard_database <- function(config_list, db_path = NULL,
     # Create all core tables using dialect-aware DDL
     create_core_tables(conn, dialect, backend, adapter)
 
+    # Every account created below is audited (see each insert), so the
+    # audit tables must exist before the first one runs -- this is the
+    # bootstrap path, which runs before init_audit_logging() ever has
+    # a chance to. `adapter` is passed explicitly: config.yml does not
+    # exist yet at this point, so the default get_db_adapter()
+    # fallback inside .ensure_audit_tables() would silently assume
+    # SQLite regardless of `backend` (see that function's own docs).
+    .ensure_audit_tables(conn, adapter = adapter)
+
     # Insert study info
     #
     # Optional config_list fields are coalesced to NA, not left as a
@@ -115,7 +124,17 @@ create_wizard_database <- function(config_list, db_path = NULL,
     ))
 
     # Create admin user
-    admin_id <- paste0("USER_", as.integer(Sys.time()))
+    #
+    # IDs below append a random draw to the timestamp, the same
+    # scheme db_insert_user() uses, rather than a small fixed offset
+    # (previously admin_id had none, pi_id was always "+1", and the
+    # team-member loop always started at "+1" too) -- those offsets
+    # collided whenever a PI account and at least one team member
+    # were both provided in the same call, since all three ran
+    # within the same integer second and pi_id/member 1 then
+    # resolved to the identical user_id, aborting the whole
+    # Create Study step with "UNIQUE constraint failed: edc_users.user_id".
+    admin_id <- paste0("USER_", as.integer(Sys.time()), "_", sample(1e6, 1L))
     salt <- config_list$security_salt
     password_hash <- digest::digest(paste0(config_list$admin_password, salt), algo = "sha256")
 
@@ -123,19 +142,28 @@ create_wizard_database <- function(config_list, db_path = NULL,
     # whatever the caller typed (often the documented default,
     # "admin123") -- previously launch_zzedc() only printed a
     # reminder to change it, with nothing enforcing that.
-    DBI::dbExecute(conn, "
-      INSERT INTO edc_users
-      (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, password_changed_date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-    ", params = list(
-      admin_id,
-      config_list$admin_username,
-      password_hash,
-      config_list$admin_fullname %||% NA_character_,
-      config_list$admin_email %||% NA_character_,
-      "Admin",
-      "setup_wizard"
-    ))
+    .with_db_transaction(conn, function(c) {
+      DBI::dbExecute(c, "
+        INSERT INTO edc_users
+        (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, password_changed_date, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+      ", params = list(
+        admin_id,
+        config_list$admin_username,
+        password_hash,
+        config_list$admin_fullname %||% NA_character_,
+        config_list$admin_email %||% NA_character_,
+        "Admin",
+        "setup_wizard"
+      ))
+      .append_audit_record(
+        c, event_type = "INSERT", table_name = "edc_users",
+        record_id = admin_id,
+        operation = paste0("Admin account created by setup wizard (username: ",
+                           config_list$admin_username, ")"),
+        user_id = "setup_wizard"
+      )
+    })
 
     # Create PI account if provided separately from sysadmin
     if (!is.null(config_list$pi_username) &&
@@ -145,20 +173,29 @@ create_wizard_database <- function(config_list, db_path = NULL,
         paste0(sample(c(letters, LETTERS, 0:9), 12, replace = TRUE),
                collapse = '')
       pi_hash <- digest::digest(paste0(pi_pw, salt), algo = 'sha256')
-      pi_id   <- paste0('USER_', as.integer(Sys.time()) + 1L)
-      DBI::dbExecute(conn, "
-        INSERT INTO edc_users
-          (user_id, username, password_hash, full_name, email,
-           role, active, must_change_password, created_date, password_changed_date, created_by)
-        VALUES (?, ?, ?, ?, ?, 'PI', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-      ", params = list(
-        pi_id,
-        config_list$pi_username,
-        pi_hash,
-        config_list$pi_fullname %||% config_list$pi_username,
-        config_list$pi_email    %||% '',
-        'setup_wizard'
-      ))
+      pi_id   <- paste0('USER_', as.integer(Sys.time()), '_', sample(1e6, 1L))
+      .with_db_transaction(conn, function(c) {
+        DBI::dbExecute(c, "
+          INSERT INTO edc_users
+            (user_id, username, password_hash, full_name, email,
+             role, active, must_change_password, created_date, password_changed_date, created_by)
+          VALUES (?, ?, ?, ?, ?, 'PI', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+        ", params = list(
+          pi_id,
+          config_list$pi_username,
+          pi_hash,
+          config_list$pi_fullname %||% config_list$pi_username,
+          config_list$pi_email    %||% '',
+          'setup_wizard'
+        ))
+        .append_audit_record(
+          c, event_type = 'INSERT', table_name = 'edc_users',
+          record_id = pi_id,
+          operation = paste0("PI account created by setup wizard (username: ",
+                             config_list$pi_username, ")"),
+          user_id = 'setup_wizard'
+        )
+      })
     }
 
     # Insert predefined roles
@@ -184,7 +221,7 @@ create_wizard_database <- function(config_list, db_path = NULL,
     if (!is.null(config_list$team_members) && nrow(config_list$team_members) > 0) {
       for (i in seq_len(nrow(config_list$team_members))) {
         member <- config_list$team_members[i, ]
-        member_id <- paste0("USER_", as.integer(Sys.time()) + i)
+        member_id <- paste0("USER_", as.integer(Sys.time()), "_", sample(1e6, 1L))
 
         # Generate temporary password
         temp_password <- paste0(
@@ -193,19 +230,29 @@ create_wizard_database <- function(config_list, db_path = NULL,
         )
         member_hash <- digest::digest(paste0(temp_password, salt), algo = "sha256")
 
-        DBI::dbExecute(conn, "
-          INSERT INTO edc_users
-          (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, password_changed_date, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-        ", params = list(
-          member_id,
-          member$username,
-          member_hash,
-          member$full_name,
-          member$email,
-          member$role,
-          "setup_wizard"
-        ))
+        .with_db_transaction(conn, function(c) {
+          DBI::dbExecute(c, "
+            INSERT INTO edc_users
+            (user_id, username, password_hash, full_name, email, role, active, must_change_password, created_date, password_changed_date, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+          ", params = list(
+            member_id,
+            member$username,
+            member_hash,
+            member$full_name,
+            member$email,
+            member$role,
+            "setup_wizard"
+          ))
+          .append_audit_record(
+            c, event_type = "INSERT", table_name = "edc_users",
+            record_id = member_id,
+            operation = paste0("Team member account created by setup wizard ",
+                               "(username: ", member$username,
+                               ", role: ", member$role, ")"),
+            user_id = "setup_wizard"
+          )
+        })
       }
     }
 

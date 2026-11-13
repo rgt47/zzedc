@@ -225,7 +225,8 @@ user_management_ui <- function(id) {
 #' }
 #' }
 #' @keywords internal
-user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
+user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
+                                    actor_username = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -236,6 +237,12 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
     # already uses for its own current_user/user_role parameters.
     .actor_role <- function() {
       if (shiny::is.reactive(actor_role)) actor_role() else actor_role
+    }
+    # actor_username identifies who performed an account-management
+    # action for the audit trail (§11.10(e)) -- resolved the same
+    # defensive way as .actor_role() above, for the same reason.
+    .actor_username <- function() {
+      if (shiny::is.reactive(actor_username)) actor_username() else actor_username
     }
 
     # Reactive values for state management
@@ -444,7 +451,8 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
         password = input$modal_password,
         active = input$modal_active,
         mode = user_state$modal_mode,
-        actor_role = .actor_role()
+        actor_role = .actor_role(),
+        actor_username = .actor_username()
       )
 
       # Reload users and close modal
@@ -489,11 +497,21 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
           # choose, same as a brand-new account -- force them to
           # replace it on next login, same as db_insert_user()'s
           # default for new users.
-          pool::dbExecute(db_pool,
-            "UPDATE edc_users SET password_hash = ?, must_change_password = 1,
-             password_changed_date = CURRENT_TIMESTAMP WHERE user_id = ?",
-            params = list(password_hash, user_state$edit_user_id)
-          )
+          .with_db_transaction(db_pool, function(c) {
+            .ensure_audit_tables(c)
+            DBI::dbExecute(c,
+              "UPDATE edc_users SET password_hash = ?, must_change_password = 1,
+               password_changed_date = CURRENT_TIMESTAMP WHERE user_id = ?",
+              params = list(password_hash, user_state$edit_user_id)
+            )
+            .append_audit_record(
+              c, event_type = "UPDATE", table_name = "edc_users",
+              record_id = user_state$edit_user_id,
+              operation = paste0("Password reset for user '",
+                                 user_state$selected_username, "'"),
+              user_id = .actor_username() %||% "admin_ui"
+            )
+          })
         }
 
         shinyalert("Success",
@@ -592,7 +610,8 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL) {
 #' }
 #' @keywords internal
 save_user_to_db <- function(db_pool, user_id, username, full_name, email,
-                             role, password, active, mode, actor_role = NULL) {
+                             role, password, active, mode, actor_role = NULL,
+                             actor_username = NULL) {
 
   if (is.null(db_pool)) {
     return(invisible(NULL))
@@ -622,7 +641,7 @@ save_user_to_db <- function(db_pool, user_id, username, full_name, email,
         email         = email,
         role          = role,
         active        = active,
-        created_by    = "admin_ui"
+        created_by    = actor_username %||% "admin_ui"
       )
       if (!isTRUE(saved$success)) {
         stop(paste("Database error:",
@@ -639,13 +658,23 @@ save_user_to_db <- function(db_pool, user_id, username, full_name, email,
         salt <- resolve_auth_salt()
         password_hash <- digest::digest(paste0(password, salt), algo = "sha256")
 
-        pool::dbExecute(db_pool, "
-          UPDATE edc_users
-          SET full_name = ?, email = ?, role = ?, active = ?, password_hash = ?,
-              must_change_password = 1, password_changed_date = CURRENT_TIMESTAMP,
-              modified_date = CURRENT_TIMESTAMP
-          WHERE user_id = ?
-        ", params = list(full_name, email, role, active, password_hash, user_id))
+        .with_db_transaction(db_pool, function(c) {
+          .ensure_audit_tables(c)
+          DBI::dbExecute(c, "
+            UPDATE edc_users
+            SET full_name = ?, email = ?, role = ?, active = ?, password_hash = ?,
+                must_change_password = 1, password_changed_date = CURRENT_TIMESTAMP,
+                modified_date = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+          ", params = list(full_name, email, role, active, password_hash, user_id))
+          .append_audit_record(
+            c, event_type = "UPDATE", table_name = "edc_users",
+            record_id = user_id,
+            operation = paste0("Password set for user '", username,
+                               "' via account edit"),
+            user_id = actor_username %||% "admin_ui"
+          )
+        })
       } else {
         # No password change
         pool::dbExecute(db_pool, "

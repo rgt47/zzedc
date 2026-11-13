@@ -4,7 +4,12 @@
 \alias{user_management_server}
 \title{User Management Server}
 \usage{
-user_management_server(id, db_pool = NULL, actor_role = NULL)
+user_management_server(
+  id,
+  db_pool = NULL,
+  actor_role = NULL,
+  actor_username = NULL
+)
 }
 \arguments{
 \item{id}{The namespace id for the module}

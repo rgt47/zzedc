@@ -86,13 +86,22 @@ change_password_server <- function(id, db_pool, user_input, salt,
       password_hash <- digest::digest(paste0(new_pw, salt), algo = "sha256")
 
       tryCatch({
-        pool::dbExecute(
-          db_pool,
-          "UPDATE edc_users SET password_hash = ?, must_change_password = 0,
-             password_changed_date = CURRENT_TIMESTAMP,
-             modified_date = CURRENT_TIMESTAMP WHERE user_id = ?",
-          params = list(password_hash, user_input$user_id)
-        )
+        .with_db_transaction(db_pool, function(c) {
+          .ensure_audit_tables(c)
+          DBI::dbExecute(
+            c,
+            "UPDATE edc_users SET password_hash = ?, must_change_password = 0,
+               password_changed_date = CURRENT_TIMESTAMP,
+               modified_date = CURRENT_TIMESTAMP WHERE user_id = ?",
+            params = list(password_hash, user_input$user_id)
+          )
+          .append_audit_record(
+            c, event_type = "UPDATE", table_name = "edc_users",
+            record_id = user_input$user_id,
+            operation = "User changed their own password",
+            user_id = user_input$username %||% user_input$user_id
+          )
+        })
         user_input$must_change_password <- FALSE
       }, error = function(e) {
         output$feedback <- shiny::renderUI(

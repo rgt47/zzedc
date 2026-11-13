@@ -135,6 +135,9 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL,
       db_pool    = db_pool,
       actor_role = shiny::reactive({
         if (!is.null(user_session)) user_session$role else NULL
+      }),
+      actor_username = shiny::reactive({
+        if (!is.null(user_session)) user_session$username else NULL
       })
     )
 
