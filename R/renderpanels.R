@@ -99,11 +99,20 @@ renderPanel <- function(fields, field_metadata = NULL) {
         value = field_config$value %||% ""
       ),
 
-      # Select/dropdown field
+      # Select/dropdown field. shiny::selectInput() auto-selects the
+      # first choice when `selected` is unset, which silently records
+      # an answer nobody chose for a single-select "pick one" field
+      # (prepending a blank placeholder option, selected by default,
+      # avoids that -- this is moot for `multiple = TRUE`, which
+      # shiny leaves with nothing selected either way).
       "select" = selectInput(
         field_name,
         label,
-        choices = field_config$choices,
+        choices = if (is.null(field_config$value) && !isTRUE(field_config$multiple)) {
+          c("Select one..." = "", field_config$choices)
+        } else {
+          field_config$choices
+        },
         selected = field_config$value %||% NULL,
         multiple = field_config$multiple %||% FALSE
       ),
@@ -185,12 +194,17 @@ renderPanel <- function(fields, field_metadata = NULL) {
         animate = field_config$animate %||% FALSE
       ),
 
-      # Radio buttons (single selection)
+      # Radio buttons (single selection). shiny::radioButtons() also
+      # auto-selects the first choice when `selected` is unset (the
+      # same issue as "select" above) -- passing character(0) is the
+      # documented way to start with nothing checked, so a "select
+      # one" question doesn't silently record its first option as
+      # the answer before anyone has looked at it.
       "radio" = radioButtons(
         field_name,
         label,
         choices = field_config$choices,
-        selected = field_config$value %||% NULL,
+        selected = field_config$value %||% character(0),
         inline = field_config$inline %||% FALSE
       ),
 
