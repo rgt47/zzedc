@@ -370,7 +370,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
           SELECT s.*, u.full_name as signer_name
           FROM electronic_signatures s
           JOIN edc_users u ON s.signer_user_id = u.user_id
-          ORDER BY s.signing_timestamp DESC
+          ORDER BY s.signed_at DESC
         ")
 
         # Load recent audit trail. The 30-day cutoff was SQLite's
@@ -597,17 +597,21 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # Signature history table
     output$signature_history <- DT::renderDT({
       if (!is.null(compliance_data$signatures)) {
+        # electronic_signatures has no signing_timestamp/signature_status
+        # columns -- those are signed_at and is_valid (see
+        # init_electronic_signatures(), R/electronic_signatures.R).
+        # signature_status here is derived display text, not a stored
+        # value; there is no separate "revoked" state in the schema,
+        # only is_valid = 0 (optionally with an invalidation_reason).
         display_data <- compliance_data$signatures |>
           select(signature_id, signer_name, signature_meaning, table_name,
-                record_id, signing_timestamp, signature_status) |>
+                record_id, signed_at, is_valid) |>
           mutate(
-            signing_timestamp = format(as.POSIXct(signing_timestamp), "%Y-%m-%d %H:%M"),
-            signature_status = case_when(
-              signature_status == "valid" ~ "[OK] Valid",
-              signature_status == "invalid" ~ "[X] Invalid",
-              signature_status == "revoked" ~ "[!] Revoked",
-              TRUE ~ signature_status
-            )
+            signed_at = format(as.POSIXct(signed_at), "%Y-%m-%d %H:%M"),
+            signature_status = ifelse(
+              as.logical(is_valid), "[OK] Valid", "[X] Invalid"
+            ),
+            is_valid = NULL
           )
 
         DT::datatable(display_data,
