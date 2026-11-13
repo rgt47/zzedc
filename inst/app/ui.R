@@ -46,10 +46,15 @@ if (!exists("ui_content") || is.null(ui_content)) {
 
   # Traditional UI implementation
   if (requireNamespace("bslib", quietly = TRUE)) {
+    app_title <- if (exists("cfg", inherits = TRUE)) {
+      get("cfg", inherits = TRUE)$app$name %||% "ZZedc - Electronic Data Capture"
+    } else {
+      "ZZedc - Electronic Data Capture"
+    }
     ui_content <- bslib::page_navbar(
   title = div(
     img(src="brain2.png", height="30px", style="margin-right: 10px;"),
-    "ZZedc - Electronic Data Capture"
+    app_title
   ),
   # Contemporary slate palette (replaces the heavy bootswatch
   # "flatly" navy). Inter for body and headings; warm off-white

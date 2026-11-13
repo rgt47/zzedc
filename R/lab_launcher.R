@@ -97,7 +97,6 @@
     ),
     bslib::card_body(
       tags$span(class = "badge bg-secondary mb-2", row$backend),
-      tags$p(class = "small text-muted mb-1", row$path),
       tags$p(class = "small text-muted mb-2",
              if (!is.na(row$last_opened) && nzchar(row$last_opened)) {
                paste("Last opened:", row$last_opened)

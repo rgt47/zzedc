@@ -17,6 +17,73 @@ output$hometab <- renderUI({
       )
     ),
     
+    # Quick-navigation tiles, one per major section, matching the
+    # Lab landing page's tile style. Each tile is a clickable card
+    # (via a hidden actionLink spanning the card body) that switches
+    # the top navbar to that section's nav_panel value.
+    h5(class = "mb-3", "Quick Access"),
+    bslib::layout_column_wrap(
+      width = "200px",
+      gap = "1rem",
+      class = "mb-4",
+      tagList(
+        tags$a(
+          id = "hometile_edc", class = "action-button text-decoration-none text-reset",
+          href = "#",
+          bslib::card(
+            class = "h-100 text-center shadow-sm",
+            bslib::card_body(
+              bsicons::bs_icon("clipboard2-pulse", size = "2.5em", class = "text-primary mb-2"),
+              h6("EDC Forms"),
+              tags$small(class = "text-muted", "Enter and manage study data")
+            )
+          )
+        )
+      ),
+      tagList(
+        tags$a(
+          id = "hometile_reports", class = "action-button text-decoration-none text-reset",
+          href = "#",
+          bslib::card(
+            class = "h-100 text-center shadow-sm",
+            bslib::card_body(
+              bsicons::bs_icon("bar-chart-line", size = "2.5em", class = "text-info mb-2"),
+              h6("Reports"),
+              tags$small(class = "text-muted", "Study reports and analytics")
+            )
+          )
+        )
+      ),
+      tagList(
+        tags$a(
+          id = "hometile_data", class = "action-button text-decoration-none text-reset",
+          href = "#",
+          bslib::card(
+            class = "h-100 text-center shadow-sm",
+            bslib::card_body(
+              bsicons::bs_icon("table", size = "2.5em", class = "text-success mb-2"),
+              h6("Data Explorer"),
+              tags$small(class = "text-muted", "Visualize and analyze your data")
+            )
+          )
+        )
+      ),
+      tagList(
+        tags$a(
+          id = "hometile_export", class = "action-button text-decoration-none text-reset",
+          href = "#",
+          bslib::card(
+            class = "h-100 text-center shadow-sm",
+            bslib::card_body(
+              bsicons::bs_icon("download", size = "2.5em", class = "text-warning mb-2"),
+              h6("Export"),
+              tags$small(class = "text-muted", "Download data in various formats")
+            )
+          )
+        )
+      )
+    ),
+
     # Feature cards
     fluidRow(
       column(6,
@@ -27,19 +94,13 @@ output$hometab <- renderUI({
           ),
           bslib::card_body(
             h5("How to Use the Application"),
-            p("Navigate through the portal using the tabs above:"),
-            tags$ul(
-              tags$li(strong("EDC:"), " Enter and manage study data"),
-              tags$li(strong("Reports:"), " Generate study reports and analytics"),
-              tags$li(strong("Data Explorer:"), " Visualize and analyze your data"),
-              tags$li(strong("Export:"), " Download data in various formats")
-            ),
-            actionButton("quick_start", "Quick Start Guide", 
+            p("Click a tile above, or use the tabs in the navigation bar."),
+            actionButton("quick_start", "Quick Start Guide",
                         class = "btn btn-primary btn-sm")
           )
         )
       ),
-      
+
       column(6,
         bslib::card(
           bslib::card_header(
@@ -133,4 +194,21 @@ output$hometab <- renderUI({
       )
     )
   )
+})
+
+# Quick-access tiles switch the main navbar to the matching section.
+# `session` is available here: home.R is sourced inside the running
+# server() call (local = TRUE), the same as every other output$<id>
+# assignment in this file.
+observeEvent(input$hometile_edc, {
+  bslib::nav_select("main_nav", selected = "edc", session = session)
+})
+observeEvent(input$hometile_reports, {
+  bslib::nav_select("main_nav", selected = "reports1", session = session)
+})
+observeEvent(input$hometile_data, {
+  bslib::nav_select("main_nav", selected = "data", session = session)
+})
+observeEvent(input$hometile_export, {
+  bslib::nav_select("main_nav", selected = "export", session = session)
 })

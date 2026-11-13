@@ -152,10 +152,16 @@ create_enhanced_ui <- function() {
   )
 
   # Build the complete UI
+  app_title <- if (exists("cfg", inherits = TRUE)) {
+    get("cfg", inherits = TRUE)$app$name %||% "ZZedc - Electronic Data Capture"
+  } else {
+    "ZZedc - Electronic Data Capture"
+  }
+
   ui <- bslib::page_navbar(
     title = div(
       img(src="brain2.png", height="30px", style="margin-right: 10px;"),
-      "ZZedc - Electronic Data Capture"
+      app_title
     ),
     theme = bslib::bs_theme(
       version = 5,

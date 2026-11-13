@@ -117,7 +117,9 @@ register_study <- function(path, name = NULL, id = NULL) {
 
   cfg <- tryCatch(config::get(file = config_path), error = function(e) NULL)
   resolved_name <- name %||% cfg$study$name %||% basename(path)
-  backend <- cfg$database$backend %||% "unknown"
+  # Mirrors app_database_config()'s own default (R/db_config.R):
+  # an absent database.backend key means sqlite, not "unknown".
+  backend <- cfg$database$backend %||% "sqlite"
   resolved_id <- id %||% .slugify(resolved_name)
   if (!nzchar(resolved_id)) {
     resolved_id <- .slugify(basename(path))

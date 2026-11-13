@@ -224,9 +224,17 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
       updateSelectInput(session, "filter_user", choices = choices)
     }
 
-    # Initial load
-    log_state$all_logs <- load_audit_logs()
-    update_user_list()
+    # Initial load. This runs at moduleServer top level, which is not
+    # a reactive consumer: update_user_list()'s read of
+    # log_state$all_logs needs isolate(), or it throws "Can't access
+    # reactive value 'all_logs' outside of reactive consumer" and
+    # aborts the entire enclosing server() call (this module is
+    # mounted eagerly by admin_dashboard_server(), so the failure
+    # propagated all the way up to create_enhanced_server()).
+    shiny::isolate({
+      log_state$all_logs <- load_audit_logs()
+      update_user_list()
+    })
 
     # Apply filters
     apply_filters <- function() {
