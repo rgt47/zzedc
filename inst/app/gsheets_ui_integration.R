@@ -163,15 +163,30 @@ create_enhanced_ui <- function() {
       img(src="brain2.png", height="30px", style="margin-right: 10px;"),
       app_title
     ),
+    # Palette/fonts match rgtlab.org (the maintainer's lab site,
+    # source ~/prj/web/rgtlab/custom.scss): UCSD navy/gold identity,
+    # Newsreader serif headings, Public Sans body text, cream
+    # background. bs_theme() variables recolor every default
+    # Bootstrap-class element across every tab (buttons, links, form
+    # controls) without touching each module's own R code; the
+    # frosted-glass navbar and uppercase nav-link treatment that
+    # theme variables can't express come from
+    # zzedc:::.rgtlab_chrome_styles() below.
     theme = bslib::bs_theme(
       version = 5,
-      bootswatch = "flatly",
-      primary = "#2c3e50",
-      secondary = "#95a5a6",
-      success = "#27ae60",
-      info = "#3498db",
-      warning = "#f39c12",
-      danger = "#e74c3c"
+      primary = "#182B49",
+      secondary = "#00629B",
+      success = "#2e7d32",
+      info = "#0277bd",
+      warning = "#ef6c00",
+      danger = "#c62828",
+      bg = "#FBFAF6",
+      fg = "#1c2733",
+      base_font = bslib::font_google("Public Sans"),
+      heading_font = bslib::font_google("Newsreader"),
+      "navbar-bg" = "#FBFAF6",
+      "card-border-color" = "#e3e0d6",
+      "border-radius" = "4px"
     ),
     window_title = "ZZedc Portal",
     id = "main_nav",
@@ -179,7 +194,9 @@ create_enhanced_ui <- function() {
     shinyjs::useShinyjs(),
     tags$head(
       tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
-      tags$link(rel = "icon", href = "logo.png", type = "image/png")
+      tags$link(rel = "icon", href = "logo.png", type = "image/png"),
+      zzedc:::.rgtlab_tile_styles(),
+      zzedc:::.rgtlab_chrome_styles()
     ),
 
     # Add all navigation tabs. nav_tabs is keyed by id (nav_tabs[["home"]],

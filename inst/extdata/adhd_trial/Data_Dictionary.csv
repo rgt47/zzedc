@@ -1,130 +1,130 @@
-"form_code","form_name","field_name","field_label","field_type","required","validation","field_order"
-"screening","Screening & Enrollment","subject_id","Subject ID","text",TRUE,,1
-"screening",,"screening_date","Screening Date","date",TRUE,,2
-"screening",,"age","Age (years)","numeric",TRUE,,3
-"screening",,"gender","Gender","radio",TRUE,"in(Male,Female,Other)",4
-"screening",,"inclusion_adhd","Meets ADHD criteria?","radio",TRUE,"in(Yes,No)",5
-"screening",,"inclusion_age","Age 18-65?","radio",TRUE,"in(Yes,No)",6
-"screening",,"inclusion_consent","Informed consent signed?","radio",TRUE,"in(Yes,No)",7
-"screening",,"exclusion_pregnancy","Currently pregnant?","radio",TRUE,"in(Yes,No)",8
-"screening",,"exclusion_medication","Taking excluded medications?","radio",TRUE,"in(Yes,No)",9
-"screening",,"exclusion_psychosis","History of psychosis?","radio",TRUE,"in(Yes,No)",10
-"screening",,"eligible","Overall Eligibility","radio",TRUE,"in(Eligible,Not Eligible)",11
-"screening",,"randomization_group","Randomization Group","radio",FALSE,"in(Active,Placebo)",12
-"screening",,"notes","Screening Notes","textarea",FALSE,,13
-"demographics","Demographics","subject_id","Subject ID","text",TRUE,,1
-"demographics",,"visit_date","Visit Date","date",TRUE,,2
-"demographics",,"race","Race/Ethnicity","select",TRUE,"in(White,Black or African American,Asian,Hispanic/Latino,Native American,Other,Prefer not to answer)",3
-"demographics",,"education_years","Years of Education","numeric",TRUE,,4
-"demographics",,"employment_status","Employment Status","select",TRUE,"in(Full-time,Part-time,Student,Unemployed,Disabled,Retired)",5
-"demographics",,"marital_status","Marital Status","select",TRUE,"in(Single,Married,Divorced,Widowed,Separated)",6
-"demographics",,"household_income","Annual Household Income","select",FALSE,"in(<$25k,$25k-$50k,$50k-$75k,$75k-$100k,>$100k,Prefer not to answer)",7
-"demographics",,"insurance_type","Insurance Type","select",FALSE,"in(Private,Medicare,Medicaid,Uninsured,Other)",8
-"demographics",,"emergency_contact_name","Emergency Contact Name","text",TRUE,,9
-"demographics",,"emergency_contact_phone","Emergency Contact Phone","text",TRUE,,10
-"medical_history","Medical History","subject_id","Subject ID","text",TRUE,,1
-"medical_history",,"visit_date","Visit Date","date",TRUE,,2
-"medical_history",,"prior_adhd_diagnosis","Prior ADHD diagnosis?","radio",TRUE,"in(Yes,No)",3
-"medical_history",,"age_first_diagnosed","Age at first ADHD diagnosis","numeric",FALSE,,4
-"medical_history",,"prior_adhd_medications","Previous ADHD medications","textarea",FALSE,,5
-"medical_history",,"current_medications","Current medications (non-ADHD)","textarea",FALSE,,6
-"medical_history",,"allergies","Known allergies","textarea",FALSE,,7
-"medical_history",,"psychiatric_history","Psychiatric history","multiselect",FALSE,"in(Depression,Anxiety,Bipolar,PTSD,Substance_Abuse,Other)",8
-"medical_history",,"medical_conditions","Current medical conditions","multiselect",FALSE,"in(Hypertension,Diabetes,Heart_Disease,Thyroid,Seizure_Disorder,Other)",9
-"medical_history",,"family_history_adhd","Family history of ADHD?","radio",FALSE,"in(Yes,No,Unknown)",10
-"medical_history",,"substance_use","Current substance use","multiselect",FALSE,"in(Alcohol,Tobacco,Cannabis,Other,None)",11
-"medical_history",,"pregnancy_status","Pregnancy status (if applicable)","radio",FALSE,"in(Not_Pregnant,Pregnant,Trying_to_Conceive,Not_Applicable)",12
-"adhd_rating","ADHD Rating Scale","subject_id","Subject ID","text",TRUE,,1
-"adhd_rating",,"visit_code","Visit","select",TRUE,"in(baseline,week4,week8,week12)",2
-"adhd_rating",,"assessment_date","Assessment Date","date",TRUE,,3
-"adhd_rating",,"adhd_1","Often fails to give close attention to details","radio",TRUE,"in(0,1,2,3)",4
-"adhd_rating",,"adhd_2","Often has difficulty sustaining attention","radio",TRUE,"in(0,1,2,3)",5
-"adhd_rating",,"adhd_3","Often does not seem to listen when spoken to","radio",TRUE,"in(0,1,2,3)",6
-"adhd_rating",,"adhd_4","Often does not follow through on instructions","radio",TRUE,"in(0,1,2,3)",7
-"adhd_rating",,"adhd_5","Often has difficulty organizing tasks","radio",TRUE,"in(0,1,2,3)",8
-"adhd_rating",,"adhd_6","Often avoids tasks requiring sustained attention","radio",TRUE,"in(0,1,2,3)",9
-"adhd_rating",,"adhd_7","Often loses things necessary for activities","radio",TRUE,"in(0,1,2,3)",10
-"adhd_rating",,"adhd_8","Often easily distracted by extraneous stimuli","radio",TRUE,"in(0,1,2,3)",11
-"adhd_rating",,"adhd_9","Often forgetful in daily activities","radio",TRUE,"in(0,1,2,3)",12
-"adhd_rating",,"adhd_inattention_total","Inattention Subscale Total","numeric",FALSE,,13
-"adhd_rating",,"adhd_10","Often fidgets with hands or feet","radio",TRUE,"in(0,1,2,3)",14
-"adhd_rating",,"adhd_11","Often leaves seat inappropriately","radio",TRUE,"in(0,1,2,3)",15
-"adhd_rating",,"adhd_12","Often runs about or climbs excessively","radio",TRUE,"in(0,1,2,3)",16
-"adhd_rating",,"adhd_13","Often has difficulty with quiet activities","radio",TRUE,"in(0,1,2,3)",17
-"adhd_rating",,"adhd_14","Often on the go or acts as if driven by motor","radio",TRUE,"in(0,1,2,3)",18
-"adhd_rating",,"adhd_15","Often talks excessively","radio",TRUE,"in(0,1,2,3)",19
-"adhd_rating",,"adhd_16","Often blurts out answers before questions completed","radio",TRUE,"in(0,1,2,3)",20
-"adhd_rating",,"adhd_17","Often has difficulty waiting turn","radio",TRUE,"in(0,1,2,3)",21
-"adhd_rating",,"adhd_18","Often interrupts or intrudes on others","radio",TRUE,"in(0,1,2,3)",22
-"adhd_rating",,"adhd_hyperactive_total","Hyperactivity Subscale Total","numeric",FALSE,,23
-"adhd_rating",,"adhd_total_score","Total ADHD Rating Scale Score","numeric",FALSE,,24
-"vital_signs","Vital Signs","subject_id","Subject ID","text",TRUE,,1
-"vital_signs",,"visit_code","Visit","select",TRUE,"in(baseline,week4,week8,week12)",2
-"vital_signs",,"assessment_date","Assessment Date","date",TRUE,,3
-"vital_signs",,"height_cm","Height (cm)","numeric",TRUE,,4
-"vital_signs",,"weight_kg","Weight (kg)","numeric",TRUE,,5
-"vital_signs",,"bmi","BMI (calculated)","numeric",FALSE,,6
-"vital_signs",,"systolic_bp","Systolic Blood Pressure","numeric",TRUE,,7
-"vital_signs",,"diastolic_bp","Diastolic Blood Pressure","numeric",TRUE,,8
-"vital_signs",,"heart_rate","Heart Rate (bpm)","numeric",TRUE,,9
-"vital_signs",,"temperature","Temperature (°C)","numeric",FALSE,,10
-"vital_signs",,"respiratory_rate","Respiratory Rate","numeric",FALSE,,11
-"vital_signs",,"notes","Vital Signs Notes","textarea",FALSE,,12
-"side_effects","Side Effects Checklist","subject_id","Subject ID","text",TRUE,,1
-"side_effects",,"visit_code","Visit","select",TRUE,"in(week4,week8,week12)",2
-"side_effects",,"assessment_date","Assessment Date","date",TRUE,,3
-"side_effects",,"se_appetite","Decreased appetite","radio",FALSE,"in(None,Mild,Moderate,Severe)",4
-"side_effects",,"se_insomnia","Sleep problems/insomnia","radio",FALSE,"in(None,Mild,Moderate,Severe)",5
-"side_effects",,"se_headache","Headache","radio",FALSE,"in(None,Mild,Moderate,Severe)",6
-"side_effects",,"se_nausea","Nausea","radio",FALSE,"in(None,Mild,Moderate,Severe)",7
-"side_effects",,"se_dizziness","Dizziness","radio",FALSE,"in(None,Mild,Moderate,Severe)",8
-"side_effects",,"se_dry_mouth","Dry mouth","radio",FALSE,"in(None,Mild,Moderate,Severe)",9
-"side_effects",,"se_constipation","Constipation","radio",FALSE,"in(None,Mild,Moderate,Severe)",10
-"side_effects",,"se_mood_changes","Mood changes/irritability","radio",FALSE,"in(None,Mild,Moderate,Severe)",11
-"side_effects",,"se_anxiety","Increased anxiety","radio",FALSE,"in(None,Mild,Moderate,Severe)",12
-"side_effects",,"se_heart_rate","Increased heart rate","radio",FALSE,"in(None,Mild,Moderate,Severe)",13
-"side_effects",,"se_other","Other side effects","textarea",FALSE,,14
-"side_effects",,"se_any_severe","Any severe side effects?","radio",TRUE,"in(Yes,No)",15
-"medication_compliance","Medication Compliance","subject_id","Subject ID","text",TRUE,,1
-"medication_compliance",,"visit_code","Visit","select",TRUE,"in(week4,week8,week12)",2
-"medication_compliance",,"assessment_date","Assessment Date","date",TRUE,,3
-"medication_compliance",,"pills_dispensed","Pills dispensed since last visit","numeric",TRUE,,4
-"medication_compliance",,"pills_returned","Pills returned at this visit","numeric",TRUE,,5
-"medication_compliance",,"pills_taken","Pills taken (calculated)","numeric",FALSE,,6
-"medication_compliance",,"compliance_percent","Compliance percentage","numeric",FALSE,,7
-"medication_compliance",,"missed_doses_reason","Reason for missed doses","multiselect",FALSE,"in(Forgot,Side_Effects,Felt_Better,Too_Busy,Lost_Pills,Other,None)",8
-"medication_compliance",,"timing_compliance","Taking at correct times?","radio",TRUE,"in(Always,Usually,Sometimes,Rarely,Never)",9
-"medication_compliance",,"storage_appropriate","Storing medication appropriately?","radio",TRUE,"in(Yes,No,Unsure)",10
-"medication_compliance",,"sharing_medication","Sharing medication with others?","radio",TRUE,"in(Yes,No)",11
-"medication_compliance",,"taking_extra_doses","Taking extra doses?","radio",TRUE,"in(Yes,No)",12
-"medication_compliance",,"notes","Compliance Notes","textarea",FALSE,,13
-"adverse_events","Adverse Events","subject_id","Subject ID","text",TRUE,,1
-"adverse_events",,"visit_code","Visit","select",TRUE,"in(baseline,week4,week8,week12)",2
-"adverse_events",,"assessment_date","Assessment Date","date",TRUE,,3
-"adverse_events",,"ae_number","AE Number","numeric",TRUE,,4
-"adverse_events",,"ae_description","Event Description","textarea",TRUE,,5
-"adverse_events",,"ae_start_date","Start Date","date",TRUE,,6
-"adverse_events",,"ae_end_date","End Date","date",FALSE,,7
-"adverse_events",,"ae_ongoing","Ongoing?","radio",TRUE,"in(Yes,No)",8
-"adverse_events",,"ae_severity","Severity","radio",TRUE,"in(Mild,Moderate,Severe,Life_Threatening)",9
-"adverse_events",,"ae_relationship","Relationship to study drug","radio",TRUE,"in(Unrelated,Unlikely,Possible,Probable,Definite)",10
-"adverse_events",,"ae_action_taken","Action taken with study drug","radio",FALSE,"in(None,Dose_Reduced,Temporarily_Stopped,Permanently_Stopped)",11
-"adverse_events",,"ae_outcome","Outcome","radio",TRUE,"in(Recovered,Recovering,Not_Recovered,Fatal,Unknown)",12
-"adverse_events",,"ae_serious","Serious Adverse Event?","radio",TRUE,"in(Yes,No)",13
-"adverse_events",,"ae_expected","Expected event?","radio",TRUE,"in(Yes,No)",14
-"adverse_events",,"ae_hospitalization","Required hospitalization?","radio",FALSE,"in(Yes,No)",15
-"adverse_events",,"ae_life_threatening","Life threatening?","radio",FALSE,"in(Yes,No)",16
-"adverse_events",,"reporter_name","Reporter Name","text",TRUE,,17
-"adverse_events",,"notes","Additional Notes","textarea",FALSE,,18
-"study_completion","Study Completion","subject_id","Subject ID","text",TRUE,,1
-"study_completion",,"completion_date","Study Completion Date","date",TRUE,,2
-"study_completion",,"completion_status","Completion Status","radio",TRUE,"in(Completed,Early_Termination,Lost_to_Follow_up,Withdrawn_Consent)",3
-"study_completion",,"early_termination_reason","Reason for Early Termination","select",FALSE,"in(Adverse_Event,Lack_of_Efficacy,Protocol_Violation,Participant_Request,Investigator_Decision,Lost_to_Follow_up,Other)",4
-"study_completion",,"final_dose","Final Study Drug Dose","text",FALSE,,5
-"study_completion",,"total_study_days","Total Days in Study","numeric",TRUE,,6
-"study_completion",,"protocol_deviations","Protocol Deviations","multiselect",FALSE,"in(Missed_Visit,Wrong_Dose,Concomitant_Medication,Inclusion_Criteria,Exclusion_Criteria,Other,None)",7
-"study_completion",,"overall_tolerability","Overall Tolerability","radio",FALSE,"in(Excellent,Good,Fair,Poor)",8
-"study_completion",,"would_recommend","Would recommend to others?","radio",FALSE,"in(Definitely,Probably,Unsure,Probably_Not,Definitely_Not)",9
-"study_completion",,"final_assessment","Final Clinical Assessment","textarea",FALSE,,10
-"study_completion",,"investigator_signature","Investigator Signature","text",TRUE,,11
-"study_completion",,"signature_date","Signature Date","date",TRUE,,12
+"form_code","form_name","field_name","field_label","field_type","required","validation","field_order","description"
+"screening","Screening & Enrollment","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"screening",,"screening_date","Screening Date","date",TRUE,,2,"Date the screening visit was conducted."
+"screening",,"age","Age (years)","numeric",TRUE,,3,"Participant's age in completed years at screening."
+"screening",,"gender","Gender","radio",TRUE,"in(Male,Female,Other)",4,"Participant's reported gender."
+"screening",,"inclusion_adhd","Meets ADHD criteria?","radio",TRUE,"in(Yes,No)",5,"Confirms the participant meets DSM-5 criteria for ADHD."
+"screening",,"inclusion_age","Age 18-65?","radio",TRUE,"in(Yes,No)",6,"Confirms the participant is between 18 and 65 years old."
+"screening",,"inclusion_consent","Informed consent signed?","radio",TRUE,"in(Yes,No)",7,"Confirms written informed consent was obtained before any study procedures."
+"screening",,"exclusion_pregnancy","Currently pregnant?","radio",TRUE,"in(Yes,No)",8,"Pregnancy is an exclusion criterion; answer based on self-report or test result."
+"screening",,"exclusion_medication","Taking excluded medications?","radio",TRUE,"in(Yes,No)",9,"Confirms whether the participant is taking a medication excluded by the protocol."
+"screening",,"exclusion_psychosis","History of psychosis?","radio",TRUE,"in(Yes,No)",10,"A prior psychosis diagnosis is an exclusion criterion for this study."
+"screening",,"eligible","Overall Eligibility","radio",TRUE,"in(Eligible,Not Eligible)",11,"Overall eligibility determination based on the inclusion/exclusion answers above."
+"screening",,"randomization_group","Randomization Group","radio",FALSE,"in(Active,Placebo)",12,"Treatment assignment; only enter this after confirming eligibility."
+"screening",,"notes","Screening Notes","textarea",FALSE,,13,"Optional free-text notes for this visit."
+"demographics","Demographics","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"demographics",,"visit_date","Visit Date","date",TRUE,,2,"Date this information was collected."
+"demographics",,"race","Race/Ethnicity","select",TRUE,"in(White,Black or African American,Asian,Hispanic/Latino,Native American,Other,Prefer not to answer)",3,"Participant's self-reported race/ethnicity."
+"demographics",,"education_years","Years of Education","numeric",TRUE,,4,"Total completed years of formal education."
+"demographics",,"employment_status","Employment Status","select",TRUE,"in(Full-time,Part-time,Student,Unemployed,Disabled,Retired)",5,"Participant's current employment status."
+"demographics",,"marital_status","Marital Status","select",TRUE,"in(Single,Married,Divorced,Widowed,Separated)",6,"Participant's current marital status."
+"demographics",,"household_income","Annual Household Income","select",FALSE,"in(<$25k,$25k-$50k,$50k-$75k,$75k-$100k,>$100k,Prefer not to answer)",7,"Participant's self-reported annual household income range."
+"demographics",,"insurance_type","Insurance Type","select",FALSE,"in(Private,Medicare,Medicaid,Uninsured,Other)",8,"Participant's primary health insurance type."
+"demographics",,"emergency_contact_name","Emergency Contact Name","text",TRUE,,9,"Name of the person to contact in case of emergency."
+"demographics",,"emergency_contact_phone","Emergency Contact Phone","text",TRUE,,10,"Phone number for the emergency contact."
+"medical_history","Medical History","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"medical_history",,"visit_date","Visit Date","date",TRUE,,2,"Date this information was collected."
+"medical_history",,"prior_adhd_diagnosis","Prior ADHD diagnosis?","radio",TRUE,"in(Yes,No)",3,"Whether the participant was diagnosed with ADHD before this study."
+"medical_history",,"age_first_diagnosed","Age at first ADHD diagnosis","numeric",FALSE,,4,"Participant's age at first ADHD diagnosis, if known."
+"medical_history",,"prior_adhd_medications","Previous ADHD medications","textarea",FALSE,,5,"Any ADHD medications the participant has taken in the past."
+"medical_history",,"current_medications","Current medications (non-ADHD)","textarea",FALSE,,6,"Medications the participant is currently taking, excluding ADHD treatment."
+"medical_history",,"allergies","Known allergies","textarea",FALSE,,7,"Known drug or other allergies."
+"medical_history",,"psychiatric_history","Psychiatric history","multiselect",FALSE,"in(Depression,Anxiety,Bipolar,PTSD,Substance_Abuse,Other)",8,"Any prior psychiatric diagnoses; select all that apply."
+"medical_history",,"medical_conditions","Current medical conditions","multiselect",FALSE,"in(Hypertension,Diabetes,Heart_Disease,Thyroid,Seizure_Disorder,Other)",9,"Current medical conditions; select all that apply."
+"medical_history",,"family_history_adhd","Family history of ADHD?","radio",FALSE,"in(Yes,No,Unknown)",10,"Whether a first-degree relative has a history of ADHD."
+"medical_history",,"substance_use","Current substance use","multiselect",FALSE,"in(Alcohol,Tobacco,Cannabis,Other,None)",11,"Current substance use; select all that apply."
+"medical_history",,"pregnancy_status","Pregnancy status (if applicable)","radio",FALSE,"in(Not_Pregnant,Pregnant,Trying_to_Conceive,Not_Applicable)",12,"Current pregnancy status, if applicable."
+"adhd_rating","ADHD Rating Scale","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"adhd_rating",,"visit_code","Visit","select",TRUE,"in(baseline,week4,week8,week12)",2,"Study visit at which this assessment was completed."
+"adhd_rating",,"assessment_date","Assessment Date","date",TRUE,,3,"Date this assessment was completed."
+"adhd_rating",,"adhd_1","Often fails to give close attention to details","radio",TRUE,"in(0,1,2,3)",4,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_2","Often has difficulty sustaining attention","radio",TRUE,"in(0,1,2,3)",5,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_3","Often does not seem to listen when spoken to","radio",TRUE,"in(0,1,2,3)",6,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_4","Often does not follow through on instructions","radio",TRUE,"in(0,1,2,3)",7,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_5","Often has difficulty organizing tasks","radio",TRUE,"in(0,1,2,3)",8,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_6","Often avoids tasks requiring sustained attention","radio",TRUE,"in(0,1,2,3)",9,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_7","Often loses things necessary for activities","radio",TRUE,"in(0,1,2,3)",10,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_8","Often easily distracted by extraneous stimuli","radio",TRUE,"in(0,1,2,3)",11,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_9","Often forgetful in daily activities","radio",TRUE,"in(0,1,2,3)",12,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_inattention_total","Inattention Subscale Total","numeric",FALSE,,13,"Sum of the 9 inattention items (adhd_1-adhd_9); calculated, do not enter manually."
+"adhd_rating",,"adhd_10","Often fidgets with hands or feet","radio",TRUE,"in(0,1,2,3)",14,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_11","Often leaves seat inappropriately","radio",TRUE,"in(0,1,2,3)",15,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_12","Often runs about or climbs excessively","radio",TRUE,"in(0,1,2,3)",16,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_13","Often has difficulty with quiet activities","radio",TRUE,"in(0,1,2,3)",17,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_14","Often on the go or acts as if driven by motor","radio",TRUE,"in(0,1,2,3)",18,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_15","Often talks excessively","radio",TRUE,"in(0,1,2,3)",19,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_16","Often blurts out answers before questions completed","radio",TRUE,"in(0,1,2,3)",20,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_17","Often has difficulty waiting turn","radio",TRUE,"in(0,1,2,3)",21,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_18","Often interrupts or intrudes on others","radio",TRUE,"in(0,1,2,3)",22,"Rate frequency over the past 6 months: 0 = Never, 1 = Sometimes, 2 = Often, 3 = Very Often."
+"adhd_rating",,"adhd_hyperactive_total","Hyperactivity Subscale Total","numeric",FALSE,,23,"Sum of the 9 hyperactivity/impulsivity items (adhd_10-adhd_18); calculated, do not enter manually."
+"adhd_rating",,"adhd_total_score","Total ADHD Rating Scale Score","numeric",FALSE,,24,"Combined inattention and hyperactivity/impulsivity score; calculated, do not enter manually."
+"vital_signs","Vital Signs","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"vital_signs",,"visit_code","Visit","select",TRUE,"in(baseline,week4,week8,week12)",2,"Study visit at which this assessment was completed."
+"vital_signs",,"assessment_date","Assessment Date","date",TRUE,,3,"Date this assessment was completed."
+"vital_signs",,"height_cm","Height (cm)","numeric",TRUE,,4,"Height measured in centimeters, without shoes."
+"vital_signs",,"weight_kg","Weight (kg)","numeric",TRUE,,5,"Weight measured in kilograms, in light clothing."
+"vital_signs",,"bmi","BMI (calculated)","numeric",FALSE,,6,"Body mass index; calculated from height and weight, do not enter manually."
+"vital_signs",,"systolic_bp","Systolic Blood Pressure","numeric",TRUE,,7,"Systolic blood pressure in mmHg, seated after 5 minutes rest."
+"vital_signs",,"diastolic_bp","Diastolic Blood Pressure","numeric",TRUE,,8,"Diastolic blood pressure in mmHg, seated after 5 minutes rest."
+"vital_signs",,"heart_rate","Heart Rate (bpm)","numeric",TRUE,,9,"Resting heart rate in beats per minute."
+"vital_signs",,"temperature","Temperature (°C)","numeric",FALSE,,10,"Body temperature in degrees Celsius."
+"vital_signs",,"respiratory_rate","Respiratory Rate","numeric",FALSE,,11,"Breaths per minute, counted over one full minute."
+"vital_signs",,"notes","Vital Signs Notes","textarea",FALSE,,12,"Optional free-text notes for this visit."
+"side_effects","Side Effects Checklist","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"side_effects",,"visit_code","Visit","select",TRUE,"in(week4,week8,week12)",2,"Study visit at which this assessment was completed."
+"side_effects",,"assessment_date","Assessment Date","date",TRUE,,3,"Date this assessment was completed."
+"side_effects",,"se_appetite","Decreased appetite","radio",FALSE,"in(None,Mild,Moderate,Severe)",4,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_insomnia","Sleep problems/insomnia","radio",FALSE,"in(None,Mild,Moderate,Severe)",5,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_headache","Headache","radio",FALSE,"in(None,Mild,Moderate,Severe)",6,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_nausea","Nausea","radio",FALSE,"in(None,Mild,Moderate,Severe)",7,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_dizziness","Dizziness","radio",FALSE,"in(None,Mild,Moderate,Severe)",8,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_dry_mouth","Dry mouth","radio",FALSE,"in(None,Mild,Moderate,Severe)",9,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_constipation","Constipation","radio",FALSE,"in(None,Mild,Moderate,Severe)",10,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_mood_changes","Mood changes/irritability","radio",FALSE,"in(None,Mild,Moderate,Severe)",11,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_anxiety","Increased anxiety","radio",FALSE,"in(None,Mild,Moderate,Severe)",12,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_heart_rate","Increased heart rate","radio",FALSE,"in(None,Mild,Moderate,Severe)",13,"Rate the severity of this symptom since the last visit."
+"side_effects",,"se_other","Other side effects","textarea",FALSE,,14,"Describe any side effect not listed above."
+"side_effects",,"se_any_severe","Any severe side effects?","radio",TRUE,"in(Yes,No)",15,"Confirms whether the participant reported any severe side effect this visit."
+"medication_compliance","Medication Compliance","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"medication_compliance",,"visit_code","Visit","select",TRUE,"in(week4,week8,week12)",2,"Study visit at which this assessment was completed."
+"medication_compliance",,"assessment_date","Assessment Date","date",TRUE,,3,"Date this assessment was completed."
+"medication_compliance",,"pills_dispensed","Pills dispensed since last visit","numeric",TRUE,,4,"Number of pills given to the participant at the last visit."
+"medication_compliance",,"pills_returned","Pills returned at this visit","numeric",TRUE,,5,"Number of unused pills the participant brought back at this visit."
+"medication_compliance",,"pills_taken","Pills taken (calculated)","numeric",FALSE,,6,"Pills dispensed minus pills returned; calculated, do not enter manually."
+"medication_compliance",,"compliance_percent","Compliance percentage","numeric",FALSE,,7,"Percentage of prescribed doses actually taken; calculated, do not enter manually."
+"medication_compliance",,"missed_doses_reason","Reason for missed doses","multiselect",FALSE,"in(Forgot,Side_Effects,Felt_Better,Too_Busy,Lost_Pills,Other,None)",8,"Reason(s) for missed doses, if any; select all that apply."
+"medication_compliance",,"timing_compliance","Taking at correct times?","radio",TRUE,"in(Always,Usually,Sometimes,Rarely,Never)",9,"How consistently the participant took doses at the prescribed times."
+"medication_compliance",,"storage_appropriate","Storing medication appropriately?","radio",TRUE,"in(Yes,No,Unsure)",10,"Whether the participant is storing study medication as instructed."
+"medication_compliance",,"sharing_medication","Sharing medication with others?","radio",TRUE,"in(Yes,No)",11,"Whether the participant has shared study medication with anyone else."
+"medication_compliance",,"taking_extra_doses","Taking extra doses?","radio",TRUE,"in(Yes,No)",12,"Whether the participant has taken doses beyond what was prescribed."
+"medication_compliance",,"notes","Compliance Notes","textarea",FALSE,,13,"Optional free-text notes for this visit."
+"adverse_events","Adverse Events","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"adverse_events",,"visit_code","Visit","select",TRUE,"in(baseline,week4,week8,week12)",2,"Study visit at which this assessment was completed."
+"adverse_events",,"assessment_date","Assessment Date","date",TRUE,,3,"Date this assessment was completed."
+"adverse_events",,"ae_number","AE Number","numeric",TRUE,,4,"Sequential number for this adverse event within the subject's record."
+"adverse_events",,"ae_description","Event Description","textarea",TRUE,,5,"Clear description of the adverse event, in the participant's own words where possible."
+"adverse_events",,"ae_start_date","Start Date","date",TRUE,,6,"Date the adverse event started."
+"adverse_events",,"ae_end_date","End Date","date",FALSE,,7,"Date the adverse event resolved, if applicable."
+"adverse_events",,"ae_ongoing","Ongoing?","radio",TRUE,"in(Yes,No)",8,"Whether the adverse event is still ongoing."
+"adverse_events",,"ae_severity","Severity","radio",TRUE,"in(Mild,Moderate,Severe,Life_Threatening)",9,"Clinical severity of the adverse event."
+"adverse_events",,"ae_relationship","Relationship to study drug","radio",TRUE,"in(Unrelated,Unlikely,Possible,Probable,Definite)",10,"Investigator's assessment of how likely the study drug caused this event."
+"adverse_events",,"ae_action_taken","Action taken with study drug","radio",FALSE,"in(None,Dose_Reduced,Temporarily_Stopped,Permanently_Stopped)",11,"Any change made to study drug dosing because of this event."
+"adverse_events",,"ae_outcome","Outcome","radio",TRUE,"in(Recovered,Recovering,Not_Recovered,Fatal,Unknown)",12,"Current outcome of the adverse event."
+"adverse_events",,"ae_serious","Serious Adverse Event?","radio",TRUE,"in(Yes,No)",13,"Whether this meets the protocol's definition of a serious adverse event (SAE)."
+"adverse_events",,"ae_expected","Expected event?","radio",TRUE,"in(Yes,No)",14,"Whether this event is listed as an expected risk in the protocol/consent."
+"adverse_events",,"ae_hospitalization","Required hospitalization?","radio",FALSE,"in(Yes,No)",15,"Whether the event required hospitalization or prolonged an existing one."
+"adverse_events",,"ae_life_threatening","Life threatening?","radio",FALSE,"in(Yes,No)",16,"Whether the event was immediately life-threatening."
+"adverse_events",,"reporter_name","Reporter Name","text",TRUE,,17,"Name of the staff member reporting this event."
+"adverse_events",,"notes","Additional Notes","textarea",FALSE,,18,"Optional free-text notes for this visit."
+"study_completion","Study Completion","subject_id","Subject ID","text",TRUE,,1,"Unique participant identifier assigned at enrollment; must match the protocol's numbering format."
+"study_completion",,"completion_date","Study Completion Date","date",TRUE,,2,"Date the participant's study participation ended."
+"study_completion",,"completion_status","Completion Status","radio",TRUE,"in(Completed,Early_Termination,Lost_to_Follow_up,Withdrawn_Consent)",3,"How the participant's study participation ended."
+"study_completion",,"early_termination_reason","Reason for Early Termination","select",FALSE,"in(Adverse_Event,Lack_of_Efficacy,Protocol_Violation,Participant_Request,Investigator_Decision,Lost_to_Follow_up,Other)",4,"Primary reason for early termination, if applicable."
+"study_completion",,"final_dose","Final Study Drug Dose","text",FALSE,,5,"Study drug dose the participant was taking at study exit."
+"study_completion",,"total_study_days","Total Days in Study","numeric",TRUE,,6,"Total number of days the participant was enrolled in the study."
+"study_completion",,"protocol_deviations","Protocol Deviations","multiselect",FALSE,"in(Missed_Visit,Wrong_Dose,Concomitant_Medication,Inclusion_Criteria,Exclusion_Criteria,Other,None)",7,"Any protocol deviations recorded during the participant's time in the study."
+"study_completion",,"overall_tolerability","Overall Tolerability","radio",FALSE,"in(Excellent,Good,Fair,Poor)",8,"Investigator's overall assessment of how well the participant tolerated the study drug."
+"study_completion",,"would_recommend","Would recommend to others?","radio",FALSE,"in(Definitely,Probably,Unsure,Probably_Not,Definitely_Not)",9,"Participant's likelihood of recommending this treatment to others."
+"study_completion",,"final_assessment","Final Clinical Assessment","textarea",FALSE,,10,"Investigator's final clinical assessment at study exit."
+"study_completion",,"investigator_signature","Investigator Signature","text",TRUE,,11,"Name of the investigator signing off on study completion."
+"study_completion",,"signature_date","Signature Date","date",TRUE,,12,"Date the investigator signed this completion record."

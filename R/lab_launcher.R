@@ -91,35 +91,36 @@
   } else {
     NULL
   }
-  bslib::card(
-    bslib::card_header(
-      row$name, status_badge
+  initial <- toupper(substr(trimws(row$name), 1, 1))
+  div(class = "rgtlab-tile",
+    div(class = "d-flex align-items-start justify-content-between",
+      div(class = "rgtlab-ico", initial),
+      status_badge
     ),
-    bslib::card_body(
-      tags$p(class = "small text-muted mb-2",
-             if (!is.na(row$last_opened) && nzchar(row$last_opened)) {
-               paste("Last opened:", row$last_opened)
-             } else {
-               "Never opened from this landing page"
-             }),
-      tags$button(
-        class = "btn btn-primary btn-sm",
-        type = "button",
-        onclick = sprintf(
-          "Shiny.setInputValue('tile_action', {action: 'open', id: '%s'}, {priority: 'event'})",
-          row$id
-        ),
-        "Open"
+    tags$h4(row$name),
+    tags$p(class = "rgtlab-desc mb-3",
+           if (!is.na(row$last_opened) && nzchar(row$last_opened)) {
+             paste("Last opened:", row$last_opened)
+           } else {
+             "Never opened from this landing page"
+           }),
+    tags$button(
+      class = "btn btn-rgt-primary btn-sm",
+      type = "button",
+      onclick = sprintf(
+        "Shiny.setInputValue('tile_action', {action: 'open', id: '%s'}, {priority: 'event'})",
+        row$id
       ),
-      tags$button(
-        class = "btn btn-outline-danger btn-sm ms-2",
-        type = "button",
-        onclick = sprintf(
-          "Shiny.setInputValue('tile_action', {action: 'unregister', id: '%s'}, {priority: 'event'})",
-          row$id
-        ),
-        "Remove from lab"
-      )
+      "Open"
+    ),
+    tags$button(
+      class = "btn btn-outline-danger btn-sm ms-2",
+      type = "button",
+      onclick = sprintf(
+        "Shiny.setInputValue('tile_action', {action: 'unregister', id: '%s'}, {priority: 'event'})",
+        row$id
+      ),
+      "Remove from lab"
     )
   )
 }
@@ -128,14 +129,11 @@
 #' The fixed "+ Create New Database" tile
 #' @keywords internal
 .create_tile <- function() {
-  bslib::card(
-    bslib::card_body(
-      class = "text-center d-flex flex-column justify-content-center",
-      style = "min-height: 160px;",
-      tags$h4("+"),
-      tags$p("Create New Database"),
-      actionButton("create_new", "Get started", class = "btn btn-success btn-sm")
-    )
+  div(class = "rgtlab-tile text-center d-flex flex-column align-items-center justify-content-center",
+    style = "min-height: 200px;",
+    div(class = "rgtlab-ico", "+"),
+    tags$h4("Create New Database"),
+    actionButton("create_new", "Get started", class = "btn btn-rgt-primary btn-sm")
   )
 }
 
@@ -161,13 +159,15 @@
   bslib::page_fluid(
     theme = bslib::bs_theme(version = 5),
     shinyjs::useShinyjs(),
-    tags$head(tags$title("ZZedc Lab")),
-    div(class = "container my-4",
+    tags$head(tags$title("ZZedc Lab"), .rgtlab_tile_styles()),
+    class = "rgtlab-page-bg",
+    style = "min-height: 100vh;",
+    div(class = "container py-4",
       div(class = "d-flex justify-content-between align-items-center mb-3",
-        h2("ZZedc Lab"),
-        actionButton("refresh_studies", "Refresh", class = "btn btn-outline-secondary btn-sm")
+        h2(class = "rgtlab-heading", "ZZedc Lab"),
+        actionButton("refresh_studies", "Refresh", class = "btn btn-rgt-ghost btn-sm")
       ),
-      p(class = "text-muted",
+      p(class = "rgtlab-intro",
         "Every study registered with this lab. Register an existing ",
         "deployment, or create a new one, with ", tags$code("register_study()"),
         "."),

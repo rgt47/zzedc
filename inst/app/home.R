@@ -17,70 +17,50 @@ output$hometab <- renderUI({
       )
     ),
     
-    # Quick-navigation tiles, one per major section, matching the
-    # Lab landing page's tile style. Each tile is a clickable card
-    # (via a hidden actionLink spanning the card body) that switches
-    # the top navbar to that section's nav_panel value.
-    h5(class = "mb-3", "Quick Access"),
+    # Quick-navigation tiles, one per major section, styled to match
+    # rgtlab.org's research-card tiles (zzedc:::.rgtlab_tile_styles(),
+    # loaded once in the page's own <head> -- ui.R /
+    # gsheets_ui_integration.R, not re-injected here): a navy/gold
+    # icon circle, serif title, muted description. Each tile is a
+    # clickable card (an <a class="action-button">, Shiny's own
+    # convention for a link that fires a server-side input) that
+    # switches the top navbar to that section's nav_panel value.
+    h5(class = "rgtlab-heading mb-3", "Quick Access"),
     bslib::layout_column_wrap(
       width = "200px",
       gap = "1rem",
       class = "mb-4",
-      tagList(
-        tags$a(
-          id = "hometile_edc", class = "action-button text-decoration-none text-reset",
-          href = "#",
-          bslib::card(
-            class = "h-100 text-center shadow-sm",
-            bslib::card_body(
-              bsicons::bs_icon("clipboard2-pulse", size = "2.5em", class = "text-primary mb-2"),
-              h6("EDC Forms"),
-              tags$small(class = "text-muted", "Enter and manage study data")
-            )
-          )
-        )
+      tags$a(
+        id = "hometile_edc", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("clipboard2-pulse", size = "1.1rem")),
+        h6("EDC Forms"),
+        tags$p(class = "rgtlab-desc", "Enter and manage study data")
       ),
-      tagList(
-        tags$a(
-          id = "hometile_reports", class = "action-button text-decoration-none text-reset",
-          href = "#",
-          bslib::card(
-            class = "h-100 text-center shadow-sm",
-            bslib::card_body(
-              bsicons::bs_icon("bar-chart-line", size = "2.5em", class = "text-info mb-2"),
-              h6("Reports"),
-              tags$small(class = "text-muted", "Study reports and analytics")
-            )
-          )
-        )
+      tags$a(
+        id = "hometile_reports", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("bar-chart-line", size = "1.1rem")),
+        h6("Reports"),
+        tags$p(class = "rgtlab-desc", "Study reports and analytics")
       ),
-      tagList(
-        tags$a(
-          id = "hometile_data", class = "action-button text-decoration-none text-reset",
-          href = "#",
-          bslib::card(
-            class = "h-100 text-center shadow-sm",
-            bslib::card_body(
-              bsicons::bs_icon("table", size = "2.5em", class = "text-success mb-2"),
-              h6("Data Explorer"),
-              tags$small(class = "text-muted", "Visualize and analyze your data")
-            )
-          )
-        )
+      tags$a(
+        id = "hometile_data", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("table", size = "1.1rem")),
+        h6("Data Explorer"),
+        tags$p(class = "rgtlab-desc", "Visualize and analyze your data")
       ),
-      tagList(
-        tags$a(
-          id = "hometile_export", class = "action-button text-decoration-none text-reset",
-          href = "#",
-          bslib::card(
-            class = "h-100 text-center shadow-sm",
-            bslib::card_body(
-              bsicons::bs_icon("download", size = "2.5em", class = "text-warning mb-2"),
-              h6("Export"),
-              tags$small(class = "text-muted", "Download data in various formats")
-            )
-          )
-        )
+      tags$a(
+        id = "hometile_export", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("download", size = "1.1rem")),
+        h6("Export"),
+        tags$p(class = "rgtlab-desc", "Download data in various formats")
       )
     ),
 
