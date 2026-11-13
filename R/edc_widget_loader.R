@@ -105,10 +105,21 @@ widget_module_id <- function(field_code) {
 #'   widget-attached field.
 #' @keywords internal
 all_widget_attachments <- function(conn) {
-  DBI::dbGetQuery(conn, "
-    SELECT df.design_id AS crf_id, cd.crf_code, df.field_code, df.widget_file
-    FROM designer_fields df
-    JOIN crf_definitions cd ON cd.crf_id = df.design_id
-    WHERE df.widget_file IS NOT NULL AND df.widget_file != ''
-  ")
+  # Called eagerly at the top of edc.R (not inside a reactive
+  # context), for every study, including ones provisioned without
+  # the CRF designer schema (e.g. setup_zzedc_from_csv()'s demo
+  # path), where designer_fields/crf_definitions never existed. An
+  # unguarded error here used to abort create_enhanced_server()
+  # entirely, taking the whole app down with it.
+  tryCatch({
+    DBI::dbGetQuery(conn, "
+      SELECT df.design_id AS crf_id, cd.crf_code, df.field_code, df.widget_file
+      FROM designer_fields df
+      JOIN crf_definitions cd ON cd.crf_id = df.design_id
+      WHERE df.widget_file IS NOT NULL AND df.widget_file != ''
+    ")
+  }, error = function(e) {
+    data.frame(crf_id = integer(0), crf_code = character(0),
+               field_code = character(0), widget_file = character(0))
+  })
 }
