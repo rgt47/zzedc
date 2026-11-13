@@ -2062,6 +2062,105 @@ version. Do not include subject data.
 
 ---
 
+# Chapter 13. Running multiple studies: the Lab landing page
+
+Every chapter so far assumes one study: one project directory,
+one `config.yml`, one database, one `launch_zzedc()` call. A
+lab that runs more than one ZZedc study still has exactly that
+-- one of everything, per study -- with nothing anywhere
+recording which studies exist. `launch_lab()` is a small,
+separate landing page for exactly that: a list of every known
+study as a tile, and a tile to set up a new one.
+
+## 13.1 What the Lab is, and is not
+
+`launch_lab()` is its own standalone Shiny app, architecturally
+separate from any study's own `launch_zzedc()` app. It is not a
+tab inside the study application, and it never opens a study's
+database itself: a study's `inst/app/global.R` sets up process-
+wide state (`db_pool`, `cfg`, `db_path`) for exactly one already-
+open study, and two studies' global state cannot safely coexist
+in one R process. So the Lab lists studies and shows you the
+exact command to open or create one -- you still run that
+command yourself, in your own console, the same way you already
+run `launch_zzedc()` today.
+
+## 13.2 The studies registry
+
+What the Lab displays comes from a small, deliberately separate
+file at `~/.zzedc/studies.yml` -- not a second database, and
+outside any single study's own directory or encrypted trust
+boundary. It records, per study, only a display name, the
+project path, the backend label read from that study's own
+`config.yml`, and two timestamps (when it was registered, when
+it was last opened from the Lab). It never reads anything from
+inside a study's own database.
+
+```{r}
+library(zzedc)
+
+# Register an existing deployment -- requires that directory to
+# already have a config.yml (written by launch_zzedc(),
+# launch_setup_wizard(), or complete_wizard_setup()).
+register_study("~/prj/srv/14-promotion-tracker",
+                name = "Promotion Review Tracker")
+
+list_studies()
+```
+
+`list_studies()` returns one row per registered study, with an
+`exists` column: `FALSE` for a study whose directory or
+`config.yml` has since moved or been deleted, rather than an
+error. `unregister_study(id)` removes an entry from the Lab
+without touching the study's own directory, database, or
+`config.yml` -- it is always safe, and the same study can be
+registered again later.
+
+## 13.3 Using the landing page
+
+```{r}
+zzedc::launch_lab()
+```
+
+Each registered study appears as a tile: its name, backend,
+path, and when it was last opened. Clicking **Open** does not
+launch the study in the Lab's own process -- it shows the exact
+command (`setwd(...)` + `launch_zzedc()`) to copy into a fresh R
+console, per the one-process-per-study constraint above.
+Clicking **+ Create New Database** asks for a display name and a
+full target directory, then -- the same reasoning again -- shows
+the `launch_setup_wizard(base_path = ...)` command to run
+yourself rather than embedding the wizard's own multi-step form a
+second time. Once you have run that command and the wizard has
+written a `config.yml`, the same modal's **Register this study**
+button adds it to the Lab.
+
+## 13.4 Worked example: two studies
+
+The Promotion Review Tracker (Appendix at
+`vignette('promotion-tracker-technical-guide')`) is a real,
+already-running deployment, registered as shown in §13.2. The
+package's bundled ADHD-trial example data
+(`system.file("extdata", "adhd_trial", package = "zzedc")`) can
+be stood up as a second, genuinely separate study the same way
+any new study is: `create_wizard_directories()` +
+`create_wizard_config()` to provision the directory, then
+registered with `register_study()`. (As of this writing,
+importing that example data via `setup_zzedc_from_csv()` after
+provisioning hits a schema-initialization defect unrelated to
+the Lab feature itself -- `load_db_config()`, in `R/db_config.R`,
+expects a flat `database:` key at the top of `config.yml` rather
+than the nested `default: database:` shape every other config
+reader in this package expects, so the CRF-designer/version/
+DSL-rule/audit-log table setup inside that importer fails with
+"Configuration file must have a 'database' section" even though
+the file plainly has one. The study itself -- directory,
+`config.yml`, and an initialized database -- is still real and
+opens normally; only the example data dictionary did not import.
+Tracked as a separate open item, not fixed here.)
+
+---
+
 # Appendix A. Migrating from REDCap
 
 If your trial is moving from REDCap, ZZedc has a one-call

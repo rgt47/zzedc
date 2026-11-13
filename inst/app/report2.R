@@ -75,6 +75,11 @@ output$rep2_unknown_form_note <- renderUI({
 
 output$rep2_flagged_table <- DT::renderDT({
   flagged <- .rep2_quality()$flagged
+  audit_ctx <- zzedc::session_audit_context(session)
+  zzedc::log_record_read(db_pool, "data_quality_flagged", data = flagged,
+                         user_id = user_input$user_id,
+                         ip_address = audit_ctx$ip_address,
+                         session_id = audit_ctx$session_id)
   names(flagged) <- c("Entry ID", "Subject ID", "Form", "Kind", "Message")
   DT::datatable(flagged, options = list(pageLength = 10), rownames = FALSE)
 })

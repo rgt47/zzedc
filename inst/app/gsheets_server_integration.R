@@ -237,7 +237,7 @@ initialize_traditional_server <- function(input, output, session) {
     error = function(e) NULL
   )
   if (!is.null(data_server_fn)) {
-    data_server_fn("data")
+    data_server_fn("data", user_id = reactive(user_input$user_id))
   }
 
   # Same reasoning and the same getFromNamespace() pattern as

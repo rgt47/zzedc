@@ -49,9 +49,26 @@ output$export_form_select <- renderUI({
   selectInput("export_form", "Form:", choices = choices)
 })
 
+# Every preview and every download is recorded in the audit trail
+# (zzedc::log_record_read()) with the user, the subjects disclosed and
+# the selection. Under the 'regulated' profile a read that cannot be
+# recorded is not shown or handed over.
+export_audit <- function(data, event_type, view) {
+  ctx <- zzedc::session_audit_context(session)
+  zzedc::log_record_read(
+    db_pool, view, data = data, event_type = event_type,
+    filters = shiny::isolate(list(
+      form = input$export_form, format = input$export_format,
+      from = as.character(input$export_date_range[1]),
+      to = as.character(input$export_date_range[2]))),
+    user_id = user_input$user_id,
+    ip_address = ctx$ip_address, session_id = ctx$session_id
+  )
+}
+
 export_data <- reactive({
   shiny::req(db_pool, input$export_form, input$export_date_range)
-  if (input$export_form == "__all__") {
+  data <- if (input$export_form == "__all__") {
     all_entries <- zzedc:::flatten_all_entries_for_explorer(db_pool)
     all_entries[
       as.Date(all_entries$created_date) >= input$export_date_range[1] &
@@ -64,6 +81,8 @@ export_data <- reactive({
       end_date = input$export_date_range[2]
     )
   }
+  export_audit(data, "SELECT", "export_preview")
+  data
 })
 
 output$export_preview_info <- renderText({
@@ -92,6 +111,7 @@ output$download_export <- downloadHandler(
   },
   content = function(file) {
     data <- export_data()
+    export_audit(data, "EXPORT", "export_download")
     if (input$export_format == "xlsx") {
       writexl::write_xlsx(data, file)
     } else {

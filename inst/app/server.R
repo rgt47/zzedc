@@ -111,7 +111,7 @@ server <- function(input, output, session) {
 
     data_server_fn <- get_module_fn("data_server")
     if (!is.null(data_server_fn)) {
-      data_server_fn("data")
+      data_server_fn("data", user_id = reactive(user_input$user_id))
     }
   }, error = function(e) {
     message("Warning: Could not initialize modules: ", e$message)

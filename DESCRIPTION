@@ -39,7 +39,8 @@ Imports:
     ggplot2,
     plotly,
     R.utils,
-    methods
+    methods,
+    httpuv
 Suggests:
     tinytest (>= 1.4.0),
     knitr,

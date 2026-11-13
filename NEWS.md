@@ -1,5 +1,27 @@
 # zzedc (development version)
 
+## Reads of participant records are audited
+
+* **`log_record_read()`** writes one hash-chained audit record
+  (`SELECT`, `EXPORT`, or `REPORT_GENERATED`) per retrieval of
+  participant-level data, with the user, client address, session,
+  screen, number of records, and the subject identifiers disclosed.
+  Field values are not copied into the record. Wired into the Data
+  Explorer (`data_server()` gains `user_id`; loads, refreshes, and both
+  downloads), the Export Center (preview and download), the EDC
+  entries list, the data-quality report's flagged entries, and
+  `generate_subject_case_report()` (recorded before the file is
+  written). Under `regulated` a read that cannot be recorded is an
+  error, so nothing is shown or written; otherwise a warning.
+* **`get_record_access_log()`** lists those records, optionally for
+  one subject (exact match) or one user, for an accounting of access
+  (HIPAA 164.308(a)(1)(ii)(D)).
+* The Data Explorer's Refresh button now re-reads the database; it
+  previously only showed a notification.
+* Not covered: viewing the audit trail itself, and aggregate reports
+  (Activity Summary, Domain Breakdown, Personal Statement), which show
+  counts rather than participant records.
+
 ## Audit trail: coverage, fail-closed writes, protection, review
 
 A review against 21 CFR 11.10(e) and HIPAA 164.312(b) found the audit

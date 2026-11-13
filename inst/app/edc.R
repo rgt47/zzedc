@@ -663,6 +663,12 @@ output$crf_entries_table <- DT::renderDataTable({
     "SELECT subject_id, created_date FROM data_entries WHERE form_name = ? ORDER BY created_date DESC",
     params = list(tolower(crf_row$crf_code[1]))
   )
+  audit_ctx <- zzedc::session_audit_context(session)
+  zzedc::log_record_read(db_pool, "edc_entries_list", data = rows,
+                         filters = list(form = crf_row$crf_code[1]),
+                         user_id = user_input$user_id,
+                         ip_address = audit_ctx$ip_address,
+                         session_id = audit_ctx$session_id)
   DT::datatable(rows, options = list(pageLength = 5), rownames = FALSE)
 })
 
