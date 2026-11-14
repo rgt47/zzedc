@@ -3,7 +3,6 @@
 "screening_screening_date","screening","screening_date","screening_date <= today","Screening date cannot be in future","ERROR","FIELD"
 "screening_age","screening","age","between 18 and 65","Age must be 18-65 years","ERROR","FIELD"
 "screening_exclusion_pregnancy_required","screening","exclusion_pregnancy","if gender == ""Female"" then required endif","Currently pregnant? is required when gender is Female","ERROR","CROSS_FIELD"
-"screening_randomization_group_required","screening","randomization_group","if eligible == ""Eligible"" then required endif","Randomization Group is required when eligible is Eligible","ERROR","CROSS_FIELD"
 "demographics_subject_id","demographics","subject_id","length == 7","Subject ID must be 7 characters","ERROR","FIELD"
 "demographics_education_years","demographics","education_years","between 6 and 25","Education must be 6-25 years","ERROR","FIELD"
 "demographics_emergency_contact_phone","demographics","emergency_contact_phone","length >= 10","Please enter valid phone number","ERROR","FIELD"

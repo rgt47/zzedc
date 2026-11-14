@@ -976,6 +976,12 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
        text_type, ts_type, ts_type, text_type, ts_type, text_type, text_type))
   }
 
+  # Randomization tables (config, history, arm labels) -- factored
+  # out so an already-provisioned database can also get them via
+  # migrate_add_randomization_tables() (R/randomization_module.R)
+  # without re-running every other CREATE TABLE in this function.
+  .create_randomization_tables(conn, dialect, backend, adapter)
+
   # Data entries table
   if (backend == "clickhouse") {
     DBI::dbExecute(conn, sprintf("
@@ -1096,6 +1102,136 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
       # Some backends may not support IF NOT EXISTS for indexes
       NULL
     })
+  }
+
+  invisible(NULL)
+}
+
+
+#' Create the Randomization Tables (internal)
+#'
+#' `randomization_config`, `randomization_history`, and
+#' `treatment_arm_labels` -- see R/randomization_module.R for what
+#' reads and writes them. Factored out of [create_core_tables()] so
+#' [migrate_add_randomization_tables()] can add these three tables to
+#' an already-provisioned database (one created before this feature
+#' existed) without re-running every other `CREATE TABLE` in that
+#' function.
+#'
+#' @param conn A DBI connection.
+#' @param dialect A dialect object (see [create_core_tables()]) with
+#'   `text_type`/`integer_type`/`timestamp_type`.
+#' @param backend One of the supported backend names.
+#' @param adapter A `DatabaseAdapter`, used for auto-increment DDL.
+#' @return `invisible(NULL)`.
+#' @keywords internal
+.create_randomization_tables <- function(conn, dialect, backend, adapter) {
+  text_type <- dialect$text_type
+  int_type <- dialect$integer_type
+  ts_type <- dialect$timestamp_type
+
+  # Randomization config: one row per study. `scheme` is validated
+  # against zzalloc::allocation_schemes() at the R level
+  # (validate_randomization_config()), not via a DB-level CHECK, so
+  # adding a zzalloc scheme never requires a schema migration here.
+  if (backend == "clickhouse") {
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS randomization_config (
+        study_id %s,
+        scheme %s,
+        scheme_params %s,
+        covariate_fields %s,
+        rng_seed %s,
+        status %s,
+        created_date %s,
+        created_by %s,
+        modified_date %s,
+        modified_by %s
+      ) ENGINE = MergeTree() ORDER BY study_id
+    ", text_type, text_type, text_type, text_type, int_type,
+       text_type, ts_type, text_type, ts_type, text_type))
+  } else {
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS randomization_config (
+        study_id %s PRIMARY KEY,
+        scheme %s NOT NULL,
+        scheme_params %s,
+        covariate_fields %s,
+        rng_seed %s NOT NULL,
+        status %s DEFAULT 'active',
+        created_date %s DEFAULT CURRENT_TIMESTAMP,
+        created_by %s,
+        modified_date %s,
+        modified_by %s
+      )
+    ", text_type, text_type, text_type, text_type, int_type,
+       text_type, ts_type, text_type, ts_type, text_type))
+  }
+
+  # Randomization history: append-only, one row per randomized
+  # subject in arrival order, per study. No RNG state is stored here:
+  # randomize_next_subject() always re-seeds from
+  # randomization_config$rng_seed and replays the full sequence, which
+  # R's PRNG guarantees reproduces every prior row's arm exactly (see
+  # that function's own docs for why resuming a saved mid-sequence
+  # RNG state, tried first, does not work). Deliberately holds no arm
+  # *label* and is never joined by a plain `SELECT * FROM subjects`-
+  # style query: arm visibility is gated entirely by is_unblinded()
+  # at read time (R/authorization.R).
+  if (backend == "clickhouse") {
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS randomization_history (
+        history_id %s,
+        study_id %s,
+        arrival_order %s,
+        subject_id %s,
+        covariates_json %s,
+        arm %s,
+        randomized_date %s,
+        randomized_by %s
+      ) ENGINE = MergeTree() ORDER BY (study_id, arrival_order)
+    ", int_type, text_type, int_type, text_type, text_type,
+       int_type, ts_type, text_type))
+  } else {
+    adapter$prepare_auto_increment(conn, "randomization_history", "history_id")
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS randomization_history (
+        history_id %s,
+        study_id %s NOT NULL,
+        arrival_order %s NOT NULL,
+        subject_id %s NOT NULL,
+        covariates_json %s,
+        arm %s NOT NULL,
+        randomized_date %s DEFAULT CURRENT_TIMESTAMP,
+        randomized_by %s,
+        UNIQUE (study_id, arrival_order),
+        UNIQUE (study_id, subject_id)
+      )
+    ", adapter$auto_increment_column("randomization_history", "history_id"),
+       text_type, int_type, text_type, text_type, int_type,
+       ts_type, text_type))
+  }
+
+  # Treatment arm labels: maps zzalloc's raw integer arm codes to a
+  # human label, one row per study per arm, configured once at study
+  # setup alongside randomization_config.
+  if (backend == "clickhouse") {
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS treatment_arm_labels (
+        study_id %s,
+        arm_code %s,
+        arm_label %s
+      ) ENGINE = MergeTree() ORDER BY (study_id, arm_code)
+    ", text_type, int_type, text_type))
+  } else {
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS treatment_arm_labels (
+        study_id %s,
+        arm_code %s,
+        arm_label %s NOT NULL,
+        PRIMARY KEY (study_id, arm_code)
+      )
+    ", text_type, int_type, text_type))
   }
 
   invisible(NULL)

@@ -54,6 +54,15 @@ map_designer_field_type <- function(x) {
     SELECT      = "select",
     RADIO       = "radio",
     MULTISELECT = "checkbox_group",
+    # CALCULATED was already a valid designer field type
+    # (get_designer_field_types(), R/crf_designer.R) and importable
+    # via map_gsheets_field_type()'s "calculated" vocabulary, but
+    # had no rendering here at all -- renderPanel()'s
+    # "readonly_display" case (R/renderpanels.R) is the actual
+    # implementation; used first for randomize_next_subject()'s
+    # system-set treatment arm (R/randomization_module.R), which
+    # must never be a user-editable field.
+    CALCULATED  = "readonly_display",
     "text"
   )
 }

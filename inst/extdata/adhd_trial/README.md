@@ -16,12 +16,15 @@ workbook would hold as tabs:
   administrators, one of them inactive, and a coordinator). Every
   account's initial password is `ChangeMe-Demo-2026`, and each must
   be changed at first login.
-- **`Data_Dictionary.csv`**: nine forms and 129 fields: screening
+- **`Data_Dictionary.csv`**: nine forms and 128 fields: screening
   and enrollment, demographics, medical history, the ADHD Rating
   Scale (the example primary endpoint), vital signs, side effects,
   medication compliance, adverse events, and study completion.
-  Choice fields list their options as `in(...)`.
-- **`validation_rules.csv`**: 57 rules, such as ranges
+  Choice fields list their options as `in(...)`. Treatment arm is
+  not a CRF field: it is assigned by `randomize_next_subject()`
+  (R/randomization_module.R) once a subject is confirmed eligible,
+  not entered by hand.
+- **`validation_rules.csv`**: 56 rules, such as ranges
   (`between 18 and 65`), lengths (`length == 7`), dates
   (`screening_date <= today`), and conditional requirements
   (`if gender == "Female" then required endif`).

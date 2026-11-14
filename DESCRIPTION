@@ -40,7 +40,10 @@ Imports:
     plotly,
     R.utils,
     methods,
-    httpuv
+    httpuv,
+    zzalloc
+Remotes:
+    rgt47/zzalloc
 Suggests:
     tinytest (>= 1.4.0),
     knitr,

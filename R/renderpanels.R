@@ -71,6 +71,17 @@ renderPanel <- function(fields, field_metadata = NULL) {
 
     # Render field based on type
     field_input <- switch(field_config$type,
+      # Read-only display: a computed/system-set value the user
+      # cannot type into (e.g. a randomization result). Not wired to
+      # any Shiny input binding -- there is nothing for the server to
+      # read back, by design; the value shown is whatever the caller
+      # passed in field_config$value.
+      "readonly_display" = div(
+        id = field_name,
+        class = "form-control-plaintext",
+        field_config$value %||% ""
+      ),
+
       # Numeric field with optional range
       "numeric" = numericInput(
         field_name,

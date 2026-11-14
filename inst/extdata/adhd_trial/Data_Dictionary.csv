@@ -10,7 +10,7 @@
 "screening",,"exclusion_medication","Taking excluded medications?","radio",TRUE,"in(Yes,No)",9,"Confirms whether the participant is taking a medication excluded by the protocol."
 "screening",,"exclusion_psychosis","History of psychosis?","radio",TRUE,"in(Yes,No)",10,"A prior psychosis diagnosis is an exclusion criterion for this study."
 "screening",,"eligible","Overall Eligibility","radio",TRUE,"in(Eligible,Not Eligible)",11,"Overall eligibility determination based on the inclusion/exclusion answers above."
-"screening",,"randomization_group","Randomization Group","radio",FALSE,"in(Active,Placebo)",12,"Treatment assignment; only enter this after confirming eligibility."
+"screening",,"randomization_group","Randomization Group","calculated",FALSE,,12,"Assigned automatically once eligibility is confirmed; not entered by hand."
 "screening",,"notes","Screening Notes","textarea",FALSE,,13,"Optional free-text notes for this visit."
 "demographics","Demographics","subject_id","Subject ID","text",TRUE,,1,"Format: exactly 7 characters, e.g. S01-001 (site + subject number)."
 "demographics",,"visit_date","Visit Date","date",TRUE,,2,"Date this information was collected."

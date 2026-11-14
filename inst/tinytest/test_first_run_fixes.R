@@ -326,7 +326,12 @@ if (dir.exists(adhd_dir)) local({
   expect_equal(res$users$imported, 4)
   expect_equal(res$forms$imported_forms, 9)
   expect_equal(res$forms$imported_fields, 129)
-  expect_equal(res$validation_rules$imported, 57)
+  # 56, not 57: the packaged validation_rules.csv no longer has a
+  # "Randomization Group is required when eligible is Eligible" rule
+  # -- randomization_group is a calculated field set by
+  # randomize_next_subject() (R/randomization_module.R), not a
+  # user-answerable one, so that rule no longer applies.
+  expect_equal(res$validation_rules$imported, 56)
 
   con <- DBI::dbConnect(RSQLite::SQLite(), db)
   names <- DBI::dbGetQuery(con, "SELECT crf_name FROM crf_definitions WHERE crf_code = 'ADHD_RATING'")$crf_name
@@ -340,7 +345,7 @@ if (dir.exists(adhd_dir)) local({
   expect_true(again$success, info = "re-import into the existing study reports no errors")
   expect_equal(again$users$skipped, 4)
   expect_equal(again$forms$skipped, 9)
-  expect_equal(again$validation_rules$already_present, 57,
+  expect_equal(again$validation_rules$already_present, 56,
                info = "existing validation rules are skipped, not duplicated")
 
   expect_false(setup_zzedc_from_csv(file.path(dir, "nope"), db_path = db)$success,

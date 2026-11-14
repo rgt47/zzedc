@@ -228,6 +228,12 @@ viscode_rv <- shiny::reactiveVal(1L)
         # selection change via the crf_live_field_data() reactive
         # below, but never disables the fields or the submit button.
         uiOutput("edc_crf_field_flags"),
+        # Only meaningful on the Screening form (the only one with a
+        # randomization_group field) -- shown on every form, same as
+        # the Submit button, rather than built as a second
+        # form-conditional uiOutput just for this one case.
+        actionButton("randomize_subject_btn", "Randomize Subject",
+                     class = "btn btn-outline-primary mt-3 mb-2"),
         actionButton("submitcrf", "Submit entry",
                      class = "btn btn-primary mt-3"),
         shinyjs::hidden(div(id = "crf_results",
@@ -355,6 +361,30 @@ output$edc_crf_fields <- renderUI({
     metadata$tracking_id$value <- zzedc:::next_manuscript_tracking_id(db_pool)
   }
 
+  # Treatment arm is never user-entered (see R/randomization_module.R):
+  # randomization_group is a readonly_display field (R/renderpanels.R)
+  # showing whatever randomize_next_subject() has already recorded
+  # for this subject_id. Only randomize_refresh() (bumped after a
+  # successful Randomize click) should invalidate this -- reading
+  # input$subject_id directly, without isolate(), would make this
+  # entire renderUI (which also renders the subject_id field itself)
+  # re-run on every keystroke there, wiping out whatever the user had
+  # just typed before each character could register.
+  if ("randomization_group" %in% names(metadata)) {
+    randomize_refresh()
+    current_subject_id <- shiny::isolate(input$subject_id)
+    arm <- if (!is.null(current_subject_id) && nzchar(current_subject_id)) {
+      zzedc::get_subject_arm(db_pool, current_subject_id)
+    } else {
+      NULL
+    }
+    metadata$randomization_group$value <- if (!is.null(arm)) {
+      arm$arm_label %||% paste0("Arm ", arm$arm_code)
+    } else {
+      "Not yet randomized"
+    }
+  }
+
   field_tags <- renderPanel(names(metadata), metadata)
 
   # Splice each attached field's trigger UI (built once, above) in
@@ -413,6 +443,44 @@ observeEvent(input$field_help_detail_click, {
 # itself stays unmarked, since nothing invalidated
 # crf_live_field_data() to re-run tracking_id_already_used() against
 # the now-current database state.
+# Bumped after a successful Randomize click so output$edc_crf_fields
+# (which reads the subject's current arm every time it renders, see
+# above) re-fetches rather than showing a stale "Not yet randomized".
+randomize_refresh <- shiny::reactiveVal(0)
+
+observeEvent(input$randomize_subject_btn, {
+  if (!identical(crf_current_code(), "SCREENING")) {
+    shiny::showNotification(
+      "Randomization is only available on the Screening form.",
+      type = "warning"
+    )
+    return(invisible(NULL))
+  }
+  if (is.null(input$subject_id) || !nzchar(input$subject_id)) {
+    shiny::showNotification("Enter a Subject ID first.", type = "error")
+    return(invisible(NULL))
+  }
+  if (!identical(input$eligible, "Eligible")) {
+    shiny::showNotification(
+      "Set Overall Eligibility to \"Eligible\" before randomizing.",
+      type = "error"
+    )
+    return(invisible(NULL))
+  }
+  result <- zzedc::randomize_next_subject(
+    db_pool, subject_id = input$subject_id,
+    randomized_by = shiny::isolate(user_input$username) %||% user_input$user_id
+  )
+  if (isTRUE(result$success)) {
+    shiny::showNotification("Subject randomized.", type = "message")
+    randomize_refresh(randomize_refresh() + 1)
+  } else {
+    shiny::showNotification(
+      paste("Could not randomize:", result$error), type = "error"
+    )
+  }
+})
+
 crf_submit_attempt <- shiny::reactiveVal(0)
 
 # Set TRUE the first time a submit is rejected on the current form,
