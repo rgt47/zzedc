@@ -738,20 +738,16 @@ redcap_translate_event_type <- function(label) {
 
 #' Replay a REDCap audit log into ZZedc's hash-chained audit table.
 #'
-#' Iterates over a REDCap `redcap_log_event` extract in
-#' chronological order, computes a ZZedc `audit_log` row for
-#' each REDCap row, and writes both that row and a corresponding
-#' `audit_chain` row. The hash chain is computed live: each
-#' record's `audit_hash` is `sha256(event_type | table_name |
-#' record_id | operation | details | user_id | timestamp |
-#' previous_hash)`, with the first record's `previous_hash` set
-#' to `GENESIS`. After replay, `verify_audit_log_integrity()`
-#' validates the chain.
-#'
-#' Imported rows have `details` JSON marked
-#' `{"source":"redcap","redcap_log_event_id":...,"original":"..."}`
-#' so that REDCap-origin actions remain attributable after the
-#' import.
+#' Appends one audit record per REDCap `redcap_log_event` row, in
+#' chronological order, through the same locked writer as every
+#' other audit event, all in one transaction: either the whole
+#' history is imported or none of it is. Each record is
+#' timestamped when ZZedc wrote it (UTC); the REDCap event's own
+#' time, id, label, and client address are kept in `details`
+#' (`{"source":"redcap","redcap_log_event_id":...,
+#' "redcap_timestamp":...}`), and its user in `user_id`, so
+#' REDCap-origin actions remain attributable. After replay the
+#' whole chain is checked with [verify_audit_integrity()].
 #'
 #' @param redcap_audit Data frame of REDCap audit rows in the
 #'   shape returned by [redcap_extract_audit()] (columns
@@ -766,9 +762,10 @@ redcap_translate_event_type <- function(label) {
 #'   validation continues to succeed, but the chain is
 #'   labeled as starting at the migration boundary rather
 #'   than at the project's true genesis.
-#' @return List with `success`, `imported`, `errors`,
-#'   `chain_validates`, and (when applicable) `completeness`
-#'   and `marker_inserted`.
+#' @return List with `success`, `imported` (0 on failure),
+#'   `errors` (the failing row and message, if any),
+#'   `chain_validates` (the result of [verify_audit_integrity()]
+#'   on the whole trail), `completeness`, and `marker_inserted`.
 #' @keywords internal
 replay_redcap_audit <- function(redcap_audit, db_path, key,
                                  completeness = "full") {
@@ -789,172 +786,71 @@ replay_redcap_audit <- function(redcap_audit, db_path, key,
   conn <- connect_encrypted_db(db_path = db_path, key = key)
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-  # Establish the chain anchor. If the audit_log already has
-  # rows, replay continues from the last hash; otherwise the
-  # first replayed row's previous_hash is "GENESIS".
-  prev_hash_q <- DBI::dbGetQuery(conn, "
-    SELECT audit_hash FROM audit_log
-    ORDER BY audit_id DESC LIMIT 1
-  ")
-  previous_hash <- if (nrow(prev_hash_q) > 0L) prev_hash_q[1, 1] else "GENESIS"
+  # Every row goes through .append_audit_record(), the writer every
+  # other audit event uses, in one transaction. This function used to
+  # hash its own rows with a different recipe (no client address or
+  # session, local time for the marker), without the chain lock, and
+  # one row at a time: its own link check passed, but
+  # verify_audit_integrity(), which recomputes each hash, reported
+  # every imported row and every later row as tampered, and the
+  # append-only triggers prevent repairing them. A failed row also
+  # left a partial history. Now the import is complete or absent.
+  #
+  # The record's timestamp is when ZZedc wrote it (UTC, as for every
+  # other record, so the chain stays in time order); the time of the
+  # original REDCap event is kept in details$redcap_timestamp.
+  json <- function(x) as.character(jsonlite::toJSON(x, auto_unbox = TRUE, na = "string"))
 
-  # Determine starting chain_order
-  chain_q <- DBI::dbGetQuery(conn,
-    "SELECT COALESCE(MAX(chain_order), 0) AS m FROM audit_chain")
-  chain_order <- chain_q$m[1]
-
+  redcap_audit <- redcap_audit[order(as.character(redcap_audit$ts)), , drop = FALSE]
+  current <- 0L
   marker_inserted <- FALSE
 
-  # If the source's audit log was partial or empty, insert a
-  # single marker event before replay so the chain anchor is
-  # explicit. Downstream callers can detect the marker by
-  # `event_type == "MIGRATION_AUDIT_GAP"` and degrade their
-  # continuity-of-record claim accordingly.
-  if (completeness != "full") {
-    marker_event_type <- "MIGRATION_AUDIT_GAP"
-    marker_user       <- "redcap_import"
-    marker_record     <- ""
-    marker_table      <- "audit_log"
-    marker_op         <- sprintf(
-      "REDCap audit log was %s during REST API migration",
-      completeness)
-    marker_details_obj <- list(
-      source       = "redcap_api",
-      completeness = completeness,
-      reason       = paste("REDCap log endpoint returned",
-                            completeness, "audit"),
-      notice       = paste("Continuity-of-record begins from",
-                            "this marker forward; pre-migration",
-                            "history is unverified.")
-    )
-    marker_details <- if (requireNamespace("jsonlite", quietly = TRUE)) {
-      jsonlite::toJSON(marker_details_obj, auto_unbox = TRUE,
-                        na = "string")
-    } else {
-      sprintf("source=redcap_api; completeness=%s", completeness)
-    }
-    marker_ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-    marker_content <- paste(marker_event_type, marker_table,
-                             marker_record, marker_op,
-                             marker_details, marker_user,
-                             marker_ts, previous_hash, sep = "|")
-    marker_hash <- digest::digest(marker_content, algo = "sha256")
-
-    marker_audit_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO audit_log
-        (timestamp, user_id, event_type, table_name, record_id,
-         operation, details, audit_hash, previous_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING audit_id AS id
-    ", list(marker_ts, marker_user, marker_event_type,
-            marker_table, marker_record, marker_op,
-            marker_details, marker_hash, previous_hash))$id[1]
-    chain_order <- chain_order + 1L
-    DBI::dbExecute(conn, "
-      INSERT INTO audit_chain
-        (audit_id, record_hash, previous_hash, chain_order, verified)
-      VALUES (?, ?, ?, ?, 1)
-    ", list(marker_audit_id, marker_hash, previous_hash,
-            chain_order))
-    previous_hash   <- marker_hash
-    marker_inserted <- TRUE
-  }
-
-  if (nrow(redcap_audit) == 0L) {
-    # No events to replay (empty completeness). Validate the
-    # chain (which now contains just the marker) and return.
-    chain <- DBI::dbGetQuery(conn,
-      "SELECT * FROM audit_chain ORDER BY chain_order")
-    chain_validates <- if (nrow(chain) <= 1L) TRUE
-      else all(chain$previous_hash[-1] ==
-                  chain$record_hash[-nrow(chain)])
-    return(list(success = TRUE, imported = 0L,
-                chain_validates = chain_validates,
-                completeness = completeness,
-                marker_inserted = marker_inserted))
-  }
-
-  # Sort REDCap rows chronologically before replay.
-  ord <- order(as.character(redcap_audit$ts))
-  redcap_audit <- redcap_audit[ord, , drop = FALSE]
-
-  imported <- 0L
-  errors   <- list()
-
-  for (i in seq_len(nrow(redcap_audit))) {
-    row <- redcap_audit[i, , drop = FALSE]
-    event_type <- redcap_translate_event_type(row$event)
-    user_id    <- as.character(row$user %||% "redcap")
-    record_id  <- as.character(row$pk %||% "")
-    table_nm   <- "redcap_data"
-    operation  <- as.character(row$description %||% "")
-    ts         <- as.character(row$ts %||% format(Sys.time()))
-    details_obj <- list(
-      source              = "redcap",
-      redcap_log_event_id = row$log_event_id %||% NA,
-      redcap_event_label  = row$event,
-      redcap_timestamp    = ts
-    )
-    details <- if (requireNamespace("jsonlite", quietly = TRUE)) {
-      jsonlite::toJSON(details_obj, auto_unbox = TRUE, na = "string")
-    } else {
-      sprintf("source=redcap; ts=%s", ts)
-    }
-
-    record_content <- paste(event_type, table_nm, record_id,
-                             operation, details, user_id, ts,
-                             previous_hash, sep = "|")
-    audit_hash <- digest::digest(record_content, algo = "sha256")
-
-    inserted <- tryCatch({
-      audit_id <- DBI::dbGetQuery(conn, "
-        INSERT INTO audit_log
-          (timestamp, user_id, event_type, table_name, record_id,
-           operation, details, audit_hash, previous_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING audit_id AS id
-      ", list(ts, user_id, event_type, table_nm, record_id,
-              operation, details, audit_hash, previous_hash))$id[1]
-      chain_order <- chain_order + 1L
-      DBI::dbExecute(conn, "
-        INSERT INTO audit_chain
-          (audit_id, record_hash, previous_hash, chain_order, verified)
-        VALUES (?, ?, ?, ?, 1)
-      ", list(audit_id, audit_hash, previous_hash, chain_order))
-      TRUE
-    }, error = function(e) {
-      errors[[length(errors) + 1L]] <<- list(
-        index = i, log_event_id = row$log_event_id,
-        error = e$message)
-      FALSE
-    })
-
-    if (inserted) {
-      imported    <- imported + 1L
-      previous_hash <- audit_hash
-    }
-  }
-
-  # Validate the chain
-  chain_validates <- tryCatch({
-    chain <- DBI::dbGetQuery(conn,
-      "SELECT * FROM audit_chain ORDER BY chain_order")
-    if (nrow(chain) == 0) TRUE
-    else {
-      ok <- TRUE
-      for (j in seq_len(nrow(chain))[-1]) {
-        if (chain$previous_hash[j] != chain$record_hash[j - 1L]) {
-          ok <- FALSE; break
-        }
+  failure <- tryCatch({
+    .with_db_transaction(conn, function(c) {
+      if (completeness != "full") {
+        .append_audit_record(
+          c, "MIGRATION_AUDIT_GAP", table_name = "audit_log",
+          operation = sprintf("REDCap audit log was %s during REST API migration",
+                              completeness),
+          details = json(list(
+            source = "redcap_api", completeness = completeness,
+            reason = paste("REDCap log endpoint returned", completeness, "audit"),
+            notice = paste("Continuity-of-record begins from this marker forward;",
+                           "pre-migration history is unverified."))),
+          user_id = "redcap_import")
+        marker_inserted <<- TRUE
       }
-      ok
-    }
-  }, error = function(e) FALSE)
+      for (i in seq_len(nrow(redcap_audit))) {
+        current <<- i
+        row <- redcap_audit[i, , drop = FALSE]
+        ts <- as.character(row$ts %||% NA_character_)
+        details <- list(source = "redcap",
+                        redcap_log_event_id = row$log_event_id %||% NA,
+                        redcap_event_label = row$event,
+                        redcap_timestamp = ts)
+        if (!is.null(row$ip)) details$redcap_ip <- as.character(row$ip)
+        .append_audit_record(
+          c, redcap_translate_event_type(row$event), table_name = "redcap_data",
+          record_id = as.character(row$pk %||% ""),
+          operation = as.character(row$description %||% ""),
+          details = json(details),
+          user_id = as.character(row$user %||% "redcap"))
+      }
+    })
+    NULL
+  }, error = function(e) {
+    list(index = current,
+         log_event_id = if (current > 0) redcap_audit$log_event_id[current] else NA,
+         error = conditionMessage(e))
+  })
+
+  if (!is.null(failure)) marker_inserted <- FALSE
+  chain_validates <- isTRUE(verify_audit_integrity(conn = conn)$valid)
 
   list(
-    success         = length(errors) == 0L,
-    imported        = imported,
-    errors          = errors,
+    success         = is.null(failure),
+    imported        = if (is.null(failure)) nrow(redcap_audit) else 0L,
+    errors          = if (is.null(failure)) list() else list(failure),
     chain_validates = chain_validates,
     completeness    = completeness,
     marker_inserted = marker_inserted

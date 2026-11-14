@@ -25,23 +25,20 @@ labeled as starting at the migration boundary rather
 than at the project's true genesis.}
 }
 \value{
-List with \code{success}, \code{imported}, \code{errors},
-\code{chain_validates}, and (when applicable) \code{completeness}
-and \code{marker_inserted}.
+List with \code{success}, \code{imported} (0 on failure),
+\code{errors} (the failing row and message, if any),
+\code{chain_validates} (the result of \code{\link[=verify_audit_integrity]{verify_audit_integrity()}}
+on the whole trail), \code{completeness}, and \code{marker_inserted}.
 }
 \description{
-Iterates over a REDCap \code{redcap_log_event} extract in
-chronological order, computes a ZZedc \code{audit_log} row for
-each REDCap row, and writes both that row and a corresponding
-\code{audit_chain} row. The hash chain is computed live: each
-record's \code{audit_hash} is \code{sha256(event_type | table_name | record_id | operation | details | user_id | timestamp | previous_hash)}, with the first record's \code{previous_hash} set
-to \code{GENESIS}. After replay, \code{verify_audit_log_integrity()}
-validates the chain.
-}
-\details{
-Imported rows have \code{details} JSON marked
-\verb{\{"source":"redcap","redcap_log_event_id":...,"original":"..."\}}
-so that REDCap-origin actions remain attributable after the
-import.
+Appends one audit record per REDCap \code{redcap_log_event} row, in
+chronological order, through the same locked writer as every
+other audit event, all in one transaction: either the whole
+history is imported or none of it is. Each record is
+timestamped when ZZedc wrote it (UTC); the REDCap event's own
+time, id, label, and client address are kept in \code{details}
+(\verb{\{"source":"redcap","redcap_log_event_id":..., "redcap_timestamp":...\}}), and its user in \code{user_id}, so
+REDCap-origin actions remain attributable. After replay the
+whole chain is checked with \code{\link[=verify_audit_integrity]{verify_audit_integrity()}}.
 }
 \keyword{internal}

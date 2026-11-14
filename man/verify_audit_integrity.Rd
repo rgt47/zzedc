@@ -4,7 +4,12 @@
 \alias{verify_audit_integrity}
 \title{Verify Audit Trail Integrity}
 \usage{
-verify_audit_integrity(start_id = NULL, end_id = NULL, db_path = NULL)
+verify_audit_integrity(
+  start_id = NULL,
+  end_id = NULL,
+  db_path = NULL,
+  conn = NULL
+)
 }
 \arguments{
 \item{start_id}{Integer: First audit_id to verify (optional)}
@@ -12,6 +17,9 @@ verify_audit_integrity(start_id = NULL, end_id = NULL, db_path = NULL)
 \item{end_id}{Integer: Last audit_id to verify (optional)}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{conn}{An open DBI connection or pool to verify instead of
+opening one from \code{db_path} (optional).}
 }
 \value{
 List with verification results

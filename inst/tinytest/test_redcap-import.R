@@ -881,3 +881,84 @@ local({
   expect_equal(res$subjects$imported, 0L)
   unlink(zdb)
 })
+
+
+# ----------------------------------------------------------------
+# Replayed REDCap history passes verify_audit_integrity() (2026-11-14)
+# ----------------------------------------------------------------
+# replay_redcap_audit() hashed its rows with its own recipe, so its
+# link check passed while verify_audit_integrity(), which recomputes
+# each hash, reported every imported row and every later row as
+# tampered. It also wrote row by row, so a failure left a partial
+# history.
+
+replay_fixture <- function() {
+  data.frame(
+    log_event_id = c(3, 1, 2),
+    ts = c("2025-01-03 11:00:00", "2025-01-01 09:00:00", "2025-01-02 10:00:00"),
+    user = c("user_a", "user_a", "user_b"),
+    ip = c("10.0.0.1", "10.0.0.1", "10.0.0.2"),
+    event = c("Data export", "INSERT", "UPDATE"),
+    pk = c("", "S001", "S001"),
+    description = c("Exported", "Created S001", "Edited age"),
+    stringsAsFactors = FALSE
+  )
+}
+
+local({
+  zdb <- tempfile(fileext = ".db")
+  init <- initialize_encrypted_database(db_path = zdb, overwrite = TRUE)
+  Sys.setenv(DB_ENCRYPTION_KEY = init$key)
+  on.exit(unlink(zdb), add = TRUE)
+  init_audit_logging(db_path = zdb)
+  log_audit_event("LOGIN", "edc_users", "u1", "before import", user_id = "u1", db_path = zdb)
+
+  res <- zzedc:::replay_redcap_audit(replay_fixture(), db_path = zdb, key = init$key,
+                                     completeness = "partial")
+  expect_true(res$success)
+  expect_equal(res$imported, 3L)
+  expect_true(res$marker_inserted)
+  expect_true(res$chain_validates)
+  expect_true(verify_audit_integrity(db_path = zdb)$valid,
+              info = "imported rows verify, appended after existing records")
+
+  log_audit_event("LOGIN", "edc_users", "u1", "after import", user_id = "u1", db_path = zdb)
+  expect_true(verify_audit_integrity(db_path = zdb)$valid,
+              info = "later records still verify")
+
+  conn <- connect_encrypted_db(db_path = zdb, key = init$key)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  rows <- DBI::dbGetQuery(conn, "SELECT event_type, user_id, details FROM audit_log
+                                 WHERE table_name = 'redcap_data' ORDER BY audit_id")
+  d <- lapply(rows$details, jsonlite::fromJSON)
+  expect_identical(vapply(d, `[[`, "", "redcap_timestamp"),
+                   c("2025-01-01 09:00:00", "2025-01-02 10:00:00", "2025-01-03 11:00:00"),
+                   info = "replayed in REDCap's order; original time kept in details")
+  expect_identical(rows$user_id, c("user_a", "user_b", "user_a"))
+  expect_identical(d[[2]]$redcap_ip, "10.0.0.2")
+})
+
+# A failure part-way leaves no imported history, not a partial one.
+local({
+  zdb <- tempfile(fileext = ".db")
+  init <- initialize_encrypted_database(db_path = zdb, overwrite = TRUE)
+  Sys.setenv(DB_ENCRYPTION_KEY = init$key)
+  on.exit(unlink(zdb), add = TRUE)
+  init_audit_logging(db_path = zdb)
+  conn <- connect_encrypted_db(db_path = zdb, key = init$key)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  DBI::dbExecute(conn, "CREATE TRIGGER fail_on_user_b BEFORE INSERT ON audit_log
+                        WHEN NEW.user_id = 'user_b'
+                        BEGIN SELECT RAISE(ABORT, 'simulated failure'); END")
+
+  res <- zzedc:::replay_redcap_audit(replay_fixture(), db_path = zdb, key = init$key,
+                                     completeness = "partial")
+  expect_false(res$success)
+  expect_equal(res$imported, 0L)
+  expect_false(res$marker_inserted)
+  expect_equal(res$errors[[1]]$log_event_id, 2, info = "names the failing REDCap event")
+  expect_true(grepl("simulated failure", res$errors[[1]]$error))
+  expect_equal(DBI::dbGetQuery(conn, "SELECT COUNT(*) AS n FROM audit_log")$n, 0,
+               info = "neither the marker nor the first event remains")
+  expect_equal(DBI::dbGetQuery(conn, "SELECT COUNT(*) AS n FROM audit_chain")$n, 0)
+})

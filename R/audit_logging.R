@@ -203,6 +203,8 @@ get_audit_trail <- function(filters = list(), include_chain = FALSE, db_path = N
 #' @param start_id Integer: First audit_id to verify (optional)
 #' @param end_id Integer: Last audit_id to verify (optional)
 #' @param db_path Character: Database path (optional)
+#' @param conn An open DBI connection or pool to verify instead of
+#'   opening one from `db_path` (optional).
 #'
 #' @return List with verification results
 #'
@@ -216,10 +218,13 @@ get_audit_trail <- function(filters = list(), include_chain = FALSE, db_path = N
 #'
 #' @keywords internal
 #' @export
-verify_audit_integrity <- function(start_id = NULL, end_id = NULL, db_path = NULL) {
+verify_audit_integrity <- function(start_id = NULL, end_id = NULL, db_path = NULL,
+                                   conn = NULL) {
   tryCatch({
-    conn <- connect_encrypted_db(db_path = db_path)
-    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    if (is.null(conn)) {
+      conn <- connect_encrypted_db(db_path = db_path)
+      on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    }
 
     # Join the chain to the log so the content behind each hash is
     # available. The clauses are assembled before ORDER BY: they were

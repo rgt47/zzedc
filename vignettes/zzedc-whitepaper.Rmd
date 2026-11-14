@@ -1048,12 +1048,21 @@ would make the audit trail a second copy of the data. Under
 report is not written. `get_record_access_log()` answers which users
 read a given subject's records.
 
+**Migrated history.** The REDCap importer replayed a project's audit
+log into the chain with its own hash recipe. Its own link check passed,
+but `verify_audit_integrity()`, which recomputes each hash, reported
+every imported record, and every record written after it, as tampered;
+the append-only triggers then prevented any repair. The replay now
+appends through the shared, locked writer in one transaction, so a
+failed import leaves no partial history, and the result reports
+`verify_audit_integrity()` on the whole trail. Each record carries the
+time ZZedc wrote it; the REDCap event's own time is kept in its
+details.
+
 **Not done.** Viewing the audit trail itself is not recorded: the
 viewer loads the trail when the session starts, before anyone has
 signed in, and would need to load on demand first. The triggers and the
 chain lock on PostgreSQL and MySQL are untested against live servers.
-The REDCap importer's replay of historical audit events still writes
-the chain through its own code, without the lock.
 
 ## Comparison with REDCap and other EDC platforms, condensed
 

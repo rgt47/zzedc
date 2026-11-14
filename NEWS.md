@@ -1,5 +1,21 @@
 # zzedc (development version)
 
+## REDCap audit replay verifies
+
+* `replay_redcap_audit()` (used by `import_redcap_to_zzedc_db()`)
+  hashed replayed REDCap events with its own recipe, so
+  `verify_audit_integrity()` reported every imported record, and every
+  later record, as tampered in any migrated study; its own
+  `chain_validates` checked only the links and reported success. It
+  now appends through the shared locked writer, in one transaction (a
+  failure leaves no partial history), and `chain_validates` is
+  `verify_audit_integrity()` on the whole trail. Records are
+  timestamped when written (UTC); the REDCap event's time, id, label,
+  and client address are kept in `details`. Databases already imported
+  with the old code cannot be repaired in place (the trail is
+  append-only) and should be re-imported.
+* `verify_audit_integrity()` accepts an open connection (`conn`).
+
 ## Reads of participant records are audited
 
 * **`log_record_read()`** writes one hash-chained audit record
