@@ -237,6 +237,12 @@ if (!exists("ui_content") || is.null(ui_content)) {
       title = tagList(safe_icon("file-person"), "Personal Statement"),
       value = "report4",
       uiOutput("rep4")
+    ),
+
+    bslib::nav_panel(
+      title = tagList(safe_icon("person-lines-fill"), "Subject Case Report"),
+      value = "report5",
+      uiOutput("rep5")
     )
   ),
 
@@ -270,6 +276,20 @@ if (!exists("ui_content") || is.null(ui_content)) {
     title = tagList(safe_icon("patch-check-fill"), "Compliance"),
     value = "compliance",
     safe_module_ui("cfr_compliance_ui", "compliance", "Compliance module not available")
+  ),
+
+  bslib::nav_panel(
+    title = tagList(safe_icon("pencil-square"), "Corrections"),
+    value = "corrections",
+    safe_module_ui("data_correction_ui", "corrections",
+                   "Data correction module not available")
+  ),
+
+  bslib::nav_panel(
+    title = tagList(safe_icon("check2-square"), "Validation Rules"),
+    value = "rules",
+    safe_module_ui("validation_rules_ui", "rules",
+                   "Validation rule editor not available")
   ),
 
   bslib::nav_panel(

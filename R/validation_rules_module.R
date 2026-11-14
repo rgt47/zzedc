@@ -474,6 +474,14 @@ validation_rules_server <- function(id, user_info) {
     shiny::observeEvent(input$import_rules, {
       req(input$gsheet_id)
 
+      # Re-checked here, not only when the controls are drawn, so that
+      # a crafted input event cannot bypass the role check.
+      if (!isTRUE(permissions()$create)) {
+        shiny::showNotification("You do not have permission to import rules",
+                                type = "error")
+        return()
+      }
+
       user <- user_info()
 
       shiny::withProgress(message = "Importing rules...", {
@@ -612,6 +620,12 @@ validation_rules_server <- function(id, user_info) {
 
     shiny::observeEvent(input$save_new_rule, {
       req(input$new_rule_id, input$new_field_code, input$new_rule_dsl)
+
+      if (!isTRUE(permissions()$create)) {
+        shiny::showNotification("You do not have permission to create rules",
+                                type = "error")
+        return()
+      }
 
       user <- user_info()
 

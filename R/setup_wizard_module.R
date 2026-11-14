@@ -301,7 +301,8 @@ setup_wizard_ui <- function(id) {
                 code("setup_zzedc_from_csv()"), ")"),
         tags$li("Import from Google Sheets (", code("setup_zzedc_from_gsheets()"),
                 "; SQLite studies only for now)"),
-        tags$li("Build forms in the application's CRF designer")
+        tags$li("Re-run either import later to add or change forms; there ",
+                "is no in-browser form designer")
       ),
       p("See ", code("vignette('content-author-guide')"), " for each."),
 

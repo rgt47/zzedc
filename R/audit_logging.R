@@ -518,7 +518,17 @@ export_audit_report <- function(start_date, end_date, output_file,
       as.character(x[1L])
     }
   }
-  paste(nz(event_type), nz(table_name), nz(record_id), nz(operation),
-        nz(details), nz(user_id), nz(ip_address), nz(session_id),
-        nz(timestamp), nz(previous_hash), sep = "|")
+  out <- paste(nz(event_type), nz(table_name), nz(record_id), nz(operation),
+               nz(details), nz(user_id), nz(ip_address), nz(session_id),
+               nz(timestamp), nz(previous_hash), sep = "|")
+  # digest() serializes the string, and serialization records its
+  # encoding mark. Text from read.csv() or the console is marked
+  # native, the same text read back from the database is marked UTF-8,
+  # so any non-ASCII character (a degree sign, an accented name) made
+  # the write-time and verify-time hashes differ. Mark it UTF-8 on both
+  # sides. Pure-ASCII strings carry no mark, so their hashes, and those
+  # of records already written with a UTF-8 mark, are unchanged.
+  out <- enc2utf8(out)
+  Encoding(out) <- "UTF-8"
+  out
 }

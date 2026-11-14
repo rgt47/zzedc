@@ -1795,6 +1795,45 @@ setup_zzedc_from_csv <- function(
   result$validation_rules <- rules_res
   if (!isTRUE(rules_res$success)) result$success <- FALSE
 
+  # One hash-chained audit event per import, so the trail shows when a
+  # configuration was loaded and by whom. The digest covers the forms
+  # and rules tables as read; the users tab is excluded because it
+  # carries passwords.
+  if (!dry_run) {
+    config_digest <- digest::digest(
+      list(data_dictionary = dd, validation_rules = rules_df),
+      algo = "sha256"
+    )
+    details <- jsonlite::toJSON(list(
+      users_imported  = result$users$imported %||% 0,
+      forms_imported  = result$forms$imported_forms %||% 0,
+      fields_imported = result$forms$imported_fields %||% 0,
+      rules_imported  = result$validation_rules$imported %||% 0,
+      import_success  = isTRUE(result$success),
+      config_sha256   = config_digest
+    ), auto_unbox = TRUE)
+    audit_res <- tryCatch(
+      log_audit_event(
+        event_type = "CONFIG_CHANGE",
+        table_name = "study_configuration",
+        operation  = "Study configuration imported",
+        details    = as.character(details),
+        user_id    = imported_by,
+        db_path    = db_path
+      ),
+      error = function(e) e
+    )
+    if (inherits(audit_res, "error") || !isTRUE(audit_res)) {
+      result$success <- FALSE
+      result$errors$audit <- if (inherits(audit_res, "error")) {
+        conditionMessage(audit_res)
+      } else {
+        "Audit record for the import could not be written"
+      }
+    }
+    result$config_sha256 <- config_digest
+  }
+
   result
 }
 
