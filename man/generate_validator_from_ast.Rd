@@ -7,6 +7,13 @@
 generate_validator_from_ast(ast, field_name = NULL)
 }
 \description{
-Generate validator from AST
+The returned closure resolves the target value from
+\code{form_values[[field_name]]} when \code{value} is \code{NULL}, so a rule with
+no explicit field (\verb{between 18 and 65}, \code{length == 7},
+\code{required}) applies to the field it is attached to. Evaluation
+uses three-valued logic: a comparison with a missing operand is
+unknown (\code{NA}), and an unknown top-level result passes, matching
+SQL \code{CHECK} semantics. Missing-ness is enforced by \code{required}
+rules, not by range or comparison rules.
 }
 \keyword{internal}

@@ -2,11 +2,11 @@
 % Please edit documentation in R/validation_dsl_codegen.R
 \name{evaluate_range_node}
 \alias{evaluate_range_node}
-\title{Evaluate range operation (field .. max)}
+\title{Evaluate range operation (start .. end, applied to the target value)}
 \usage{
 evaluate_range_node(node, value, form_values, field_name)
 }
 \description{
-Evaluate range operation (field .. max)
+Evaluate range operation (start .. end, applied to the target value)
 }
 \keyword{internal}

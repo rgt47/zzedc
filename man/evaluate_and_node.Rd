@@ -2,11 +2,11 @@
 % Please edit documentation in R/validation_dsl_codegen.R
 \name{evaluate_and_node}
 \alias{evaluate_and_node}
-\title{Evaluate AND operation}
+\title{Evaluate AND operation (three-valued: failure dominates unknown)}
 \usage{
 evaluate_and_node(node, value, form_values, field_name)
 }
 \description{
-Evaluate AND operation
+Evaluate AND operation (three-valued: failure dominates unknown)
 }
 \keyword{internal}

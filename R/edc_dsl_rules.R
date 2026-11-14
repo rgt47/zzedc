@@ -67,24 +67,20 @@ active_dsl_rules_for_form <- function(conn, crf_code) {
 #' are called in two places but never defined anywhere in this
 #' package, and both call sites silently swallow the resulting
 #' "could not find function" error via `tryCatch()`). A rule whose
-#' DSL text fails to parse, or whose evaluation itself errors, is
-#' skipped rather than blocking every submission on that form -- a
-#' malformed rule is a data-dictionary authoring problem, not
-#' something an end user entering a manuscript should be stuck on.
+#' DSL text fails to parse, or whose evaluation itself errors, does
+#' not block submission (a malformed rule is a data-dictionary
+#' authoring problem), but it raises a warning naming the rule so
+#' the gap is visible rather than silent.
 #'
-#' A rule's own `field_code` (e.g. `acceptance_date` for
-#' `ACCEPT_AFTER_SUBMIT`) is required to be non-blank in
-#' `field_data` before the rule is evaluated at all -- reproduced
-#' directly: a bare, unguarded rule like `"student_count between 1
-#' and 500"` evaluates `evaluate_comparison_node()`'s "Value is
-#' missing" failure the moment the field is blank or simply absent,
-#' which would otherwise nag with a DSL error before the user has
-#' typed anything (live) and, worse, clobber
-#' [validate_crf_submission()]'s own clearer "X is required" message
-#' for the same field at submit time (both key the merged error list
-#' by the same `field_code`). Required-ness is that function's job,
-#' not this one's -- mirrors how the live view already excludes
-#' `"required"`-kind errors for a field still being filled in.
+#' Each validator is compiled with the rule's `field_code` as its
+#' target, so field-less rules (`between 18 and 65`, `length == 7`,
+#' `if gender == "Female" then required endif`) apply to that field.
+#' When the target is blank the rule is skipped, unless it contains
+#' a `required` node: plain range and comparison rules leave
+#' required-ness to [validate_crf_submission()], whose "X is
+#' required" message would otherwise be clobbered (both key errors
+#' by `field_code`), while a conditional-required rule exists
+#' precisely to fire on a blank target.
 #'
 #' @param conn A DBI connection (or pool object).
 #' @param crf_code The form's `crf_code`, or `NULL` to skip entirely
@@ -108,24 +104,37 @@ validate_dsl_rules <- function(conn, crf_code, field_data) {
 
   for (i in seq_len(nrow(rules))) {
     rule <- rules[i, ]
+    has_field <- !is.na(rule$field_code) && nzchar(rule$field_code)
 
-    target <- field_data[[rule$field_code]]
-    if (is.null(target) || all(is.na(target)) ||
-          all(!nzchar(trimws(as.character(target))))) {
+    ast <- tryCatch(parse_dsl_rule(rule$rule_dsl), error = function(e) e)
+    if (inherits(ast, 'error')) {
+      warning(sprintf('DSL rule %s not enforced: parse error: %s',
+                      rule$rule_id, conditionMessage(ast)), call. = FALSE)
+      next
+    }
+
+    # A blank target skips the rule unless the rule can demand a
+    # value (`required`, typically inside an `if` guard): skipping
+    # those made conditional-required rules unenforceable.
+    target <- if (has_field) field_data[[rule$field_code]] else NULL
+    if (has_field && .dsl_is_blank(target) &&
+          !.dsl_ast_has_type(ast, 'required')) {
       next
     }
 
     result <- tryCatch({
-      validator <- generate_validator(rule$rule_dsl)
+      validator <- generate_validator_from_ast(
+        ast, if (has_field) rule$field_code else NULL
+      )
       validator(NULL, field_data)
-    }, error = function(e) TRUE)  # unparseable/broken rule: skip, don't block
+    }, error = function(e) {
+      warning(sprintf('DSL rule %s not enforced: evaluation error: %s',
+                      rule$rule_id, conditionMessage(e)), call. = FALSE)
+      TRUE
+    })
 
     if (!isTRUE(result)) {
-      key <- if (!is.na(rule$field_code) && nzchar(rule$field_code)) {
-        rule$field_code
-      } else {
-        rule$rule_id
-      }
+      key <- if (has_field) rule$field_code else rule$rule_id
       if (is.null(errors[[key]])) {
         message <- if (!is.na(rule$error_message) && nzchar(rule$error_message)) {
           rule$error_message
@@ -139,4 +148,14 @@ validate_dsl_rules <- function(conn, crf_code, field_data) {
     }
   }
   errors
+}
+
+
+#' Does an AST contain a node of a given type?
+#' @keywords internal
+#' @noRd
+.dsl_ast_has_type <- function(ast, type) {
+  if (!is.list(ast)) return(FALSE)
+  if (identical(ast$type, type)) return(TRUE)
+  any(vapply(ast, .dsl_ast_has_type, logical(1), type = type))
 }

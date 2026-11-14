@@ -2,11 +2,11 @@
 % Please edit documentation in R/validation_dsl_codegen.R
 \name{evaluate_or_node}
 \alias{evaluate_or_node}
-\title{Evaluate OR operation}
+\title{Evaluate OR operation (three-valued: success dominates unknown)}
 \usage{
 evaluate_or_node(node, value, form_values, field_name)
 }
 \description{
-Evaluate OR operation
+Evaluate OR operation (three-valued: success dominates unknown)
 }
 \keyword{internal}

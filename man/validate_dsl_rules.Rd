@@ -32,23 +32,20 @@ to populate them, \code{generate_r_validator()}/\code{generate_sql_check()},
 are called in two places but never defined anywhere in this
 package, and both call sites silently swallow the resulting
 "could not find function" error via \code{tryCatch()}). A rule whose
-DSL text fails to parse, or whose evaluation itself errors, is
-skipped rather than blocking every submission on that form -- a
-malformed rule is a data-dictionary authoring problem, not
-something an end user entering a manuscript should be stuck on.
+DSL text fails to parse, or whose evaluation itself errors, does
+not block submission (a malformed rule is a data-dictionary
+authoring problem), but it raises a warning naming the rule so
+the gap is visible rather than silent.
 }
 \details{
-A rule's own \code{field_code} (e.g. \code{acceptance_date} for
-\code{ACCEPT_AFTER_SUBMIT}) is required to be non-blank in
-\code{field_data} before the rule is evaluated at all -- reproduced
-directly: a bare, unguarded rule like \code{"student_count between 1 and 500"} evaluates \code{evaluate_comparison_node()}'s "Value is
-missing" failure the moment the field is blank or simply absent,
-which would otherwise nag with a DSL error before the user has
-typed anything (live) and, worse, clobber
-\code{\link[=validate_crf_submission]{validate_crf_submission()}}'s own clearer "X is required" message
-for the same field at submit time (both key the merged error list
-by the same \code{field_code}). Required-ness is that function's job,
-not this one's -- mirrors how the live view already excludes
-\code{"required"}-kind errors for a field still being filled in.
+Each validator is compiled with the rule's \code{field_code} as its
+target, so field-less rules (\verb{between 18 and 65}, \code{length == 7},
+\verb{if gender == "Female" then required endif}) apply to that field.
+When the target is blank the rule is skipped, unless it contains
+a \code{required} node: plain range and comparison rules leave
+required-ness to \code{\link[=validate_crf_submission]{validate_crf_submission()}}, whose "X is
+required" message would otherwise be clobbered (both key errors
+by \code{field_code}), while a conditional-required rule exists
+precisely to fire on a blank target.
 }
 \keyword{internal}

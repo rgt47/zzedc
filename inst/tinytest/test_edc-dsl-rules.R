@@ -150,11 +150,66 @@ if (requireNamespace("RSQLite", quietly = TRUE)) {
     expect_null(errors3$doi, info = "requires_approval + still PENDING -- never enforced")
     expect_null(errors3$notes, info = "is_active = 0 -- never enforced")
 
-    # The malformed rule is silently skipped, not a crash and not a
-    # false-positive flag.
+    # The malformed rule is skipped (no crash, no false-positive
+    # flag) but announced with a warning naming the rule.
     status_data <- list(tracking_id = "PUB-2026-001", submission_date = "2026-01-01",
                          acceptance_date = "", draft_number = 5, status = "ideation")
-    expect_null(zzedc:::validate_dsl_rules(conn, "manuscripts", status_data)$status)
+    expect_warning(
+      res_status <- zzedc:::validate_dsl_rules(conn, "manuscripts", status_data),
+      pattern = "BROKEN_RULE",
+      info = "malformed rule is reported, not silently ignored"
+    )
+    expect_null(res_status$status)
+  })
+
+  local({
+    # Rule shapes shipped in inst/extdata/adhd_trial/validation_rules.csv:
+    # field-less rules must apply to the rule's field_code, values
+    # arriving as character must compare numerically, and a
+    # conditional-required rule must fire on a blank target.
+    conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    DBI::dbExecute(conn, "
+      CREATE TABLE dsl_validation_rules (
+        rule_id TEXT, field_code TEXT, form_code TEXT, rule_dsl TEXT,
+        error_message TEXT, is_active INTEGER DEFAULT 1,
+        requires_approval INTEGER DEFAULT 0, approval_status TEXT
+      )")
+    rules <- data.frame(
+      rule_id = c("AGE", "SUBJ", "PREG", "WT", "AE_END"),
+      field_code = c("age", "subject_id", "exclusion_pregnancy",
+                     "weight_kg", "ae_end_date"),
+      form_code = "screening",
+      rule_dsl = c("between 18 and 65", "length == 7",
+                   "if gender == \"Female\" then required endif",
+                   "between 35 and 200", "ae_end_date >= ae_start_date"),
+      error_message = c("age msg", "subj msg", "preg msg", "wt msg",
+                        "ae msg")
+    )
+    DBI::dbWriteTable(conn, "dsl_validation_rules", rules, append = TRUE)
+
+    good <- list(age = "30", subject_id = "ADHD001", gender = "Female",
+                 exclusion_pregnancy = "No", weight_kg = "72",
+                 ae_start_date = "2026-01-01", ae_end_date = "2026-01-05")
+    expect_equal(zzedc:::validate_dsl_rules(conn, "screening", good), list(),
+                 info = "valid character inputs pass every shipped rule shape")
+
+    bad <- list(age = "70", subject_id = "ADHD1", gender = "Female",
+                exclusion_pregnancy = "", weight_kg = "1000",
+                ae_start_date = "2026-01-05", ae_end_date = "2026-01-01")
+    errs <- zzedc:::validate_dsl_rules(conn, "screening", bad)
+    expect_equal(sort(names(errs)),
+                 sort(c("age", "subject_id", "exclusion_pregnancy",
+                        "weight_kg", "ae_end_date")),
+                 info = "each violated shipped rule is reported")
+
+    male <- list(age = "30", gender = "Male", exclusion_pregnancy = "")
+    expect_null(zzedc:::validate_dsl_rules(conn, "screening", male)$exclusion_pregnancy,
+                info = "conditional required does not fire when guard is false")
+
+    no_start <- list(ae_end_date = "2026-01-01")
+    expect_null(zzedc:::validate_dsl_rules(conn, "screening", no_start)$ae_end_date,
+                info = "comparison with a missing operand is unknown, so passes")
   })
 
   local({

@@ -45,12 +45,164 @@ generate_validator <- function(rule, field_name = NULL) {
 }
 
 #' Generate validator from AST
+#'
+#' The returned closure resolves the target value from
+#' `form_values[[field_name]]` when `value` is `NULL`, so a rule with
+#' no explicit field (`between 18 and 65`, `length == 7`,
+#' `required`) applies to the field it is attached to. Evaluation
+#' uses three-valued logic: a comparison with a missing operand is
+#' unknown (`NA`), and an unknown top-level result passes, matching
+#' SQL `CHECK` semantics. Missing-ness is enforced by `required`
+#' rules, not by range or comparison rules.
 #' @keywords internal
 generate_validator_from_ast <- function(ast, field_name = NULL) {
-  # Create the validator function
-  function(value, form_values = list()) {
-    evaluate_ast_node(ast, value, form_values, field_name)
+  function(value = NULL, form_values = list()) {
+    if (is.null(value) && !is.null(field_name) && !is.na(field_name)) {
+      value <- form_values[[field_name]]
+    }
+    res <- evaluate_ast_node(ast, value, form_values, field_name)
+    if (.dsl_is_unknown(res)) TRUE else res
   }
+}
+
+# ============================================================================
+# Value helpers (missing-ness, field resolution, type coercion)
+# ============================================================================
+
+#' @keywords internal
+#' @noRd
+.dsl_is_blank <- function(x) {
+  if (is.null(x) || length(x) == 0) return(TRUE)
+  if (inherits(x, 'Date')) return(all(is.na(x)))
+  chr <- as.character(x)
+  all(is.na(x) | is.na(chr) | !nzchar(trimws(chr)))
+}
+
+#' @keywords internal
+#' @noRd
+.dsl_is_unknown <- function(x) {
+  is.logical(x) && length(x) == 1 && is.na(x)
+}
+
+#' Resolve a bare identifier in a rule
+#'
+#' A name present in `form_values` is that field. `x` and `value`
+#' denote the target value; `length` denotes its character length
+#' (the data dictionaries write `length == 7`). Any other unknown
+#' name is missing (`NA`); it never falls back to the target value,
+#' which previously made `dob < consent_date` compare `dob` with
+#' itself when `consent_date` was absent.
+#' @keywords internal
+#' @noRd
+.dsl_resolve_field <- function(name, value, form_values) {
+  if (length(form_values) > 0 && name %in% names(form_values)) {
+    return(form_values[[name]])
+  }
+  if (name %in% c('x', 'value')) return(value)
+  if (name == 'length') {
+    return(if (.dsl_is_blank(value)) NA else nchar(as.character(value)[1]))
+  }
+  if (name %in% c('n', 'm')) return(name)
+  NA
+}
+
+#' @keywords internal
+#' @noRd
+.dsl_as_number <- function(x) {
+  if (length(x) != 1 || inherits(x, 'Date')) return(NA_real_)
+  if (is.numeric(x)) return(as.numeric(x))
+  if (!is.character(x) && !is.factor(x)) return(NA_real_)
+  suppressWarnings(as.numeric(trimws(as.character(x))))
+}
+
+#' @keywords internal
+#' @noRd
+.dsl_as_date <- function(x) {
+  if (length(x) != 1) return(as.Date(NA))
+  if (inherits(x, 'Date')) return(x)
+  if (inherits(x, 'POSIXt')) return(as.Date(x))
+  chr <- trimws(as.character(x))
+  if (!grepl('^[0-9]{4}-[0-9]{2}-[0-9]{2}', chr)) return(as.Date(NA))
+  tryCatch(as.Date(substr(chr, 1, 10)), error = function(e) as.Date(NA))
+}
+
+#' Coerce two operands to a common comparable type
+#'
+#' Form inputs arrive as character, so `'72' <= 200` must compare
+#' numerically, not lexically. Order: dates (if either side is a
+#' Date or both are ISO date strings), numbers (if either side is
+#' numeric or both parse as numbers), otherwise character. Returns
+#' `NULL` when a typed operand meets a value that cannot be coerced
+#' to its type (`'abc' between 1 and 10`).
+#' @keywords internal
+#' @noRd
+.dsl_coerce_pair <- function(a, b) {
+  a_date <- inherits(a, c('Date', 'POSIXt'))
+  b_date <- inherits(b, c('Date', 'POSIXt'))
+  da <- .dsl_as_date(a)
+  db <- .dsl_as_date(b)
+  if (a_date || b_date) {
+    if (is.na(da) || is.na(db)) return(NULL)
+    return(list(da, db))
+  }
+  if (!is.na(da) && !is.na(db)) return(list(da, db))
+  na <- .dsl_as_number(a)
+  nb <- .dsl_as_number(b)
+  if (!is.na(na) && !is.na(nb)) return(list(na, nb))
+  if (is.numeric(a) || is.numeric(b)) return(NULL)
+  list(as.character(a), as.character(b))
+}
+
+#' Compare two operands under three-valued logic
+#'
+#' @return `TRUE`, `FALSE`, `NA` (unknown: an operand is missing in
+#'   an ordering comparison), or a character message when the
+#'   operands are of incompatible types.
+#' @keywords internal
+#' @noRd
+.dsl_compare <- function(a, b, op) {
+  a_blank <- .dsl_is_blank(a)
+  b_blank <- .dsl_is_blank(b)
+  if (a_blank || b_blank) {
+    return(switch(op,
+      '==' = a_blank && b_blank,
+      '!=' = !(a_blank && b_blank),
+      NA
+    ))
+  }
+  if (length(a) != 1 || length(b) != 1) {
+    return(sprintf('Cannot compare multi-valued input with %s', op))
+  }
+  pair <- .dsl_coerce_pair(a, b)
+  if (is.null(pair)) {
+    return(sprintf("Value '%s' cannot be compared with '%s'",
+                   as.character(a), as.character(b)))
+  }
+  res <- switch(op,
+    '<' = pair[[1]] < pair[[2]],
+    '<=' = pair[[1]] <= pair[[2]],
+    '>' = pair[[1]] > pair[[2]],
+    '>=' = pair[[1]] >= pair[[2]],
+    '==' = pair[[1]] == pair[[2]],
+    '!=' = pair[[1]] != pair[[2]],
+    stop(sprintf('Unknown operator: %s', op))
+  )
+  isTRUE(res)
+}
+
+#' Normalize a value for set membership (`in`, `notin`)
+#' @keywords internal
+#' @noRd
+.dsl_norm_member <- function(x) {
+  num <- .dsl_as_number(x)
+  if (!is.na(num)) as.character(num) else trimws(as.character(x))
+}
+
+#' @keywords internal
+#' @noRd
+.dsl_format <- function(x) {
+  if (is.null(x)) return('NULL')
+  paste(as.character(x), collapse = ', ')
 }
 
 # ============================================================================
@@ -92,22 +244,9 @@ evaluate_ast_node <- function(node, value, form_values = list(), field_name = NU
     "function_call" = evaluate_function_call_node(node, value, form_values, field_name),
 
     # Base types
-    "field_value" = value,
+    "field_value" = evaluate_field_value_node(node, value, form_values, field_name),
     "literal" = node$value,
-    "field" = {
-      # Try to get from form_values first
-      field_val <- form_values[[node$name]]
-      # If not found and name is a special keyword, return the name
-      if (is.null(field_val)) {
-        if (node$name %in% c("n", "m")) {
-          node$name  # Return as literal identifier for special values
-        } else {
-          NA  # Field not found
-        }
-      } else {
-        field_val
-      }
-    },
+    "field" = .dsl_resolve_field(node$name, value, form_values),
 
     # Default: return value as-is
     value
@@ -118,45 +257,57 @@ evaluate_ast_node <- function(node, value, form_values = list(), field_name = NU
 # Logical Operations
 # ============================================================================
 
-#' Evaluate AND operation
+#' Evaluate AND operation (three-valued: failure dominates unknown)
 #' @keywords internal
 evaluate_and_node <- function(node, value, form_values, field_name) {
   left_result <- evaluate_ast_node(node$left, value, form_values, field_name)
-  if (is.character(left_result)) {
-    return(left_result)  # Error in left branch
-  }
-
+  if (is.character(left_result)) return(left_result)
   right_result <- evaluate_ast_node(node$right, value, form_values, field_name)
-  if (is.character(right_result)) {
-    return(right_result)  # Error in right branch
-  }
+  if (is.character(right_result)) return(right_result)
 
-  if (left_result && right_result) {
-    return(TRUE)
-  } else {
-    return("AND condition failed")
+  if (isTRUE(left_result) && isTRUE(right_result)) return(TRUE)
+  if (.dsl_is_unknown(left_result) || .dsl_is_unknown(right_result)) {
+    if (!isFALSE(left_result) && !isFALSE(right_result)) return(NA)
   }
+  "AND condition failed"
 }
 
-#' Evaluate OR operation
+#' Evaluate OR operation (three-valued: success dominates unknown)
 #' @keywords internal
 evaluate_or_node <- function(node, value, form_values, field_name) {
   left_result <- evaluate_ast_node(node$left, value, form_values, field_name)
-  if (isTRUE(left_result)) {
-    return(TRUE)
-  }
-
+  if (isTRUE(left_result)) return(TRUE)
   right_result <- evaluate_ast_node(node$right, value, form_values, field_name)
-  if (isTRUE(right_result)) {
-    return(TRUE)
-  }
+  if (isTRUE(right_result)) return(TRUE)
 
-  # Both failed, return left error (prefer first error)
-  if (is.character(left_result)) {
-    return(left_result)
-  } else {
-    return("OR condition failed")
+  if (.dsl_is_unknown(left_result) || .dsl_is_unknown(right_result)) {
+    return(NA)
   }
+  if (is.character(left_result)) left_result else "OR condition failed"
+}
+
+#' Evaluate a bare term used as a condition
+#'
+#' The parser wraps a lone term (`if consent then ...`, or a
+#' parenthesized comparison) in a `field_value` node. A field is
+#' truthy when it is non-blank and not a conventional false value;
+#' any other expression is evaluated and its result returned. This
+#' node previously returned the rule's target value regardless of
+#' which field it named.
+#' @keywords internal
+evaluate_field_value_node <- function(node, value, form_values, field_name) {
+  inner <- node$field
+  if (!is.list(inner)) return(value)
+  if (!identical(inner$type, 'field')) {
+    return(evaluate_ast_node(inner, value, form_values, field_name))
+  }
+  v <- .dsl_resolve_field(inner$name, value, form_values)
+  if (.dsl_is_blank(v)) return(sprintf('%s is blank', inner$name))
+  falsy <- c('false', 'f', 'no', 'n', '0')
+  if (length(v) == 1 && tolower(trimws(as.character(v))) %in% falsy) {
+    return(sprintf('%s is not set', inner$name))
+  }
+  TRUE
 }
 
 # ============================================================================
@@ -166,176 +317,131 @@ evaluate_or_node <- function(node, value, form_values, field_name) {
 #' Evaluate comparison operation
 #' @keywords internal
 evaluate_comparison_node <- function(node, value, form_values, field_name) {
-  # Get operands
-  if (is.list(node$field) && node$field$type == "field") {
-    # Try to get from form_values, fallback to the value parameter
-    left <- form_values[[node$field$name]]
-    if (is.null(left)) {
-      left <- value  # Use the value parameter if field not in form_values
-    }
-  } else if (is.list(node$field)) {
-    left <- evaluate_ast_node(node$field, value, form_values, field_name)
+  left <- if (is.list(node$field)) {
+    evaluate_ast_node(node$field, value, form_values, field_name)
   } else {
-    left <- value  # Use value if no field specified
+    value
   }
-
-  right <- node$value
-  if (is.list(right) && right$type == "field") {
-    right_val <- form_values[[right$name]]
-    if (is.null(right_val)) {
-      right_val <- value  # Fallback
-    }
-    right <- right_val
-  } else if (is.list(right)) {
-    right <- evaluate_ast_node(right, value, form_values, field_name)
-  }
-
-  # Handle NA/NULL
-  if (is.na(left) || is.null(left)) {
-    return("Value is missing")
+  right <- if (is.list(node$value)) {
+    evaluate_ast_node(node$value, value, form_values, field_name)
+  } else {
+    node$value
   }
 
   operator <- node$operator
+  res <- .dsl_compare(left, right, operator)
+  if (is.character(res) || .dsl_is_unknown(res)) return(res)
+  if (isTRUE(res)) return(TRUE)
+  sprintf('Value %s %s %s is invalid',
+          .dsl_format(left), operator, .dsl_format(right))
+}
 
-  # Perform comparison
-  result <- switch(operator,
-    "<" = left < right,
-    "<=" = left <= right,
-    ">" = left > right,
-    ">=" = left >= right,
-    "==" = left == right,
-    "!=" = left != right,
-    stop(sprintf("Unknown operator: %s", operator))
-  )
-
-  if (isTRUE(result)) {
-    return(TRUE)
-  } else {
-    return(sprintf("Value %s %s %s is invalid", left, operator, right))
+#' Evaluate an inclusive interval check shared by between and range
+#' @keywords internal
+#' @noRd
+.dsl_check_interval <- function(check_value, min_val, max_val, fmt) {
+  lo <- .dsl_compare(check_value, min_val, '>=')
+  if (is.character(lo)) return(lo)
+  hi <- .dsl_compare(check_value, max_val, '<=')
+  if (is.character(hi)) return(hi)
+  if (isTRUE(lo) && isTRUE(hi)) return(TRUE)
+  if (isFALSE(lo) || isFALSE(hi)) {
+    return(sprintf(fmt, .dsl_format(check_value), .dsl_format(min_val),
+                   .dsl_format(max_val)))
   }
+  NA
 }
 
 #' Evaluate between operation
 #' @keywords internal
 evaluate_between_node <- function(node, value, form_values, field_name) {
-  # Handle both "between X and Y" and "field between X and Y"
-  if ("field" %in% names(node) && is.list(node$field) && node$field$type == "field") {
-    check_value <- form_values[[node$field$name]]
-  } else if ("field" %in% names(node) && !is.list(node$field)) {
-    check_value <- node$field
+  check_value <- if (is.list(node$field)) {
+    evaluate_ast_node(node$field, value, form_values, field_name)
+  } else if (!is.null(node$field)) {
+    node$field
   } else {
-    check_value <- value
+    value
   }
-
-  if (is.na(check_value) || is.null(check_value)) {
-    return("Value is missing")
-  }
-
   min_val <- node$min
   if (is.list(min_val)) {
     min_val <- evaluate_ast_node(min_val, value, form_values, field_name)
   }
-
   max_val <- node$max
   if (is.list(max_val)) {
     max_val <- evaluate_ast_node(max_val, value, form_values, field_name)
   }
+  .dsl_check_interval(check_value, min_val, max_val,
+                      'Value %s is not between %s and %s')
+}
 
-  if (check_value >= min_val && check_value <= max_val) {
-    return(TRUE)
+#' Collect the evaluated members of an in/notin list
+#' @keywords internal
+#' @noRd
+.dsl_member_values <- function(node, value, form_values, field_name) {
+  vals <- lapply(node$values, function(val_node) {
+    if (is.list(val_node)) {
+      evaluate_ast_node(val_node, value, form_values, field_name)
+    } else {
+      val_node
+    }
+  })
+  unlist(lapply(vals, as.character), use.names = FALSE)
+}
+
+#' @keywords internal
+#' @noRd
+.dsl_member_target <- function(node, value, form_values, field_name,
+                               named_field) {
+  if (named_field && is.list(node$field)) {
+    evaluate_ast_node(node$field, value, form_values, field_name)
   } else {
-    return(sprintf("Value %s is not between %s and %s", check_value, min_val, max_val))
+    value
   }
 }
 
 #' Evaluate in operation
 #' @keywords internal
 evaluate_in_node <- function(node, value, form_values, field_name, named_field = TRUE) {
-  # Get the value to check
-  if (named_field && "field" %in% names(node) && !is.null(node$field) && is.list(node$field)) {
-    check_value <- form_values[[node$field$name]]
-  } else {
-    check_value <- value
-  }
-
-  # Extract allowed values
-  allowed <- list()
-  if ("values" %in% names(node)) {
-    for (val_node in node$values) {
-      if (is.list(val_node)) {
-        allowed <- c(allowed, evaluate_ast_node(val_node, value, form_values, field_name))
-      } else {
-        allowed <- c(allowed, val_node)
-      }
-    }
-  }
-
-  # Check if value is in allowed list
-  if (check_value %in% allowed) {
-    return(TRUE)
-  } else {
-    allowed_str <- paste(allowed, collapse = ", ")
-    return(sprintf("Value '%s' is not in allowed values: %s", check_value, allowed_str))
-  }
+  check_value <- .dsl_member_target(node, value, form_values, field_name,
+                                    named_field)
+  if (.dsl_is_blank(check_value)) return(NA)
+  allowed <- .dsl_member_values(node, value, form_values, field_name)
+  hits <- vapply(check_value, function(v) {
+    .dsl_norm_member(v) %in% vapply(allowed, .dsl_norm_member, '')
+  }, logical(1))
+  if (all(hits)) return(TRUE)
+  sprintf("Value '%s' is not in allowed values: %s",
+          .dsl_format(check_value), paste(allowed, collapse = ', '))
 }
 
 #' Evaluate notin operation
 #' @keywords internal
 evaluate_notin_node <- function(node, value, form_values, field_name, named_field = TRUE) {
-  # Get the value to check
-  if (named_field && "field" %in% names(node) && !is.null(node$field) && is.list(node$field)) {
-    check_value <- form_values[[node$field$name]]
-  } else {
-    check_value <- value
-  }
-
-  # Extract disallowed values
-  disallowed <- list()
-  if ("values" %in% names(node)) {
-    for (val_node in node$values) {
-      if (is.list(val_node)) {
-        disallowed <- c(disallowed, evaluate_ast_node(val_node, value, form_values, field_name))
-      } else {
-        disallowed <- c(disallowed, val_node)
-      }
-    }
-  }
-
-  # Check if value is NOT in disallowed list
-  if (!(check_value %in% disallowed)) {
-    return(TRUE)
-  } else {
-    disallowed_str <- paste(disallowed, collapse = ", ")
-    return(sprintf("Value '%s' is not allowed. Disallowed: %s", check_value, disallowed_str))
-  }
+  check_value <- .dsl_member_target(node, value, form_values, field_name,
+                                    named_field)
+  if (.dsl_is_blank(check_value)) return(NA)
+  disallowed <- .dsl_member_values(node, value, form_values, field_name)
+  hits <- vapply(check_value, function(v) {
+    .dsl_norm_member(v) %in% vapply(disallowed, .dsl_norm_member, '')
+  }, logical(1))
+  if (!any(hits)) return(TRUE)
+  sprintf("Value '%s' is not allowed. Disallowed: %s",
+          .dsl_format(check_value), paste(disallowed, collapse = ', '))
 }
 
-#' Evaluate range operation (field .. max)
+#' Evaluate range operation (start .. end, applied to the target value)
 #' @keywords internal
 evaluate_range_node <- function(node, value, form_values, field_name) {
-  check_value <- value
-  if (is.na(check_value) || is.null(check_value)) {
-    return("Value is missing")
+  min_val <- node$start
+  if (is.list(min_val)) {
+    min_val <- evaluate_ast_node(min_val, value, form_values, field_name)
   }
-
-  min_val <- 1  # Default start for ranges
-  if ("start" %in% names(node)) {
-    min_val <- node$start
-    if (is.list(min_val)) {
-      min_val <- evaluate_ast_node(min_val, value, form_values, field_name)
-    }
-  }
-
   max_val <- node$end
   if (is.list(max_val)) {
     max_val <- evaluate_ast_node(max_val, value, form_values, field_name)
   }
-
-  if (check_value >= min_val && check_value <= max_val) {
-    return(TRUE)
-  } else {
-    return(sprintf("Value %s is not in range %s..%s", check_value, min_val, max_val))
-  }
+  .dsl_check_interval(value, min_val, max_val,
+                      'Value %s is not in range %s..%s')
 }
 
 # ============================================================================
@@ -345,15 +451,7 @@ evaluate_range_node <- function(node, value, form_values, field_name) {
 #' Evaluate required check
 #' @keywords internal
 evaluate_required_node <- function(node, value, form_values, field_name) {
-  # Check if value is NA or NULL
-  if (is.na(value) || is.null(value)) {
-    return("This field is required")
-  }
-  # Check if value is empty string (only for character values)
-  if (is.character(value) && value == "") {
-    return("This field is required")
-  }
-  return(TRUE)
+  if (.dsl_is_blank(value)) 'This field is required' else TRUE
 }
 
 #' Evaluate allow check (for missing/null values)
@@ -374,9 +472,14 @@ evaluate_allow_node <- function(node, value, form_values, field_name) {
     }
 
     # Check for special values - use isTRUE to handle NA comparisons
-    if (isTRUE(val_str == "n") && is.na(value)) return(TRUE)
-    if (isTRUE(val_str == "m") && (is.null(value) || value == "")) return(TRUE)
-    if (isTRUE(val_str == value) && !is.na(val_str) && !is.na(value)) return(TRUE)
+    if (isTRUE(val_str == "n") && length(value) == 1 && is.na(value)) {
+      return(TRUE)
+    }
+    if (isTRUE(val_str == "m") && .dsl_is_blank(value)) return(TRUE)
+    if (!.dsl_is_blank(value) && length(value) == 1 &&
+          isTRUE(.dsl_compare(value, val_str, '=='))) {
+      return(TRUE)
+    }
   }
 
   return("Value is not in allowed special values")
@@ -627,31 +730,34 @@ evaluate_function_call_node <- function(node, value, form_values, field_name) {
     }
   }
 
-  # Map function names to implementations
+  # Arity and unknown-name problems are rule-authoring errors, so they
+  # raise rather than return a string that a caller could mistake for
+  # a value (it would then be compared as data).
+  need <- c(length = 1, days_between = 2, within_days_of = 3, today = 0)
+  if (!func_name %in% names(need)) {
+    stop(sprintf('Unknown function: %s', func_name))
+  }
+  if (length(eval_args) < need[[func_name]]) {
+    stop(sprintf('%s() requires %d argument(s)', func_name,
+                 need[[func_name]]))
+  }
+  if (func_name == 'today') return(Sys.Date())
+  if (any(vapply(eval_args, .dsl_is_blank, logical(1)))) return(NA)
+
   switch(func_name,
-    "length" = {
-      if (length(eval_args) == 0) {
-        return("length() requires an argument")
-      }
-      nchar(as.character(eval_args[[1]]))
+    'length' = nchar(as.character(eval_args[[1]])[1]),
+    'days_between' = {
+      d1 <- .dsl_as_date(eval_args[[1]])
+      d2 <- .dsl_as_date(eval_args[[2]])
+      if (is.na(d1) || is.na(d2)) return(NA)
+      as.numeric(difftime(d2, d1, units = 'days'))
     },
-    "today" = {
-      Sys.Date()
-    },
-    "days_between" = {
-      if (length(eval_args) < 2) {
-        return("days_between() requires two arguments")
-      }
-      as.numeric(difftime(eval_args[[2]], eval_args[[1]], units = "days"))
-    },
-    "within_days_of" = {
-      if (length(eval_args) < 3) {
-        return("within_days_of() requires three arguments")
-      }
-      diff <- abs(as.numeric(difftime(eval_args[[1]], eval_args[[2]], units = "days")))
-      diff <= eval_args[[3]]
-    },
-    # Default: unknown function
-    sprintf("Unknown function: %s", func_name)
+    'within_days_of' = {
+      d1 <- .dsl_as_date(eval_args[[1]])
+      d2 <- .dsl_as_date(eval_args[[2]])
+      n <- .dsl_as_number(eval_args[[3]])
+      if (is.na(d1) || is.na(d2) || is.na(n)) return(NA)
+      abs(as.numeric(difftime(d1, d2, units = 'days'))) <= n
+    }
   )
 }
