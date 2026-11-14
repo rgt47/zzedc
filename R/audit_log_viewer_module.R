@@ -40,7 +40,8 @@ audit_log_viewer_ui <- function(id) {
                          "Accounts" = c("PASSWORD_CHANGE", "ROLE_CHANGE",
                                         "PERMISSION_CHANGE"),
                          "System" = c("BACKUP", "RESTORE", "CONFIG_CHANGE",
-                                      "COMPLIANCE_CHECK", "ACCESS")
+                                      "COMPLIANCE_CHECK", "ACCESS"),
+                         "Randomization" = c("RANDOMIZATION")
                        ))
           ),
 

@@ -1110,10 +1110,11 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
 
 #' Create the Randomization Tables (internal)
 #'
-#' `randomization_config`, `randomization_history`, and
-#' `treatment_arm_labels` -- see R/randomization_module.R for what
-#' reads and writes them. Factored out of [create_core_tables()] so
-#' [migrate_add_randomization_tables()] can add these three tables to
+#' `randomization_config`, `randomization_history`,
+#' `treatment_arm_labels`, and `study_unblinding_grants` -- see
+#' R/randomization_module.R and R/authorization.R for what reads and
+#' writes them. Factored out of [create_core_tables()] so
+#' [migrate_add_randomization_tables()] can add these four tables to
 #' an already-provisioned database (one created before this feature
 #' existed) without re-running every other `CREATE TABLE` in that
 #' function.
@@ -1232,6 +1233,39 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
         PRIMARY KEY (study_id, arm_code)
       )
     ", text_type, int_type, text_type))
+  }
+
+  # Unblinding grants: a user is unblinded for a study iff a row
+  # exists here with revoked_date IS NULL (checked by
+  # is_unblinded()/require_unblinded(), R/authorization.R). A grant
+  # table rather than a role string, so the same login role can be
+  # blinded or unblinded per study depending on this table, matching
+  # how trials run "Blinded PI" / "Unblinded PI" as the same person.
+  # Revocation is a new row's worth of history (revoked_date set), not
+  # a delete, so who was unblinded and when is itself part of the
+  # audit trail.
+  if (backend == "clickhouse") {
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS study_unblinding_grants (
+        study_id %s,
+        user_id %s,
+        granted_date %s,
+        granted_by %s,
+        revoked_date %s,
+        revoked_by %s
+      ) ENGINE = MergeTree() ORDER BY (study_id, user_id, granted_date)
+    ", text_type, text_type, ts_type, text_type, ts_type, text_type))
+  } else {
+    DBI::dbExecute(conn, sprintf("
+      CREATE TABLE IF NOT EXISTS study_unblinding_grants (
+        study_id %s NOT NULL,
+        user_id %s NOT NULL,
+        granted_date %s DEFAULT CURRENT_TIMESTAMP,
+        granted_by %s,
+        revoked_date %s,
+        revoked_by %s
+      )
+    ", text_type, text_type, ts_type, text_type, ts_type, text_type))
   }
 
   invisible(NULL)

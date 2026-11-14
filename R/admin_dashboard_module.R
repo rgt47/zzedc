@@ -54,6 +54,13 @@ admin_dashboard_ui <- function(id) {
           )
         ),
 
+        # Randomization Tab
+        nav_panel("Randomization",
+          div(class = "mt-4",
+            randomization_admin_ui(ns("randomization"))
+          )
+        ),
+
         # System Configuration Tab
         nav_panel("System Configuration",
           div(class = "mt-4",
@@ -155,6 +162,9 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL,
     )
 
     audit_results <- audit_log_viewer_server("audit", db_pool = db_pool)
+
+    randomization_admin_server("randomization", db_pool = db_pool,
+                                user_session = user_session)
 
     system_config_results <- system_config_server("system_config", db_pool = db_pool,
                                                   db_path = db_path,

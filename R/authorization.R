@@ -75,3 +75,60 @@ require_role <- function(actor_role, allowed_roles, action_label) {
     )
   )
 }
+
+
+#' Is a User Unblinded for a Study?
+#'
+#' Blinding is a grant table (`study_unblinding_grants`,
+#' R/setup_wizard_utils.R's `.create_randomization_tables()`), not a
+#' role string: the same login role (e.g. "PI") can be blinded or
+#' unblinded for a given study depending on whether a live grant
+#' exists, matching how trials run "Blinded PI" / "Unblinded PI" as
+#' the same person rather than two different roles. A grant is live
+#' iff its `revoked_date IS NULL`; revocation inserts a new state via
+#' `UPDATE ... SET revoked_date = ...` rather than deleting the row,
+#' so who was ever unblinded, and when, stays part of the record.
+#'
+#' @param conn A DBI connection or pool.
+#' @param study_id The study.
+#' @param user_id The user whose blinding status is being checked.
+#'   `NULL`/`NA`/`""` is always blinded.
+#' @return `TRUE`/`FALSE`.
+#' @export
+is_unblinded <- function(conn, study_id, user_id) {
+  if (is.null(user_id) || is.na(user_id) || !nzchar(user_id)) {
+    return(FALSE)
+  }
+  row <- DBI::dbGetQuery(conn, "
+    SELECT 1 FROM study_unblinding_grants
+    WHERE study_id = ? AND user_id = ? AND revoked_date IS NULL
+  ", params = list(study_id, user_id))
+  nrow(row) > 0
+}
+
+
+#' Require That a User Be Unblinded for a Study
+#'
+#' The [is_unblinded()] counterpart to [require_role()]: same
+#' `list(success=, error=)` denial shape, so callers compose both
+#' checks the same way (e.g. "must be a Coordinator AND unblinded").
+#'
+#' @param conn A DBI connection or pool.
+#' @param study_id The study.
+#' @param user_id The user attempting the operation.
+#' @param action_label Short description of the operation, used only
+#'   in the denial message (e.g. `"view the treatment assignment"`).
+#' @return `NULL` if unblinded; otherwise
+#'   `list(success = FALSE, error = <message>)`.
+#' @export
+require_unblinded <- function(conn, study_id, user_id, action_label) {
+  if (is_unblinded(conn, study_id, user_id)) {
+    return(NULL)
+  }
+  list(
+    success = FALSE,
+    error = paste0(
+      "You are blinded for this study and may not ", action_label, "."
+    )
+  )
+}

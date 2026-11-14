@@ -4,11 +4,21 @@
 # randomization_config, an append-only randomization_history that
 # lets zzalloc's batch allocate() be replayed one subject at a time,
 # and treatment_arm_labels mapping zzalloc's raw integer arm codes to
-# a human label. Deliberately no blinding enforcement yet (every
-# caller sees the arm directly) and only the "simple" scheme is
-# wired up -- see ~/.claude/plans/soft-orbiting-acorn.md for the full
-# phased plan (blinding in phase 2, adaptive/covariate schemes in
-# phase 3, emergency unblinding in phase 4).
+# a human label. Only the "simple" scheme is wired up -- see
+# ~/.claude/plans/soft-orbiting-acorn.md for the full phased plan
+# (adaptive/covariate schemes in phase 3, emergency unblinding in
+# phase 4).
+#
+# Phase 2 adds blinding enforcement: grant_unblinded_access() /
+# revoke_unblinded_access() below manage the study_unblinding_grants
+# table that is_unblinded()/require_unblinded() (R/authorization.R)
+# read; callers (the Randomize button, any future report) are
+# responsible for calling is_unblinded() before showing a subject's
+# arm to a given viewer -- randomize_next_subject() and
+# get_subject_arm() still always return the real arm_code, since the
+# gate belongs at display time, not at the data layer (the same
+# reasoning as keeping arm off of `subjects`: one place to get right
+# instead of auditing every call site).
 #
 # Treatment arm lives ONLY in randomization_history.arm, never on
 # subjects: every existing subjects-based query (CRF rendering,
@@ -404,6 +414,12 @@ randomize_next_subject <- function(conn, subject_id, covariates_row = NULL,
 
   arm_code <- as.integer(utils::tail(result, 1))
   covariates_json <- jsonlite::toJSON(covariates_row %||% list(), auto_unbox = TRUE)
+  # DBI parameter binding requires every element to have length 1;
+  # a NULL randomized_by (no caller-supplied actor identity) has
+  # length 0 and would otherwise abort the whole transaction with
+  # "Parameter 6 does not have length 1" instead of recording the
+  # randomization with an unknown actor.
+  randomized_by <- randomized_by %||% NA_character_
 
   .with_db_transaction(conn, function(c) {
     .lock_randomization_history(c, study_id)
@@ -458,4 +474,118 @@ get_subject_arm <- function(conn, subject_id, study_id = NULL) {
   ", params = list(study_id, subject_id))
   if (nrow(row) == 0) return(NULL)
   list(arm_code = as.integer(row$arm[1]), arm_label = row$arm_label[1])
+}
+
+
+#' Grant a User Routine Unblinded Access to a Study
+#'
+#' Admin-only (mirroring `invalidate_signature()`'s Admin-only
+#' precedent, R/electronic_signatures.R -- see the plan's "open
+#' decisions" section for why this is the default rather than, say,
+#' PI-grantable). Inserting a fresh grant row when a prior one
+#' exists and was revoked is deliberate: it is a new, auditable grant
+#' event, not a resurrection of the old one.
+#'
+#' @param conn A DBI connection or pool.
+#' @param study_id The study to grant unblinded access to.
+#' @param user_id The user being granted access.
+#' @param granted_by User id performing this grant, for the audit
+#'   trail.
+#' @param actor_role Optional: the granting user's role, checked via
+#'   [require_role()] against `c("Admin")`. `NULL` skips the check.
+#' @return `list(success = TRUE)` or `list(success = FALSE, error = ...)`.
+#' @export
+grant_unblinded_access <- function(conn, study_id, user_id, granted_by,
+                                    actor_role = NULL) {
+  if (!is.null(actor_role)) {
+    denied <- require_role(actor_role, c("Admin"), "grant unblinded access")
+    if (!is.null(denied)) return(denied)
+  }
+  if (is.null(granted_by) || is.na(granted_by) || !nzchar(granted_by)) {
+    return(list(success = FALSE, error = "granted_by is required."))
+  }
+  if (is_unblinded(conn, study_id, user_id)) {
+    return(list(success = FALSE, error = paste0(
+      "User '", user_id, "' already has unblinded access to this study."
+    )))
+  }
+
+  .with_db_transaction(conn, function(c) {
+    DBI::dbExecute(c, "
+      INSERT INTO study_unblinding_grants (study_id, user_id, granted_by)
+      VALUES (?, ?, ?)
+    ", params = list(study_id, user_id, granted_by))
+    .append_audit_record(
+      c, event_type = "PERMISSION_CHANGE", table_name = "study_unblinding_grants",
+      record_id = user_id,
+      operation = paste0("Granted unblinded access for study '", study_id, "'"),
+      details = jsonlite::toJSON(list(study_id = study_id, user_id = user_id),
+                                  auto_unbox = TRUE),
+      user_id = granted_by
+    )
+  })
+  list(success = TRUE)
+}
+
+
+#' Revoke a User's Unblinded Access to a Study
+#'
+#' @param conn A DBI connection or pool.
+#' @param study_id The study.
+#' @param user_id The user whose access is being revoked.
+#' @param revoked_by User id performing this revocation, for the
+#'   audit trail.
+#' @param actor_role Optional: the revoking user's role, checked via
+#'   [require_role()] against `c("Admin")`. `NULL` skips the check.
+#' @return `list(success = TRUE)` or `list(success = FALSE, error = ...)`.
+#' @export
+revoke_unblinded_access <- function(conn, study_id, user_id, revoked_by,
+                                     actor_role = NULL) {
+  if (!is.null(actor_role)) {
+    denied <- require_role(actor_role, c("Admin"), "revoke unblinded access")
+    if (!is.null(denied)) return(denied)
+  }
+  if (is.null(revoked_by) || is.na(revoked_by) || !nzchar(revoked_by)) {
+    return(list(success = FALSE, error = "revoked_by is required."))
+  }
+  if (!is_unblinded(conn, study_id, user_id)) {
+    return(list(success = FALSE, error = paste0(
+      "User '", user_id, "' does not currently have unblinded access to this study."
+    )))
+  }
+
+  .with_db_transaction(conn, function(c) {
+    DBI::dbExecute(c, "
+      UPDATE study_unblinding_grants
+      SET revoked_date = CURRENT_TIMESTAMP, revoked_by = ?
+      WHERE study_id = ? AND user_id = ? AND revoked_date IS NULL
+    ", params = list(revoked_by, study_id, user_id))
+    .append_audit_record(
+      c, event_type = "PERMISSION_CHANGE", table_name = "study_unblinding_grants",
+      record_id = user_id,
+      operation = paste0("Revoked unblinded access for study '", study_id, "'"),
+      details = jsonlite::toJSON(list(study_id = study_id, user_id = user_id),
+                                  auto_unbox = TRUE),
+      user_id = revoked_by
+    )
+  })
+  list(success = TRUE)
+}
+
+
+#' List Current Unblinding Grants for a Study
+#'
+#' @param conn A DBI connection or pool.
+#' @param study_id Defaults to `.current_study_id(conn)`.
+#' @return A data frame with `user_id`, `granted_date`, `granted_by`
+#'   for every currently-live (not revoked) grant.
+#' @export
+list_unblinding_grants <- function(conn, study_id = NULL) {
+  study_id <- study_id %||% .current_study_id(conn)
+  DBI::dbGetQuery(conn, "
+    SELECT user_id, granted_date, granted_by
+    FROM study_unblinding_grants
+    WHERE study_id = ? AND revoked_date IS NULL
+    ORDER BY granted_date
+  ", params = list(study_id))
 }

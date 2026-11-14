@@ -20,10 +20,11 @@
 \code{invisible(NULL)}.
 }
 \description{
-\code{randomization_config}, \code{randomization_history}, and
-\code{treatment_arm_labels} -- see R/randomization_module.R for what
-reads and writes them. Factored out of \code{\link[=create_core_tables]{create_core_tables()}} so
-\code{\link[=migrate_add_randomization_tables]{migrate_add_randomization_tables()}} can add these three tables to
+\code{randomization_config}, \code{randomization_history},
+\code{treatment_arm_labels}, and \code{study_unblinding_grants} -- see
+R/randomization_module.R and R/authorization.R for what reads and
+writes them. Factored out of \code{\link[=create_core_tables]{create_core_tables()}} so
+\code{\link[=migrate_add_randomization_tables]{migrate_add_randomization_tables()}} can add these four tables to
 an already-provisioned database (one created before this feature
 existed) without re-running every other \verb{CREATE TABLE} in that
 function.

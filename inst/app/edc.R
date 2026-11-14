@@ -370,6 +370,12 @@ output$edc_crf_fields <- renderUI({
   # entire renderUI (which also renders the subject_id field itself)
   # re-run on every keystroke there, wiping out whatever the user had
   # just typed before each character could register.
+  #
+  # The arm itself is only ever shown to a viewer unblinded for this
+  # study (zzedc::is_unblinded(), R/authorization.R); a blinded
+  # viewer sees only whether randomization has happened, never which
+  # arm. get_subject_arm() always returns the real arm -- the gate is
+  # applied here, at display time, same as randomize_next_subject().
   if ("randomization_group" %in% names(metadata)) {
     randomize_refresh()
     current_subject_id <- shiny::isolate(input$subject_id)
@@ -378,10 +384,16 @@ output$edc_crf_fields <- renderUI({
     } else {
       NULL
     }
-    metadata$randomization_group$value <- if (!is.null(arm)) {
+    unblinded <- zzedc::is_unblinded(
+      db_pool, zzedc:::.current_study_id(db_pool),
+      shiny::isolate(user_input$user_id)
+    )
+    metadata$randomization_group$value <- if (is.null(arm)) {
+      "Not yet randomized"
+    } else if (unblinded) {
       arm$arm_label %||% paste0("Arm ", arm$arm_code)
     } else {
-      "Not yet randomized"
+      "Randomized"
     }
   }
 
