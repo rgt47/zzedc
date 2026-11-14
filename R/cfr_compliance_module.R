@@ -604,12 +604,14 @@ cfr_compliance_server <- function(id, user_id = NULL) {
         # value; there is no separate "revoked" state in the schema,
         # only is_valid = 0 (optionally with an invalidation_reason).
         display_data <- compliance_data$signatures |>
-          select(signature_id, signer_name, signature_meaning, table_name,
-                record_id, signed_at, is_valid) |>
+          select(dplyr::all_of(c("signature_id", "signer_name", "signature_meaning",
+                          "table_name", "record_id", "signed_at",
+                          "is_valid"))) |>
           mutate(
-            signed_at = format(as.POSIXct(signed_at), "%Y-%m-%d %H:%M"),
+            signed_at = format(as.POSIXct(.data$signed_at),
+                               "%Y-%m-%d %H:%M"),
             signature_status = ifelse(
-              as.logical(is_valid), "[OK] Valid", "[X] Invalid"
+              as.logical(.data$is_valid), "[OK] Valid", "[X] Invalid"
             ),
             is_valid = NULL
           )
