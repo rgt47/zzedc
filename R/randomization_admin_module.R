@@ -1,10 +1,13 @@
 #' Randomization Admin UI
 #'
-#' Study-level randomization scheme configuration (not yet wired up
-#' here -- see the plan's phase 3 for exposing scheme/covariate
-#' choices) and the Phase 2 blinding grant/revoke panel: who
-#' currently has unblinded access to this study's treatment
-#' assignments, with Admin-only grant and revoke controls.
+#' Three panels: study-level scheme setup (scheme, covariate fields,
+#' seed, arm labels -- Admin-only, and refused once the config is
+#' locked, i.e. after the first subject is randomized), the Phase 2
+#' blinding grant/revoke panel (who currently has unblinded access to
+#' this study's treatment assignments, Admin-only), and balance
+#' diagnostics (`zzalloc::allocation_imbalance()` on the realized
+#' allocation, visible only to an unblinded viewer since it reveals
+#' per-arm counts).
 #'
 #' @param id The namespace id for the module
 #' @return UI elements
@@ -13,6 +16,35 @@ randomization_admin_ui <- function(id) {
   ns <- NS(id)
 
   div(
+    h4("Scheme Setup"),
+    p(class = "text-muted",
+      "Choosing a scheme and seed is Admin-only, and is refused once ",
+      "the first subject has been randomized for this study. ",
+      "Covariate fields are only used by stratified_block, ",
+      "pocock_simon, hu_hu, and msb -- pick discrete CRF fields ",
+      "(a small number of categories), not continuous measurements."),
+    uiOutput(ns("current_config_display")),
+    fluidRow(
+      column(4,
+        selectInput(ns("scheme"), "Scheme",
+                    choices = setdiff(zzalloc::allocation_schemes(), "cara"))
+      ),
+      column(4,
+        numericInput(ns("rng_seed"), "RNG Seed", value = 1L, min = 1L, step = 1L)
+      ),
+      column(4,
+        selectizeInput(ns("covariate_fields"), "Covariate Fields (if applicable)",
+                        choices = NULL, multiple = TRUE)
+      )
+    ),
+    fluidRow(
+      column(6, textInput(ns("arm0_label"), "Arm 0 Label", value = "Control")),
+      column(6, textInput(ns("arm1_label"), "Arm 1 Label", value = "Treatment"))
+    ),
+    actionButton(ns("save_config_btn"), "Save Scheme Configuration",
+                 class = "btn btn-outline-primary"),
+    hr(),
+
     h4("Unblinded Access"),
     p(class = "text-muted",
       "Users granted unblinded access can see a subject's treatment ",
@@ -32,8 +64,11 @@ randomization_admin_ui <- function(id) {
                      class = "btn btn-outline-danger")
       )
     ),
+    tableOutput(ns("grants_table")),
     hr(),
-    tableOutput(ns("grants_table"))
+
+    h4("Balance Diagnostics"),
+    uiOutput(ns("imbalance_display"))
   )
 }
 
@@ -60,6 +95,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     }
 
     refresh <- reactiveVal(0)
+    config_refresh <- reactiveVal(0)
 
     observe({
       conn <- .db()
@@ -70,6 +106,94 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
       )
       choices <- stats::setNames(users$user_id, users$username)
       updateSelectInput(session, "grant_user", choices = choices)
+    })
+
+    # Covariate field choices: every distinct field_code across this
+    # study's CRF forms, not filtered by type -- zzalloc's own
+    # check_covariates() is the authority on what is actually usable
+    # (discrete, non-missing), and will raise a clear error at
+    # randomize_next_subject() time if a chosen field turns out to be
+    # continuous. Filtering here on designer_fields.field_type would
+    # risk excluding a genuinely discrete numeric-coded field (e.g. a
+    # 0/1 flag stored as "numeric") on a type label alone.
+    observe({
+      conn <- .db()
+      shiny::req(conn)
+      fields <- tryCatch(
+        DBI::dbGetQuery(conn,
+          "SELECT DISTINCT field_code FROM designer_fields ORDER BY field_code"),
+        error = function(e) data.frame(field_code = character())
+      )
+      updateSelectizeInput(session, "covariate_fields", choices = fields$field_code)
+    })
+
+    .current_config <- reactive({
+      config_refresh()
+      conn <- .db()
+      shiny::req(conn)
+      zzedc::get_randomization_config(conn)
+    })
+
+    output$current_config_display <- renderUI({
+      cfg <- .current_config()
+      if (is.null(cfg)) {
+        return(tags$p(class = "text-muted", "No scheme configured yet."))
+      }
+      tags$p(
+        tags$strong("Current: "), cfg$scheme,
+        " (seed ", cfg$rng_seed, ", status: ", cfg$status, ")",
+        if (length(cfg$covariate_fields) > 0) {
+          paste0(" -- covariates: ", paste(cfg$covariate_fields, collapse = ", "))
+        } else {
+          ""
+        }
+      )
+    })
+
+    observeEvent(input$save_config_btn, {
+      conn <- .db()
+      shiny::req(conn, input$scheme)
+      labels <- c("0" = input$arm0_label, "1" = input$arm1_label)
+      result <- zzedc::set_randomization_config(
+        conn, scheme = input$scheme, rng_seed = input$rng_seed,
+        covariate_fields = if (length(input$covariate_fields) > 0) {
+          input$covariate_fields
+        } else {
+          NULL
+        },
+        created_by = .actor_user_id(), actor_role = .actor_role()
+      )
+      if (isTRUE(result$success)) {
+        zzedc::set_treatment_arm_labels(conn, labels)
+        shiny::showNotification("Randomization scheme saved.", type = "message")
+        config_refresh(config_refresh() + 1)
+      } else {
+        shiny::showNotification(paste("Could not save scheme:", result$error),
+                                 type = "error")
+      }
+    })
+
+    output$imbalance_display <- renderUI({
+      refresh()
+      conn <- .db()
+      shiny::req(conn)
+      if (!zzedc::is_unblinded(conn, zzedc:::.current_study_id(conn), .actor_user_id())) {
+        return(tags$p(class = "text-muted",
+                       "Unblind to view balance diagnostics."))
+      }
+      imb <- zzedc::get_study_imbalance(conn)
+      if (is.null(imb)) {
+        return(tags$p(class = "text-muted", "No subjects randomized yet."))
+      }
+      tagList(
+        tags$p(tags$strong("Overall (arm 1 - arm 0): "), imb$overall),
+        if (!is.null(imb$marginal)) {
+          tagList(
+            tags$p(tags$strong("Max marginal imbalance: "), imb$max_marginal),
+            tags$pre(paste(utils::capture.output(print(imb$marginal)), collapse = "\n"))
+          )
+        }
+      )
     })
 
     .current_grants <- reactive({
@@ -114,7 +238,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
       }
     })
 
-    observeEvent(input$revoke_user, {
+    observeEvent(input$revoke_btn, {
       conn <- .db()
       shiny::req(conn, input$revoke_user)
       result <- zzedc::revoke_unblinded_access(

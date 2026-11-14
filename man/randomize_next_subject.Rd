@@ -19,7 +19,10 @@ randomize_next_subject(
 have a \code{randomization_history} row for this study.}
 
 \item{covariates_row}{A named list of covariate values, required
-(and used) only for schemes in \code{c("stratified_block", "pocock_simon", "hu_hu", "msb", "cara")}.}
+(and used) only for schemes in \code{c("stratified_block", "pocock_simon", "hu_hu", "msb")}. \code{"cara"} is rejected by
+\code{\link[=validate_randomization_config]{validate_randomization_config()}} and can never reach this
+function via \code{\link[=set_randomization_config]{set_randomization_config()}} -- see that
+function's docs for why.}
 
 \item{study_id}{Defaults to \code{.current_study_id(conn)}.}
 
@@ -28,11 +31,10 @@ audit trail.}
 }
 \value{
 \verb{list(success = TRUE, arm_code = <int>)} or
-\code{list(success = FALSE, error = ...)}. Phase 1 has no blinding
-enforcement, so the arm code is always returned; translating it
-to a label (\code{treatment_arm_labels}) and deciding whether to show
-it to a given viewer is the caller's responsibility (and, from
-phase 2 on, \code{is_unblinded()}'s).
+\code{list(success = FALSE, error = ...)}. The arm code is always
+returned; translating it to a label (\code{treatment_arm_labels}) and
+deciding whether to show it to a given viewer is the caller's
+responsibility (and \code{is_unblinded()}'s, from phase 2 on).
 }
 \description{
 Replays \code{zzalloc::allocate()} over this study's history-so-far

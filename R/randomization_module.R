@@ -4,10 +4,8 @@
 # randomization_config, an append-only randomization_history that
 # lets zzalloc's batch allocate() be replayed one subject at a time,
 # and treatment_arm_labels mapping zzalloc's raw integer arm codes to
-# a human label. Only the "simple" scheme is wired up -- see
-# ~/.claude/plans/soft-orbiting-acorn.md for the full phased plan
-# (adaptive/covariate schemes in phase 3, emergency unblinding in
-# phase 4).
+# a human label -- see ~/.claude/plans/soft-orbiting-acorn.md for the
+# full phased plan (emergency unblinding in phase 4).
 #
 # Phase 2 adds blinding enforcement: grant_unblinded_access() /
 # revoke_unblinded_access() below manage the study_unblinding_grants
@@ -19,6 +17,32 @@
 # gate belongs at display time, not at the data layer (the same
 # reasoning as keeping arm off of `subjects`: one place to get right
 # instead of auditing every call site).
+#
+# Phase 3 wires up the covariate-adaptive schemes:
+# "stratified_block", "pocock_simon", "hu_hu", "msb". Their RNG
+# consumption is, like "simple"'s, exactly one draw per subject in
+# arrival order regardless of branch taken (confirmed by reading
+# zzalloc's own source, R/biased_coin.R's biased_draw() and the
+# per-scheme loops), so the same replay-from-the-original-seed
+# strategy randomize_next_subject() already used for "simple"
+# reproduces every prior subject's arm for these schemes too, even
+# though their *content* (not just count) of draws depends on the
+# accumulated covariate history. Verified directly, not just by this
+# reading: see the scratch reproducibility test run for this change.
+#
+# "cara" is deliberately NOT wired up: zzalloc::alloc_cara() is
+# response-*adaptive*, not just covariate-adaptive. It requires a
+# `response_fn` evaluated against each subject's outcome at the
+# moment of randomization -- a function argument that cannot be
+# serialized into scheme_params the way every other scheme's
+# arguments can, and which assumes the outcome is already known at
+# enrollment, false for this EDC's visit-based flow where outcomes
+# are collected on later visits. validate_randomization_config()
+# rejects it outright with that explanation; randomize_next_subject()
+# also refuses it directly as defense in depth, since alloc_cara()
+# additionally returns a list ($trt/$response), not the plain integer
+# vector every other scheme returns, which this file's arm-extraction
+# code does not handle.
 #
 # Treatment arm lives ONLY in randomization_history.arm, never on
 # subjects: every existing subjects-based query (CRF rendering,
@@ -101,9 +125,23 @@ validate_randomization_config <- function(scheme, scheme_params = list(),
       paste(schemes, collapse = ", ")
     )))
   }
+  if (identical(scheme, "cara")) {
+    return(list(success = FALSE, error = paste(
+      "Scheme 'cara' is not supported by this EDC. It is response-",
+      "adaptive, not just covariate-adaptive: zzalloc::alloc_cara()",
+      "requires a `response_fn` evaluated against each subject's",
+      "outcome at the moment of randomization, which (a) cannot be",
+      "serialized into scheme_params the way the other schemes'",
+      "arguments can, and (b) assumes an outcome is already known",
+      "when a subject enrolls -- false for this EDC's visit-based",
+      "flow, where outcomes are collected on later visits. Use",
+      "'stratified_block', 'pocock_simon', 'hu_hu', or 'msb' for",
+      "covariate-adaptive (not outcome-adaptive) allocation instead."
+    )))
+  }
 
   needs_cov <- scheme %in% c("stratified_block", "pocock_simon", "hu_hu",
-                              "msb", "cara")
+                              "msb")
   if (needs_cov && length(covariate_fields) == 0) {
     return(list(success = FALSE, error = paste0(
       "Scheme '", scheme, "' requires `covariate_fields`."
@@ -193,6 +231,10 @@ get_randomization_config <- function(conn, study_id = NULL) {
 #' @param study_id Defaults to `.current_study_id(conn)`.
 #' @param created_by User id performing this setup.
 #' @param available_fields Passed to [validate_randomization_config()].
+#' @param actor_role Optional: the configuring user's role, checked
+#'   via [require_role()] against `c("Admin")` -- choosing the
+#'   scheme/seed a study's allocation depends on is as sensitive as
+#'   granting unblinded access. `NULL` skips the check.
 #' @return `list(success = TRUE)` or `list(success = FALSE, error = ...)`.
 #' @export
 set_randomization_config <- function(conn, scheme, rng_seed,
@@ -200,8 +242,13 @@ set_randomization_config <- function(conn, scheme, rng_seed,
                                       covariate_fields = NULL,
                                       study_id = NULL,
                                       created_by = NULL,
-                                      available_fields = NULL) {
+                                      available_fields = NULL,
+                                      actor_role = NULL) {
   study_id <- study_id %||% .current_study_id(conn)
+  if (!is.null(actor_role)) {
+    denied <- require_role(actor_role, c("Admin"), "configure the randomization scheme")
+    if (!is.null(denied)) return(denied)
+  }
   check <- validate_randomization_config(scheme, scheme_params,
                                           covariate_fields, available_fields)
   if (!isTRUE(check$success)) return(check)
@@ -316,16 +363,18 @@ set_treatment_arm_labels <- function(conn, labels, study_id = NULL) {
 #'   have a `randomization_history` row for this study.
 #' @param covariates_row A named list of covariate values, required
 #'   (and used) only for schemes in `c("stratified_block",
-#'   "pocock_simon", "hu_hu", "msb", "cara")`.
+#'   "pocock_simon", "hu_hu", "msb")`. `"cara"` is rejected by
+#'   [validate_randomization_config()] and can never reach this
+#'   function via [set_randomization_config()] -- see that
+#'   function's docs for why.
 #' @param study_id Defaults to `.current_study_id(conn)`.
 #' @param randomized_by User id performing the randomization, for the
 #'   audit trail.
 #' @return `list(success = TRUE, arm_code = <int>)` or
-#'   `list(success = FALSE, error = ...)`. Phase 1 has no blinding
-#'   enforcement, so the arm code is always returned; translating it
-#'   to a label (`treatment_arm_labels`) and deciding whether to show
-#'   it to a given viewer is the caller's responsibility (and, from
-#'   phase 2 on, `is_unblinded()`'s).
+#'   `list(success = FALSE, error = ...)`. The arm code is always
+#'   returned; translating it to a label (`treatment_arm_labels`) and
+#'   deciding whether to show it to a given viewer is the caller's
+#'   responsibility (and `is_unblinded()`'s, from phase 2 on).
 #' @export
 randomize_next_subject <- function(conn, subject_id, covariates_row = NULL,
                                     study_id = NULL, randomized_by = NULL) {
@@ -336,6 +385,19 @@ randomize_next_subject <- function(conn, subject_id, covariates_row = NULL,
     return(list(success = FALSE, error = paste(
       "This study has no randomization_config; call",
       "set_randomization_config() first."
+    )))
+  }
+  if (identical(config$scheme, "cara")) {
+    # Defense in depth: set_randomization_config() already refuses to
+    # write a 'cara' config (validate_randomization_config()), so this
+    # should be unreachable -- but if it is ever reached (e.g. a config
+    # row written directly, bypassing that gate), fail loudly instead
+    # of mishandling alloc_cara()'s different return shape (a list with
+    # $trt/$response, not a plain integer vector) as if it were a
+    # normal scheme's result.
+    return(list(success = FALSE, error = paste(
+      "Scheme 'cara' is not supported for live randomization",
+      "(see validate_randomization_config())."
     )))
   }
 
@@ -349,7 +411,7 @@ randomize_next_subject <- function(conn, subject_id, covariates_row = NULL,
   }
 
   needs_cov <- config$scheme %in% c("stratified_block", "pocock_simon",
-                                     "hu_hu", "msb", "cara")
+                                     "hu_hu", "msb")
   if (needs_cov) {
     missing <- setdiff(config$covariate_fields, names(covariates_row %||% list()))
     if (length(missing) > 0) {
@@ -588,4 +650,48 @@ list_unblinding_grants <- function(conn, study_id = NULL) {
     WHERE study_id = ? AND revoked_date IS NULL
     ORDER BY granted_date
   ", params = list(study_id))
+}
+
+
+#' Balance Diagnostics for a Study's Randomization History
+#'
+#' Wraps `zzalloc::allocation_imbalance()` over this study's realized
+#' allocation, reconstructing the same covariates data frame
+#' [randomize_next_subject()] builds for a covariate-adaptive scheme.
+#' Reveals the arm, so a caller showing this in a UI is responsible
+#' for gating it behind [is_unblinded()] the same way as
+#' [get_subject_arm()] -- it is not gated here, for the same
+#' data-layer-vs-display-time reasoning documented at the top of
+#' this file.
+#'
+#' `zzalloc::weighted_imbalance()` is not wrapped here: it additionally
+#' requires a `beta` (per-covariate outcome-association weight), which
+#' is study-specific statistical knowledge this package has no source
+#' for, not something derivable from `randomization_history` alone.
+#'
+#' @param conn A DBI connection or pool.
+#' @param study_id Defaults to `.current_study_id(conn)`.
+#' @return `zzalloc::allocation_imbalance()`'s return value (a list
+#'   with `overall`, `marginal`, `max_marginal`, `stratum`), or
+#'   `NULL` if the study has no randomization history yet.
+#' @export
+get_study_imbalance <- function(conn, study_id = NULL) {
+  study_id <- study_id %||% .current_study_id(conn)
+  config <- get_randomization_config(conn, study_id)
+  history <- DBI::dbGetQuery(conn, "
+    SELECT arrival_order, arm, covariates_json
+    FROM randomization_history WHERE study_id = ? ORDER BY arrival_order
+  ", params = list(study_id))
+  if (nrow(history) == 0) return(NULL)
+
+  trt <- as.integer(history$arm)
+  has_cov <- !is.null(config) && length(config$covariate_fields) > 0
+  cov_df <- if (has_cov) {
+    do.call(rbind, lapply(history$covariates_json, function(j) {
+      as.data.frame(jsonlite::fromJSON(j), stringsAsFactors = FALSE)
+    }))
+  } else {
+    NULL
+  }
+  zzalloc::allocation_imbalance(trt, cov_df)
 }

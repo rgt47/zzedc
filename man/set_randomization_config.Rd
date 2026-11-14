@@ -12,7 +12,8 @@ set_randomization_config(
   covariate_fields = NULL,
   study_id = NULL,
   created_by = NULL,
-  available_fields = NULL
+  available_fields = NULL,
+  actor_role = NULL
 )
 }
 \arguments{
@@ -28,6 +29,11 @@ set_randomization_config(
 \item{created_by}{User id performing this setup.}
 
 \item{available_fields}{Passed to \code{\link[=validate_randomization_config]{validate_randomization_config()}}.}
+
+\item{actor_role}{Optional: the configuring user's role, checked
+via \code{\link[=require_role]{require_role()}} against \code{c("Admin")} -- choosing the
+scheme/seed a study's allocation depends on is as sensitive as
+granting unblinded access. \code{NULL} skips the check.}
 }
 \value{
 \code{list(success = TRUE)} or \code{list(success = FALSE, error = ...)}.
