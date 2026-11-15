@@ -197,7 +197,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
       refresh()
       conn <- .db()
       shiny::req(conn)
-      if (!zzedc::is_unblinded(conn, zzedc:::.current_study_id(conn), .actor_user_id())) {
+      if (!zzedc::is_unblinded(conn, .current_study_id(conn), .actor_user_id())) {
         return(tags$p(class = "text-muted",
                        "Unblind to view balance diagnostics."))
       }
@@ -245,7 +245,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
       conn <- .db()
       shiny::req(conn, input$grant_user)
       result <- zzedc::grant_unblinded_access(
-        conn, study_id = zzedc:::.current_study_id(conn),
+        conn, study_id = .current_study_id(conn),
         user_id = input$grant_user, granted_by = .actor_user_id(),
         actor_role = .actor_role()
       )
@@ -262,7 +262,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
       conn <- .db()
       shiny::req(conn, input$revoke_user)
       result <- zzedc::revoke_unblinded_access(
-        conn, study_id = zzedc:::.current_study_id(conn),
+        conn, study_id = .current_study_id(conn),
         user_id = input$revoke_user, revoked_by = .actor_user_id(),
         actor_role = .actor_role()
       )
@@ -289,7 +289,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
       result <- zzedc::emergency_unblind_subject(
         conn, subject_id = input$unblind_subject_id,
         requested_by = .actor_user_id(), reason = input$unblind_reason,
-        study_id = zzedc:::.current_study_id(conn), actor_role = .actor_role()
+        study_id = .current_study_id(conn), actor_role = .actor_role()
       )
       if (isTRUE(result$success)) {
         unblind_result(paste0(
