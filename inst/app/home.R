@@ -17,14 +17,22 @@ output$hometab <- renderUI({
       )
     ),
     
-    # Quick-navigation tiles, one per major section, styled to match
+    # Quick-navigation tiles, one per top-nav section (every
+    # nav_panel() in gsheets_ui_integration.R except Home itself, in
+    # the same order they appear in the nav bar), styled to match
     # rgtlab.org's research-card tiles (zzedc:::.rgtlab_tile_styles(),
     # loaded once in the page's own <head> -- ui.R /
     # gsheets_ui_integration.R, not re-injected here): a navy/gold
     # icon circle, serif title, muted description. Each tile is a
     # clickable card (an <a class="action-button">, Shiny's own
     # convention for a link that fires a server-side input) that
-    # switches the top navbar to that section's nav_panel value.
+    # switches the top navbar to that section's nav_panel value. One
+    # tile per section, rather than a single combined "Reports" tile,
+    # so a 12-item nav bar (Basic/Quality/Statistical Reports, Subject
+    # Case Report, Setup, Compliance, Corrections, Validation Rules,
+    # and Admin all previously reachable only from the crowded top
+    # bar) is also reachable from Home -- each tile's icon matches its
+    # nav_panel's own icon exactly, so the two stay recognizably paired.
     h5(class = "rgtlab-heading mb-3", "Quick Access"),
     bslib::layout_column_wrap(
       width = "200px",
@@ -34,17 +42,41 @@ output$hometab <- renderUI({
         id = "hometile_edc", class = "action-button rgtlab-tile text-center",
         href = "#",
         div(class = "rgtlab-ico mx-auto",
-            bsicons::bs_icon("clipboard2-pulse", size = "1.1rem")),
+            bsicons::bs_icon("clipboard-data", size = "1.1rem")),
         h6("EDC Forms"),
         tags$p(class = "rgtlab-desc", "Enter and manage study data")
       ),
       tags$a(
-        id = "hometile_reports", class = "action-button rgtlab-tile text-center",
+        id = "hometile_reports1", class = "action-button rgtlab-tile text-center",
         href = "#",
         div(class = "rgtlab-ico mx-auto",
-            bsicons::bs_icon("bar-chart-line", size = "1.1rem")),
-        h6("Reports"),
-        tags$p(class = "rgtlab-desc", "Study reports and analytics")
+            bsicons::bs_icon("bar-chart", size = "1.1rem")),
+        h6("Basic Reports"),
+        tags$p(class = "rgtlab-desc", "Core summary tables")
+      ),
+      tags$a(
+        id = "hometile_reports2", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("shield-check", size = "1.1rem")),
+        h6("Quality Reports"),
+        tags$p(class = "rgtlab-desc", "Data quality and completeness")
+      ),
+      tags$a(
+        id = "hometile_reports3", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("graph-up", size = "1.1rem")),
+        h6("Statistical Reports"),
+        tags$p(class = "rgtlab-desc", "Analytics across the study")
+      ),
+      tags$a(
+        id = "hometile_report5", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("person-lines-fill", size = "1.1rem")),
+        h6("Subject Case Report"),
+        tags$p(class = "rgtlab-desc", "One subject's full record")
       ),
       tags$a(
         id = "hometile_data", class = "action-button rgtlab-tile text-center",
@@ -61,6 +93,46 @@ output$hometab <- renderUI({
             bsicons::bs_icon("download", size = "1.1rem")),
         h6("Export"),
         tags$p(class = "rgtlab-desc", "Download data in various formats")
+      ),
+      tags$a(
+        id = "hometile_setup", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("gear", size = "1.1rem")),
+        h6("Setup"),
+        tags$p(class = "rgtlab-desc", "Forms and Google Sheets management")
+      ),
+      tags$a(
+        id = "hometile_compliance", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("patch-check", size = "1.1rem")),
+        h6("Compliance"),
+        tags$p(class = "rgtlab-desc", "Electronic signatures and training")
+      ),
+      tags$a(
+        id = "hometile_corrections", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("pencil-square", size = "1.1rem")),
+        h6("Corrections"),
+        tags$p(class = "rgtlab-desc", "Request, review, and apply")
+      ),
+      tags$a(
+        id = "hometile_rules", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("check2-square", size = "1.1rem")),
+        h6("Validation Rules"),
+        tags$p(class = "rgtlab-desc", "Edit field-level checks")
+      ),
+      tags$a(
+        id = "hometile_admin", class = "action-button rgtlab-tile text-center",
+        href = "#",
+        div(class = "rgtlab-ico mx-auto",
+            bsicons::bs_icon("shield-lock", size = "1.1rem")),
+        h6("Admin"),
+        tags$p(class = "rgtlab-desc", "Users, backups, randomization, audit")
       )
     ),
 
@@ -183,12 +255,40 @@ output$hometab <- renderUI({
 observeEvent(input$hometile_edc, {
   bslib::nav_select("main_nav", selected = "edc", session = session)
 })
-observeEvent(input$hometile_reports, {
+observeEvent(input$hometile_reports1, {
   bslib::nav_select("main_nav", selected = "reports1", session = session)
+})
+observeEvent(input$hometile_reports2, {
+  bslib::nav_select("main_nav", selected = "reports2", session = session)
+})
+observeEvent(input$hometile_reports3, {
+  bslib::nav_select("main_nav", selected = "reports3", session = session)
+})
+observeEvent(input$hometile_report5, {
+  # nav_tabs[["reports5"]]'s own nav_panel(value = "report5") (singular)
+  # is what main_nav actually switches on -- the list key and the
+  # value deliberately differ in gsheets_ui_integration.R, so this
+  # must match the value, not the key.
+  bslib::nav_select("main_nav", selected = "report5", session = session)
 })
 observeEvent(input$hometile_data, {
   bslib::nav_select("main_nav", selected = "data", session = session)
 })
 observeEvent(input$hometile_export, {
   bslib::nav_select("main_nav", selected = "export", session = session)
+})
+observeEvent(input$hometile_setup, {
+  bslib::nav_select("main_nav", selected = "setup", session = session)
+})
+observeEvent(input$hometile_compliance, {
+  bslib::nav_select("main_nav", selected = "compliance", session = session)
+})
+observeEvent(input$hometile_corrections, {
+  bslib::nav_select("main_nav", selected = "corrections", session = session)
+})
+observeEvent(input$hometile_rules, {
+  bslib::nav_select("main_nav", selected = "rules", session = session)
+})
+observeEvent(input$hometile_admin, {
+  bslib::nav_select("main_nav", selected = "admin", session = session)
 })
