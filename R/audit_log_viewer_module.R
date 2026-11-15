@@ -388,7 +388,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
       # here even though they can see every other field of the same
       # row, including who performed the unblind and why.
       details_value <- if (identical(e1$action, "EMERGENCY_UNBLIND") &&
-                              !.viewer_unblinded_for(zzedc:::.current_study_id(.pool()))) {
+                              !.viewer_unblinded_for(.current_study_id(.pool()))) {
         "(hidden -- you are blinded for this study)"
       } else {
         e1$details
