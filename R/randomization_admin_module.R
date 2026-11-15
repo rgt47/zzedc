@@ -184,8 +184,20 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
         created_by = .actor_user_id(), actor_role = .actor_role()
       )
       if (isTRUE(result$success)) {
-        zzedc::set_treatment_arm_labels(conn, labels)
-        shiny::showNotification("Randomization scheme saved.", type = "message")
+        labels_result <- tryCatch({
+          zzedc::set_treatment_arm_labels(conn, labels)
+          TRUE
+        }, error = function(e) {
+          shiny::showNotification(
+            paste("Scheme saved, but arm labels could not be saved:",
+                  conditionMessage(e)),
+            type = "warning"
+          )
+          FALSE
+        })
+        if (isTRUE(labels_result)) {
+          shiny::showNotification("Randomization scheme saved.", type = "message")
+        }
         config_refresh(config_refresh() + 1)
       } else {
         shiny::showNotification(paste("Could not save scheme:", result$error),

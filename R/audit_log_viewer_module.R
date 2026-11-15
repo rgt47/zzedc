@@ -198,7 +198,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
     # every audit writer appends to, and an unreadable trail is shown
     # as an error with no rows.
     load_audit_logs <- function() {
-      pool_obj <- if (is.function(db_pool) && !inherits(db_pool, "Pool")) db_pool() else db_pool
+      pool_obj <- .pool()
       if (is.null(pool_obj)) {
         log_state$load_error <- "No database connection."
         return(empty_audit_logs())
