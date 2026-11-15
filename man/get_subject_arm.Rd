@@ -16,7 +16,11 @@ get_subject_arm(conn, subject_id, study_id = NULL)
 \value{
 A list with \code{arm_code} and \code{arm_label} (label \code{NA} if
 \code{treatment_arm_labels} has no row for that code), or \code{NULL} if
-the subject has not been randomized.
+the subject has not been randomized -- including when this
+database has no randomization tables at all. Called
+unconditionally from \code{inst/app/edc.R} for any CRF form with a
+\code{randomization_group} field, so it must never throw just
+because a given study was never migrated for randomization.
 }
 \description{
 Look Up a Subject's Randomized Arm

@@ -93,10 +93,21 @@ require_role <- function(actor_role, allowed_roles, action_label) {
 #' @param study_id The study.
 #' @param user_id The user whose blinding status is being checked.
 #'   `NULL`/`NA`/`""` is always blinded.
-#' @return `TRUE`/`FALSE`.
+#' @return `TRUE`/`FALSE`. Also `FALSE` (not an error) when this
+#'   database has no randomization tables yet -- the overwhelming
+#'   majority of zzedc studies, including every one that is not a
+#'   randomized trial, have never run
+#'   [migrate_add_randomization_tables()], and "nobody is unblinded"
+#'   is the correct answer for them, not a crash. This function is
+#'   called unconditionally while rendering any CRF form with a
+#'   `randomization_group` field (`inst/app/edc.R`), so it must never
+#'   throw.
 #' @export
 is_unblinded <- function(conn, study_id, user_id) {
   if (is.null(user_id) || is.na(user_id) || !nzchar(user_id)) {
+    return(FALSE)
+  }
+  if (!.randomization_tables_exist(conn)) {
     return(FALSE)
   }
   row <- DBI::dbGetQuery(conn, "

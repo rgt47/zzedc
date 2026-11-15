@@ -386,8 +386,15 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
       # R/randomization_module.R's emergency_unblind_subject()); a
       # viewer who is not unblinded for this study must not see it
       # here even though they can see every other field of the same
-      # row, including who performed the unblind and why.
+      # row, including who performed the unblind and why. The person
+      # who actually performed this specific unblind is exempt from
+      # their own row's mask: they already learned the arm by doing
+      # it (emergency_unblind_subject() never grants them standing
+      # access), so hiding it from them here protects nothing and
+      # only makes them unable to review their own past action.
+      viewer_id <- if (!is.null(user_session)) user_session$user_id else NULL
       details_value <- if (identical(e1$action, "EMERGENCY_UNBLIND") &&
+                              !identical(e1$user_id, viewer_id) &&
                               !.viewer_unblinded_for(.current_study_id(.pool()))) {
         "(hidden -- you are blinded for this study)"
       } else {

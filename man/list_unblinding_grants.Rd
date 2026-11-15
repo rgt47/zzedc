@@ -13,7 +13,9 @@ list_unblinding_grants(conn, study_id = NULL)
 }
 \value{
 A data frame with \code{user_id}, \code{granted_date}, \code{granted_by}
-for every currently-live (not revoked) grant.
+for every currently-live (not revoked) grant. Zero rows, with
+the right columns, when this database has no randomization
+tables yet (see \code{\link[=get_randomization_config]{get_randomization_config()}}'s docs).
 }
 \description{
 List Current Unblinding Grants for a Study

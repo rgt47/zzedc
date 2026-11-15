@@ -88,6 +88,34 @@
 }
 
 
+#' Does This Database Have the Randomization Tables? (internal)
+#'
+#' `randomization_config`/`randomization_history`/`treatment_arm_labels`/
+#' `study_unblinding_grants` only exist on a database provisioned by
+#' this package's randomization feature (new studies get them
+#' automatically via `create_core_tables()`; an existing study needs
+#' [migrate_add_randomization_tables()]). The vast majority of
+#' already-running zzedc studies -- including every one that is not
+#' a randomized trial at all -- have never run that migration, and
+#' every read function in this file is called unconditionally while
+#' rendering the admin dashboard's Randomization tab (and, for
+#' `is_unblinded()`, while rendering any CRF form with a
+#' `randomization_group` field). Before this check existed, opening
+#' that tab against such a database crashed the whole Shiny session
+#' ("no such table: study_unblinding_grants" from
+#' `list_unblinding_grants()`, reproduced directly against a
+#' pre-existing non-trial deployment) rather than showing the
+#' obviously-correct "nothing configured yet" state.
+#'
+#' @param conn A DBI connection or pool.
+#' @return `TRUE`/`FALSE`. Never throws.
+#' @keywords internal
+.randomization_tables_exist <- function(conn) {
+  isTRUE(tryCatch(DBI::dbExistsTable(conn, "randomization_config"),
+                   error = function(e) FALSE))
+}
+
+
 #' Add the Randomization Tables to an Already-Provisioned Database
 #'
 #' For a study database created before this feature existed.
@@ -136,8 +164,8 @@ validate_randomization_config <- function(scheme, scheme_params = list(),
   }
   if (identical(scheme, "cara")) {
     return(list(success = FALSE, error = paste(
-      "Scheme 'cara' is not supported by this EDC. It is response-",
-      "adaptive, not just covariate-adaptive: zzalloc::alloc_cara()",
+      "Scheme 'cara' is not supported by this EDC. It is",
+      "response-adaptive, not just covariate-adaptive: zzalloc::alloc_cara()",
       "requires a `response_fn` evaluated against each subject's",
       "outcome at the moment of randomization, which (a) cannot be",
       "serialized into scheme_params the way the other schemes'",
@@ -196,9 +224,14 @@ validate_randomization_config <- function(scheme, scheme_params = list(),
 #' @param study_id Defaults to `.current_study_id(conn)`.
 #' @return A list with `scheme`, `scheme_params` (unserialized from
 #'   JSON), `covariate_fields` (character vector), `rng_seed`,
-#'   `status`; or `NULL` if the study has no randomization config yet.
+#'   `status`; or `NULL` if the study has no randomization config yet
+#'   (including when this database predates the randomization
+#'   feature entirely and has never run
+#'   [migrate_add_randomization_tables()] -- indistinguishable, from
+#'   a caller's perspective, from "not configured").
 #' @export
 get_randomization_config <- function(conn, study_id = NULL) {
+  if (!.randomization_tables_exist(conn)) return(NULL)
   study_id <- study_id %||% .current_study_id(conn)
   row <- DBI::dbGetQuery(conn,
     "SELECT * FROM randomization_config WHERE study_id = ?",
@@ -253,6 +286,12 @@ set_randomization_config <- function(conn, scheme, rng_seed,
                                       created_by = NULL,
                                       available_fields = NULL,
                                       actor_role = NULL) {
+  if (!.randomization_tables_exist(conn)) {
+    return(list(success = FALSE, error = paste(
+      "This database has no randomization tables yet. Call",
+      "migrate_add_randomization_tables() first."
+    )))
+  }
   study_id <- study_id %||% .current_study_id(conn)
   if (!is.null(actor_role)) {
     denied <- require_role(actor_role, c("Admin"), "configure the randomization scheme")
@@ -298,6 +337,12 @@ set_randomization_config <- function(conn, scheme, rng_seed,
 #' @return `invisible(TRUE)`.
 #' @export
 set_treatment_arm_labels <- function(conn, labels, study_id = NULL) {
+  if (!.randomization_tables_exist(conn)) {
+    stop(paste(
+      "This database has no randomization tables yet. Call",
+      "migrate_add_randomization_tables() first."
+    ), call. = FALSE)
+  }
   study_id <- study_id %||% .current_study_id(conn)
   .with_db_transaction(conn, function(c) {
     DBI::dbExecute(c, "DELETE FROM treatment_arm_labels WHERE study_id = ?",
@@ -532,9 +577,14 @@ randomize_next_subject <- function(conn, subject_id, covariates_row = NULL,
 #' @param study_id Defaults to `.current_study_id(conn)`.
 #' @return A list with `arm_code` and `arm_label` (label `NA` if
 #'   `treatment_arm_labels` has no row for that code), or `NULL` if
-#'   the subject has not been randomized.
+#'   the subject has not been randomized -- including when this
+#'   database has no randomization tables at all. Called
+#'   unconditionally from `inst/app/edc.R` for any CRF form with a
+#'   `randomization_group` field, so it must never throw just
+#'   because a given study was never migrated for randomization.
 #' @export
 get_subject_arm <- function(conn, subject_id, study_id = NULL) {
+  if (!.randomization_tables_exist(conn)) return(NULL)
   study_id <- study_id %||% .current_study_id(conn)
   row <- DBI::dbGetQuery(conn, "
     SELECT h.arm, l.arm_label
@@ -568,6 +618,12 @@ get_subject_arm <- function(conn, subject_id, study_id = NULL) {
 #' @export
 grant_unblinded_access <- function(conn, study_id, user_id, granted_by,
                                     actor_role = NULL) {
+  if (!.randomization_tables_exist(conn)) {
+    return(list(success = FALSE, error = paste(
+      "This database has no randomization tables yet. Call",
+      "migrate_add_randomization_tables() first."
+    )))
+  }
   if (!is.null(actor_role)) {
     denied <- require_role(actor_role, c("Admin"), "grant unblinded access")
     if (!is.null(denied)) return(denied)
@@ -612,6 +668,12 @@ grant_unblinded_access <- function(conn, study_id, user_id, granted_by,
 #' @export
 revoke_unblinded_access <- function(conn, study_id, user_id, revoked_by,
                                      actor_role = NULL) {
+  if (!.randomization_tables_exist(conn)) {
+    return(list(success = FALSE, error = paste(
+      "This database has no randomization tables yet. Call",
+      "migrate_add_randomization_tables() first."
+    )))
+  }
   if (!is.null(actor_role)) {
     denied <- require_role(actor_role, c("Admin"), "revoke unblinded access")
     if (!is.null(denied)) return(denied)
@@ -649,9 +711,15 @@ revoke_unblinded_access <- function(conn, study_id, user_id, revoked_by,
 #' @param conn A DBI connection or pool.
 #' @param study_id Defaults to `.current_study_id(conn)`.
 #' @return A data frame with `user_id`, `granted_date`, `granted_by`
-#'   for every currently-live (not revoked) grant.
+#'   for every currently-live (not revoked) grant. Zero rows, with
+#'   the right columns, when this database has no randomization
+#'   tables yet (see [get_randomization_config()]'s docs).
 #' @export
 list_unblinding_grants <- function(conn, study_id = NULL) {
+  if (!.randomization_tables_exist(conn)) {
+    return(data.frame(user_id = character(0), granted_date = character(0),
+                       granted_by = character(0), stringsAsFactors = FALSE))
+  }
   study_id <- study_id %||% .current_study_id(conn)
   DBI::dbGetQuery(conn, "
     SELECT user_id, granted_date, granted_by
@@ -685,6 +753,7 @@ list_unblinding_grants <- function(conn, study_id = NULL) {
 #'   `NULL` if the study has no randomization history yet.
 #' @export
 get_study_imbalance <- function(conn, study_id = NULL) {
+  if (!.randomization_tables_exist(conn)) return(NULL)
   study_id <- study_id %||% .current_study_id(conn)
   config <- get_randomization_config(conn, study_id)
   history <- DBI::dbGetQuery(conn, "

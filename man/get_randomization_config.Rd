@@ -14,7 +14,11 @@ get_randomization_config(conn, study_id = NULL)
 \value{
 A list with \code{scheme}, \code{scheme_params} (unserialized from
 JSON), \code{covariate_fields} (character vector), \code{rng_seed},
-\code{status}; or \code{NULL} if the study has no randomization config yet.
+\code{status}; or \code{NULL} if the study has no randomization config yet
+(including when this database predates the randomization
+feature entirely and has never run
+\code{\link[=migrate_add_randomization_tables]{migrate_add_randomization_tables()}} -- indistinguishable, from
+a caller's perspective, from "not configured").
 }
 \description{
 Read a Study's Randomization Config

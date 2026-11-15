@@ -15,7 +15,15 @@ is_unblinded(conn, study_id, user_id)
 \code{NULL}/\code{NA}/\code{""} is always blinded.}
 }
 \value{
-\code{TRUE}/\code{FALSE}.
+\code{TRUE}/\code{FALSE}. Also \code{FALSE} (not an error) when this
+database has no randomization tables yet -- the overwhelming
+majority of zzedc studies, including every one that is not a
+randomized trial, have never run
+\code{\link[=migrate_add_randomization_tables]{migrate_add_randomization_tables()}}, and "nobody is unblinded"
+is the correct answer for them, not a crash. This function is
+called unconditionally while rendering any CRF form with a
+\code{randomization_group} field (\code{inst/app/edc.R}), so it must never
+throw.
 }
 \description{
 Blinding is a grant table (\code{study_unblinding_grants},
