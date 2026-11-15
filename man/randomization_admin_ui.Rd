@@ -13,13 +13,15 @@ randomization_admin_ui(id)
 UI elements
 }
 \description{
-Three panels: study-level scheme setup (scheme, covariate fields,
+Four panels: study-level scheme setup (scheme, covariate fields,
 seed, arm labels -- Admin-only, and refused once the config is
 locked, i.e. after the first subject is randomized), the Phase 2
 blinding grant/revoke panel (who currently has unblinded access to
-this study's treatment assignments, Admin-only), and balance
+this study's treatment assignments, Admin-only), balance
 diagnostics (\code{zzalloc::allocation_imbalance()} on the realized
 allocation, visible only to an unblinded viewer since it reveals
-per-arm counts).
+per-arm counts), and the Phase 4 emergency unblind panel (a
+one-time, reason-mandatory reveal of a single subject's arm,
+Admin/PI-only, that never grants standing access).
 }
 \keyword{internal}

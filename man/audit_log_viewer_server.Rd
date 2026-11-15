@@ -4,12 +4,19 @@
 \alias{audit_log_viewer_server}
 \title{Audit Log Viewer Server}
 \usage{
-audit_log_viewer_server(id, db_pool = NULL)
+audit_log_viewer_server(id, db_pool = NULL, user_session = NULL)
 }
 \arguments{
 \item{id}{The namespace id for the module}
 
 \item{db_pool}{Reactive expression returning database connection pool}
+
+\item{user_session}{Reactive values with the viewing user's login
+state (\code{user_id}). Used only to decide whether an
+\code{EMERGENCY_UNBLIND} row's \code{details} (the one audit event type
+that legitimately contains a revealed treatment arm -- see
+R/randomization_module.R) may be shown to this viewer; \code{NULL}
+masks it unconditionally, the fail-safe default.}
 }
 \value{
 Invisible NULL

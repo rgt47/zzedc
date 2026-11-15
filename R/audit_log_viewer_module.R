@@ -41,7 +41,7 @@ audit_log_viewer_ui <- function(id) {
                                         "PERMISSION_CHANGE"),
                          "System" = c("BACKUP", "RESTORE", "CONFIG_CHANGE",
                                       "COMPLIANCE_CHECK", "ACCESS"),
-                         "Randomization" = c("RANDOMIZATION")
+                         "Randomization" = c("RANDOMIZATION", "EMERGENCY_UNBLIND")
                        ))
           ),
 
@@ -144,6 +144,12 @@ audit_log_viewer_ui <- function(id) {
 #'
 #' @param id The namespace id for the module
 #' @param db_pool Reactive expression returning database connection pool
+#' @param user_session Reactive values with the viewing user's login
+#'   state (`user_id`). Used only to decide whether an
+#'   `EMERGENCY_UNBLIND` row's `details` (the one audit event type
+#'   that legitimately contains a revealed treatment arm -- see
+#'   R/randomization_module.R) may be shown to this viewer; `NULL`
+#'   masks it unconditionally, the fail-safe default.
 #'
 #' @return Invisible NULL
 #'
@@ -163,9 +169,18 @@ audit_log_viewer_ui <- function(id) {
 #' }
 #' }
 #' @keywords internal
-audit_log_viewer_server <- function(id, db_pool = NULL) {
+audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    .pool <- function() if (is.function(db_pool) && !inherits(db_pool, "Pool")) db_pool() else db_pool
+    .viewer_unblinded_for <- function(study_id) {
+      conn <- .pool()
+      viewer_id <- if (!is.null(user_session)) user_session$user_id else NULL
+      if (is.null(conn) || is.null(viewer_id)) return(FALSE)
+      isTRUE(tryCatch(zzedc::is_unblinded(conn, study_id, viewer_id),
+                       error = function(e) FALSE))
+    }
 
     # Reactive values
     log_state <- reactiveValues(
@@ -366,6 +381,18 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
         shiny::tags$tr(shiny::tags$td(shiny::tags$strong(label)),
                        shiny::tags$td(if (code) shiny::tags$code(value) else value))
       }
+      # EMERGENCY_UNBLIND is the one event type whose details
+      # legitimately contains a revealed treatment arm (see
+      # R/randomization_module.R's emergency_unblind_subject()); a
+      # viewer who is not unblinded for this study must not see it
+      # here even though they can see every other field of the same
+      # row, including who performed the unblind and why.
+      details_value <- if (identical(e1$action, "EMERGENCY_UNBLIND") &&
+                              !.viewer_unblinded_for(zzedc:::.current_study_id(.pool()))) {
+        "(hidden -- you are blinded for this study)"
+      } else {
+        e1$details
+      }
       details_ui <- shiny::tags$table(class = "table",
         row("Audit ID:", e1$audit_id),
         row("User:", e1$user_id),
@@ -376,7 +403,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL) {
         row("Timestamp (UTC):", e1$action_date),
         row("IP Address:", e1$ip_address, code = TRUE),
         row("Session:", e1$session_id, code = TRUE),
-        row("Details:", e1$details, code = TRUE)
+        row("Details:", details_value, code = TRUE)
       )
 
       shiny::showModal(shiny::modalDialog(

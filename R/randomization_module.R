@@ -5,7 +5,7 @@
 # lets zzalloc's batch allocate() be replayed one subject at a time,
 # and treatment_arm_labels mapping zzalloc's raw integer arm codes to
 # a human label -- see ~/.claude/plans/soft-orbiting-acorn.md for the
-# full phased plan (emergency unblinding in phase 4).
+# full phased plan.
 #
 # Phase 2 adds blinding enforcement: grant_unblinded_access() /
 # revoke_unblinded_access() below manage the study_unblinding_grants
@@ -43,6 +43,15 @@
 # additionally returns a list ($trt/$response), not the plain integer
 # vector every other scheme returns, which this file's arm-extraction
 # code does not handle.
+#
+# Phase 4 adds emergency_unblind_subject(): a one-time, reason-
+# mandatory reveal of a single subject's arm, distinct from
+# grant_unblinded_access()'s *standing* access -- it never writes to
+# study_unblinding_grants. Its EMERGENCY_UNBLIND audit event is the
+# one event type in this file whose `details` legitimately contains
+# the revealed arm (every RANDOMIZATION event deliberately omits it),
+# so the audit viewer must mask that event's details for a blinded
+# viewer -- see R/audit_log_viewer_module.R.
 #
 # Treatment arm lives ONLY in randomization_history.arm, never on
 # subjects: every existing subjects-based query (CRF rendering,
@@ -694,4 +703,78 @@ get_study_imbalance <- function(conn, study_id = NULL) {
     NULL
   }
   zzalloc::allocation_imbalance(trt, cov_df)
+}
+
+
+#' Emergency-Unblind a Single Subject
+#'
+#' A one-time, reason-mandatory reveal of one subject's treatment
+#' arm -- distinct from [grant_unblinded_access()], which gives
+#' *standing* access to every subject in a study. This never writes
+#' to `study_unblinding_grants`: a clinician who needs to know one
+#' subject's arm right now (e.g. a serious adverse event) does not
+#' thereby become unblinded for the rest of the study, and the next
+#' call to [is_unblinded()] for that user is unaffected.
+#'
+#' The reveal is recorded as its own `EMERGENCY_UNBLIND` audit event
+#' whose `details` *legitimately* contains the revealed arm (unlike
+#' `RANDOMIZATION` events, which never do) -- a UI showing the audit
+#' trail to a viewer who is not unblinded must mask this event's
+#' `details`, the same way `get_subject_arm()`'s result must be
+#' gated at display time rather than withheld here.
+#'
+#' @param conn A DBI connection or pool.
+#' @param subject_id The subject to unblind. Must already be
+#'   randomized.
+#' @param requested_by User id performing this unblind, for the
+#'   audit trail. Required.
+#' @param reason Free-text justification, at least 10 characters
+#'   (the same minimum [zzedc::invalidate_signature()] requires for
+#'   its own most-sensitive action). Required.
+#' @param study_id Defaults to `.current_study_id(conn)`.
+#' @param actor_role Optional: the requesting user's role, checked
+#'   via [require_role()] against `c("Admin", "PI")`. `NULL` skips
+#'   the check.
+#' @return `list(success = TRUE, arm_code = <int>, arm_label = <chr>)`
+#'   for one-time display, or `list(success = FALSE, error = ...)`.
+#' @export
+emergency_unblind_subject <- function(conn, subject_id, requested_by, reason,
+                                       study_id = NULL, actor_role = NULL) {
+  study_id <- study_id %||% .current_study_id(conn)
+  if (!is.null(actor_role)) {
+    denied <- require_role(actor_role, c("Admin", "PI"), "perform an emergency unblind")
+    if (!is.null(denied)) return(denied)
+  }
+  if (is.null(requested_by) || is.na(requested_by) || !nzchar(requested_by)) {
+    return(list(success = FALSE, error = "requested_by is required."))
+  }
+  if (is.null(reason) || nchar(trimws(reason %||% "")) < 10) {
+    return(list(success = FALSE, error = paste(
+      "A reason of at least 10 characters is required for an",
+      "emergency unblind."
+    )))
+  }
+
+  arm <- get_subject_arm(conn, subject_id, study_id)
+  if (is.null(arm)) {
+    return(list(success = FALSE, error = paste0(
+      "Subject '", subject_id, "' has not been randomized."
+    )))
+  }
+
+  .with_db_transaction(conn, function(c) {
+    .append_audit_record(
+      c, event_type = "EMERGENCY_UNBLIND", table_name = "randomization_history",
+      record_id = subject_id,
+      operation = paste0("Emergency unblind for subject '", subject_id, "'"),
+      details = jsonlite::toJSON(list(
+        study_id = study_id, subject_id = subject_id,
+        arm_code = arm$arm_code, arm_label = arm$arm_label %||% NA_character_,
+        reason = reason
+      ), auto_unbox = TRUE),
+      user_id = requested_by
+    )
+  })
+
+  list(success = TRUE, arm_code = arm$arm_code, arm_label = arm$arm_label)
 }

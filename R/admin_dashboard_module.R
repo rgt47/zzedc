@@ -161,7 +161,8 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL,
       user_session = user_session
     )
 
-    audit_results <- audit_log_viewer_server("audit", db_pool = db_pool)
+    audit_results <- audit_log_viewer_server("audit", db_pool = db_pool,
+                                              user_session = user_session)
 
     randomization_admin_server("randomization", db_pool = db_pool,
                                 user_session = user_session)

@@ -1,13 +1,15 @@
 #' Randomization Admin UI
 #'
-#' Three panels: study-level scheme setup (scheme, covariate fields,
+#' Four panels: study-level scheme setup (scheme, covariate fields,
 #' seed, arm labels -- Admin-only, and refused once the config is
 #' locked, i.e. after the first subject is randomized), the Phase 2
 #' blinding grant/revoke panel (who currently has unblinded access to
-#' this study's treatment assignments, Admin-only), and balance
+#' this study's treatment assignments, Admin-only), balance
 #' diagnostics (`zzalloc::allocation_imbalance()` on the realized
 #' allocation, visible only to an unblinded viewer since it reveals
-#' per-arm counts).
+#' per-arm counts), and the Phase 4 emergency unblind panel (a
+#' one-time, reason-mandatory reveal of a single subject's arm,
+#' Admin/PI-only, that never grants standing access).
 #'
 #' @param id The namespace id for the module
 #' @return UI elements
@@ -68,7 +70,25 @@ randomization_admin_ui <- function(id) {
     hr(),
 
     h4("Balance Diagnostics"),
-    uiOutput(ns("imbalance_display"))
+    uiOutput(ns("imbalance_display")),
+    hr(),
+
+    h4("Emergency Unblind"),
+    p(class = "text-muted",
+      "Reveals one subject's treatment arm immediately, for a",
+      "situation (e.g. a serious adverse event) where someone needs",
+      "to know right now. This is a one-time disclosure, not standing",
+      "access: it does not change this or any user's blinding status",
+      "for the rest of the study, and is logged with the reason given.",
+      "Admin or PI only."),
+    fluidRow(
+      column(4, textInput(ns("unblind_subject_id"), "Subject ID")),
+      column(8, textAreaInput(ns("unblind_reason"), "Reason (required, min. 10 characters)",
+                               rows = 2))
+    ),
+    actionButton(ns("unblind_btn"), "Emergency Unblind",
+                 class = "btn btn-outline-danger"),
+    uiOutput(ns("unblind_result"))
   )
 }
 
@@ -253,6 +273,40 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
         shiny::showNotification(paste("Could not revoke access:", result$error),
                                  type = "error")
       }
+    })
+
+    # One-time display only -- never written anywhere other than the
+    # EMERGENCY_UNBLIND audit event itself (emergency_unblind_subject()
+    # does not touch study_unblinding_grants), and cleared whenever the
+    # subject id field changes so a stale reveal can't linger on screen
+    # after the viewer moves on to a different subject.
+    unblind_result <- reactiveVal(NULL)
+    observeEvent(input$unblind_subject_id, unblind_result(NULL))
+
+    observeEvent(input$unblind_btn, {
+      conn <- .db()
+      shiny::req(conn, input$unblind_subject_id)
+      result <- zzedc::emergency_unblind_subject(
+        conn, subject_id = input$unblind_subject_id,
+        requested_by = .actor_user_id(), reason = input$unblind_reason,
+        study_id = zzedc:::.current_study_id(conn), actor_role = .actor_role()
+      )
+      if (isTRUE(result$success)) {
+        unblind_result(paste0(
+          "Subject '", input$unblind_subject_id, "' is on arm: ",
+          result$arm_label %||% paste0("Arm ", result$arm_code)
+        ))
+      } else {
+        unblind_result(NULL)
+        shiny::showNotification(paste("Could not unblind:", result$error),
+                                 type = "error")
+      }
+    })
+
+    output$unblind_result <- renderUI({
+      val <- unblind_result()
+      shiny::req(val)
+      tags$div(class = "alert alert-warning mt-2", val)
     })
 
     invisible(NULL)
