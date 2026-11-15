@@ -97,6 +97,13 @@ create_enhanced_ui <- function() {
     uiOutput("htable")
   )
 
+  nav_tabs[["reports5"]] <- bslib::nav_panel(
+    title = "Subject Case Report",
+    icon = bsicons::bs_icon("person-lines-fill"),
+    value = "report5",
+    uiOutput("rep5")
+  )
+
   # 5. Always include Data Explorer and Export. Data Explorer is a
   # real package module (R/data_module.R), not a flat script -- there
   # never was a data.R in this directory, so source("data.R", ...)
@@ -141,6 +148,25 @@ create_enhanced_ui <- function() {
     value = "compliance",
     .safe_internal_ui("cfr_compliance_ui", "compliance",
                        "Compliance module not available")
+  )
+
+  # Data corrections (request, review, apply; R/data_correction_module.R)
+  # and the validation-rule editor (R/validation_rules_module.R), which
+  # writes the dsl_validation_rules table that submission enforces.
+  nav_tabs[["corrections"]] <- bslib::nav_panel(
+    title = "Corrections",
+    icon = bsicons::bs_icon("pencil-square"),
+    value = "corrections",
+    .safe_internal_ui("data_correction_ui", "corrections",
+                       "Data correction module not available")
+  )
+
+  nav_tabs[["rules"]] <- bslib::nav_panel(
+    title = "Validation Rules",
+    icon = bsicons::bs_icon("check2-square"),
+    value = "rules",
+    .safe_internal_ui("validation_rules_ui", "rules",
+                       "Validation rule editor not available")
   )
 
   nav_tabs[["admin"]] <- bslib::nav_panel(

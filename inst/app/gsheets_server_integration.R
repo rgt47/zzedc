@@ -225,6 +225,9 @@ initialize_traditional_server <- function(input, output, session) {
   if (file.exists("report4.R")) {
     source("report4.R", local = TRUE)
   }
+  if (file.exists("report5.R")) {
+    source("report5.R", local = TRUE)
+  }
 
   # Data Explorer is a real Shiny module (R/data_module.R), not a flat
   # script like the files above -- previously nothing here ever
@@ -279,6 +282,35 @@ initialize_traditional_server <- function(input, output, session) {
     admin_dashboard_server_fn("admin", db_pool = db_pool, user_session = user_input,
                               db_path = reactive(db_path),
                               db_adapter = db_adapter)
+  }
+
+  # Data corrections and the validation-rule editor. Both modules
+  # create or read their own tables, so those tables are ensured here.
+  # Each module checks the user's role itself (approval rights in the
+  # correction workflow; get_user_dsl_permissions() in the editor).
+  correction_server_fn <- tryCatch(
+    utils::getFromNamespace("data_correction_server", "zzedc"),
+    error = function(e) NULL
+  )
+  if (!is.null(correction_server_fn)) {
+    zzedc::init_data_correction(db_path = db_path)
+    correction_server_fn("corrections",
+                         current_user = reactive(user_input$username),
+                         user_role = reactive(user_input$role),
+                         db_path = db_path)
+  }
+
+  rules_server_fn <- tryCatch(
+    utils::getFromNamespace("validation_rules_server", "zzedc"),
+    error = function(e) NULL
+  )
+  if (!is.null(rules_server_fn)) {
+    zzedc::init_dsl_rules_db()
+    rules_server_fn("rules", user_info = reactive({
+      req(isTRUE(user_input$authenticated))
+      list(user_id = user_input$user_id, username = user_input$username,
+           role = user_input$role)
+    }))
   }
 
   if (file.exists("export.R")) {

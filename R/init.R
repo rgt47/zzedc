@@ -283,6 +283,7 @@ init_from_config <- function(config_file, project_dir = ".") {
     security_salt = generate_security_salt(),
     session_timeout = as.numeric(security$session_timeout_minutes %||% 30),
     enforce_https = as.logical(security$enforce_https %||% TRUE),
+    security_profile = security$profile %||% NULL,
     team_members = data.frame()
   )
 
@@ -319,6 +320,30 @@ execute_init_setup <- function(config, project_dir = ".") {
     db_result <- create_wizard_database(config, db_path)
     if (!db_result$success) {
       stop(db_result$message)
+    }
+
+    # init() creates an unencrypted SQLite database, so the profile it
+    # writes must accept one: the config writer's default ('regulated')
+    # refuses unencrypted storage, and the first launch would then
+    # refuse to start. A profile given explicitly is kept, with a
+    # warning when it cannot be satisfied.
+    db_encrypted <- isTRUE(tryCatch(sqlite_file_is_encrypted(db_path),
+                                    error = function(e) FALSE))
+    if (is.null(config$security_profile)) {
+      config$security_profile <- if (db_encrypted) "regulated" else "standard"
+    }
+    if (!db_encrypted) {
+      if (identical(config$security_profile, "regulated")) {
+        warning("security.profile is 'regulated' but the SQLite database ",
+                "is not encrypted; the application will refuse to start. ",
+                "Create the study with launch_zzedc(backend = \"duckdb\") ",
+                "for encrypted storage.", call. = FALSE)
+      } else {
+        cat("Note: the SQLite database is not encrypted at rest, so the\n")
+        cat("study uses the 'standard' security profile. For data that\n")
+        cat("must be encrypted, create the study with\n")
+        cat("launch_zzedc(backend = \"duckdb\") instead.\n\n")
+      }
     }
 
     # Create config file
