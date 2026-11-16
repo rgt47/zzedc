@@ -83,3 +83,59 @@ if (duck_ok) with_profile("development", {
   expect_error(rotate_database_key(new_cfg, new_key = res$new_key), "same as the current")
   unlink(dir, recursive = TRUE)
 })
+
+# Defect 6 (zzedc-modernization-whitepaper-2026-11-13.md, Section 2.2):
+# rotate_encryption_key() (the AWS Secrets Manager rotation path,
+# R/aws_kms_utils.R) used to update the Secrets Manager secret and
+# clear the cached-key memoization without ever re-encrypting the
+# database file itself -- the on-disk database stayed under the old
+# key while Secrets Manager (and so every later connection attempt)
+# held the new one, so the very next connection would fail outright.
+# It now calls rotate_database_key() first and reports
+# database_rekeyed accurately even when the Secrets Manager step
+# itself fails (paws is not installed in this test environment,
+# which exercises exactly that path).
+if (duck_ok) with_profile("development", {
+  cache <- get(".db_adapter_cache", envir = asNamespace("zzedc"))
+  had <- exists("adapter", envir = cache)
+  prev <- if (had) cache$adapter else NULL
+  on.exit(if (had) assign("adapter", prev, envir = cache)
+          else if (exists("adapter", envir = cache)) rm("adapter", envir = cache), add = TRUE)
+
+  dir <- tempfile("rot_kms_")
+  dir.create(dir)
+  old_key <- generate_db_key()
+  cfg <- list(db_backend = "duckdb",
+              duckdb = list(path = file.path(dir, "study.duckdb"), encryption_key = old_key))
+  a <- get_db_adapter(config = cfg, force_new = TRUE)
+  con <- a$connect()
+  DBI::dbExecute(con, "CREATE TABLE t AS SELECT 'KEEP_ME' AS v")
+  a$disconnect(con)
+  a$shutdown()
+
+  new_key <- generate_db_key()
+  result <- rotate_encryption_key(cfg, new_key = new_key)
+
+  expect_true(result$database_rekeyed,
+              info = "the database file is re-encrypted even when the Secrets Manager step cannot run")
+  if (!requireNamespace("paws", quietly = TRUE)) {
+    expect_false(result$success,
+                 info = "overall success still reflects the unreachable Secrets Manager step")
+    expect_true(grepl(new_key, result$error, fixed = TRUE),
+                info = "the new key is surfaced for manual recovery since Secrets Manager was not updated")
+  }
+
+  new_cfg <- cfg
+  new_cfg$duckdb$encryption_key <- new_key
+  a2 <- create_db_adapter(new_cfg)
+  con <- a2$connect()
+  expect_identical(DBI::dbGetQuery(con, "SELECT v FROM t")$v, "KEEP_ME",
+                   info = "data preserved across rotate_encryption_key()")
+  a2$disconnect(con)
+  a2$shutdown()
+
+  a_old <- create_db_adapter(cfg)
+  expect_error(a_old$connect(), info = "no longer opens under the pre-rotation key")
+
+  unlink(dir, recursive = TRUE)
+})

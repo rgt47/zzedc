@@ -99,15 +99,43 @@ setup_aws_kms <- function() {
 
 #' Rotate Database Encryption Key via AWS KMS
 #'
-#' Rotates the active encryption key by archiving the old key and activating a new one.
-#' This function is used for planned key rotation in production environments.
+#' Rotates the active encryption key by re-encrypting the database file
+#' under the new key, then archiving the old key and activating the new
+#' one in AWS Secrets Manager. This function is used for planned key
+#' rotation in production environments.
 #'
-#' @param new_key Character: New 64-hex-character encryption key (from generate_db_key)
+#' Defect (zzedc-modernization-whitepaper-2026-11-13.md, Section 2.2,
+#' #6): this function used to update the Secrets Manager secret and
+#' clear the cached-key memoization, but never actually re-encrypted
+#' the database file itself -- the comment immediately below
+#' documented the gap ("After key rotation, the database must be
+#' re-encrypted with the new key") without the code doing it. The
+#' practical effect: calling this left the on-disk database still
+#' encrypted under the *old* key while Secrets Manager (and therefore
+#' every subsequent connection attempt) held the *new* one, so the
+#' very next connection would fail to open the database at all. Fixed
+#' by calling [rotate_database_key()] -- the function that actually
+#' performs the re-encryption (`PRAGMA rekey` for SQLite, copy-and-
+#' verify for DuckDB) -- first, and only updating Secrets Manager
+#' once that succeeds; if the on-disk re-key fails, the secret is left
+#' untouched so the two never disagree about which key is current.
+#'
+#' @param db_config Adapter configuration (`app_database_config(cfg)`)
+#'   for the database to re-encrypt, holding the current key. Passed
+#'   straight through to [rotate_database_key()].
+#' @param new_key Character: New 64-hex-character encryption key (from
+#'   generate_db_key)
 #'
 #' @return List with rotation status:
-#'   - success: Logical TRUE if rotation successful
+#'   - success: Logical TRUE if both the database re-encryption and the
+#'     Secrets Manager update succeeded
+#'   - database_rekeyed: Logical TRUE if the database file itself was
+#'     re-encrypted under `new_key`
 #'   - old_key_archived: Logical TRUE if old key saved
-#'   - new_key_active: Logical TRUE if new key now active
+#'   - new_key_active: Logical TRUE if new key now active in Secrets Manager
+#'   - previous_copy: For DuckDB, the path of the database file as it was
+#'     encrypted under the old key (see [rotate_database_key()]); `NA`
+#'     for SQLite, which re-keys in place
 #'   - timestamp: Rotation timestamp
 #'   - old_version_id: AWS version ID of archived old key
 #'   - new_version_id: AWS version ID of new key
@@ -118,17 +146,20 @@ setup_aws_kms <- function() {
 #' Key Rotation Procedure:
 #'
 #' 1. Validate new key format (64 hex chars, lowercase)
-#' 2. Retrieve current key from AWS Secrets Manager
-#' 3. Archive current key with timestamp metadata
-#' 4. Store new key as active in AWS Secrets Manager
-#' 5. Return rotation confirmation with version IDs
-#'
-#' After key rotation, the database must be re-encrypted with the new key.
+#' 2. Re-encrypt the database file under the new key
+#'    ([rotate_database_key()]); stop here, with Secrets Manager
+#'    untouched, if this fails
+#' 3. Retrieve current key from AWS Secrets Manager
+#' 4. Archive current key with timestamp metadata
+#' 5. Store new key as active in AWS Secrets Manager
+#' 6. Return rotation confirmation with version IDs
 #'
 #' @examples
 #' \dontrun{
+#'   cfg <- config::get(file = "config.yml")
+#'   db_config <- app_database_config(cfg)
 #'   new_key <- generate_db_key()
-#'   result <- rotate_encryption_key(new_key)
+#'   result <- rotate_encryption_key(db_config, new_key)
 #'   if (result$success) {
 #'     cat("Key rotation successful\n")
 #'   }
@@ -136,18 +167,47 @@ setup_aws_kms <- function() {
 #'
 #' @keywords internal
 #' @export
-rotate_encryption_key <- function(new_key) {
-  tryCatch({
-    # Validate new key (from encryption_utils)
-    if (!exists("verify_db_key", mode = "function")) {
-      stop("verify_db_key() not found. Load encryption_utils.R first.")
-    }
-    verify_db_key(new_key)
+rotate_encryption_key <- function(db_config, new_key = generate_db_key()) {
+  # Validate new key (from encryption_utils)
+  if (!exists("verify_db_key", mode = "function")) {
+    stop("verify_db_key() not found. Load encryption_utils.R first.")
+  }
+  verify_db_key(new_key)
 
+  # Stage 1: re-encrypt the database file itself. Its own tryCatch, so
+  # a failure here is reported with database_rekeyed = FALSE and
+  # Secrets Manager is never touched -- the two must not disagree
+  # about which key is current.
+  rotation <- tryCatch(
+    rotate_database_key(db_config, new_key = new_key),
+    error = function(e) e
+  )
+  if (inherits(rotation, "error")) {
+    return(list(
+      success = FALSE,
+      database_rekeyed = FALSE,
+      old_key_archived = FALSE,
+      new_key_active = FALSE,
+      error = paste("Key rotation failed (database not re-encrypted):",
+                     conditionMessage(rotation))
+    ))
+  }
+
+  # Stage 2: update AWS Secrets Manager. Its own tryCatch, so a
+  # failure here is reported with database_rekeyed = TRUE (the
+  # database file genuinely was re-encrypted in Stage 1) rather than
+  # the misleading FALSE a single shared error handler would give.
+  tryCatch({
     if (!requireNamespace("paws", quietly = TRUE)) {
       return(list(
         success = FALSE,
-        error = "paws package required for AWS KMS operations"
+        database_rekeyed = TRUE,
+        previous_copy = rotation$previous_copy,
+        error = paste(
+          "Database was re-encrypted, but the paws package is required",
+          "to also update AWS Secrets Manager; the new key is",
+          new_key
+        )
       ))
     }
 
@@ -173,23 +233,29 @@ rotate_encryption_key <- function(new_key) {
     # Invalidate the cached encryption key so callers refresh.
     clear_encryption_key_cache()
 
-    return(list(
+    list(
       success = TRUE,
+      database_rekeyed = TRUE,
+      previous_copy = rotation$previous_copy,
       old_key_archived = TRUE,
       new_key_active = TRUE,
       timestamp = timestamp,
       old_version_id = old_version_id,
       new_version_id = update_result$VersionId,
       message = paste("Key rotation completed at", timestamp)
-    ))
-
+    )
   }, error = function(e) {
-    return(list(
+    list(
       success = FALSE,
+      database_rekeyed = TRUE,
+      previous_copy = rotation$previous_copy,
       old_key_archived = FALSE,
       new_key_active = FALSE,
-      error = paste("Key rotation failed:", e$message)
-    ))
+      error = paste(
+        "Database was re-encrypted, but updating AWS Secrets Manager failed:",
+        conditionMessage(e), "-- the new key is", new_key
+      )
+    )
   })
 }
 

@@ -4,17 +4,28 @@
 \alias{rotate_encryption_key}
 \title{Rotate Database Encryption Key via AWS KMS}
 \usage{
-rotate_encryption_key(new_key)
+rotate_encryption_key(db_config, new_key = generate_db_key())
 }
 \arguments{
-\item{new_key}{Character: New 64-hex-character encryption key (from generate_db_key)}
+\item{db_config}{Adapter configuration (\code{app_database_config(cfg)})
+for the database to re-encrypt, holding the current key. Passed
+straight through to \code{\link[=rotate_database_key]{rotate_database_key()}}.}
+
+\item{new_key}{Character: New 64-hex-character encryption key (from
+generate_db_key)}
 }
 \value{
 List with rotation status:
 \itemize{
-\item success: Logical TRUE if rotation successful
+\item success: Logical TRUE if both the database re-encryption and the
+Secrets Manager update succeeded
+\item database_rekeyed: Logical TRUE if the database file itself was
+re-encrypted under \code{new_key}
 \item old_key_archived: Logical TRUE if old key saved
-\item new_key_active: Logical TRUE if new key now active
+\item new_key_active: Logical TRUE if new key now active in Secrets Manager
+\item previous_copy: For DuckDB, the path of the database file as it was
+encrypted under the old key (see \code{\link[=rotate_database_key]{rotate_database_key()}}); \code{NA}
+for SQLite, which re-keys in place
 \item timestamp: Rotation timestamp
 \item old_version_id: AWS version ID of archived old key
 \item new_version_id: AWS version ID of new key
@@ -23,25 +34,46 @@ List with rotation status:
 }
 }
 \description{
-Rotates the active encryption key by archiving the old key and activating a new one.
-This function is used for planned key rotation in production environments.
+Rotates the active encryption key by re-encrypting the database file
+under the new key, then archiving the old key and activating the new
+one in AWS Secrets Manager. This function is used for planned key
+rotation in production environments.
 }
 \details{
+Defect (zzedc-modernization-whitepaper-2026-11-13.md, Section 2.2,
+#6): this function used to update the Secrets Manager secret and
+clear the cached-key memoization, but never actually re-encrypted
+the database file itself -- the comment immediately below
+documented the gap ("After key rotation, the database must be
+re-encrypted with the new key") without the code doing it. The
+practical effect: calling this left the on-disk database still
+encrypted under the \emph{old} key while Secrets Manager (and therefore
+every subsequent connection attempt) held the \emph{new} one, so the
+very next connection would fail to open the database at all. Fixed
+by calling \code{\link[=rotate_database_key]{rotate_database_key()}} -- the function that actually
+performs the re-encryption (\verb{PRAGMA rekey} for SQLite, copy-and-
+verify for DuckDB) -- first, and only updating Secrets Manager
+once that succeeds; if the on-disk re-key fails, the secret is left
+untouched so the two never disagree about which key is current.
+
 Key Rotation Procedure:
 \enumerate{
 \item Validate new key format (64 hex chars, lowercase)
+\item Re-encrypt the database file under the new key
+(\code{\link[=rotate_database_key]{rotate_database_key()}}); stop here, with Secrets Manager
+untouched, if this fails
 \item Retrieve current key from AWS Secrets Manager
 \item Archive current key with timestamp metadata
 \item Store new key as active in AWS Secrets Manager
 \item Return rotation confirmation with version IDs
 }
-
-After key rotation, the database must be re-encrypted with the new key.
 }
 \examples{
 \dontrun{
+  cfg <- config::get(file = "config.yml")
+  db_config <- app_database_config(cfg)
   new_key <- generate_db_key()
-  result <- rotate_encryption_key(new_key)
+  result <- rotate_encryption_key(db_config, new_key)
   if (result$success) {
     cat("Key rotation successful\n")
   }
