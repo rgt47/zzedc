@@ -10,15 +10,16 @@ parse_dsl_rule(rule)
 \item{rule}{Character string containing the validation rule}
 }
 \value{
-List representing the AST
+A named list AST node. Its \code{type} names the node kind
+(e.g. \code{"comparison"}); the remaining elements vary by kind. A
+\code{"comparison"} node has \code{field} (itself a \code{list(type="field", name=)}), \code{operator}, and \code{value} (a \code{list(type="literal", value=, literal_type=)}).
 }
 \description{
 Parse a validation rule into an AST
 }
 \examples{
-\dontrun{
-ast <- parse_dsl_rule("x >= 18")
-ast <- parse_dsl_rule("between 40 and 200")
-}
+ast <- parse_dsl_rule("age >= 18")
+ast$type
+ast$operator
 
 }

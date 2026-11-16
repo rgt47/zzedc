@@ -23,9 +23,12 @@ Key generation:
 }
 }
 \examples{
-\dontrun{
-  key <- generate_db_key()
-  Sys.setenv(DB_ENCRYPTION_KEY = key)
-}
+key <- generate_db_key()
+nchar(key)
+
+# Pass the key directly (e.g. to initialize_encrypted_database()'s
+# `key` argument) rather than round-tripping it through
+# Sys.setenv(), which leaves key material in the process
+# environment for the rest of the session.
 
 }

@@ -16,12 +16,8 @@ Character string with timestamp expression
 Returns the appropriate expression for current timestamp based on backend.
 }
 \examples{
-\dontrun{
-  adapter <- create_db_adapter(config)
-  ts <- timestamp_now(adapter)
-  # SQLite: datetime('now')
-  # DuckDB: now()
-  # PostgreSQL: NOW()
-}
+adapter <- create_db_adapter(default_db_config("sqlite"))
+timestamp_now(adapter)  # "datetime('now')"; "now()" on DuckDB,
+                        # "NOW()" on PostgreSQL
 
 }

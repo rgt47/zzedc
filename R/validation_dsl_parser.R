@@ -289,13 +289,16 @@ ast_node <- function(type, ...) {
 #'
 #' @param rule Character string containing the validation rule
 #'
-#' @return List representing the AST
+#' @return A named list AST node. Its `type` names the node kind
+#'   (e.g. `"comparison"`); the remaining elements vary by kind. A
+#'   `"comparison"` node has `field` (itself a `list(type="field",
+#'   name=)`), `operator`, and `value` (a `list(type="literal",
+#'   value=, literal_type=)`).
 #'
 #' @examples
-#' \dontrun{
-#' ast <- parse_dsl_rule("x >= 18")
-#' ast <- parse_dsl_rule("between 40 and 200")
-#' }
+#' ast <- parse_dsl_rule("age >= 18")
+#' ast$type
+#' ast$operator
 #'
 #' @export
 parse_dsl_rule <- function(rule) {
@@ -661,10 +664,8 @@ Parser <- R6::R6Class(
 #' @return Character vector of field names
 #'
 #' @examples
-#' \dontrun{
-#' ast <- parse_dsl_rule("x >= 18")
+#' ast <- parse_dsl_rule("age >= 18")
 #' fields <- extract_ast_fields(ast)
-#' }
 #'
 #' @keywords internal
 #' @export

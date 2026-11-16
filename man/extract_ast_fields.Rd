@@ -16,10 +16,8 @@ Character vector of field names
 Returns all field names that are referenced in the validation rule.
 }
 \examples{
-\dontrun{
-ast <- parse_dsl_rule("x >= 18")
+ast <- parse_dsl_rule("age >= 18")
 fields <- extract_ast_fields(ast)
-}
 
 }
 \keyword{internal}

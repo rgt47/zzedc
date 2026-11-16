@@ -296,13 +296,9 @@ build_upsert <- function(adapter, table_name, columns, conflict_columns,
 #' @return Character string with timestamp expression
 #'
 #' @examples
-#' \dontrun{
-#'   adapter <- create_db_adapter(config)
-#'   ts <- timestamp_now(adapter)
-#'   # SQLite: datetime('now')
-#'   # DuckDB: now()
-#'   # PostgreSQL: NOW()
-#' }
+#' adapter <- create_db_adapter(default_db_config("sqlite"))
+#' timestamp_now(adapter)  # "datetime('now')"; "now()" on DuckDB,
+#'                         # "NOW()" on PostgreSQL
 #'
 #' @export
 timestamp_now <- function(adapter) {
