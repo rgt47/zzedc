@@ -25,13 +25,17 @@ load_gsheets_forms <- function(forms_dir = "forms_generated", db_path = NULL) {
 
   # Load form definitions from database. Inside the application, use
   # its pool (global.R), which follows the configured backend and its
-  # encryption; a direct SQLite connection is kept only for callers
-  # that pass an explicit db_path outside the application.
+  # encryption. A caller that passes an explicit db_path outside the
+  # application goes through connect_encrypted_db() rather than a raw
+  # RSQLite::dbConnect() -- the latter silently opened the file
+  # plaintext even when it held an encrypted database, bypassing the
+  # package's one encryption-aware connection path and its
+  # security-profile enforcement entirely.
   if (!explicit_path && exists("db_pool", inherits = TRUE)) {
     con <- get("db_pool", inherits = TRUE)
   } else {
-    con <- RSQLite::dbConnect(RSQLite::SQLite(), db_path)
-    on.exit(RSQLite::dbDisconnect(con))
+    con <- connect_encrypted_db(db_path = db_path)
+    on.exit(DBI::dbDisconnect(con))
   }
 
   tryCatch({
