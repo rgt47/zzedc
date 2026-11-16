@@ -135,6 +135,15 @@ migrate_add_randomization_tables <- function(conn, adapter = NULL) {
   dialect <- adapter$dialect()
   backend <- adapter$backend_name()
   .create_randomization_tables(conn, dialect, backend, adapter)
+  # Defect 11 (zzedc-modernization-whitepaper-2026-11-13.md, Section
+  # 2.2): a database old enough to need this migration predates
+  # RANDOMIZATION/EMERGENCY_UNBLIND in .audit_event_types too, so
+  # audit_log's CHECK constraint would reject both event types this
+  # feature writes. This is the one place an existing study's
+  # database is migrated for randomization at all, so it is also the
+  # right (and only, until a caller invokes it elsewhere) place to
+  # close that gap for one.
+  migrate_audit_event_types(conn, adapter = adapter)
   invisible(TRUE)
 }
 

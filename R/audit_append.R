@@ -263,6 +263,459 @@ NULL
 }
 
 
+#' Rebuild `audit_log`'s `event_type` `CHECK` Constraint (Defect 11)
+#'
+#' Defect 11 (zzedc-modernization-whitepaper-2026-11-13.md, Section
+#' 2.2): `.ensure_audit_tables()`'s `CREATE TABLE IF NOT EXISTS
+#' audit_log (...)` bakes the allowed `event_type` values into a
+#' `CHECK` constraint at the moment the table is first created, and
+#' `IF NOT EXISTS` is a no-op on every later call -- so a database
+#' created before a new event type was added to `.audit_event_types`
+#' (`RANDOMIZATION`/`EMERGENCY_UNBLIND`, added in `4c802dc`) keeps
+#' its original, now-stale constraint forever. The practical effect:
+#' logging one of those newer event types against such a database
+#' fails outright with a `CHECK` constraint violation, not a graceful
+#' degradation -- confirmed directly, by creating a database with the
+#' old-style constraint and attempting a `RANDOMIZATION` insert
+#' against it.
+#'
+#' Idempotent and safe to call unconditionally at the same points
+#' `.ensure_audit_tables()`/schema-initialization already run: it
+#' first checks whether the stored constraint already covers every
+#' current `.audit_event_types` value and returns immediately if so,
+#' so a database created (or already migrated) under the current
+#' event type list pays only the cost of that one check.
+#'
+#' SQLite and DuckDB have no `ALTER TABLE ... DROP/ADD CONSTRAINT`
+#' (confirmed directly: DuckDB raises "Not implemented ... No support
+#' for that ALTER TABLE option yet!"), so both rebuild the table
+#' rather than alter it in place, via SQLite's own documented
+#' procedure for schema changes a plain `ALTER TABLE` cannot express:
+#' create the replacement under a temporary name, copy every row
+#' across by explicit column list (preserving `audit_id` values
+#' exactly, since `audit_events.audit_id` and `audit_chain.audit_id`
+#' both hold foreign keys to them), drop the original, then rename
+#' the replacement into place.
+#'
+#' On SQLite, only `audit_log` itself needs rebuilding: at no point
+#' does the name `audit_log` stop existing except between the `DROP`
+#' and the final `RENAME`, both inside the same transaction, and the
+#' original is never renamed away first (which would risk SQLite
+#' silently rewriting `audit_events`'/`audit_chain`'s `REFERENCES
+#' audit_log(...)` clauses to point at the archived table instead).
+#' `PRAGMA foreign_keys` must also be turned off around the whole
+#' operation (and, being a documented no-op inside a transaction, set
+#' before `.with_db_transaction()` opens one): with it on (the
+#' default this package connects with), `DROP TABLE audit_log` itself
+#' fails outright -- confirmed directly -- because `audit_events`/
+#' `audit_chain` still reference it. SQLite's append-only triggers
+#' (`.audit_trigger_names`) are owned by the table they are defined
+#' on and so do not survive a `DROP TABLE`; `.protect_audit_tables()`
+#' re-creates them (via `CREATE TRIGGER IF NOT EXISTS`) once the
+#' rebuild is complete.
+#'
+#' DuckDB has no `PRAGMA foreign_keys` equivalent at all (confirmed:
+#' no such setting appears in `duckdb_settings()`) and refuses to
+#' drop `audit_log` outright while `audit_events`/`audit_chain` still
+#' reference it ("Catalog Error: Could not drop the table because
+#' this table is main key table of the table 'audit_events'",
+#' confirmed directly); it also refuses to rename a from-scratch
+#' replacement table into place while anything still references it
+#' ("Dependency Error: Cannot alter entry ... because there are
+#' entries that depend on it", confirmed directly, rebuilding all
+#' three tables under temporary names and renaming them into place
+#' the same way SQLite does for `audit_log` alone). So for DuckDB,
+#' all three tables' data is copied out to plain staging tables with
+#' no constraints and no foreign keys between them -- nothing ever
+#' depends on a staging table, so neither dropping nor leaving one
+#' behind is blocked -- the three originals are then dropped (in
+#' dependency order), the three real tables are created fresh
+#' directly under their final names with the updated `CHECK`, and the
+#' data is copied back in from staging. DuckDB has no append-only
+#' triggers to restore either way (`.protect_audit_tables()` is a
+#' no-op for it; append-only protection is currently
+#' SQLite/PostgreSQL/MySQL only).
+#'
+#' PostgreSQL and MySQL/MariaDB support `ALTER TABLE ... DROP
+#' CONSTRAINT`/`ADD CONSTRAINT ... CHECK (...)` directly, so both look
+#' up the constraint's name (auto-generated, since none of the three
+#' original `CREATE TABLE` statements in this package name it
+#' explicitly) from the catalog and replace it in one statement (both
+#' clauses comma-separated) -- no table rebuild needed. If the name
+#' cannot be found, this is a `stop()`, not a silent no-op: a database
+#' this function cannot locate the constraint on is left exactly as
+#' stale as one it was never called on, and a return value alone
+#' would not say so. This path is inspected, not verified against a
+#' live server (none was reachable in this session) -- in particular,
+#' whether MariaDB (as opposed to MySQL 8, where `DROP CHECK`/`DROP
+#' CONSTRAINT` are both documented) accepts `DROP CONSTRAINT` for an
+#' inline column-level `CHECK` has not been confirmed. The SQLite and
+#' DuckDB paths are both verified end to end, including through the
+#' package's own `log_audit_event()`/`.protect_audit_tables()`/
+#' `verify_audit_integrity()` on SQLite (not just hand-built schema
+#' and synthetic hashes), that a `RANDOMIZATION` event the old
+#' constraint rejected is accepted after migration and that every
+#' pre-existing row (and, on SQLite, its real hash chain) survives
+#' unchanged.
+#'
+#' @param conn A DBI connection or pool.
+#' @param adapter Optional pre-built adapter (as `.ensure_audit_tables()`
+#'   accepts); resolved via `get_db_adapter()` if omitted.
+#' @return `invisible(TRUE)`.
+#' @export
+migrate_audit_event_types <- function(conn, adapter = NULL) {
+  adapter <- adapter %||% get_db_adapter()
+  # Resolved once and used for everything below, including the
+  # SQLite PRAGMA toggle: `PRAGMA foreign_keys` is connection-scoped,
+  # so toggling it on a pool object (which can hand out any
+  # connection on each call) risks setting it on one physical
+  # connection while `.with_db_transaction()`'s `poolWithTransaction()`
+  # runs on another, and restoring it on a third -- the PRAGMA would
+  # never actually be off where the transaction runs. Checking out a
+  # single connection up front and using it throughout (returned via
+  # `on.exit()` either way) avoids that.
+  is_pool <- inherits(conn, "Pool")
+  work_conn <- if (is_pool) pool::poolCheckout(conn) else conn
+  if (is_pool) on.exit(pool::poolReturn(work_conn), add = TRUE)
+
+  backend <- .conn_backend(work_conn)
+  expected_list <- paste0("'", .audit_event_types, "'", collapse = ", ")
+
+  if (!DBI::dbExistsTable(work_conn, "audit_log")) {
+    return(invisible(TRUE))
+  }
+
+  current_check <- .audit_log_check_text(work_conn, backend)
+  # Matched as a quoted token ('TYPE'), not a bare substring: TYPE
+  # itself (unquoted) can appear anywhere in the CREATE TABLE text
+  # (e.g. in a column's own type name), and some event types are
+  # substrings of others (LOGIN of LOGIN_FAILED, UPDATE of
+  # SETTING_UPDATE), so a bare grepl() would false-positive on a
+  # constraint that does not actually list that event type.
+  if (!is.null(current_check) &&
+        all(vapply(.audit_event_types,
+                   function(e) grepl(paste0("'", e, "'"), current_check, fixed = TRUE),
+                   logical(1)))) {
+    return(invisible(TRUE))
+  }
+
+  if (backend == "sqlite") {
+    # SQLite enforces `audit_events`/`audit_chain`'s `REFERENCES
+    # audit_log(audit_id)` on every statement when `PRAGMA
+    # foreign_keys = ON` (set at connect time by
+    # SQLiteAdapter$connect()) -- including DROP TABLE audit_log
+    # below, which fails outright with "FOREIGN KEY constraint
+    # failed" while other tables still reference it. This PRAGMA is
+    # a documented no-op if toggled inside a transaction, so it must
+    # be set here, before `.with_db_transaction()` opens one, and
+    # restored (to whatever it was before, not assumed to be ON)
+    # after it closes.
+    prior_fk <- DBI::dbGetQuery(work_conn, "PRAGMA foreign_keys")[[1]][1]
+    DBI::dbExecute(work_conn, "PRAGMA foreign_keys = OFF")
+    # `after = FALSE`: must run before poolReturn() (registered
+    # above, when work_conn was checked out) restores this
+    # connection to the pool -- otherwise the PRAGMA is restored on a
+    # connection some other caller may already be using.
+    on.exit(DBI::dbExecute(work_conn, sprintf("PRAGMA foreign_keys = %d", prior_fk)),
+            add = TRUE, after = FALSE)
+
+    .with_db_transaction(work_conn, function(c) {
+      adapter$prepare_auto_increment(c, "audit_log", "audit_id")
+      DBI::dbExecute(c, sprintf("
+        CREATE TABLE zzedc_audit_log_rebuild (
+          audit_id %s,
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          user_id TEXT,
+          event_type TEXT NOT NULL CHECK(event_type IN (%s)),
+          table_name TEXT,
+          record_id TEXT,
+          operation TEXT,
+          details TEXT,
+          ip_address TEXT,
+          session_id TEXT,
+          audit_hash TEXT,
+          previous_hash TEXT,
+          hash_verified BOOLEAN DEFAULT 1,
+          created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      ", adapter$auto_increment_column("audit_log", "audit_id"), expected_list))
+
+      DBI::dbExecute(c, "
+        INSERT INTO zzedc_audit_log_rebuild (
+          audit_id, timestamp, user_id, event_type, table_name, record_id,
+          operation, details, ip_address, session_id, audit_hash,
+          previous_hash, hash_verified, created_date
+        )
+        SELECT
+          audit_id, timestamp, user_id, event_type, table_name, record_id,
+          operation, details, ip_address, session_id, audit_hash,
+          previous_hash, hash_verified, created_date
+        FROM audit_log
+      ")
+
+      DBI::dbExecute(c, "DROP TABLE audit_log")
+      DBI::dbExecute(c, "ALTER TABLE zzedc_audit_log_rebuild RENAME TO audit_log")
+
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)")
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_table ON audit_log(table_name)")
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_date ON audit_log(timestamp)")
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event_type)")
+      .protect_audit_tables(c)
+    })
+  } else if (backend == "duckdb") {
+    # DuckDB has no `PRAGMA foreign_keys = OFF` equivalent (no such
+    # setting exists among `duckdb_settings()`) and refuses to drop
+    # `audit_log` while `audit_events`/`audit_chain` still reference
+    # it (confirmed directly: "Catalog Error: Could not drop the
+    # table because this table is main key table of the table
+    # 'audit_events'"). It also refuses to rename a replacement table
+    # into place while anything still depends on *it* (confirmed
+    # directly: renaming a from-scratch "audit_log" replacement
+    # failed with "Dependency Error: Cannot alter entry ... because
+    # there are entries that depend on it" while the from-scratch
+    # replacement "audit_events"/"audit_chain" tables' foreign keys
+    # still pointed at it) -- so the three-table rebuild used for
+    # SQLite's single table does not work here even extended to all
+    # three.
+    #
+    # Instead, all three tables' data is copied into plain staging
+    # tables with no constraints and no foreign keys between them
+    # (nothing depends on a staging table, so dropping or leaving it
+    # behind is never blocked); only then are the three originals
+    # dropped, in dependency order; the three real tables are then
+    # created fresh, directly under their final names with the
+    # updated `CHECK`, and the data copied back in from staging.
+    .with_db_transaction(work_conn, function(c) {
+      DBI::dbExecute(c, "CREATE TABLE zzedc_audit_log_staging AS SELECT * FROM audit_log")
+      DBI::dbExecute(c, "CREATE TABLE zzedc_audit_events_staging AS SELECT * FROM audit_events")
+      DBI::dbExecute(c, "CREATE TABLE zzedc_audit_chain_staging AS SELECT * FROM audit_chain")
+
+      DBI::dbExecute(c, "DROP TABLE audit_chain")
+      DBI::dbExecute(c, "DROP TABLE audit_events")
+      DBI::dbExecute(c, "DROP TABLE audit_log")
+
+      adapter$prepare_auto_increment(c, "audit_log", "audit_id")
+      DBI::dbExecute(c, sprintf("
+        CREATE TABLE audit_log (
+          audit_id %s,
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          user_id TEXT,
+          event_type TEXT NOT NULL CHECK(event_type IN (%s)),
+          table_name TEXT,
+          record_id TEXT,
+          operation TEXT,
+          details TEXT,
+          ip_address TEXT,
+          session_id TEXT,
+          audit_hash TEXT,
+          previous_hash TEXT,
+          hash_verified BOOLEAN DEFAULT 1,
+          created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      ", adapter$auto_increment_column("audit_log", "audit_id"), expected_list))
+
+      adapter$prepare_auto_increment(c, "audit_events", "event_id")
+      DBI::dbExecute(c, sprintf("
+        CREATE TABLE audit_events (
+          event_id %s,
+          audit_id INTEGER NOT NULL REFERENCES audit_log(audit_id),
+          event_category TEXT,
+          event_severity TEXT CHECK(event_severity IN ('info', 'warning', 'error', 'critical')),
+          event_message TEXT,
+          recovery_action TEXT,
+          created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      ", adapter$auto_increment_column("audit_events", "event_id")))
+
+      adapter$prepare_auto_increment(c, "audit_chain", "chain_id")
+      DBI::dbExecute(c, sprintf("
+        CREATE TABLE audit_chain (
+          chain_id %s,
+          audit_id INTEGER NOT NULL UNIQUE REFERENCES audit_log(audit_id),
+          record_hash TEXT NOT NULL UNIQUE,
+          previous_hash TEXT,
+          chain_order INTEGER,
+          verified BOOLEAN DEFAULT 1,
+          verification_date TIMESTAMP,
+          created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      ", adapter$auto_increment_column("audit_chain", "chain_id")))
+
+      # Explicit column lists on both sides, not positional `SELECT
+      # *`: a positional copy would silently misalign columns if a
+      # future edit ever changes the real tables' column order
+      # without touching this migration (`CREATE TABLE ... AS SELECT
+      # *` for the staging tables mirrors whatever order audit_log/
+      # audit_events/audit_chain happen to have right now).
+      DBI::dbExecute(c, "
+        INSERT INTO audit_log (
+          audit_id, timestamp, user_id, event_type, table_name, record_id,
+          operation, details, ip_address, session_id, audit_hash,
+          previous_hash, hash_verified, created_date
+        )
+        SELECT
+          audit_id, timestamp, user_id, event_type, table_name, record_id,
+          operation, details, ip_address, session_id, audit_hash,
+          previous_hash, hash_verified, created_date
+        FROM zzedc_audit_log_staging
+      ")
+      DBI::dbExecute(c, "
+        INSERT INTO audit_events (
+          event_id, audit_id, event_category, event_severity, event_message,
+          recovery_action, created_date
+        )
+        SELECT
+          event_id, audit_id, event_category, event_severity, event_message,
+          recovery_action, created_date
+        FROM zzedc_audit_events_staging
+      ")
+      DBI::dbExecute(c, "
+        INSERT INTO audit_chain (
+          chain_id, audit_id, record_hash, previous_hash, chain_order,
+          verified, verification_date, created_date
+        )
+        SELECT
+          chain_id, audit_id, record_hash, previous_hash, chain_order,
+          verified, verification_date, created_date
+        FROM zzedc_audit_chain_staging
+      ")
+
+      DBI::dbExecute(c, "DROP TABLE zzedc_audit_log_staging")
+      DBI::dbExecute(c, "DROP TABLE zzedc_audit_events_staging")
+      DBI::dbExecute(c, "DROP TABLE zzedc_audit_chain_staging")
+
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)")
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_table ON audit_log(table_name)")
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_date ON audit_log(timestamp)")
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event_type)")
+      DBI::dbExecute(c, "CREATE INDEX IF NOT EXISTS idx_audit_chain_order ON audit_chain(chain_order)")
+    })
+  } else if (backend %in% c("postgresql", "mysql")) {
+    constraint_name <- .audit_log_check_constraint_name(work_conn, backend)
+    if (is.null(constraint_name)) {
+      # Silently returning here would be the original bug's failure
+      # mode in a new shape: a database whose constraint this
+      # package cannot locate is left exactly as stale as one this
+      # function was never called on, with nothing in the return
+      # value to say so.
+      stop(
+        "migrate_audit_event_types(): could not locate audit_log's event_type ",
+        "CHECK constraint on this ", backend, " database; it was not migrated. ",
+        "Inspect it manually (pg_constraint / information_schema.CHECK_CONSTRAINTS).",
+        call. = FALSE
+      )
+    }
+    # One statement, both clauses: PostgreSQL and MySQL/MariaDB both
+    # accept multiple ALTER TABLE actions comma-separated in a single
+    # statement, which (unlike a separate DROP followed by a separate
+    # ADD) cannot be left with the constraint dropped and not yet
+    # replaced if the ADD half were to fail -- a real risk on
+    # MySQL/MariaDB in particular, where DDL auto-commits each
+    # statement regardless of any enclosing transaction.
+    # DROP CONSTRAINT (not DROP CHECK) is used for both backends:
+    # PostgreSQL has only ever had DROP CONSTRAINT, and MySQL 8/
+    # MariaDB 10.2+ both also accept it as the generic, portable form
+    # for a CHECK constraint (not confirmed against a live MariaDB
+    # server in this session; if a given MariaDB version turns out
+    # to require DROP CHECK specifically, this statement would fail
+    # loudly via DBI::dbExecute(), not silently no-op).
+    .with_db_transaction(work_conn, function(c) {
+      DBI::dbExecute(c, sprintf(
+        "ALTER TABLE audit_log DROP CONSTRAINT %s, ADD CONSTRAINT %s CHECK (event_type IN (%s))",
+        constraint_name, constraint_name, expected_list
+      ))
+    })
+  }
+
+  invisible(TRUE)
+}
+
+
+#' The `event_type` `CHECK` Constraint's Stored Text, if Discoverable
+#'
+#' @param conn A DBI connection or pool.
+#' @param backend One of `"sqlite"`, `"duckdb"`, `"postgresql"`, `"mysql"`.
+#' @return The constraint's SQL text (or expression), or `NULL` if it
+#'   could not be found (a database this old is rebuilt/replaced
+#'   unconditionally by [migrate_audit_event_types()] rather than
+#'   risk leaving a stale constraint in place).
+#' @keywords internal
+.audit_log_check_text <- function(conn, backend) {
+  tryCatch({
+    if (backend == "sqlite") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'audit_log'
+      ")
+      if (nrow(row) == 0) NULL else row$sql[1]
+    } else if (backend == "duckdb") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT constraint_text FROM duckdb_constraints()
+        WHERE table_name = 'audit_log' AND constraint_type = 'CHECK'
+      ")
+      if (nrow(row) == 0) NULL else paste(row$constraint_text, collapse = " ")
+    } else if (backend == "postgresql") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+        WHERE conrelid = 'audit_log'::regclass AND contype = 'c'
+      ")
+      if (nrow(row) == 0) NULL else paste(row$def, collapse = " ")
+    } else if (backend == "mysql") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT CHECK_CLAUSE AS def FROM information_schema.CHECK_CONSTRAINTS
+        WHERE CONSTRAINT_SCHEMA = DATABASE()
+          AND CONSTRAINT_NAME IN (
+            SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_log'
+              AND CONSTRAINT_TYPE = 'CHECK'
+          )
+      ")
+      if (nrow(row) == 0) NULL else paste(row$def, collapse = " ")
+    } else {
+      NULL
+    }
+  }, error = function(e) NULL)
+}
+
+
+#' The `event_type` `CHECK` Constraint's Name, on PostgreSQL/MySQL
+#'
+#' Both original `CREATE TABLE audit_log (...)` statements
+#' (`.ensure_audit_tables()`) leave the `event_type CHECK(...)`
+#' constraint unnamed, so the server auto-generates one; dropping and
+#' replacing it requires knowing what that name turned out to be.
+#'
+#' @param conn A DBI connection or pool.
+#' @param backend `"postgresql"` or `"mysql"`.
+#' @return The constraint's name, or `NULL` if it could not be found.
+#' @keywords internal
+.audit_log_check_constraint_name <- function(conn, backend) {
+  tryCatch({
+    if (backend == "postgresql") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT conname FROM pg_constraint c
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+        WHERE c.conrelid = 'audit_log'::regclass AND c.contype = 'c'
+          AND a.attname = 'event_type'
+      ")
+      if (nrow(row) == 0) NULL else row$conname[1]
+    } else if (backend == "mysql") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT tc.CONSTRAINT_NAME AS n
+        FROM information_schema.TABLE_CONSTRAINTS tc
+        JOIN information_schema.CHECK_CONSTRAINTS cc
+          ON cc.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+          AND cc.CONSTRAINT_NAME = tc.CONSTRAINT_NAME
+        WHERE tc.TABLE_SCHEMA = DATABASE() AND tc.TABLE_NAME = 'audit_log'
+          AND tc.CONSTRAINT_TYPE = 'CHECK' AND cc.CHECK_CLAUSE LIKE '%event_type%'
+      ")
+      if (nrow(row) == 0) NULL else row$n[1]
+    } else {
+      NULL
+    }
+  }, error = function(e) NULL)
+}
+
+
 .audit_trigger_names <- c(
   "zzedc_audit_log_no_update", "zzedc_audit_log_no_delete",
   "zzedc_audit_chain_no_update", "zzedc_audit_chain_no_delete",
