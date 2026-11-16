@@ -10,8 +10,15 @@ if (file.exists("_setup.R")) source("_setup.R")
 # Tests for the auth_module.R functionality
 
 # Test: authenticate_user function works correctly
+#
+# authenticate_user() is internal (@keywords internal, no @export), so
+# a bare exists("authenticate_user") -- which only sees the search
+# path -- was always FALSE and silently skipped every block below,
+# reporting "0 results, OK" rather than running anything. Checking
+# the package namespace directly matches how the calls themselves
+# already reach it, via zzedc:::authenticate_user().
 local({
-    if (exists("authenticate_user")) local({
+    if (exists("authenticate_user", envir = asNamespace("zzedc"))) local({
     # Setup test database and config
     test_con <- create_test_db()
     assign("db_pool", test_con, envir = .GlobalEnv)
@@ -47,7 +54,7 @@ local({
 })
 # Test: authenticate_user handles database errors gracefully
 local({
-    if (exists("authenticate_user")) local({
+    if (exists("authenticate_user", envir = asNamespace("zzedc"))) local({
     # Test without database pool
     if (exists("db_pool", envir = .GlobalEnv)) {
       rm(db_pool, envir = .GlobalEnv)
@@ -62,7 +69,7 @@ local({
 })
 # Test: auth_ui function generates correct UI
 local({
-    if (exists("auth_ui")) local({
+    if (exists("auth_ui", envir = asNamespace("zzedc"))) local({
     ui_output <- zzedc:::auth_ui("test")
 
     expect_true(inherits(ui_output, "shiny.tag"))
@@ -73,7 +80,7 @@ local({
 })
 # Test: password hashing works consistently
 local({
-    if (exists("authenticate_user")) local({
+    if (exists("authenticate_user", envir = asNamespace("zzedc"))) local({
     # Setup
     assign("cfg", create_test_config(), envir = .GlobalEnv)
 
@@ -99,7 +106,7 @@ local({
 })
 # Test: authentication module integrates with reactive values
 local({
-    if (exists("authenticate_user")) local({
+    if (exists("authenticate_user", envir = asNamespace("zzedc"))) local({
     # Setup test environment
     test_con <- create_test_db()
     assign("db_pool", test_con, envir = .GlobalEnv)
@@ -142,7 +149,7 @@ local({
 })
 # Test: authentication handles edge cases
 local({
-    if (exists("authenticate_user")) local({
+    if (exists("authenticate_user", envir = asNamespace("zzedc"))) local({
     # Setup
     test_con <- create_test_db()
     assign("db_pool", test_con, envir = .GlobalEnv)
@@ -180,7 +187,7 @@ local({
 # Test: authenticate_user() surfaces must_change_password, and does
 # not force it on a user who was not flagged
 local({
-    if (exists("authenticate_user")) local({
+    if (exists("authenticate_user", envir = asNamespace("zzedc"))) local({
     test_con <- create_test_db()
     assign("db_pool", test_con, envir = .GlobalEnv)
     assign("cfg", create_test_config(), envir = .GlobalEnv)
@@ -210,7 +217,7 @@ local({
 })
 # Test: authentication respects user active status
 local({
-    if (exists("authenticate_user")) local({
+    if (exists("authenticate_user", envir = asNamespace("zzedc"))) local({
     # Setup
     test_con <- create_test_db()
     assign("db_pool", test_con, envir = .GlobalEnv)

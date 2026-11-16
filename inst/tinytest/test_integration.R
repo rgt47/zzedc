@@ -14,8 +14,17 @@ config_available <- function() {
   file.exists(here::here("config.yml"))
 }
 
-# Skip all integration tests if key functions are not available
-if (!(exists("authenticate_user"))) exit_file("Authentication functions not available")
+# Skip all integration tests if key functions are not available.
+#
+# authenticate_user() is internal (@keywords internal, no @export),
+# so a bare exists("authenticate_user") -- which only sees the search
+# path -- was always FALSE, so this exit_file() fired unconditionally
+# and the entire file reported "0 results, OK" without ever running a
+# test. Checking the package namespace directly matches how the calls
+# below already reach it, via zzedc:::authenticate_user().
+if (!exists("authenticate_user", envir = asNamespace("zzedc"))) {
+  exit_file("Authentication functions not available")
+}
 
 # Test: complete authentication workflow works
 local({
