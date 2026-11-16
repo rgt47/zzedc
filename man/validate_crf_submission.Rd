@@ -25,9 +25,11 @@ tracking-ID format check entirely.}
 Checks required-field presence, for choice-type fields
 (\code{select}/\code{radio}/\code{checkbox_group}) with a defined choice set,
 that every non-blank submitted value is actually a member of it,
-and, when \code{crf_code} names a form with a tracking-ID convention
-(see \code{\link[=tracking_id_prefix_for_form]{tracking_id_prefix_for_form()}}), that \code{tracking_id} matches
-it. A blank, non-required field is never flagged. Pulled out as a
+and, when the form has a tracking-ID convention -- \code{crf_code}
+names one built into the package, or \code{metadata$tracking_id$help}
+declares one itself (see \code{\link[=tracking_id_prefix_for_form]{tracking_id_prefix_for_form()}}) -- that
+\code{tracking_id} matches it. A blank, non-required field is never
+flagged. Pulled out as a
 plain function (rather than inlined in the EDC tab's Shiny
 observer) so it is unit-testable outside Shiny and so the EDC
 tab can run the exact same check twice for two different

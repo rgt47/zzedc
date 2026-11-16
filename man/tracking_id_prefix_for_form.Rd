@@ -4,19 +4,31 @@
 \alias{tracking_id_prefix_for_form}
 \title{Tracking-ID prefix convention for a CRF form, if one is defined}
 \usage{
-tracking_id_prefix_for_form(crf_code)
+tracking_id_prefix_for_form(crf_code, help_text = NULL)
 }
 \arguments{
 \item{crf_code}{A form's \code{crf_definitions.crf_code}, in any case.}
+
+\item{help_text}{The form's \code{tracking_id} field's own \code{help_text}
+(\code{designer_fields.help_text}), if known; used only when
+\code{crf_code} has no built-in convention.}
 }
 \value{
 A single prefix string, or \code{NULL}.
 }
 \description{
-Only the manuscripts form currently has an enforced tracking ID
-convention (\verb{PUB-<year>-<n>}, assigned in sequence per year by
-\code{\link[=next_manuscript_tracking_id]{next_manuscript_tracking_id()}}). Returns \code{NULL} for any other
-form (or an unrecognized \code{crf_code}), so
-\code{\link[=validate_tracking_id_format]{validate_tracking_id_format()}} is a no-op there.
+Only the manuscripts form has a convention built into the package
+(\verb{PUB-<year>-<n>}, assigned in sequence per year by
+\code{\link[=next_manuscript_tracking_id]{next_manuscript_tracking_id()}}). Every other form's convention is
+authored per-study, not in code: the Setup form designer's
+\code{tracking_id} field \code{help_text} (e.g. \code{"Format: JRV-YYYY-NNN (e.g. JRV-2026-001)"}) is both what the EDC tab already shows the user
+(see \code{inst/app/edc.R}'s \code{edc_crf_field_flags}, which falls back to
+a field's own \code{help} text for every form but manuscripts) and, via
+\code{help_text}, the only record of that form's intended prefix -- so
+it is parsed from there rather than requiring a second, hardcoded
+table entry per form (which nothing kept in sync with the
+designer, and had already let a \code{journal_reviews} entry's
+\code{tracking_id} be saved as \code{PUB-2026-001}, unflagged, before this
+fallback existed).
 }
 \keyword{internal}

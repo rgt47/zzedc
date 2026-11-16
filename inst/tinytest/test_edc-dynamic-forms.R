@@ -394,6 +394,42 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
   })
 
   local({
+    # A form with no built-in crf_code convention (anything but
+    # "manuscripts") still gets its tracking_id format enforced when
+    # its own field declares one via help_text, e.g. a study's
+    # Journal Reviews form designed with "Format: JRV-YYYY-NNN" --
+    # previously a no-op (only PUB-prefixed manuscripts was ever
+    # checked), which let a PUB-prefixed ID be saved unflagged on a
+    # journal_reviews entry.
+    expect_null(zzedc:::tracking_id_prefix_for_form("journal_reviews"),
+                info = "no built-in convention for this crf_code")
+    expect_equal(
+      zzedc:::tracking_id_prefix_for_form(
+        "journal_reviews", help_text = "Format: JRV-YYYY-NNN (e.g. JRV-2026-001)"
+      ),
+      "JRV"
+    )
+    expect_null(zzedc:::tracking_id_prefix_for_form("journal_reviews", help_text = "Enter a value"),
+                info = "help text with no Format: convention yields no prefix")
+
+    meta_jrv <- list(
+      tracking_id = list(type = "text", required = TRUE, label = "Tracking ID",
+                          help = "Format: JRV-YYYY-NNN (e.g. JRV-2026-001)")
+    )
+    r_wrong_prefix <- zzedc:::validate_crf_submission(
+      list(tracking_id = "PUB-2026-001"), meta_jrv, crf_code = "journal_reviews"
+    )
+    expect_false(r_wrong_prefix$valid)
+    expect_equal(r_wrong_prefix$errors$tracking_id$kind, "invalid_format")
+    expect_true(grepl("JRV-YYYY-N", r_wrong_prefix$errors$tracking_id$message, fixed = TRUE))
+
+    r_right_prefix <- zzedc:::validate_crf_submission(
+      list(tracking_id = "JRV-2026-003"), meta_jrv, crf_code = "journal_reviews"
+    )
+    expect_true(r_right_prefix$valid)
+  })
+
+  local({
     # tracking_id_format_hint() backs the EDC tab's hover tooltip on
     # tracking_id; it should describe the same pattern
     # validate_tracking_id_format()'s error message does.

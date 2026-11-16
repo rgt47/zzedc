@@ -228,12 +228,11 @@ viscode_rv <- shiny::reactiveVal(1L)
         # selection change via the crf_live_field_data() reactive
         # below, but never disables the fields or the submit button.
         uiOutput("edc_crf_field_flags"),
-        # Only meaningful on the Screening form (the only one with a
-        # randomization_group field) -- shown on every form, same as
-        # the Submit button, rather than built as a second
-        # form-conditional uiOutput just for this one case.
-        actionButton("randomize_subject_btn", "Randomize Subject",
-                     class = "btn btn-outline-primary mt-3 mb-2"),
+        # Only meaningful on the Screening form -- rendered server-side
+        # (output$randomize_subject_btn_ui below) so it only appears
+        # there, instead of on every form with a "this doesn't apply
+        # here" toast as its only gate.
+        uiOutput("randomize_subject_btn_ui", inline = TRUE),
         actionButton("submitcrf", "Submit entry",
                      class = "btn btn-primary mt-3"),
         shinyjs::hidden(div(id = "crf_results",
@@ -460,7 +459,16 @@ observeEvent(input$field_help_detail_click, {
 # above) re-fetches rather than showing a stale "Not yet randomized".
 randomize_refresh <- shiny::reactiveVal(0)
 
+output$randomize_subject_btn_ui <- renderUI({
+  shiny::req(identical(crf_current_code(), "SCREENING"))
+  actionButton("randomize_subject_btn", "Randomize Subject",
+               class = "btn btn-outline-primary mt-3 mb-2")
+})
+
 observeEvent(input$randomize_subject_btn, {
+  # The button only renders on Screening (output$randomize_subject_btn_ui
+  # above); this guard is just defense against a stale click landing
+  # after the form selector has already switched away from it.
   if (!identical(crf_current_code(), "SCREENING")) {
     shiny::showNotification(
       "Randomization is only available on the Screening form.",

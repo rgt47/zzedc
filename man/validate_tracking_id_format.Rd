@@ -4,12 +4,16 @@
 \alias{validate_tracking_id_format}
 \title{Check a tracking ID against its form's prefix-year-number convention}
 \usage{
-validate_tracking_id_format(value, crf_code)
+validate_tracking_id_format(value, crf_code, help_text = NULL)
 }
 \arguments{
 \item{value}{The submitted \code{tracking_id} value.}
 
 \item{crf_code}{The form's \code{crf_code} (e.g. \code{"manuscripts"}).}
+
+\item{help_text}{The \code{tracking_id} field's own \code{help_text}, used
+as a fallback to find the convention when \code{crf_code} has none
+built in (see \code{\link[=tracking_id_prefix_for_form]{tracking_id_prefix_for_form()}}).}
 }
 \value{
 \code{NULL} if the form has no tracking-ID convention, or

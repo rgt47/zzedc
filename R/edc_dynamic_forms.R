@@ -155,20 +155,51 @@ get_crf_field_metadata <- function(conn, crf_id) {
 
 #' Tracking-ID prefix convention for a CRF form, if one is defined
 #'
-#' Only the manuscripts form currently has an enforced tracking ID
-#' convention (`PUB-<year>-<n>`, assigned in sequence per year by
-#' [next_manuscript_tracking_id()]). Returns `NULL` for any other
-#' form (or an unrecognized `crf_code`), so
-#' [validate_tracking_id_format()] is a no-op there.
+#' Only the manuscripts form has a convention built into the package
+#' (`PUB-<year>-<n>`, assigned in sequence per year by
+#' [next_manuscript_tracking_id()]). Every other form's convention is
+#' authored per-study, not in code: the Setup form designer's
+#' `tracking_id` field `help_text` (e.g. `"Format: JRV-YYYY-NNN (e.g.
+#' JRV-2026-001)"`) is both what the EDC tab already shows the user
+#' (see `inst/app/edc.R`'s `edc_crf_field_flags`, which falls back to
+#' a field's own `help` text for every form but manuscripts) and, via
+#' `help_text`, the only record of that form's intended prefix -- so
+#' it is parsed from there rather than requiring a second, hardcoded
+#' table entry per form (which nothing kept in sync with the
+#' designer, and had already let a `journal_reviews` entry's
+#' `tracking_id` be saved as `PUB-2026-001`, unflagged, before this
+#' fallback existed).
 #'
 #' @param crf_code A form's `crf_definitions.crf_code`, in any case.
+#' @param help_text The form's `tracking_id` field's own `help_text`
+#'   (`designer_fields.help_text`), if known; used only when
+#'   `crf_code` has no built-in convention.
 #' @return A single prefix string, or `NULL`.
 #' @keywords internal
-tracking_id_prefix_for_form <- function(crf_code) {
+tracking_id_prefix_for_form <- function(crf_code, help_text = NULL) {
   prefixes <- c(manuscripts = "PUB")
   key <- tolower(crf_code %||% "")
-  if (!key %in% names(prefixes)) return(NULL)
-  prefixes[[key]]
+  if (key %in% names(prefixes)) return(prefixes[[key]])
+  .tracking_id_prefix_from_help_text(help_text)
+}
+
+#' Parse a tracking-ID prefix out of a field's own "Format: ..." help text
+#'
+#' Matches the convention the Setup form designer's help text already
+#' uses (`"Format: <PREFIX>-YYYY-NNN"`, optionally followed by more
+#' text such as an `(e.g. ...)` example) -- the same string
+#' [tracking_id_format_hint()] and the designer UI both display, so
+#' there is exactly one place this convention is authored.
+#'
+#' @param help_text A field's `help_text`, or `NULL`/`NA`.
+#' @return A single prefix string, or `NULL` if `help_text` doesn't
+#'   match the convention.
+#' @keywords internal
+.tracking_id_prefix_from_help_text <- function(help_text) {
+  if (is.null(help_text) || is.na(help_text) || !nzchar(help_text)) return(NULL)
+  m <- regmatches(help_text, regexpr("Format:\\s*([A-Za-z0-9]+)-YYYY-N+", help_text))
+  if (length(m) == 0 || !nzchar(m)) return(NULL)
+  sub("Format:\\s*([A-Za-z0-9]+)-YYYY-N+", "\\1", m)
 }
 
 #' Human-readable description of a form's tracking-ID pattern
@@ -206,12 +237,15 @@ tracking_id_format_hint <- function(crf_code) {
 #'
 #' @param value The submitted `tracking_id` value.
 #' @param crf_code The form's `crf_code` (e.g. `"manuscripts"`).
+#' @param help_text The `tracking_id` field's own `help_text`, used
+#'   as a fallback to find the convention when `crf_code` has none
+#'   built in (see [tracking_id_prefix_for_form()]).
 #' @return `NULL` if the form has no tracking-ID convention, or
 #'   `value` is blank, or `value` matches it; otherwise an error
 #'   message string.
 #' @keywords internal
-validate_tracking_id_format <- function(value, crf_code) {
-  prefix <- tracking_id_prefix_for_form(crf_code)
+validate_tracking_id_format <- function(value, crf_code, help_text = NULL) {
+  prefix <- tracking_id_prefix_for_form(crf_code, help_text = help_text)
   if (is.null(prefix) || is.null(value) || !nzchar(trimws(value))) {
     return(NULL)
   }
@@ -227,9 +261,11 @@ validate_tracking_id_format <- function(value, crf_code) {
 #' Checks required-field presence, for choice-type fields
 #' (`select`/`radio`/`checkbox_group`) with a defined choice set,
 #' that every non-blank submitted value is actually a member of it,
-#' and, when `crf_code` names a form with a tracking-ID convention
-#' (see [tracking_id_prefix_for_form()]), that `tracking_id` matches
-#' it. A blank, non-required field is never flagged. Pulled out as a
+#' and, when the form has a tracking-ID convention -- `crf_code`
+#' names one built into the package, or `metadata$tracking_id$help`
+#' declares one itself (see [tracking_id_prefix_for_form()]) -- that
+#' `tracking_id` matches it. A blank, non-required field is never
+#' flagged. Pulled out as a
 #' plain function (rather than inlined in the EDC tab's Shiny
 #' observer) so it is unit-testable outside Shiny and so the EDC
 #' tab can run the exact same check twice for two different
@@ -289,8 +325,8 @@ validate_crf_submission <- function(field_data, metadata, crf_code = NULL) {
       }
     }
 
-    if (f == "tracking_id" && !is.null(crf_code)) {
-      fmt_error <- validate_tracking_id_format(as.character(v), crf_code)
+    if (f == "tracking_id") {
+      fmt_error <- validate_tracking_id_format(as.character(v), crf_code, help_text = m$help)
       if (!is.null(fmt_error)) {
         errors[[f]] <- list(kind = "invalid_format", message = fmt_error)
       }
