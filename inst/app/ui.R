@@ -243,6 +243,12 @@ if (!exists("ui_content") || is.null(ui_content)) {
       title = tagList(safe_icon("person-lines-fill"), "Subject Case Report"),
       value = "report5",
       uiOutput("rep5")
+    ),
+
+    bslib::nav_panel(
+      title = tagList(safe_icon("file-earmark-text"), "Manuscripts"),
+      value = "report6",
+      uiOutput("rep6")
     )
   ),
 

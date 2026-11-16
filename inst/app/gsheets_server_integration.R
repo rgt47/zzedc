@@ -228,6 +228,9 @@ initialize_traditional_server <- function(input, output, session) {
   if (file.exists("report5.R")) {
     source("report5.R", local = TRUE)
   }
+  if (file.exists("report6.R")) {
+    source("report6.R", local = TRUE)
+  }
 
   # Data Explorer is a real Shiny module (R/data_module.R), not a flat
   # script like the files above -- previously nothing here ever

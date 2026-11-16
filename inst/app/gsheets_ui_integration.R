@@ -104,6 +104,13 @@ create_enhanced_ui <- function() {
     uiOutput("rep5")
   )
 
+  nav_tabs[["reports6"]] <- bslib::nav_panel(
+    title = "Manuscripts",
+    icon = bsicons::bs_icon("file-earmark-text"),
+    value = "report6",
+    uiOutput("rep6")
+  )
+
   # 5. Always include Data Explorer and Export. Data Explorer is a
   # real package module (R/data_module.R), not a flat script -- there
   # never was a data.R in this directory, so source("data.R", ...)
