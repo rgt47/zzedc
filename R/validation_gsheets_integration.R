@@ -1220,9 +1220,17 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   backends). When `NULL`, `db_path` is a SQLite file, as before.
 #' @param create_database Logical. `TRUE` (default) creates the database
 #'   first. `FALSE` imports into an existing study database, as the
-#'   application's Google Sheets actions do: users and forms that
-#'   already exist are skipped and counted (`users$skipped`,
-#'   `forms$skipped`), not reported as errors and not overwritten.
+#'   application's Google Sheets actions do: a user that already
+#'   exists is left untouched and counted in `users$skipped`. A form
+#'   that already exists is also counted in `forms$skipped` and its
+#'   own name/description is left untouched, but its fields are not
+#'   skipped wholesale: any `Data_Dictionary` row for that form whose
+#'   `field_name` is not yet on the form is still added (counted in
+#'   `forms$imported_fields`, same as a brand-new form's fields); a
+#'   row whose `field_name` is already on the form is left as is, not
+#'   re-added or overwritten. This is how adding one new field to an
+#'   existing form's Google Sheet, then re-running Setup, adds just
+#'   that field.
 #'
 #' @return List with one element per stage (`database`, `users`,
 #'   `forms`, `validation_rules`), each carrying its own
@@ -1332,6 +1340,122 @@ setup_zzedc_from_gsheets <- function(
   )
   result$sheet_id <- sheet_id
   result
+}
+
+
+#' Find candidate Google Sheets to use with `setup_zzedc_from_gsheets()`
+#'
+#' Searches the authenticated Google account's Drive for spreadsheets
+#' that look like a usable `setup_zzedc_from_gsheets()` workbook --
+#' i.e. one with at least a `Study_Users` and a `Data_Dictionary` tab
+#' -- so a Setup UI can suggest a sheet ID instead of requiring it to
+#' be found and pasted in by hand. Uses the same cached `gargle` OAuth
+#' token that `googlesheets4::read_sheet()` already relies on
+#' elsewhere in this file, so no separate authentication step is
+#' needed as long as `setup_zzedc_from_gsheets()` itself already
+#' works in this R session.
+#'
+#' @param required_tabs Character vector of tab names a candidate
+#'   spreadsheet must contain. Default `c("Study_Users",
+#'   "Data_Dictionary")`.
+#' @param title_hint Optional character scalar. If supplied, only
+#'   spreadsheets whose title contains this text (case-insensitive)
+#'   are considered, narrowing the search for a specific study.
+#' @param max_scan Maximum number of recently modified spreadsheets to
+#'   inspect for `required_tabs` (default 25). Each inspected
+#'   candidate costs one extra `googlesheets4::sheet_names()` call, so
+#'   this bounds the search's cost.
+#'
+#' @return A data frame with one row per matching spreadsheet, columns
+#'   `id`, `name`, `modified_time`, ordered most-recently-modified
+#'   first; zero rows if none match. If `googledrive` or
+#'   `googlesheets4` is unavailable, or the Drive search itself fails
+#'   (e.g. no cached credential), returns a zero-row data frame with a
+#'   `problem` attribute describing why (a data frame, never `NULL`,
+#'   since R does not allow attributes on `NULL`).
+#' @keywords internal
+#' @export
+detect_gsheets_candidates <- function(required_tabs = c("Study_Users", "Data_Dictionary"),
+                                       title_hint = NULL,
+                                       max_scan = 25) {
+  empty <- data.frame(id = character(0), name = character(0),
+                       modified_time = character(0))
+
+  if (!requireNamespace("googledrive", quietly = TRUE) ||
+      !requireNamespace("googlesheets4", quietly = TRUE)) {
+    attr(empty, "problem") <- paste(
+      "Packages 'googledrive' and 'googlesheets4' are required.",
+      "Install with: install.packages(c('googledrive', 'googlesheets4'))"
+    )
+    return(empty)
+  }
+
+  drive_args <- list(type = "spreadsheet", n_max = max_scan)
+  if (!is.null(title_hint)) {
+    drive_args$q <- sprintf("name contains '%s'", gsub("'", "\\\\'", title_hint))
+  }
+  files <- tryCatch(
+    do.call(googledrive::drive_find, drive_args),
+    error = function(e) e
+  )
+  if (inherits(files, "error")) {
+    attr(empty, "problem") <- conditionMessage(files)
+    return(empty)
+  }
+  if (nrow(files) == 0) {
+    return(empty)
+  }
+
+  files$modified_time <- vapply(files$drive_resource, function(r) {
+    as.character(r$modifiedTime %||% NA_character_)
+  }, character(1))
+
+  .filter_gsheets_candidates(
+    files, required_tabs,
+    sheet_names_fn = function(id) {
+      tryCatch(googlesheets4::sheet_names(id), error = function(e) character(0))
+    }
+  )
+}
+
+#' Rank and filter candidate spreadsheets by required tabs (internal)
+#'
+#' The pure, injectable core of `detect_gsheets_candidates()`, split
+#' out so its ranking/filtering logic can be unit-tested with a fake
+#' `sheet_names_fn` instead of a live Google Drive/Sheets connection --
+#' the same dependency-injection shape `.setup_zzedc_from_tables()`
+#' already uses for `read_tab`.
+#'
+#' @param files Data frame with at least `id`, `name`,
+#'   `modified_time` columns (as returned by `googledrive::drive_find()`
+#'   plus the `modified_time` column `detect_gsheets_candidates()`
+#'   adds).
+#' @param required_tabs Character vector of tab names each candidate
+#'   must contain.
+#' @param sheet_names_fn Function of one argument (a spreadsheet id)
+#'   returning its tab names as a character vector.
+#' @return A data frame with columns `id`, `name`, `modified_time`,
+#'   ordered most-recently-modified first, containing only the rows of
+#'   `files` whose tabs (per `sheet_names_fn`) are a superset of
+#'   `required_tabs`.
+#' @keywords internal
+.filter_gsheets_candidates <- function(files, required_tabs, sheet_names_fn) {
+  if (nrow(files) == 0) {
+    return(data.frame(id = character(0), name = character(0),
+                       modified_time = character(0)))
+  }
+  files <- files[order(files$modified_time, decreasing = TRUE), ]
+
+  matches <- Filter(function(i) {
+    all(required_tabs %in% sheet_names_fn(files$id[i]))
+  }, seq_len(nrow(files)))
+
+  data.frame(
+    id = files$id[matches],
+    name = files$name[matches],
+    modified_time = files$modified_time[matches],
+    stringsAsFactors = FALSE
+  )
 }
 
 
@@ -1657,21 +1781,41 @@ setup_zzedc_from_csv <- function(
         ),
         error = function(e) list(success = FALSE, error = e$message)
       )
-      if (!isTRUE(crf$success)) {
-        # Importing into an existing study: a form that already exists
-        # is left as it is, not reported as a failure.
-        if (identical(crf$error, "crf_code already exists")) {
-          n_forms_skipped <- n_forms_skipped + 1L
-        } else {
-          form_errors[[form_code]] <- crf$error %||% "create_crf_definition failed"
+      is_new_form <- isTRUE(crf$success)
+      crf_id <- NULL
+      if (is_new_form) {
+        crf_id <- crf$crf_id
+      } else if (identical(crf$error, "crf_code already exists")) {
+        # Importing into an existing study: the form itself (its name,
+        # crf_id, etc.) is left as it is, counted as "skipped" same as
+        # before -- but its fields are now diffed against the sheet
+        # below instead of being skipped wholesale. Previously, adding
+        # one field to an existing form's sheet rows and re-running
+        # Setup did nothing at all (confirmed directly): this whole
+        # branch used to `next` here, so the field loop below never
+        # ran for an existing form, no matter what was in the sheet.
+        n_forms_skipped <- n_forms_skipped + 1L
+        crf_id <- tryCatch({
+          con <- connect_encrypted_db()
+          on.exit(DBI::dbDisconnect(con))
+          DBI::dbGetQuery(
+            con, "SELECT crf_id FROM crf_definitions WHERE UPPER(crf_code) = UPPER(?)",
+            params = list(form_code)
+          )$crf_id[1]
+        }, error = function(e) NULL)
+        if (is.null(crf_id)) {
+          form_errors[[form_code]] <- "could not resolve crf_id for existing form"
+          next
         }
+      } else {
+        form_errors[[form_code]] <- crf$error %||% "create_crf_definition failed"
         next
       }
       # designer_fields.design_id is a foreign key to designer_forms;
       # backends that enforce it (DuckDB, PostgreSQL) rejected every
       # field without this row. See ensure_designer_form_row().
       form_row <- tryCatch(
-        ensure_designer_form_row(crf$crf_id, toupper(form_code),
+        ensure_designer_form_row(crf_id, toupper(form_code),
                                  form_name, imported_by),
         error = function(e) e
       )
@@ -1679,8 +1823,24 @@ setup_zzedc_from_csv <- function(
         form_errors[[form_code]] <- paste("designer form:", conditionMessage(form_row))
         next
       }
-      n_forms <- n_forms + 1L
+      if (is_new_form) n_forms <- n_forms + 1L
+
+      # On an existing form, only a field_code not already on the form
+      # is added -- an already-present field is left untouched (same
+      # convention as add_form_field_by_code()'s own duplicate check),
+      # so re-running Setup never overwrites a field someone has since
+      # customized directly.
+      existing_field_codes <- if (is_new_form) character(0) else tryCatch({
+        con <- connect_encrypted_db()
+        on.exit(DBI::dbDisconnect(con))
+        DBI::dbGetQuery(
+          con, "SELECT field_code FROM designer_fields WHERE design_id = ?",
+          params = list(crf_id)
+        )$field_code
+      }, error = function(e) character(0))
+
       for (j in seq_len(nrow(fields))) {
+        if (as.character(fields$field_name[j]) %in% existing_field_codes) next
         mapped_type <- map_gsheets_field_type(fields$field_type[j])
 
         # field_order/description/widget are optional Data_Dictionary
@@ -1711,7 +1871,7 @@ setup_zzedc_from_csv <- function(
 
         added <- tryCatch(
           add_form_field(
-            design_id   = crf$crf_id,
+            design_id   = crf_id,
             field_code  = as.character(fields$field_name[j]),
             field_label = as.character(fields$field_label[j]),
             field_type  = mapped_type,

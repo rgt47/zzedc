@@ -261,8 +261,37 @@ if (duck_ok && requireNamespace("googlesheets4", quietly = TRUE)) local({
                                    create_database = FALSE, salt = "s")
   expect_equal(res2$users$skipped, 2, info = "re-import does not duplicate users")
   expect_equal(res2$forms$skipped, 1, info = "re-import skips the existing form")
+  expect_equal(res2$forms$imported_fields, 0,
+               info = "nothing new in the sheet -- no fields added on this re-import")
   expect_true(res2$users$success && res2$forms$success,
               info = "and reports no errors for them")
+
+  # A field added to an existing form's Data_Dictionary rows is picked
+  # up on the next Setup re-import: the form itself is still "skipped"
+  # (its crf_definitions row is untouched), but the one new field_name
+  # not yet on the form is added, and the two pre-existing fields are
+  # left alone, not re-added or duplicated.
+  sheets$Data_Dictionary <- rbind(
+    sheets$Data_Dictionary,
+    data.frame(form_code = "ae", field_name = "ae_outcome",
+               field_label = "Outcome", field_type = "text",
+               required = FALSE, validation = NA, stringsAsFactors = FALSE)
+  )
+  res3 <- setup_zzedc_from_gsheets("fake-sheet-id", adapter_config = cfg,
+                                   create_database = FALSE, salt = "s")
+  expect_equal(res3$forms$skipped, 1, info = "the form itself is still 'skipped'")
+  expect_equal(res3$forms$imported_fields, 1,
+               info = "only the one new field is added")
+  expect_true(res3$forms$success)
+  con3 <- a$connect()
+  ae_fields <- DBI::dbGetQuery(con3, "
+    SELECT f.field_code FROM designer_fields f
+    JOIN crf_definitions c ON f.design_id = c.crf_id
+    WHERE c.crf_code = 'AE' ORDER BY f.field_code
+  ")$field_code
+  a$disconnect(con3)
+  expect_equal(sort(ae_fields), c("ae_grade", "ae_outcome", "ae_term"),
+               info = "pre-existing fields untouched, new field added, no duplicates")
 
   # A form created afterwards in the CRF designer must not collide with
   # the id the import gave its form in both tables.
@@ -272,7 +301,7 @@ if (duck_ok && requireNamespace("googlesheets4", quietly = TRUE)) local({
   con <- a$connect()
   expect_equal(DBI::dbGetQuery(con,
     "SELECT COUNT(*) AS n FROM designer_fields f JOIN crf_definitions c ON f.design_id = c.crf_id")$n,
-    2, info = "imported fields join to their CRF, as the EDC tab reads them")
+    3, info = "imported fields (2 original + 1 added on re-import) join to their CRF, as the EDC tab reads them")
   h <- DBI::dbGetQuery(con, "SELECT password_hash FROM edc_users WHERE username = 'coord1'")$password_hash
   admin_h <- DBI::dbGetQuery(con, "SELECT password_hash FROM edc_users WHERE username = 'admin'")$password_hash
   a$disconnect(con)

@@ -370,6 +370,42 @@ initialize_setup_server <- function(input, output, session) {
     run_gsheets_import(input$gsheets_sheet_id)
   })
 
+  # Suggests a sheet ID for the field above; never imports anything
+  # itself. See detect_gsheets_candidates().
+  observeEvent(input$detect_gsheets_sheet, {
+    withProgress(message = "Searching Google Drive...", value = 0.3, {
+      candidates <- zzedc::detect_gsheets_candidates()
+    })
+    problem <- attr(candidates, "problem")
+    if (!is.null(problem)) {
+      shinyalert::shinyalert("Could not search Google Drive", problem, type = "error")
+      return(invisible(NULL))
+    }
+    if (nrow(candidates) == 0) {
+      shinyalert::shinyalert(
+        "No matching sheet found",
+        paste("No spreadsheet in your Google Drive has both a Study_Users",
+              "and a Data_Dictionary tab. Paste the ID manually, or check",
+              "that it's shared with the signed-in Google account."),
+        type = "warning")
+      return(invisible(NULL))
+    }
+    best <- candidates[1, ]
+    updateTextInput(session, "gsheets_sheet_id", value = best$id)
+    others <- if (nrow(candidates) > 1) {
+      paste0("\n\n", nrow(candidates) - 1, " other candidate(s) also found; ",
+             "this is the most recently modified.")
+    } else {
+      ""
+    }
+    shinyalert::shinyalert(
+      "Sheet found",
+      paste0("\"", best$name, "\" (last modified ", best$modified_time, ").\n\n",
+             "Its ID has been filled in above -- review it, then click ",
+             "\"Import into this study\" to confirm.", others),
+      type = "success")
+  })
+
   # Database import handler
   observeEvent(input$import_database, {
     req(input$import_db)

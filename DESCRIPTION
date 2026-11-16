@@ -33,6 +33,7 @@ Imports:
     stringr (>= 1.4.0),
     shinyalert (>= 3.0.0),
     googlesheets4 (>= 1.0.0),
+    googledrive (>= 2.0.0),
     bslib,
     bsicons,
     DT,

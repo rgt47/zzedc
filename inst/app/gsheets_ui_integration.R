@@ -122,59 +122,61 @@ create_enhanced_ui <- function() {
     uiOutput("export")
   )
 
-  # 6. Add Setup tab for Google Sheets management
-  nav_tabs[["setup"]] <- bslib::nav_panel(
-    title = "Setup",
-    icon = bsicons::bs_icon("gear"),
-    value = "setup",
-    create_setup_ui()
-  )
-
-  # 7. Compliance (electronic signatures, training records) and Admin
-  # (user management, backup/restore, audit trail, system config)
-  # tabs. Both modules already exist in the zzedc package, fully
-  # implemented with their own tests, but neither was ever mounted
-  # anywhere in inst/app/ -- confirmed by a repo-wide grep for
-  # cfr_compliance_server(/admin_dashboard_server( across every file
-  # here before this change: zero matches. Looked up via
-  # getFromNamespace() the same defensive way ui.R's own
-  # safe_module_ui() does for internal (non-exported) package
-  # functions, so a build missing either module degrades to a
-  # warning panel instead of a hard failure. Uses the same
-  # .safe_internal_ui() defined above for the Data Explorer tab.
-  nav_tabs[["compliance"]] <- bslib::nav_panel(
-    title = "Compliance",
-    icon = bsicons::bs_icon("patch-check"),
-    value = "compliance",
-    .safe_internal_ui("cfr_compliance_ui", "compliance",
-                       "Compliance module not available")
-  )
-
-  # Data corrections (request, review, apply; R/data_correction_module.R)
-  # and the validation-rule editor (R/validation_rules_module.R), which
-  # writes the dsl_validation_rules table that submission enforces.
-  nav_tabs[["corrections"]] <- bslib::nav_panel(
-    title = "Corrections",
-    icon = bsicons::bs_icon("pencil-square"),
-    value = "corrections",
-    .safe_internal_ui("data_correction_ui", "corrections",
-                       "Data correction module not available")
-  )
-
-  nav_tabs[["rules"]] <- bslib::nav_panel(
-    title = "Validation Rules",
-    icon = bsicons::bs_icon("check2-square"),
-    value = "rules",
-    .safe_internal_ui("validation_rules_ui", "rules",
-                       "Validation rule editor not available")
-  )
-
-  nav_tabs[["admin"]] <- bslib::nav_panel(
+  # 6. Setup (Google Sheets management), Compliance (electronic
+  # signatures, training records), Corrections (data correction
+  # requests), Validation Rules (the DSL rule editor), and Admin (user
+  # management, backup/restore, audit trail, system config) are
+  # administrative, not day-to-day navigation, and as five more
+  # top-level tabs pushed the navbar to 12 items -- more than fit on
+  # one row, so the browser wrapped them onto a visually cluttered
+  # second line. Grouped here under one "Admin" nav_menu() dropdown
+  # (a single top-level item) instead, so the top bar stays one row;
+  # each keeps its own nav_panel() value, so nav_select() (e.g. from a
+  # Home tile) still targets them individually. Compliance, Corrections,
+  # Validation Rules, and Admin use the same .safe_internal_ui()
+  # defined above for the Data Explorer tab -- those package modules
+  # exist fully implemented and tested but were never mounted anywhere
+  # in inst/app/ before this change (confirmed by a repo-wide grep for
+  # cfr_compliance_server(/admin_dashboard_server(: zero matches) --
+  # so a build missing one of them degrades to a warning panel instead
+  # of a hard failure.
+  nav_tabs[["admin_menu"]] <- bslib::nav_menu(
     title = "Admin",
     icon = bsicons::bs_icon("shield-lock"),
-    value = "admin",
-    .safe_internal_ui("admin_dashboard_ui", "admin",
-                       "Admin dashboard not available")
+    bslib::nav_panel(
+      title = "Setup",
+      icon = bsicons::bs_icon("gear"),
+      value = "setup",
+      create_setup_ui()
+    ),
+    bslib::nav_panel(
+      title = "Compliance",
+      icon = bsicons::bs_icon("patch-check"),
+      value = "compliance",
+      .safe_internal_ui("cfr_compliance_ui", "compliance",
+                         "Compliance module not available")
+    ),
+    bslib::nav_panel(
+      title = "Corrections",
+      icon = bsicons::bs_icon("pencil-square"),
+      value = "corrections",
+      .safe_internal_ui("data_correction_ui", "corrections",
+                         "Data correction module not available")
+    ),
+    bslib::nav_panel(
+      title = "Validation Rules",
+      icon = bsicons::bs_icon("check2-square"),
+      value = "rules",
+      .safe_internal_ui("validation_rules_ui", "rules",
+                         "Validation rule editor not available")
+    ),
+    bslib::nav_panel(
+      title = "Admin",
+      icon = bsicons::bs_icon("shield-lock"),
+      value = "admin",
+      .safe_internal_ui("admin_dashboard_ui", "admin",
+                         "Admin dashboard not available")
+    )
   )
 
   # Build the complete UI
@@ -369,6 +371,14 @@ create_setup_ui <- function() {
 
               textInput("gsheets_sheet_id", "Google Sheets ID or URL:",
                         value = if (exists("cfg")) cfg$gsheets$sheet_id %||% "" else ""),
+
+              actionButton("detect_gsheets_sheet", "Detect Sheet",
+                           class = "btn btn-outline-secondary btn-sm"),
+              p(class = "small text-muted mt-1",
+                "Searches your Google Drive for a workbook with ",
+                "Study_Users and Data_Dictionary tabs and fills in its ID ",
+                "above for you to confirm -- it does not import anything ",
+                "by itself."),
 
               br(),
               actionButton("run_gsheets_setup", "Import into this study",

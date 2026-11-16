@@ -54,9 +54,17 @@ backends). When \code{NULL}, \code{db_path} is a SQLite file, as before.}
 
 \item{create_database}{Logical. \code{TRUE} (default) creates the database
 first. \code{FALSE} imports into an existing study database, as the
-application's Google Sheets actions do: users and forms that
-already exist are skipped and counted (\code{users$skipped},
-\code{forms$skipped}), not reported as errors and not overwritten.}
+application's Google Sheets actions do: a user that already
+exists is left untouched and counted in \code{users$skipped}. A form
+that already exists is also counted in \code{forms$skipped} and its
+own name/description is left untouched, but its fields are not
+skipped wholesale: any \code{Data_Dictionary} row for that form whose
+\code{field_name} is not yet on the form is still added (counted in
+\code{forms$imported_fields}, same as a brand-new form's fields); a
+row whose \code{field_name} is already on the form is left as is, not
+re-added or overwritten. This is how adding one new field to an
+existing form's Google Sheet, then re-running Setup, adds just
+that field.}
 }
 \value{
 List with one element per stage (\code{database}, \code{users},
