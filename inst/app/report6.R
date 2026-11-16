@@ -2,14 +2,17 @@
 # manuscript entry, read via zzedc:::flatten_crf_entries_for_export()
 # (the same helper the Export tab uses), not a new query.
 output$rep6 <- renderUI({
-  fluidPage(
-    titlePanel("Manuscripts"),
-    p("Every manuscript entry currently logged, with its status."),
-    DT::DTOutput("rep6_table")
-  )
+  zzedc:::.zzedc_tab_or_login(user_input, function() {
+    fluidPage(
+      titlePanel("Manuscripts"),
+      p("Every manuscript entry currently logged, with its status."),
+      DT::DTOutput("rep6_table")
+    )
+  })
 })
 
 output$rep6_table <- DT::renderDT({
+  shiny::req(isTRUE(user_input$authenticated))
   shiny::req(db_pool)
   manuscripts <- zzedc:::flatten_crf_entries_for_export(db_pool, "manuscripts")
 

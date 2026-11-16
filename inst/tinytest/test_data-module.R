@@ -100,3 +100,50 @@ local({
 
     })
 })
+
+# data_server()'s `authenticated` parameter: this module previously had
+# no authentication check at all, so current_data() (and every output
+# derived from it) was readable without logging in, as long as
+# data_server() itself had been called -- confirmed live, not just by
+# reading the source. current_data() now checks `authenticated()`
+# first and must return nothing when it is FALSE, defaulting to FALSE
+# when the caller passes nothing at all (fail closed).
+if (requireNamespace("RSQLite", quietly = TRUE)) local({
+  conn <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  old_db_pool <- if (exists("db_pool", envir = globalenv())) get("db_pool", envir = globalenv()) else NULL
+  assign("db_pool", conn, envir = globalenv())
+  on.exit({
+    if (is.null(old_db_pool)) rm("db_pool", envir = globalenv())
+    else assign("db_pool", old_db_pool, envir = globalenv())
+  }, add = TRUE)
+
+  auth_flag <- shiny::reactiveVal(FALSE)
+  shiny::testServer(
+    zzedc:::data_server,
+    args = list(user_id = reactive(1L), authenticated = auth_flag),
+    {
+      session$setInputs(data_source = "zzedc")
+      expect_error(current_data(), class = "shiny.silent.error",
+                   info = "current_data() blocks on an unauthenticated session")
+
+      auth_flag(TRUE)
+      session$setInputs(data_source = "zzedc")
+      expect_true(is.data.frame(current_data()),
+                  info = "current_data() runs normally once authenticated")
+    }
+  )
+
+  # Calling data_server() the old way, with no `authenticated` at
+  # all, must fail closed (block everything) rather than silently
+  # defaulting to open.
+  shiny::testServer(
+    zzedc:::data_server,
+    args = list(user_id = reactive(1L)),
+    {
+      session$setInputs(data_source = "zzedc")
+      expect_error(current_data(), class = "shiny.silent.error",
+                   info = "omitting `authenticated` entirely defaults closed, not open")
+    }
+  )
+})

@@ -334,11 +334,52 @@ observeEvent(input$login_button, {
   })
 
 composeLoginModal <- function(...){
+  # A dropdown of registered users is friendlier than a free-text
+  # username box on a small study with a handful of accounts, and
+  # avoids a typo'd username reading as "wrong password" (a wrong
+  # password's and an unknown username's error messages look
+  # identical in authenticate_user(), by design, so a typo here is
+  # otherwise easy to misdiagnose). Falls back to the previous plain
+  # text box if the user list can't be read (e.g. no db_pool yet, or
+  # a schema error) -- login must still be possible even then.
+  user_choices <- tryCatch({
+    users <- DBI::dbGetQuery(
+      db_pool,
+      "SELECT username, full_name FROM edc_users WHERE active = 1 ORDER BY full_name"
+    )
+    stats::setNames(users$username,
+                     paste0(users$full_name, " (", users$username, ")"))
+  }, error = function(e) NULL)
+
+  has_user_list <- !is.null(user_choices) && length(user_choices) > 0
+  username_input <- if (has_user_list) {
+    selectInput('username', 'Login',
+                choices = c("Choose a user..." = "", user_choices))
+  } else {
+    textInput('username', 'Login')
+  }
+
+  # Auto-selecting a single remaining match while typing in the
+  # username dropdown, and submitting on Enter in the password field,
+  # are both handled by .zzedc_login_modal_scripts() -- a *static*
+  # script included once in the page <head> (inst/app/ui.R and
+  # inst/app/gsheets_ui_integration.R), not inline here. A <script>
+  # tag placed in this function's own returned UI is dead code: it
+  # gets inserted into the DOM the same way showModal()'s other
+  # content does, and a browser does not execute a <script> tag
+  # inserted that way (only ones present in the original page load,
+  # or added via a real `createElement('script')` + `appendChild`,
+  # actually run) -- confirmed live, directly: a script placed here
+  # produced no listener on the selectize instance at all. A
+  # MutationObserver in the static head script instead watches for
+  # #username/#password to appear (the modal opening) and binds each
+  # exactly once.
+
   showModal(
     modalDialog(
-        id        = "loginmodal", 
-        size      = 's', 
-        textInput('username', 'Login')
+        id        = "loginmodal",
+        size      = 's',
+        username_input
         , passwordInput('password', 'Password')
         , actionButton(
             inputId = 'login_button'

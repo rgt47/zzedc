@@ -5,25 +5,29 @@
 # categories ("Patient Demographics", "Visit Data", "Assessment
 # Scores") not present in this application's schema.
 output$htable <- renderUI({
-  fluidPage(
-    titlePanel("Domain Breakdown"),
-    p("Counts of entered values for each form's choice-type fields",
-      "(Status, Role, Scope, and similar)."),
-    fluidRow(
-      column(4,
-        wellPanel(
-          h4("Filter"),
-          uiOutput("rep3_form_filter")
+  zzedc:::.zzedc_tab_or_login(user_input, function() {
+    fluidPage(
+      titlePanel("Domain Breakdown"),
+      p("Counts of entered values for each form's choice-type fields",
+        "(Status, Role, Scope, and similar)."),
+      fluidRow(
+        column(4,
+          wellPanel(
+            h4("Filter"),
+            uiOutput("rep3_form_filter")
+          )
+        ),
+        column(8,
+          DT::DTOutput("rep3_table")
         )
-      ),
-      column(8,
-        DT::DTOutput("rep3_table")
       )
     )
-  )
+  })
 })
 
 .rep3_breakdown <- reactive({
+  # Gates both rep3_form_filter and rep3_table at once.
+  shiny::req(isTRUE(user_input$authenticated))
   shiny::req(db_pool)
   zzedc:::summarize_choice_field_values(db_pool)
 })

@@ -7,41 +7,44 @@
 # schema and, for CSV/Excel, silently generated random numbers
 # instead of exporting anything real.
 output$export <- renderUI({
-  fluidPage(
-    titlePanel("Data Export Center"),
-    fluidRow(
-      column(4,
-        wellPanel(
-          h4("Export Options"),
-          uiOutput("export_form_select"),
-          selectInput("export_format", "Format:",
-                      choices = c("CSV" = "csv", "Excel (XLSX)" = "xlsx"),
-                      selected = "csv"),
-          dateRangeInput("export_date_range", "Date Range:",
-                         start = Sys.Date() - 365, end = Sys.Date()),
-          p(class = "small text-muted",
-            paste("Choosing one form exports its fields as columns.",
-                  "\"All forms (combined)\" exports every entry in one",
-                  "table, with each entry's field values collapsed into",
-                  "one readable column, since different forms have",
-                  "different fields.")),
-          downloadButton("download_export", "Download Export",
-                         class = "btn-success")
-        )
-      ),
-      column(8,
-        wellPanel(
-          h4("Preview"),
-          verbatimTextOutput("export_preview_info"),
-          br(),
-          DT::DTOutput("export_preview_table")
+  zzedc:::.zzedc_tab_or_login(user_input, function() {
+    fluidPage(
+      titlePanel("Data Export Center"),
+      fluidRow(
+        column(4,
+          wellPanel(
+            h4("Export Options"),
+            uiOutput("export_form_select"),
+            selectInput("export_format", "Format:",
+                        choices = c("CSV" = "csv", "Excel (XLSX)" = "xlsx"),
+                        selected = "csv"),
+            dateRangeInput("export_date_range", "Date Range:",
+                           start = Sys.Date() - 365, end = Sys.Date()),
+            p(class = "small text-muted",
+              paste("Choosing one form exports its fields as columns.",
+                    "\"All forms (combined)\" exports every entry in one",
+                    "table, with each entry's field values collapsed into",
+                    "one readable column, since different forms have",
+                    "different fields.")),
+            downloadButton("download_export", "Download Export",
+                           class = "btn-success")
+          )
+        ),
+        column(8,
+          wellPanel(
+            h4("Preview"),
+            verbatimTextOutput("export_preview_info"),
+            br(),
+            DT::DTOutput("export_preview_table")
+          )
         )
       )
     )
-  )
+  })
 })
 
 output$export_form_select <- renderUI({
+  shiny::req(isTRUE(user_input$authenticated))
   shiny::req(db_pool)
   forms <- zzedc:::get_active_crf_forms(db_pool)
   choices <- c("All forms (combined)" = "__all__",
@@ -67,6 +70,10 @@ export_audit <- function(data, event_type, view) {
 }
 
 export_data <- reactive({
+  # Gates export_preview_info, export_preview_table, and
+  # download_export at once -- including the actual CSV/XLSX
+  # download, which had no authentication check at all before this.
+  shiny::req(isTRUE(user_input$authenticated))
   shiny::req(db_pool, input$export_form, input$export_date_range)
   data <- if (input$export_form == "__all__") {
     all_entries <- zzedc:::flatten_all_entries_for_explorer(db_pool)

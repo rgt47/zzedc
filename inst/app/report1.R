@@ -3,14 +3,17 @@
 # previous demo histogram of rnorm() draws, which had no connection
 # to this application's data.
 output$rep1 <- renderUI({
-  fluidPage(
-    titlePanel("Activity Summary"),
-    p("Entries currently logged in each form, across all time."),
-    DT::DTOutput("rep1_table")
-  )
+  zzedc:::.zzedc_tab_or_login(user_input, function() {
+    fluidPage(
+      titlePanel("Activity Summary"),
+      p("Entries currently logged in each form, across all time."),
+      DT::DTOutput("rep1_table")
+    )
+  })
 })
 
 output$rep1_table <- DT::renderDT({
+  shiny::req(isTRUE(user_input$authenticated))
   shiny::req(db_pool)
   summary_df <- zzedc:::summarize_entries_by_form(db_pool)
   names(summary_df) <- c("Form Code", "Form", "Entries",

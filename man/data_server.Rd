@@ -4,7 +4,7 @@
 \alias{data_server}
 \title{Data Explorer Module Server}
 \usage{
-data_server(id, user_id = NULL)
+data_server(id, user_id = NULL, authenticated = reactive(FALSE))
 }
 \arguments{
 \item{id}{Character. The module namespace ID matching the UI id}
@@ -13,6 +13,15 @@ data_server(id, user_id = NULL)
 returning it. Each load of study records, and each download, is
 recorded in the audit trail under this user (see
 \code{\link[=log_record_read]{log_record_read()}}).}
+
+\item{authenticated}{A reactive returning \code{TRUE} once the session
+has logged in (\code{user_input$authenticated} from \code{inst/app/server.R};
+defaults to a reactive returning \code{FALSE}, so an explorer wired up
+without this fails closed rather than open). \code{current_data()}
+checks this before loading anything from \code{zzedc}'s own database
+-- this module previously had no authentication check at all, so
+every output reachable from it (every table/plot/summary derived
+from \code{current_data()}) was readable without logging in.}
 }
 \value{
 A Shiny module server function that manages:

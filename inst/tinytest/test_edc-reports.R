@@ -313,6 +313,33 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_equal(zzedc:::.existing_tracking_ids(conn, "manuscripts"), character(0))
   })
 
+  local({
+    # .zzedc_tab_or_login(): every Reports/Data Explorer/Export tab's
+    # top-level renderUI() previously showed its real content
+    # regardless of user_input$authenticated -- only EDC Forms'
+    # output$ui checked it. make_content() must not even be called
+    # (never mind its result shown) when not authenticated, so a
+    # tab's own query doesn't run just to produce HTML that then
+    # goes unused.
+    called <- FALSE
+    ui <- zzedc:::.zzedc_tab_or_login(
+      list(authenticated = FALSE),
+      function() { called <<- TRUE; "real content" }
+    )
+    expect_false(called,
+                 info = "a tab's content is not built at all for an unauthenticated session")
+    expect_true(inherits(ui, "shiny.tag") || inherits(ui, "shiny.tag.list"),
+                info = "an unauthenticated session gets a login prompt, not NULL or an error")
+
+    called <- FALSE
+    ui <- zzedc:::.zzedc_tab_or_login(
+      list(authenticated = TRUE),
+      function() { called <<- TRUE; "real content" }
+    )
+    expect_true(called)
+    expect_equal(ui, "real content")
+  })
+
 } else {
   exit_file("RSQLite and/or jsonlite not installed")
 }

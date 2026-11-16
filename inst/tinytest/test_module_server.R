@@ -133,7 +133,10 @@ local({
   )
   assign("db_pool", test_con, envir = .GlobalEnv)
 
-  shiny::testServer(zzedc:::data_server, {
+  shiny::testServer(
+    zzedc:::data_server,
+    args = list(authenticated = shiny::reactive(TRUE)),
+    {
     session$setInputs(
       data_source = "zzedc",
       max_rows    = 50

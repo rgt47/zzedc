@@ -14,6 +14,49 @@
 #' @keywords internal
 NULL
 
+#' Require login for a Reports/Data Explorer/Export tab's top-level UI
+#'
+#' Every tab except EDC Forms (`inst/app/edc.R`'s `output$ui`) used to
+#' render regardless of `user_input$authenticated` -- reachable
+#' without logging in at all, confirmed live, as long as a study's
+#' app was reachable by any means other than going through `output$ui`
+#' first (for example its port opened directly, bypassing the
+#' Lab landing page's intended flow entirely). This gives every other
+#' tab's top-level `renderUI()` the exact same login-or-content choice
+#' `output$ui` already makes, so a single login (one shared,
+#' session-wide `user_input$authenticated` flag; see `inst/app/auth.R`)
+#' unlocks every tab in that session, not just EDC Forms.
+#'
+#' This only gates what is actually *rendered*; it is not a
+#' substitute for also guarding each tab's own data-producing
+#' `output$...` renderers (e.g. `DT::renderDT()`,
+#' `shiny::downloadHandler()`) with
+#' `shiny::req(isTRUE(user_input$authenticated))` of their own --
+#' Shiny evaluates every registered output reactively regardless of
+#' whether its container is currently shown in the DOM, so an
+#' unauthenticated session's hidden table output would otherwise
+#' still run its query and could still be read back over the
+#' websocket even while this function shows that session a login
+#' prompt instead.
+#'
+#' @param user_input The session's shared `reactiveValues` object
+#'   (`inst/app/server.R`), carrying `authenticated`.
+#' @param make_content A zero-argument function building the tab's
+#'   real UI; called only when `user_input$authenticated` is `TRUE`,
+#'   so building it (and nothing it might itself read reactively)
+#'   never happens for an unauthenticated session.
+#' @return The tab's real UI, or a login prompt (the same
+#'   `uiOutput("uiLogin")` `output$ui` itself embeds -- one shared
+#'   login form, rendered wherever it is needed).
+#' @keywords internal
+.zzedc_tab_or_login <- function(user_input, make_content) {
+  if (isTRUE(user_input$authenticated)) {
+    make_content()
+  } else {
+    shiny::fluidPage(shiny::uiOutput("uiLogin"))
+  }
+}
+
 
 #' Parse one `data_entries` row's `data_json` into a named list
 #' @keywords internal

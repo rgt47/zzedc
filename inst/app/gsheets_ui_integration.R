@@ -231,7 +231,9 @@ create_enhanced_ui <- function() {
       tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
       tags$link(rel = "icon", href = "logo.png", type = "image/png"),
       zzedc:::.rgtlab_tile_styles(),
-      zzedc:::.rgtlab_chrome_styles()
+      zzedc:::.rgtlab_chrome_styles(),
+      zzedc:::.zzedc_crf_reset_message_handlers(),
+      zzedc:::.zzedc_login_modal_scripts()
     ),
 
     # Add all navigation tabs. nav_tabs is keyed by id (nav_tabs[["home"]],

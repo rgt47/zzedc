@@ -5,50 +5,57 @@
 # a hardcoded "87% complete" / "12 errors" regardless of what, if
 # anything, had been entered.
 output$rep2 <- renderUI({
-  fluidPage(
-    div(class = "d-flex justify-content-between align-items-center mb-4",
-      h2(tagList(bsicons::bs_icon("shield-check", class = "text-primary"),
-                 " Data Quality Report"))
-    ),
-    fluidRow(
-      column(4,
-        bslib::value_box(
-          title = "Total Entries",
-          value = textOutput("rep2_total"),
-          showcase = bsicons::bs_icon("database-fill"),
-          theme = "primary"
+  zzedc:::.zzedc_tab_or_login(user_input, function() {
+    fluidPage(
+      div(class = "d-flex justify-content-between align-items-center mb-4",
+        h2(tagList(bsicons::bs_icon("shield-check", class = "text-primary"),
+                   " Data Quality Report"))
+      ),
+      fluidRow(
+        column(4,
+          bslib::value_box(
+            title = "Total Entries",
+            value = textOutput("rep2_total"),
+            showcase = bsicons::bs_icon("database-fill"),
+            theme = "primary"
+          )
+        ),
+        column(4,
+          bslib::value_box(
+            title = "Entries With No Issues",
+            value = textOutput("rep2_valid"),
+            showcase = bsicons::bs_icon("check-circle-fill"),
+            theme = "success"
+          )
+        ),
+        column(4,
+          bslib::value_box(
+            title = "Flagged Fields",
+            value = textOutput("rep2_flagged"),
+            showcase = bsicons::bs_icon("exclamation-triangle-fill"),
+            theme = "warning"
+          )
         )
       ),
-      column(4,
-        bslib::value_box(
-          title = "Entries With No Issues",
-          value = textOutput("rep2_valid"),
-          showcase = bsicons::bs_icon("check-circle-fill"),
-          theme = "success"
-        )
-      ),
-      column(4,
-        bslib::value_box(
-          title = "Flagged Fields",
-          value = textOutput("rep2_flagged"),
-          showcase = bsicons::bs_icon("exclamation-triangle-fill"),
-          theme = "warning"
-        )
-      )
-    ),
-    uiOutput("rep2_unknown_form_note"),
-    h4("Flagged Entries", class = "mt-4"),
-    p(class = "text-muted small",
-      paste("A \"required\" flag means a required field was blank at",
-            "save time; an \"invalid_choice\" flag means a stored",
-            "value is not one of the field's current options (for",
-            "example if the field's choice list changed after the",
-            "entry was saved).")),
-    DT::DTOutput("rep2_flagged_table")
-  )
+      uiOutput("rep2_unknown_form_note"),
+      h4("Flagged Entries", class = "mt-4"),
+      p(class = "text-muted small",
+        paste("A \"required\" flag means a required field was blank at",
+              "save time; an \"invalid_choice\" flag means a stored",
+              "value is not one of the field's current options (for",
+              "example if the field's choice list changed after the",
+              "entry was saved).")),
+      DT::DTOutput("rep2_flagged_table")
+    )
+  })
 })
 
 .rep2_quality <- reactive({
+  # Gates every one of this reactive's consumers (rep2_total/valid/
+  # flagged/unknown_form_note/flagged_table) at once -- req(FALSE)
+  # halts here before any of them run their own logic or touch
+  # db_pool, for an unauthenticated session.
+  shiny::req(isTRUE(user_input$authenticated))
   shiny::req(db_pool)
   zzedc:::compute_data_quality_summary(db_pool)
 })

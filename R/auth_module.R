@@ -1,6 +1,91 @@
 # Authentication Module
 # UI and Server functions for user authentication
 
+#' Client-side behavior for the login modal (`inst/app/auth.R`)
+#'
+#' Two conveniences for the login modal's username/password fields:
+#' typing in the username dropdown auto-selects the one remaining
+#' match (if exactly one), and pressing Enter in the password field
+#' submits the form, the same as clicking Login.
+#'
+#' Both are implemented here, as one *static* script included once in
+#' the page `<head>` (`inst/app/ui.R` and
+#' `inst/app/gsheets_ui_integration.R`, alongside
+#' `.zzedc_crf_reset_message_handlers()`) -- not as a `<script>` tag
+#' returned alongside the modal's own UI from
+#' `inst/app/auth.R`'s `composeLoginModal()`, which was tried first
+#' and does not work: a browser does not execute a `<script>` tag
+#' inserted into the DOM the way `shiny::showModal()` inserts a
+#' modal's content (only a script present in the original page load,
+#' or added via a real `document.createElement('script')` +
+#' `appendChild()`, actually runs). Confirmed live, directly: a
+#' script placed inside the modal's own UI produced zero listeners on
+#' the username `<select>`'s selectize instance, regardless of how
+#' the script itself waited for that instance to exist.
+#'
+#' A `MutationObserver` on `document.documentElement` (`<html>`, which
+#' exists even before `<body>` is parsed -- `document.body` is `null`
+#' at the time this script, placed in `<head>`, actually runs,
+#' confirmed live via the resulting `TypeError: Failed to execute
+#' 'observe' ... parameter 1 is not of type 'Node'`) instead watches
+#' for `#username`/`#password` to appear at all (the modal opening, as
+#' many times as it is opened across the session) and binds each
+#' exactly once (`dataset.zzedcBound`, so a later unrelated DOM change
+#' touching the same element doesn't rebind it).
+#'
+#' @return A `tags$script()` tag.
+#' @keywords internal
+.zzedc_login_modal_scripts <- function() {
+  shiny::tags$script(shiny::HTML(
+    "(function() {",
+    "  function bindUsername(el) {",
+    "    if (el.dataset.zzedcBound) return;",
+    "    el.dataset.zzedcBound = '1';",
+    "    (function attach() {",
+    "      var sel = el.selectize;",
+    "      if (!sel) { setTimeout(attach, 50); return; }",
+    "      sel.on('type', function(str) {",
+    "        if (!str) return;",
+    "        var results = sel.search(str);",
+    "        if (results.items.length === 1) {",
+    "          sel.setValue(results.items[0].id);",
+    "          sel.close();",
+    "        }",
+    "      });",
+    "    })();",
+    "  }",
+    "  function bindPassword(el) {",
+    "    if (el.dataset.zzedcBound) return;",
+    "    el.dataset.zzedcBound = '1';",
+    "    el.addEventListener('keyup', function(e) {",
+    "      if (e.key === 'Enter') {",
+    "        var btn = document.getElementById('login_button');",
+    "        if (btn) btn.click();",
+    "      }",
+    "    });",
+    "  }",
+    "  function scan(root) {",
+    "    if (!root.querySelectorAll) return;",
+    "    if (root.id === 'username') bindUsername(root);",
+    "    if (root.id === 'password') bindPassword(root);",
+    "    var u = root.querySelector && root.querySelector('#username');",
+    "    if (u) bindUsername(u);",
+    "    var p = root.querySelector && root.querySelector('#password');",
+    "    if (p) bindPassword(p);",
+    "  }",
+    "  scan(document);",
+    "  new MutationObserver(function(mutations) {",
+    "    mutations.forEach(function(m) {",
+    "      m.addedNodes.forEach(function(node) {",
+    "        if (node.nodeType === 1) scan(node);",
+    "      });",
+    "    });",
+    "  }).observe(document.documentElement, {childList: true, subtree: true});",
+    "})();"
+  ))
+}
+
+
 #' Authentication Module UI
 #'
 #' @param id The namespace id for the module

@@ -140,7 +140,11 @@ local({
                        data = list(sbp = 135), created_by = "coord1")
   assign("db_pool", db$con, envir = .GlobalEnv)
 
-  shiny::testServer(data_server, args = list(user_id = function() "monitor1"), {
+  shiny::testServer(
+    data_server,
+    args = list(user_id = function() "monitor1",
+                authenticated = shiny::reactive(TRUE)),
+    {
     session$setInputs(data_source = "zzedc", max_rows = 50)
     invisible(output$data_summary)
     invisible(output$data_table)

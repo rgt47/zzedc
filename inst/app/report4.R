@@ -5,18 +5,21 @@
 # finished document -- see the caveat rendered at the bottom of the
 # report itself.
 output$rep4 <- renderUI({
-  fluidPage(
-    titlePanel("Personal Statement (Draft)"),
-    p(class = "text-muted",
-      paste("Generated from entries currently logged in the tracker.",
-            "Regenerates automatically as you add data.")),
-    div(class = "card",
-      div(class = "card-body", uiOutput("rep4_body"))
+  zzedc:::.zzedc_tab_or_login(user_input, function() {
+    fluidPage(
+      titlePanel("Personal Statement (Draft)"),
+      p(class = "text-muted",
+        paste("Generated from entries currently logged in the tracker.",
+              "Regenerates automatically as you add data.")),
+      div(class = "card",
+        div(class = "card-body", uiOutput("rep4_body"))
+      )
     )
-  )
+  })
 })
 
 output$rep4_body <- renderUI({
+  shiny::req(isTRUE(user_input$authenticated))
   shiny::req(db_pool)
   shiny::HTML(zzedc:::generate_personal_statement_draft(db_pool))
 })

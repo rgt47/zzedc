@@ -161,6 +161,14 @@ data_ui <- function(id) {
 #'   returning it. Each load of study records, and each download, is
 #'   recorded in the audit trail under this user (see
 #'   [log_record_read()]).
+#' @param authenticated A reactive returning `TRUE` once the session
+#'   has logged in (`user_input$authenticated` from `inst/app/server.R`;
+#'   defaults to a reactive returning `FALSE`, so an explorer wired up
+#'   without this fails closed rather than open). `current_data()`
+#'   checks this before loading anything from `zzedc`'s own database
+#'   -- this module previously had no authentication check at all, so
+#'   every output reachable from it (every table/plot/summary derived
+#'   from `current_data()`) was readable without logging in.
 #'
 #' @return A Shiny module server function that manages:
 #'   - Data loading and validation from various sources
@@ -186,7 +194,7 @@ data_ui <- function(id) {
 #' }
 #'
 #' @export
-data_server <- function(id, user_id = NULL) {
+data_server <- function(id, user_id = NULL, authenticated = reactive(FALSE)) {
   moduleServer(id, function(input, output, session) {
 
     study_conn <- function() {
@@ -204,6 +212,7 @@ data_server <- function(id, user_id = NULL) {
     # current_data() is called multiple times by different outputs
     # Caching ensures data is only read/generated once per load
     current_data <- reactive({
+      req(isTRUE(authenticated()))
       req(input$data_source)
 
       if (input$data_source == "zzedc") {

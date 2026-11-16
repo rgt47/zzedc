@@ -91,6 +91,8 @@ if (!exists("ui_content") || is.null(ui_content)) {
   } else {
     tags$script("console.log('shinyjs not available');")
   },
+  zzedc:::.zzedc_crf_reset_message_handlers(),
+  zzedc:::.zzedc_login_modal_scripts(),
 
   # Busy indicators: keep the global progress pulse, suppress
   # per-output spinners. Spinner overlays redraw cards on every
