@@ -511,9 +511,15 @@ cfr_compliance_server <- function(id, user_id = NULL) {
               type = "success", duration = 5
             )
 
-            # Clear form and reload data
+            # Clear form and reload data. shiny has no
+            # updatePasswordInput(): passwordInput() renders a plain
+            # <input type="password">, which client-side shares the
+            # same Shiny input binding as a text input (matched by
+            # the binding's own `input[type="text"],
+            # input[type="password"]` selector), so updateTextInput()
+            # clears it the same way.
             updateTextInput(session, "sig_record_id", value = "")
-            updatePasswordInput(session, "sig_password", value = "")
+            updateTextInput(session, "sig_password", value = "")
             updateTextAreaInput(session, "sig_reason", value = "")
             load_compliance_data()
 

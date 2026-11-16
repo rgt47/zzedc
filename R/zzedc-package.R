@@ -31,11 +31,6 @@ utils::globalVariables(c(
 # missing `tags$` prefix in every case, not a genuine NSE symbol or an
 # undeclared dependency; all fixed to tags$small()/tags$label()/
 # tags$input() and no longer need declaring here.
-# updatePasswordInput() is from shinyauthr, which is used but never
-# declared in DESCRIPTION Imports or Suggests. Left as globalVariables
-# rather than guess-importing an unverified package.
-  "updatePasswordInput",
-
 # Shiny reactive context
   "input", "cfg", "db_pool",
 
