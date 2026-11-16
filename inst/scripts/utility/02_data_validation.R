@@ -10,9 +10,6 @@ library(skimr)
 library(janitor)
 library(palmerpenguins)
 
-# Source utility functions
-source(here("R", "utils.R"))
-
 # Load data - use Palmer penguins dataset as example
 # Replace with your actual data loading logic
 if (file.exists(here("data", "raw_data", "dataset1.csv"))) {
