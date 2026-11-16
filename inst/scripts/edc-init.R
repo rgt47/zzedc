@@ -780,6 +780,49 @@ write_yaml_config <- function(cfg, path) {
   cli_alert_success("Config written to {.file {path}}")
 }
 
+#' Template `Data_Dictionary.csv` contents (one example form/field)
+#'
+#' Columns match those documented in `?zzedc::setup_zzedc_from_gsheets`
+#' (required: `form_code`, `field_name`, `field_label`, `field_type`,
+#' `required`; optional: `validation`, `description`, `field_order`).
+#' The one example row is meant to be edited or deleted, not imported
+#' as-is.
+data_dictionary_template <- function() {
+  data.frame(
+    form_code   = "screening",
+    field_name  = "subject_initials",
+    field_label = "Subject Initials",
+    field_type  = "text",
+    required    = "TRUE",
+    validation  = "",
+    description = "Example field -- edit or delete this row, then add one row per field",
+    field_order = 10,
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Template `validation_rules.csv` contents (one example rule)
+#'
+#' Columns match `VALIDATION_SHEET_SCHEMA` / those documented in
+#' `?zzedc::import_validation_rules_from_gsheets` (required: `rule_id`,
+#' `field_code`, `rule_dsl`; optional: `form_code`, `rule_name`,
+#' `error_message`, `severity`, `rule_category`, `is_active`). The one
+#' example row is meant to be edited or deleted, not imported as-is.
+validation_rules_template <- function() {
+  data.frame(
+    rule_id       = "EXAMPLE_RULE",
+    field_code    = "subject_initials",
+    rule_dsl      = "subject_initials != \"\"",
+    form_code     = "screening",
+    rule_name     = "Example rule",
+    error_message = "Example rule -- edit or delete this row, then add one per rule",
+    severity      = "ERROR",
+    rule_category = "FIELD",
+    is_active     = "TRUE",
+    stringsAsFactors = FALSE
+  )
+}
+
 write_csv_files <- function(users_df, out_dir, dd_src = NULL, rules_src = NULL) {
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
@@ -787,37 +830,45 @@ write_csv_files <- function(users_df, out_dir, dd_src = NULL, rules_src = NULL) 
   write.csv(users_df, users_path, row.names = FALSE, quote = TRUE)
   cli_alert_success("Users written to {.file {users_path}}")
 
+  dd_dest <- file.path(out_dir, "Data_Dictionary.csv")
   if (!is.null(dd_src)) {
     if (!file.exists(dd_src)) {
       cli_alert_warning(
         "Data dictionary not found: {.file {dd_src}} -- skipping."
       )
     } else {
-      dd_dest <- file.path(out_dir, "Data_Dictionary.csv")
       file.copy(dd_src, dd_dest, overwrite = TRUE)
       cli_alert_success("Data dictionary copied to {.file {dd_dest}}")
     }
-  } else {
+  } else if (file.exists(dd_dest)) {
     cli_alert_info(
-      "No --dd-csv supplied. ",
-      "Place {.file Data_Dictionary.csv} in {.file {out_dir}} before importing."
+      "{.file {dd_dest}} already exists -- leaving it as is."
+    )
+  } else {
+    write.csv(data_dictionary_template(), dd_dest, row.names = FALSE, quote = TRUE)
+    cli_alert_success(
+      "Template written to {.file {dd_dest}} -- edit it to add this study's fields."
     )
   }
 
+  rules_dest <- file.path(out_dir, "validation_rules.csv")
   if (!is.null(rules_src)) {
     if (!file.exists(rules_src)) {
       cli_alert_warning(
         "Validation rules not found: {.file {rules_src}} -- skipping."
       )
     } else {
-      rules_dest <- file.path(out_dir, "validation_rules.csv")
       file.copy(rules_src, rules_dest, overwrite = TRUE)
       cli_alert_success("Validation rules copied to {.file {rules_dest}}")
     }
-  } else {
+  } else if (file.exists(rules_dest)) {
     cli_alert_info(
-      "No --rules-csv supplied. ",
-      "Place {.file validation_rules.csv} in {.file {out_dir}} before importing."
+      "{.file {rules_dest}} already exists -- leaving it as is."
+    )
+  } else {
+    write.csv(validation_rules_template(), rules_dest, row.names = FALSE, quote = TRUE)
+    cli_alert_success(
+      "Template written to {.file {rules_dest}} -- edit it to add this study's rules, or delete it (it's optional)."
     )
   }
 }
