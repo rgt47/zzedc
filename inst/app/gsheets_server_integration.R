@@ -277,12 +277,36 @@ initialize_traditional_server <- function(input, output, session) {
   # user_id() as a function, so it needs a live reactive, not a
   # snapshot taken before login happens; admin_dashboard_server()
   # reads user_session$role directly as a reactiveValues object.
+  #
+  # None of cfr_compliance_server(), admin_dashboard_server(), or
+  # data_correction_server() (nor the six further modules
+  # admin_dashboard_server() itself mounts: user management,
+  # backup/restore, audit-log viewer, randomization admin, system
+  # config, help) check authentication internally -- unlike
+  # data_server()/validation_rules_server() above, which take an
+  # authenticated reactive and req() on it. Patching every render()/
+  # observeEvent() inside that whole subtree is both large and
+  # fragile, so instead none of these three are mounted
+  # (moduleServer() is never even called, so no output/observer in
+  # the entire subtree is registered) until user_input$authenticated
+  # actually becomes TRUE. Before login, the Admin/Compliance/
+  # Corrections tabs render their static UI shell with nothing behind
+  # it: safe-by-construction rather than safe-by-every-handler.
+  # once = TRUE + ignoreInit = TRUE: don't fire on the initial
+  # (FALSE) value, fire exactly once on the first transition to
+  # TRUE, and never re-mount the module again afterward (a second
+  # login in the same session would otherwise call moduleServer()
+  # again with the same id).
   cfr_compliance_server_fn <- tryCatch(
     utils::getFromNamespace("cfr_compliance_server", "zzedc"),
     error = function(e) NULL
   )
   if (!is.null(cfr_compliance_server_fn)) {
-    cfr_compliance_server_fn("compliance", user_id = reactive(user_input$user_id))
+    shiny::observeEvent(isTRUE(user_input$authenticated), {
+      if (isTRUE(user_input$authenticated)) {
+        cfr_compliance_server_fn("compliance", user_id = reactive(user_input$user_id))
+      }
+    }, once = TRUE, ignoreInit = TRUE)
   }
 
   admin_dashboard_server_fn <- tryCatch(
@@ -290,29 +314,40 @@ initialize_traditional_server <- function(input, output, session) {
     error = function(e) NULL
   )
   if (!is.null(admin_dashboard_server_fn)) {
-    # db_path and db_adapter come from global.R. Without db_path the
-    # module defaulted to "./data/zzedc.db" relative to the app
-    # directory, so the Backup tab copied a file that was not the
-    # study database (or did not exist).
-    admin_dashboard_server_fn("admin", db_pool = db_pool, user_session = user_input,
-                              db_path = reactive(db_path),
-                              db_adapter = db_adapter)
+    shiny::observeEvent(isTRUE(user_input$authenticated), {
+      if (isTRUE(user_input$authenticated)) {
+        # db_path and db_adapter come from global.R. Without db_path
+        # the module defaulted to "./data/zzedc.db" relative to the
+        # app directory, so the Backup tab copied a file that was not
+        # the study database (or did not exist).
+        admin_dashboard_server_fn("admin", db_pool = db_pool, user_session = user_input,
+                                  db_path = reactive(db_path),
+                                  db_adapter = db_adapter)
+      }
+    }, once = TRUE, ignoreInit = TRUE)
   }
 
   # Data corrections and the validation-rule editor. Both modules
-  # create or read their own tables, so those tables are ensured here.
-  # Each module checks the user's role itself (approval rights in the
-  # correction workflow; get_user_dsl_permissions() in the editor).
+  # create or read their own tables, so those tables are ensured here
+  # (idempotent DDL, not data exposure, so it runs unconditionally).
+  # Neither module checks authentication internally; the correction
+  # module additionally does not check role either, despite the role
+  # it is passed -- approval rights are not yet enforced there. Mount
+  # both gated on login, same reasoning as above.
   correction_server_fn <- tryCatch(
     utils::getFromNamespace("data_correction_server", "zzedc"),
     error = function(e) NULL
   )
   if (!is.null(correction_server_fn)) {
     zzedc::init_data_correction(db_path = db_path)
-    correction_server_fn("corrections",
-                         current_user = reactive(user_input$username),
-                         user_role = reactive(user_input$role),
-                         db_path = db_path)
+    shiny::observeEvent(isTRUE(user_input$authenticated), {
+      if (isTRUE(user_input$authenticated)) {
+        correction_server_fn("corrections",
+                             current_user = reactive(user_input$username),
+                             user_role = reactive(user_input$role),
+                             db_path = db_path)
+      }
+    }, once = TRUE, ignoreInit = TRUE)
   }
 
   rules_server_fn <- tryCatch(

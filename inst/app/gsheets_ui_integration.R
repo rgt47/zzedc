@@ -226,6 +226,21 @@ create_enhanced_ui <- function() {
     window_title = "ZZedc Portal",
     id = "main_nav",
 
+    # The login modal placeholder must render regardless of which tab
+    # is active. A bare uiOutput() passed as one of page_navbar()'s
+    # ... children becomes its own blank, untitled nav tab (bslib
+    # warns "Navigation containers expect a collection of
+    # nav_panel()/nav_menu()s..."), and Shiny suspends rendering for
+    # outputs inside a tab pane that isn't the active one -- so
+    # output$uiLogin's renderUI() (which calls showModal()) never ran
+    # on initial page load, and the login modal only appeared once a
+    # user happened to click into a tab whose own separate uiLogin
+    # instance was visibility-triggered. header = is rendered outside
+    # the tabset, so it always evaluates. Fixing the root cause: see
+    # inst/app/gsheets_server_integration.R for the authentication
+    # guard around every module mounted behind this navbar.
+    header = uiOutput("uiLogin"),
+
     shinyjs::useShinyjs(),
     tags$head(
       tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
@@ -245,9 +260,6 @@ create_enhanced_ui <- function() {
 
     bslib::nav_spacer(),
     bslib::nav_item(uiOutput("logout_nav_slot", inline = TRUE)),
-
-    # Authentication modal placeholder
-    uiOutput("uiLogin"),
 
     # Google Sheets integration data (hidden)
     if (!is.null(gsheets_integration)) {
