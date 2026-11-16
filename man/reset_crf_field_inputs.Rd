@@ -33,14 +33,42 @@ A date field is cleared to blank here rather than reset to
 today's date (unlike \code{\link[=renderPanel]{renderPanel()}}'s own first-render default):
 a just-submitted entry's dates (e.g. a manuscript's submission or
 acceptance date) have no reason to carry over, or to default to
-today, for an unrelated next entry. A file field has no
-\code{shiny::update*Input()} of its own at all -- there is no
-\code{updateFileInput()} -- so it is cleared via \code{shinyjs::reset()}
-instead, which resets the underlying \verb{<input type="file">}
-element's actual browser-held selection (clearing Shiny's
-server-side value alone would leave a file still visibly
+today, for an unrelated next entry. \code{shiny::updateDateInput(value = NA)} is not used for this even though it is the documented
+idiom and does send the client a correctly-formed "clear" message
+-- verified directly against both \code{dateInputBinding}'s own
+\code{receiveMessage()}/\code{setValue()} and \code{shiny:::toJSON()}'s
+NA-to-\code{null} serialization -- because the bundled
+bootstrap-datepicker widget's own \code{update()} call (what
+\code{setValue(el, null)} invokes) can re-populate the field from
+today's date instead of leaving it blank, confirmed live against
+this application. A file field has no \code{shiny::update*Input()} of
+its own at all -- there is no \code{updateFileInput()} -- and clearing
+Shiny's server-side value alone would leave a file still visibly
 "selected" in the widget, confusingly implying it would be
-resubmitted).
+resubmitted.
+
+Both of those -- a datepicker's own \code{clearDates()} method, and
+directly emptying a file input's DOM value -- need client-side
+JavaScript, which is why both cases send a custom message
+(\code{session$sendCustomMessage()}) instead of calling an
+\code{update*Input()} function. \code{shinyjs::runjs()}/\code{shinyjs::reset()}
+were tried first for this, since both are already a hard
+dependency and this is exactly what they are for, but both
+resolve their own session via \code{shinyjs:::getSession()} /
+\code{shiny::getDefaultReactiveDomain()} rather than using the
+\code{session} argument actually passed in here, and that lookup was
+confirmed, live, not to resolve to this application's session;
+\code{shinyjs::reset()} additionally has no working path for a "file"
+field at all regardless of that, since internally it waits for
+the client to report the reset element's detected widget type and
+calls the matching \verb{shiny::update<Type>Input()}, and there is no
+\code{updateFileInput()} for it to find. Sending the message directly
+through the \code{session} object already in hand avoids depending on
+either of those paths. The two
+\code{Shiny.addCustomMessageHandler()} calls these messages rely on are
+registered by \code{\link[=.zzedc_crf_reset_message_handlers]{.zzedc_crf_reset_message_handlers()}}, included once
+in the page \verb{<head>} by both \code{inst/app/ui.R} and
+\code{inst/app/gsheets_ui_integration.R}.
 
 Only the field types \code{\link[=map_designer_field_type]{map_designer_field_type()}} actually
 produces (\code{text}, \code{textarea}, \code{numeric}, \code{date}, \code{select},

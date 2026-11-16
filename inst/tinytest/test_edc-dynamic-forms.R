@@ -297,8 +297,13 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     make_fake_session <- function() {
       self <- new.env()
       self$calls <- list()
+      self$custom_calls <- list()
       self$sendInputMessage <- function(inputId, message) {
         self$calls[[inputId]] <- message
+      }
+      self$sendCustomMessage <- function(type, message) {
+        self$custom_calls[[length(self$custom_calls) + 1]] <-
+          list(type = type, message = message)
       }
       self$ns <- function(x) x
       class(self) <- c("MockShinySession", "environment")
@@ -313,7 +318,8 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
                      choices = c(Ideation = "ideation", Submitted = "submitted")),
       priority = list(type = "radio", choices = c(Low = "low", High = "high")),
       tags = list(type = "checkbox_group", choices = c(A = "a", B = "b")),
-      note = list(type = "notes")
+      note = list(type = "notes"),
+      attachment = list(type = "file")
     )
 
     sess <- make_fake_session()
@@ -322,8 +328,6 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_equal(sess$calls$tracking_id$value, "")
     expect_equal(sess$calls$count$value, "NA",
                  info = "numeric fields reset to NA, not 0 or blank")
-    expect_true(is.na(sess$calls$visit_date$value),
-                info = "date fields are cleared to blank, not reset to today")
     expect_equal(sess$calls$status$value, "ideation",
                  info = "select fields reset to their first choice")
     expect_equal(sess$calls$priority$value, "low",
@@ -332,6 +336,21 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
                  info = "checkbox-group fields reset to nothing selected")
     expect_equal(sess$calls$note$value, "",
                  info = "notes/textarea fields fall back to the text-input reset")
+
+    # "date" and "file" have no update*Input() of their own (see
+    # reset_crf_field_inputs()'s docs) and instead send a custom
+    # message a client-side Shiny.addCustomMessageHandler() (added by
+    # .zzedc_crf_reset_message_handlers()) acts on.
+    custom_types <- vapply(sess$custom_calls, `[[`, character(1), "type")
+    expect_true("zzedc-clear-date-input" %in% custom_types,
+                info = "a date field sends the clear-date custom message")
+    date_call <- sess$custom_calls[[which(custom_types == "zzedc-clear-date-input")]]
+    expect_equal(date_call$message, "visit_date")
+
+    expect_true("zzedc-clear-file-input" %in% custom_types,
+                info = "a file field sends the clear-file custom message")
+    file_call <- sess$custom_calls[[which(custom_types == "zzedc-clear-file-input")]]
+    expect_equal(file_call$message, "attachment")
   })
 
   local({
@@ -469,28 +488,43 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     # Sys.Date() -- a just-submitted manuscript's own dates
     # (submission_date, acceptance_date, ...) have no reason to
     # carry over, or default to today, on the next unrelated entry.
-    # It now clears to blank (value = NA), with no warning leaking
-    # out (shiny::dateYMD()'s internal "couldn't coerce" warning on
-    # NA is expected and suppressed inside reset_crf_field_inputs()
-    # itself -- this asserts that suppression, not just the value).
+    # It now sends a "zzedc-clear-date-input" custom message naming
+    # the field, for .zzedc_crf_reset_message_handlers()'s
+    # client-side handler to act on (shiny::updateDateInput(value =
+    # NA) does not reliably clear the bundled bootstrap-datepicker
+    # widget -- see the function's own docs).
     make_fake_session <- function() {
       self <- new.env()
-      self$calls <- list()
-      self$sendInputMessage <- function(inputId, message) {
-        self$calls[[inputId]] <- message
+      self$custom_calls <- list()
+      self$sendCustomMessage <- function(type, message) {
+        self$custom_calls[[length(self$custom_calls) + 1]] <-
+          list(type = type, message = message)
       }
       self$ns <- function(x) x
       class(self) <- c("MockShinySession", "environment")
       self
     }
     sess <- make_fake_session()
-    expect_silent(
-      zzedc:::reset_crf_field_inputs(
-        sess, list(submission_date = list(type = "date"))
-      )
+    zzedc:::reset_crf_field_inputs(
+      sess, list(submission_date = list(type = "date"))
     )
-    expect_true(is.na(sess$calls$submission_date$value),
-                info = "a date field is cleared to blank, not reset to today")
+    expect_equal(length(sess$custom_calls), 1)
+    expect_equal(sess$custom_calls[[1]]$type, "zzedc-clear-date-input")
+    expect_equal(sess$custom_calls[[1]]$message, "submission_date")
+  })
+
+  local({
+    # .zzedc_crf_reset_message_handlers() registers the client-side
+    # handlers the "date"/"file" custom messages above rely on; it
+    # must actually name both message types, and must not accidentally
+    # use a generic eval()-style handler that would run arbitrary
+    # server-sent code (least-privilege: each handler does exactly
+    # one narrow DOM operation).
+    html <- as.character(zzedc:::.zzedc_crf_reset_message_handlers())
+    expect_true(grepl("zzedc-clear-date-input", html, fixed = TRUE))
+    expect_true(grepl("zzedc-clear-file-input", html, fixed = TRUE))
+    expect_true(grepl("bsDatepicker('clearDates')", html, fixed = TRUE))
+    expect_false(grepl("eval(", html, fixed = TRUE))
   })
 
   local({

@@ -423,14 +423,43 @@ crf_live_invalid_fields <- function(field_data, metadata, crf_code = NULL) {
 #' today's date (unlike [renderPanel()]'s own first-render default):
 #' a just-submitted entry's dates (e.g. a manuscript's submission or
 #' acceptance date) have no reason to carry over, or to default to
-#' today, for an unrelated next entry. A file field has no
-#' `shiny::update*Input()` of its own at all -- there is no
-#' `updateFileInput()` -- so it is cleared via `shinyjs::reset()`
-#' instead, which resets the underlying `<input type="file">`
-#' element's actual browser-held selection (clearing Shiny's
-#' server-side value alone would leave a file still visibly
+#' today, for an unrelated next entry. `shiny::updateDateInput(value
+#' = NA)` is not used for this even though it is the documented
+#' idiom and does send the client a correctly-formed "clear" message
+#' -- verified directly against both `dateInputBinding`'s own
+#' `receiveMessage()`/`setValue()` and `shiny:::toJSON()`'s
+#' NA-to-`null` serialization -- because the bundled
+#' bootstrap-datepicker widget's own `update()` call (what
+#' `setValue(el, null)` invokes) can re-populate the field from
+#' today's date instead of leaving it blank, confirmed live against
+#' this application. A file field has no `shiny::update*Input()` of
+#' its own at all -- there is no `updateFileInput()` -- and clearing
+#' Shiny's server-side value alone would leave a file still visibly
 #' "selected" in the widget, confusingly implying it would be
-#' resubmitted).
+#' resubmitted.
+#'
+#' Both of those -- a datepicker's own `clearDates()` method, and
+#' directly emptying a file input's DOM value -- need client-side
+#' JavaScript, which is why both cases send a custom message
+#' (`session$sendCustomMessage()`) instead of calling an
+#' `update*Input()` function. `shinyjs::runjs()`/`shinyjs::reset()`
+#' were tried first for this, since both are already a hard
+#' dependency and this is exactly what they are for, but both
+#' resolve their own session via `shinyjs:::getSession()` /
+#' `shiny::getDefaultReactiveDomain()` rather than using the
+#' `session` argument actually passed in here, and that lookup was
+#' confirmed, live, not to resolve to this application's session;
+#' `shinyjs::reset()` additionally has no working path for a "file"
+#' field at all regardless of that, since internally it waits for
+#' the client to report the reset element's detected widget type and
+#' calls the matching `shiny::update<Type>Input()`, and there is no
+#' `updateFileInput()` for it to find. Sending the message directly
+#' through the `session` object already in hand avoids depending on
+#' either of those paths. The two
+#' `Shiny.addCustomMessageHandler()` calls these messages rely on are
+#' registered by [.zzedc_crf_reset_message_handlers()], included once
+#' in the page `<head>` by both `inst/app/ui.R` and
+#' `inst/app/gsheets_ui_integration.R`.
 #'
 #' Only the field types [map_designer_field_type()] actually
 #' produces (`text`, `textarea`, `numeric`, `date`, `select`,
@@ -453,15 +482,38 @@ reset_crf_field_inputs <- function(session, metadata) {
     switch(
       field_config$type,
       "numeric" = shiny::updateNumericInput(session, field_name, value = NA),
-      # value = NA is the standard idiom to clear a dateInput (NULL
-      # is a documented no-op on updateDateInput(), left as-is on
-      # the client); it reliably clears the field but always also
-      # triggers shiny::dateYMD()'s internal, expected "couldn't
-      # coerce" warning on NA, which carries no actionable
-      # information here and would otherwise be logged on every
-      # single submission of a form with any date field.
-      "date" = suppressWarnings(
-        shiny::updateDateInput(session, field_name, value = NA)
+      # updateDateInput(value = NA) looked like the standard idiom
+      # to clear a dateInput, and does send the client a message the
+      # dateInputBinding's own receiveMessage()/setValue() correctly
+      # interpret as "clear" (value: null, after NA's expected
+      # shiny:::toJSON(na = "null") serialization) -- verified by
+      # reading both ends of that path directly. It still did not
+      # visually clear the field, confirmed live: the bundled
+      # bootstrap-datepicker widget's own update() call (what
+      # setValue(el, null) invokes after emptying the input) can
+      # re-populate itself from today's date rather than staying
+      # blank. clearDates() is that same plugin's own, dedicated
+      # method for actually emptying a datepicker and does not have
+      # this problem, so the client is told to call it directly
+      # instead (see .zzedc_crf_reset_message_handlers()).
+      #
+      # shinyjs::runjs()/shinyjs::reset() were tried first for this
+      # and the "file" case below, since both are already a hard
+      # dependency and this is exactly what they are for -- but both
+      # resolve their own session via shinyjs:::getSession() /
+      # shiny::getDefaultReactiveDomain() rather than using the
+      # `session` argument actually passed in here, and that lookup
+      # was confirmed live, directly, not to resolve to this
+      # application's session (shinyjs::reset() additionally has no
+      # working path for a "file" field at all regardless: internally
+      # it waits for the client to report the reset element's
+      # detected widget type and calls the matching
+      # shiny::update<Type>Input(), and there is no
+      # updateFileInput()). Sending the message directly through the
+      # `session` object already in hand avoids depending on that
+      # lookup at all.
+      "date" = session$sendCustomMessage(
+        "zzedc-clear-date-input", field_name
       ),
       "select" = shiny::updateSelectInput(
         session, field_name, selected = field_config$choices[1]
@@ -473,11 +525,46 @@ reset_crf_field_inputs <- function(session, metadata) {
         session, field_name, selected = character(0)
       ),
       "textarea" = shiny::updateTextAreaInput(session, field_name, value = ""),
-      "file" = shinyjs::reset(field_name),
+      # There is no updateFileInput(); clearing the client's actual
+      # browser-held file selection (not just Shiny's server-side
+      # value, which would leave a file still visibly "selected" in
+      # the widget) needs direct DOM access on the client, same
+      # reasoning and the same explicit-`session` approach as "date"
+      # above.
+      "file" = session$sendCustomMessage(
+        "zzedc-clear-file-input", field_name
+      ),
       shiny::updateTextInput(session, field_name, value = field_config$value %||% "")
     )
   }
   invisible(NULL)
+}
+
+
+#' Client-side handlers for `reset_crf_field_inputs()`'s "date" and
+#' "file" custom messages
+#'
+#' Neither a `dateInput()` nor a `fileInput()` can be reliably cleared
+#' from the server alone (see `reset_crf_field_inputs()`'s "date" and
+#' "file" cases for why); this registers the two
+#' `Shiny.addCustomMessageHandler()` handlers their
+#' `session$sendCustomMessage()` calls rely on. Included once in the
+#' page `<head>` (alongside `shinyjs::useShinyjs()`, which this does
+#' not use but is naturally grouped with) by both `inst/app/ui.R` and
+#' `inst/app/gsheets_ui_integration.R`.
+#'
+#' @return A `tags$script()` tag.
+#' @keywords internal
+.zzedc_crf_reset_message_handlers <- function() {
+  shiny::tags$script(shiny::HTML(
+    "Shiny.addCustomMessageHandler('zzedc-clear-date-input', function(id) {",
+    "  $('#' + id).find('input').bsDatepicker('clearDates');",
+    "});",
+    "Shiny.addCustomMessageHandler('zzedc-clear-file-input', function(id) {",
+    "  var el = document.getElementById(id);",
+    "  if (el) { el.value = ''; }",
+    "});"
+  ))
 }
 
 
