@@ -66,3 +66,67 @@ local({
   expect_equal(zzedc:::.normalize_role_name(NULL), "")
   expect_equal(zzedc:::.normalize_role_name("  Admin  "), "admin")
 })
+
+# Defect 3 (zzedc-modernization-whitepaper-2026-11-13.md, Section
+# 2.2): output$ui's user_input$authenticated switch only decided what
+# rendered; observeEvent(input$submitcrf, ...),
+# observeEvent(input$randomize_subject_btn, ...), export_data()
+# (inst/app/export.R), and run_gsheets_import()
+# (inst/app/gsheets_server_integration.R) had no authentication check
+# of their own at all, reachable directly via Shiny.setInputValue()
+# regardless of what was rendered to a given session.
+# require_authenticated_action() is the shared gate now wired into
+# all four.
+if (requireNamespace("RSQLite", quietly = TRUE)) local({
+  db_path <- tempfile(fileext = ".db")
+  on.exit(unlink(db_path), add = TRUE)
+  old_profile <- getOption("zzedc.security_profile")
+  options(zzedc.security_profile = "standard")
+  on.exit(options(zzedc.security_profile = old_profile), add = TRUE)
+
+  old_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA)
+  init <- zzedc:::initialize_encrypted_database(db_path = db_path, overwrite = TRUE)
+  Sys.setenv(DB_ENCRYPTION_KEY = init$key)
+  on.exit({
+    if (is.na(old_key)) Sys.unsetenv("DB_ENCRYPTION_KEY")
+    else Sys.setenv(DB_ENCRYPTION_KEY = old_key)
+  }, add = TRUE)
+  zzedc:::init_audit_logging(db_path = db_path)
+
+  fake_session <- structure(
+    list(token = "fake-session-token"),
+    class = c("MockShinySession", "list")
+  )
+
+  # Authenticated: returns TRUE, logs nothing.
+  expect_true(isTRUE(zzedc::require_authenticated_action(
+    list(authenticated = TRUE), fake_session, db_path, "submit a CRF entry"
+  )))
+
+  # Unauthenticated: halts via shiny::req()'s silent-stop condition
+  # (the same mechanism every other req() failure in this app uses),
+  # rather than returning or throwing an ordinary error.
+  err <- tryCatch({
+    zzedc::require_authenticated_action(
+      list(authenticated = FALSE), fake_session, db_path, "submit a CRF entry"
+    )
+    NULL
+  }, error = function(e) e)
+  expect_false(is.null(err))
+  expect_true(inherits(err, "shiny.silent.error"))
+
+  # ...and the denial is recorded, not just blocked silently --
+  # required by Part 11 Sec. 11.10(e)'s audit-trail obligation; a
+  # block with nothing logged leaves no record an attempt was made.
+  con <- zzedc::connect_encrypted_db(db_path = db_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  rows <- DBI::dbGetQuery(
+    con, "SELECT user_id, operation, details FROM audit_log WHERE event_type = 'ACCESS'"
+  )
+  expect_equal(nrow(rows), 1)
+  expect_equal(rows$user_id[1], "unauthenticated")
+  expect_equal(rows$operation[1], "DENIED")
+  details <- jsonlite::fromJSON(rows$details[1])
+  expect_equal(details$action, "submit a CRF entry")
+  expect_equal(details$reason, "not authenticated")
+})

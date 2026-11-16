@@ -163,6 +163,17 @@ initialize_gsheets_server <- function(input, output, session, user_input) {
 #' database (global.R's db_config), adding new users, forms, and rules
 #' and leaving existing ones unchanged.
 run_gsheets_import <- function(sheet_id) {
+  # Defect 3 (zzedc-modernization-whitepaper-2026-11-13.md, Section
+  # 2.2): the "Sheets refresh" case -- both call sites
+  # (observeEvent(input$confirm_refresh, ...) and
+  # observeEvent(input$run_gsheets_setup, ...)) had no authentication
+  # check, reachable via Shiny.setInputValue() regardless of whether
+  # Setup/Forms Overview is rendered to this session. Checked here,
+  # the one place both calls funnel through, rather than duplicated
+  # at each call site.
+  zzedc::require_authenticated_action(
+    user_input, session, db_path, "import a Google Sheets workbook"
+  )
   if (is.null(sheet_id) || !nzchar(trimws(sheet_id))) {
     shinyalert::shinyalert("Google Sheets ID needed",
       "Enter the workbook's ID or URL first.", type = "error")

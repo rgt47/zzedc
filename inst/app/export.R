@@ -72,8 +72,15 @@ export_audit <- function(data, event_type, view) {
 export_data <- reactive({
   # Gates export_preview_info, export_preview_table, and
   # download_export at once -- including the actual CSV/XLSX
-  # download, which had no authentication check at all before this.
-  shiny::req(isTRUE(user_input$authenticated))
+  # download. Upgraded from a plain shiny::req() to
+  # require_authenticated_action() (Defect 3,
+  # zzedc-modernization-whitepaper-2026-11-13.md, Section 2.2): the
+  # download_export handler had no authentication check of its own
+  # at all before this, reachable directly via
+  # Shiny.setInputValue('download_export', ...) regardless of what
+  # the Export tab itself renders, and a plain req() blocks without
+  # recording that a real export attempt was denied.
+  zzedc::require_authenticated_action(user_input, session, db_path, "export study data")
   shiny::req(db_pool, input$export_form, input$export_date_range)
   data <- if (input$export_form == "__all__") {
     all_entries <- zzedc:::flatten_all_entries_for_explorer(db_pool)

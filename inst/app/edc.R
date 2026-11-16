@@ -466,6 +466,11 @@ output$randomize_subject_btn_ui <- renderUI({
 })
 
 observeEvent(input$randomize_subject_btn, {
+  # Defect 3: same gap as submitcrf above -- this handler had no
+  # authentication check of its own, relying entirely on the button
+  # not being rendered to an unauthenticated session, which does not
+  # stop a crafted Shiny.setInputValue('randomize_subject_btn', 1).
+  zzedc::require_authenticated_action(user_input, session, db_path, "randomize a subject")
   # The button only renders on Screening (output$randomize_subject_btn_ui
   # above); this guard is just defense against a stale click landing
   # after the form selector has already switched away from it.
@@ -668,6 +673,14 @@ output$edc_crf_field_flags <- renderUI({
 crf_entries_refresh <- reactiveVal(0)
 
 observeEvent(input$submitcrf, {
+  # Defect 3 (zzedc-modernization-whitepaper-2026-11-13.md, Section
+  # 2.2): output$ui's authenticated switch only decides what renders;
+  # this handler had no check of its own, so a crafted
+  # Shiny.setInputValue('submitcrf', 1) from an unauthenticated
+  # session would still write a real entry. Must come before any
+  # other code in this block: everything below writes to the study
+  # database.
+  zzedc::require_authenticated_action(user_input, session, db_path, "submit a CRF entry")
   shiny::req(input$edc_crf_form)
   crf_id <- as.integer(input$edc_crf_form)
   forms <- zzedc:::get_active_crf_forms(db_pool)
