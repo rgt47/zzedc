@@ -327,9 +327,59 @@ observeEvent(input$login_button, {
     shinyalert("Login Failed", auth_result$message, type = "error")
   }
 })
-  
-  output$uiLogin <- renderUI({ 
-  
+
+# Logout: the only way to end a session before this was a full page
+# reload, which starts a brand-new, separately-unauthenticated Shiny
+# session rather than actually ending the authenticated one -- no
+# LOGOUT audit event, and on a shared/lab computer the old session
+# stays logged in (just no longer the one in front of whoever
+# reloaded) until it times out or the browser tab closes. Resets
+# every field user_session (inst/app/server.R) starts a session with,
+# not just `authenticated`, so a later login doesn't momentarily show
+# the previous user's name/role before auth_result overwrites them.
+observeEvent(input$logout_button, {
+  audit_ctx <- zzedc::session_audit_context(session)
+  audit_security_event(
+    event_type = "LOGOUT", user_id = user_input$username %||% "unknown",
+    description = "User logged out", severity = "info",
+    ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
+  )
+  user_input$authenticated <- FALSE
+  user_input$authentication_timestamp <- NULL
+  user_input$user_id <- NULL
+  user_input$username <- NULL
+  user_input$full_name <- NULL
+  user_input$role <- NULL
+  user_input$site_id <- NULL
+  user_input$must_change_password <- FALSE
+  shinyalert("Logged out", "You have been logged out.", type = "success", timer = 2000)
+})
+
+# Nav-bar logout control: only rendered once authenticated, so there
+# is nothing to click (and nothing claiming to end a session that was
+# never started) before login.
+output$logout_nav_slot <- renderUI({
+  shiny::req(isTRUE(user_input$authenticated))
+  tagList(
+    span(class = "navbar-text text-muted me-2", user_input$full_name %||% user_input$username),
+    actionButton("logout_button", "Logout", icon = icon("sign-out"),
+                 class = "btn btn-sm btn-outline-secondary")
+  )
+})
+
+  output$uiLogin <- renderUI({
+    # Reading user_input$authenticated here is what makes this
+    # re-execute (and so re-call composeLoginModal(), which calls
+    # showModal()) every time it goes from TRUE back to FALSE --
+    # exposed by adding logout: without this read, the expression has
+    # no reactive dependency at all, so it ran exactly once at session
+    # start, and logging out and clicking back into a gated tab showed
+    # nothing (output$ui correctly switched back to
+    # fluidPage(uiOutput("uiLogin")), but the cached, already-rendered
+    # output$uiLogin value it was pointed at never re-ran, so the
+    # modal never reappeared). req() stops this from also re-showing
+    # the modal right as a login succeeds.
+    shiny::req(!isTRUE(user_input$authenticated))
     composeLoginModal()
   })
 

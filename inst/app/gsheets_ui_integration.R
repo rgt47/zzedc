@@ -243,6 +243,9 @@ create_enhanced_ui <- function() {
     # named"), so strip the names for the splice itself.
     !!!unname(nav_tabs),
 
+    bslib::nav_spacer(),
+    bslib::nav_item(uiOutput("logout_nav_slot", inline = TRUE)),
+
     # Authentication modal placeholder
     uiOutput("uiLogin"),
 

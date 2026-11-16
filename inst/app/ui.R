@@ -309,6 +309,8 @@ if (!exists("ui_content") || is.null(ui_content)) {
   # Settings/Admin (future)
   bslib::nav_spacer(),
 
+  bslib::nav_item(uiOutput("logout_nav_slot", inline = TRUE)),
+
   bslib::nav_menu(
     title = tagList(safe_icon("gear-fill")),
     align = "right",
