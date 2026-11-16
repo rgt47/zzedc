@@ -217,6 +217,10 @@ close_db_pool <- function(pool) {
 #' @keywords internal
 #' @export
 db_query <- function(conn, sql, params = NULL) {
+  if (!inherits(conn, "DBIConnection") && !inherits(conn, "Pool")) {
+    stop("`conn` must be a DBI connection or a pool object, not ",
+         class(conn)[1], ".", call. = FALSE)
+  }
   adapter <- get_db_adapter()
   adapter$query(conn, sql, params)
 }
@@ -235,6 +239,10 @@ db_query <- function(conn, sql, params = NULL) {
 #' @keywords internal
 #' @export
 db_execute <- function(conn, sql, params = NULL) {
+  if (!inherits(conn, "DBIConnection") && !inherits(conn, "Pool")) {
+    stop("`conn` must be a DBI connection or a pool object, not ",
+         class(conn)[1], ".", call. = FALSE)
+  }
   adapter <- get_db_adapter()
   adapter$execute(conn, sql, params)
 }

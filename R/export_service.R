@@ -435,6 +435,16 @@ export_to_file <- function(data, filepath, format, options = NULL) {
 #' @keywords internal
 #' @export
 generate_export_filename <- function(base_name = NULL, data_source, format) {
+  if (!is.null(base_name) && (!is.character(base_name) || length(base_name) != 1)) {
+    # A length != 1 base_name used to reach `base_name == ""` below,
+    # where `||` on a non-scalar comparison fails with a bare
+    # "'length = 2' in coercion to 'logical(1)'" naming neither
+    # base_name nor what was expected of it.
+    stop("`base_name` must be a single string or NULL, not a ",
+         if (!is.character(base_name)) class(base_name)[1]
+         else paste0("length-", length(base_name), " character vector"),
+         ".", call. = FALSE)
+  }
   if (is.null(base_name) || base_name == "") {
     base_name <- paste0(data_source, "_export_", format(Sys.Date(), "%Y%m%d"))
   } else {

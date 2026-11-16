@@ -56,6 +56,21 @@ create_wizard_database <- function(config_list, db_path = NULL,
 
   if (!is.null(adapter_config)) {
     backend <- adapter_config$db_backend
+    if (is.null(backend) || !nzchar(backend)) {
+      # Without this check, an adapter_config missing db_backend (an
+      # empty list, most concretely) sets backend to NULL here and
+      # fails below at `if (backend %in% c("sqlite", "duckdb") && ...)`
+      # with a bare "argument is of length zero" -- naming neither
+      # adapter_config nor what it needed.
+      stop(
+        "`adapter_config` must have a `db_backend` field naming the ",
+        "database backend (e.g. \"sqlite\", \"duckdb\", \"postgresql\", ",
+        "\"mysql\"); got ",
+        if (length(adapter_config) == 0) "an empty list" else "none",
+        ".",
+        call. = FALSE
+      )
+    }
     db_path <- app_database_path(adapter_config)
     if (is.na(db_path)) db_path <- NULL
   }
