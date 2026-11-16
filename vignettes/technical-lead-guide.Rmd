@@ -1068,23 +1068,25 @@ This is appropriate for the content author's dry-run protocol
 production, use one of the patterns below.
 
 Confirm the full top-level navigation loads: Home, each
-study-specific CRF tab, Reports, Data, Export, Setup, and two
-tabs relevant to this guide's audience: *Compliance*
-(electronic signatures and training records; implemented in
-`R/cfr_compliance_module.R`) and *Admin* (user management,
-backup/restore, the admin dashboard; implemented in
+study-specific CRF tab, Reports, Data, Export, and an **Admin**
+dropdown menu grouping Setup, Compliance, Corrections,
+Validation Rules, and Admin -- five tabs pushed under one
+top-level entry so the navbar stays one row. Two of those five
+are of particular interest to this guide's audience:
+*Compliance* (electronic signatures and training records;
+implemented in `R/cfr_compliance_module.R`) and *Admin* (user
+management, backup/restore, the admin dashboard; implemented in
 `R/admin_dashboard_module.R`). Both modules existed as code
-before this release but were not reachable from the live
-application's navigation; they are now wired into `nav_tabs`
-and appear for every logged-in user, the same as the other
-top-level tabs. The navigation itself does not filter these
-tabs by role; anything inside them that should be restricted
-(for example, which roles an admin is permitted to assign to
-another user) is enforced inside the module itself, not by
-hiding the tab. If either tab is missing or renders a *module
-not available* placeholder on a fresh install, treat it as an
-installation problem (a missing module file), not an expected
-limitation.
+before being wired into the Admin dropdown; reaching them now
+requires login, after a 2026-11-16 fix closed a gap where the
+mount itself was never gated at all. The navigation does not
+further filter dropdown items by role; anything inside them
+that should be restricted (for example, which roles an admin is
+permitted to assign to another user) is enforced inside the
+module itself, not by hiding the item. If any Admin-dropdown
+item is missing or renders a *module not available* placeholder
+on a fresh install, treat it as an installation problem (a
+missing module file), not an expected limitation.
 
 ## 8.2 Production pattern: Docker on a single VM
 
@@ -1431,7 +1433,7 @@ below an hour.
 ### Ad-hoc admin-initiated backups (in-app)
 
 The running Shiny app exposes a *Backup & Restore* card on
-the Admin tab for one-off snapshots a project administrator
+the Admin dropdown's *Admin* panel for one-off snapshots a project administrator
 can take from a browser without shell access — useful before
 schema migrations, before bulk data corrections, or before a
 restore. Behavior notes:

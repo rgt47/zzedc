@@ -377,8 +377,8 @@ call, whether or not it already exists in the database. There is no
 `delete_missing` option: a rule removed from the Sheet is **not**
 removed from the database by this call. Retiring a rule that is no
 longer wanted means deleting or deactivating it directly in the
-database, or through the Admin tab, after it is taken out of the
-Sheet.
+database, or through the Admin dropdown menu's Admin page, after
+it is taken out of the Sheet.
 
 For audit purposes, each sync writes one summary record to the
 `dsl_rule_audit` table (action `SYNC_FROM_GSHEETS`, attributed to
@@ -424,13 +424,17 @@ Sys.setenv(ZZEDC_DB_PATH = db_path)
 launch_zzedc()
 ```
 
-The Shiny session opens in your default browser. Authenticate as
-one of the users you imported and proceed to data entry. The
-audit log records every action, the validation rules fire as
-defined in the Sheet, and exports are available through the
-secure-export module. The Compliance tab (electronic signatures,
-training records) and the Admin tab (user management, admin
-dashboard) are also available to users with the appropriate role,
+The Shiny session opens in your default browser, and a login
+modal appears immediately. Authenticate as one of the users you
+imported and proceed to data entry. The audit log records every
+action, the validation rules fire as defined in the Sheet, and
+exports are available through the secure-export module.
+Compliance (electronic signatures, training records) and Admin
+(user management, admin dashboard) are reachable from the
+**Admin** dropdown menu, alongside Setup, Corrections, and
+Validation Rules; anything inside them that should be restricted
+to a particular role is enforced inside the module, not by
+hiding the dropdown item. Available to any authenticated user,
 the same as in the CSV-driven demonstration trial.
 
 ---

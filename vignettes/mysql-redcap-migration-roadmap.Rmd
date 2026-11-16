@@ -78,8 +78,9 @@ backend works on MySQL / MariaDB:
   study can be moved between any two of the five backends)
 - The full Shiny application, including the form designer,
   data-correction module, audit viewer, GDPR data-subject
-  modules, and the Compliance (electronic signatures, training
-  records) and Admin (user management, admin dashboard) tabs
+  modules, and the Admin dropdown menu's Compliance (electronic
+  signatures, training records) and Admin (user management,
+  admin dashboard) pages
 
 ### Recommended server versions
 

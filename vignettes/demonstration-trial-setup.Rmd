@@ -606,14 +606,19 @@ launch_zzedc(port = 3838)
 
 Once ZZedc launches:
 
-1. **Login** with one of the test credentials
+1. **Login** with one of the test credentials -- a login modal
+   appears as soon as the app loads, before any tab is usable
 2. **Home Tab**: Overview of the study with 20 enrolled subjects
 3. **Data Explorer**: Browse all subjects, randomization, assessments
 4. **Reports**: Generate reports by treatment arm
 5. **Exports**: Export data in CSV, Excel, or other formats
-6. **Compliance Tab**: Electronic signatures and training records
-7. **Admin Tab**: User management and the admin dashboard (backups,
-   security settings, database information)
+6. **Admin dropdown menu**: groups five administrative tabs so
+   the navbar stays one row -- *Compliance* (electronic
+   signatures and training records) and *Admin* (user
+   management and the admin dashboard: backups, security
+   settings, database information) are the two of interest here;
+   *Setup*, *Corrections*, and *Validation Rules* live alongside
+   them in the same dropdown
 
 ---
 

@@ -575,16 +575,18 @@ not train multiple sites at once unless they share staff.
 
 ## Recording training completion
 
-The application's **Compliance** tab tracks electronic
-signatures, audit-trail events, and training records in one
-place. After each site's training session, record each
-coordinator's training there (user, training type, date, and
-score) so the trial has a documented training record beyond
-your own notes. Recording training is a documented control some
-institutional and sponsor-side procedures expect; it does not
-by itself make the trial compliant with anything. If you hold
-the `Admin` role you can enter it yourself; otherwise ask the
-technical lead or site PI, who will see the same tab.
+The application's **Compliance** page (inside the **Admin**
+dropdown menu, alongside Setup, Corrections, Validation Rules,
+and Admin) tracks electronic signatures, audit-trail events, and
+training records in one place. After each site's training
+session, record each coordinator's training there (user,
+training type, date, and score) so the trial has a documented
+training record beyond your own notes. Recording training is a
+documented control some institutional and sponsor-side
+procedures expect; it does not by itself make the trial
+compliant with anything. If you hold the `Admin` role you can
+enter it yourself; otherwise ask the technical lead or site PI,
+who will see the same Compliance page.
 
 ## Common training gotchas
 
