@@ -63,6 +63,13 @@ map_designer_field_type <- function(x) {
     # system-set treatment arm (R/randomization_module.R), which
     # must never be a user-editable field.
     CALCULATED  = "readonly_display",
+    # FILE and TEXTAREA had no case here, so both fell through to
+    # the "text" default below -- a FILE- or TEXTAREA-type field
+    # imported from a Data_Dictionary rendered as a plain one-line
+    # text box, never reaching renderPanel()'s "file" =
+    # fileInput(...) or "textarea" = tags$textarea(...) cases at all.
+    FILE        = "file",
+    TEXTAREA    = "textarea",
     "text"
   )
 }
@@ -407,20 +414,33 @@ crf_live_invalid_fields <- function(field_data, metadata, crf_code = NULL) {
 #' submit handler previously left every input holding whatever the
 #' user had just typed, so a second entry on the same form always
 #' started pre-filled with the first entry's values instead of a
-#' blank form. This restores each field named in `metadata` to that
-#' same fresh-render default via the matching `shiny::update*Input()`
+#' blank form. This restores each field named in `metadata` to a
+#' blank starting point via the matching `shiny::update*Input()`
 #' call, so a successful submit leaves the form ready for the next
 #' entry.
 #'
+#' A date field is cleared to blank here rather than reset to
+#' today's date (unlike [renderPanel()]'s own first-render default):
+#' a just-submitted entry's dates (e.g. a manuscript's submission or
+#' acceptance date) have no reason to carry over, or to default to
+#' today, for an unrelated next entry. A file field has no
+#' `shiny::update*Input()` of its own at all -- there is no
+#' `updateFileInput()` -- so it is cleared via `shinyjs::reset()`
+#' instead, which resets the underlying `<input type="file">`
+#' element's actual browser-held selection (clearing Shiny's
+#' server-side value alone would leave a file still visibly
+#' "selected" in the widget, confusingly implying it would be
+#' resubmitted).
+#'
 #' Only the field types [map_designer_field_type()] actually
-#' produces (`text`, `numeric`, `date`, `select`, `radio`,
-#' `checkbox_group`) are handled explicitly; any other type falls
-#' back to the text-input reset, matching [renderPanel()]'s own
-#' fallback for an unrecognized type. The text-input reset uses
-#' `field_config$value` when the caller has set one (e.g. the EDC
-#' tab's submit handler recomputes the next free tracking ID before
-#' calling this, for forms with a tracking-ID convention), and
-#' falls back to blank otherwise.
+#' produces (`text`, `textarea`, `numeric`, `date`, `select`,
+#' `radio`, `checkbox_group`, `file`) are handled explicitly; any
+#' other type falls back to the text-input reset, matching
+#' [renderPanel()]'s own fallback for an unrecognized type. The
+#' text-input reset uses `field_config$value` when the caller has
+#' set one (e.g. the EDC tab's submit handler recomputes the next
+#' free tracking ID before calling this, for forms with a
+#' tracking-ID convention), and falls back to blank otherwise.
 #'
 #' @param session The current Shiny session.
 #' @param metadata Field metadata as returned by
@@ -433,7 +453,16 @@ reset_crf_field_inputs <- function(session, metadata) {
     switch(
       field_config$type,
       "numeric" = shiny::updateNumericInput(session, field_name, value = NA),
-      "date" = shiny::updateDateInput(session, field_name, value = Sys.Date()),
+      # value = NA is the standard idiom to clear a dateInput (NULL
+      # is a documented no-op on updateDateInput(), left as-is on
+      # the client); it reliably clears the field but always also
+      # triggers shiny::dateYMD()'s internal, expected "couldn't
+      # coerce" warning on NA, which carries no actionable
+      # information here and would otherwise be logged on every
+      # single submission of a form with any date field.
+      "date" = suppressWarnings(
+        shiny::updateDateInput(session, field_name, value = NA)
+      ),
       "select" = shiny::updateSelectInput(
         session, field_name, selected = field_config$choices[1]
       ),
@@ -443,6 +472,8 @@ reset_crf_field_inputs <- function(session, metadata) {
       "checkbox_group" = shiny::updateCheckboxGroupInput(
         session, field_name, selected = character(0)
       ),
+      "textarea" = shiny::updateTextAreaInput(session, field_name, value = ""),
+      "file" = shinyjs::reset(field_name),
       shiny::updateTextInput(session, field_name, value = field_config$value %||% "")
     )
   }
@@ -503,4 +534,44 @@ save_crf_entry <- function(conn, crf_code, field_data, created_by,
     ip_address  = ip_address,
     session_id  = session_id
   )
+}
+
+
+#' Persist a submitted CRF file upload to permanent storage
+#'
+#' Shiny's `fileInput()` leaves an uploaded file at a temp path
+#' (`input[[field_code]]$datapath`) that is deleted when the session
+#' ends, so a "file"-type field's value cannot be stored as-is by
+#' [save_crf_entry()] the way every other field type's value is --
+#' the submit handler must copy it somewhere permanent first and
+#' store that path instead. Destination:
+#' `<dirname(db_path)>/uploads/<crf_code>/<tracking_id>/<field_code>_<original name>`,
+#' with every path component sanitized to `[A-Za-z0-9._-]` so
+#' neither the tracking ID nor the uploaded filename can escape the
+#' uploads directory or collide with punctuation-sensitive tooling.
+#'
+#' @param tmp_path The temp file path, from `input[[field_code]]$datapath`.
+#' @param original_name The uploaded file's original name, from
+#'   `input[[field_code]]$name`.
+#' @param db_path The study database's file path; uploads are stored
+#'   under a `uploads/` directory next to it.
+#' @param crf_code,tracking_id,field_code Identify the submission and
+#'   field this upload belongs to, for the destination path.
+#' @return The stored file's path, relative to `dirname(db_path)`
+#'   (suitable for storing in `field_data` and later resolving with
+#'   `file.path(dirname(db_path), stored_path)`).
+#' @keywords internal
+persist_crf_upload <- function(tmp_path, original_name, db_path, crf_code,
+                                tracking_id, field_code) {
+  sanitize <- function(x) gsub("[^A-Za-z0-9._-]+", "_", as.character(x))
+
+  rel_dir <- file.path("uploads", sanitize(crf_code), sanitize(tracking_id))
+  dest_dir <- file.path(dirname(db_path), rel_dir)
+  dir.create(dest_dir, recursive = TRUE, showWarnings = FALSE)
+
+  dest_name <- paste0(sanitize(field_code), "_", sanitize(basename(original_name)))
+  dest_path <- file.path(dest_dir, dest_name)
+  file.copy(tmp_path, dest_path, overwrite = TRUE)
+
+  file.path(rel_dir, dest_name)
 }

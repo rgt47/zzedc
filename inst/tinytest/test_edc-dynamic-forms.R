@@ -322,8 +322,8 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_equal(sess$calls$tracking_id$value, "")
     expect_equal(sess$calls$count$value, "NA",
                  info = "numeric fields reset to NA, not 0 or blank")
-    expect_equal(sess$calls$visit_date$value, format(Sys.Date()),
-                 info = "date fields reset to today, matching renderPanel()'s own fresh-render default")
+    expect_true(is.na(sess$calls$visit_date$value),
+                info = "date fields are cleared to blank, not reset to today")
     expect_equal(sess$calls$status$value, "ideation",
                  info = "select fields reset to their first choice")
     expect_equal(sess$calls$priority$value, "low",
@@ -462,6 +462,110 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
       sess, list(tracking_id = list(type = "text", value = "PUB-2026-005"))
     )
     expect_equal(sess$calls$tracking_id$value, "PUB-2026-005")
+  })
+
+  local({
+    # reset_crf_field_inputs()'s "date" case used to reset to
+    # Sys.Date() -- a just-submitted manuscript's own dates
+    # (submission_date, acceptance_date, ...) have no reason to
+    # carry over, or default to today, on the next unrelated entry.
+    # It now clears to blank (value = NA), with no warning leaking
+    # out (shiny::dateYMD()'s internal "couldn't coerce" warning on
+    # NA is expected and suppressed inside reset_crf_field_inputs()
+    # itself -- this asserts that suppression, not just the value).
+    make_fake_session <- function() {
+      self <- new.env()
+      self$calls <- list()
+      self$sendInputMessage <- function(inputId, message) {
+        self$calls[[inputId]] <- message
+      }
+      self$ns <- function(x) x
+      class(self) <- c("MockShinySession", "environment")
+      self
+    }
+    sess <- make_fake_session()
+    expect_silent(
+      zzedc:::reset_crf_field_inputs(
+        sess, list(submission_date = list(type = "date"))
+      )
+    )
+    expect_true(is.na(sess$calls$submission_date$value),
+                info = "a date field is cleared to blank, not reset to today")
+  })
+
+  local({
+    # Same reset-after-submit path: a "textarea" field (e.g.
+    # journal_reviews' review_notes) clears to an empty string.
+    make_fake_session <- function() {
+      self <- new.env()
+      self$calls <- list()
+      self$sendInputMessage <- function(inputId, message) {
+        self$calls[[inputId]] <- message
+      }
+      self$ns <- function(x) x
+      class(self) <- c("MockShinySession", "environment")
+      self
+    }
+    sess <- make_fake_session()
+    zzedc:::reset_crf_field_inputs(
+      sess, list(review_notes = list(type = "textarea"))
+    )
+    expect_equal(sess$calls$review_notes$value, "")
+  })
+
+  local({
+    # map_designer_field_type("FILE") previously fell through to the
+    # "text" default (no case for it at all), so a FILE-type
+    # designer field never actually reached renderPanel()'s
+    # "file" = fileInput(...) case -- it rendered as a plain text
+    # box. get_crf_field_metadata() is what calls
+    # map_designer_field_type() per field; exercised here through
+    # the public entry point rather than just the unit below, so a
+    # regression in either one is caught.
+    expect_equal(zzedc:::map_designer_field_type("FILE"), "file")
+    expect_equal(zzedc:::map_designer_field_type("file"), "file",
+                 info = "case-insensitive, like every other designer field_type code")
+  })
+
+  local({
+    # persist_crf_upload() copies a fileInput() temp upload to
+    # permanent storage, since save_crf_entry() cannot store the
+    # temp path itself (the session deletes it). Destination:
+    # uploads/<crf_code>/<tracking_id>/<field_code>_<original name>,
+    # with every component sanitized.
+    db_dir <- tempfile("upload_test_")
+    dir.create(db_dir)
+    db_path <- file.path(db_dir, "study.db")
+    tmp_upload <- tempfile(fileext = ".pdf")
+    writeLines("fake pdf bytes", tmp_upload)
+
+    rel_path <- zzedc:::persist_crf_upload(
+      tmp_path = tmp_upload, original_name = "My Manuscript (final)!.pdf",
+      db_path = db_path, crf_code = "manuscripts",
+      tracking_id = "PUB-2026-001", field_code = "manuscript_file"
+    )
+    full_path <- file.path(dirname(db_path), rel_path)
+    expect_true(file.exists(full_path),
+                info = "the upload is copied to a path under dirname(db_path)")
+    expect_equal(readLines(full_path), "fake pdf bytes")
+    expect_true(
+      grepl("^uploads/manuscripts/PUB-2026-001/manuscript_file_", rel_path),
+      info = "stored path is namespaced by form and tracking ID, prefixed by field"
+    )
+
+    # A malicious/unusual original filename must stay confined to
+    # the uploads directory (basename() already strips any "../"
+    # component; sanitize() additionally removes characters that
+    # could otherwise still confuse a path on some filesystem).
+    rel_path2 <- zzedc:::persist_crf_upload(
+      tmp_path = tmp_upload, original_name = "../../etc/passwd",
+      db_path = db_path, crf_code = "manuscripts",
+      tracking_id = "PUB-2026-002", field_code = "manuscript_file"
+    )
+    resolved <- normalizePath(file.path(dirname(db_path), rel_path2))
+    uploads_root <- normalizePath(file.path(dirname(db_path), "uploads"))
+    expect_true(startsWith(resolved, uploads_root),
+                info = "a path-traversal attempt in the original filename cannot escape uploads/")
   })
 
 } else {

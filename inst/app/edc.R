@@ -528,6 +528,16 @@ crf_live_field_data <- reactive({
     v <- input[[f]]
     if (is.null(v)) NA_character_
     else if (inherits(v, "Date")) format(v)
+    # fileInput()'s input[[f]] is a data frame (name/size/type/
+    # datapath), not a scalar -- as.character(v) below would coerce
+    # and concatenate all four columns into one garbled string. Only
+    # the original filename is meaningful here (for the required
+    # check and this live view); the submit handler
+    # (observeEvent(input$submitcrf, ...)) reads input[[f]]$datapath
+    # itself to actually persist the upload via persist_crf_upload().
+    else if (metadata[[f]]$type == "file") {
+      if (is.data.frame(v) && nrow(v) > 0) v$name[1] else NA_character_
+    }
     else as.character(v)
   }), field_codes)
 })
@@ -694,6 +704,22 @@ observeEvent(input$submitcrf, {
     crf_submit_attempted(TRUE)
     crf_submit_attempt(crf_submit_attempt() + 1)
     return(invisible(NULL))
+  }
+
+  # field_data's "file"-type values are just the uploaded filename
+  # (see crf_live_field_data() above) -- not a path save_crf_entry()
+  # could do anything with later, since fileInput()'s real datapath
+  # is a temp file this session will delete. Copy each upload to
+  # permanent storage now, and store that path instead.
+  for (f in names(metadata)) {
+    if (metadata[[f]]$type != "file") next
+    upload <- input[[f]]
+    if (!is.data.frame(upload) || nrow(upload) == 0) next
+    field_data[[f]] <- zzedc:::persist_crf_upload(
+      tmp_path = upload$datapath[1], original_name = upload$name[1],
+      db_path = db_path, crf_code = crf_code,
+      tracking_id = field_data$tracking_id %||% "unknown", field_code = f
+    )
   }
 
   # input$username is only the login form's own text box; the real

@@ -23,20 +23,33 @@ fields, nothing selected for a checkbox group). The EDC tab's
 submit handler previously left every input holding whatever the
 user had just typed, so a second entry on the same form always
 started pre-filled with the first entry's values instead of a
-blank form. This restores each field named in \code{metadata} to that
-same fresh-render default via the matching \code{shiny::update*Input()}
+blank form. This restores each field named in \code{metadata} to a
+blank starting point via the matching \code{shiny::update*Input()}
 call, so a successful submit leaves the form ready for the next
 entry.
 }
 \details{
+A date field is cleared to blank here rather than reset to
+today's date (unlike \code{\link[=renderPanel]{renderPanel()}}'s own first-render default):
+a just-submitted entry's dates (e.g. a manuscript's submission or
+acceptance date) have no reason to carry over, or to default to
+today, for an unrelated next entry. A file field has no
+\code{shiny::update*Input()} of its own at all -- there is no
+\code{updateFileInput()} -- so it is cleared via \code{shinyjs::reset()}
+instead, which resets the underlying \verb{<input type="file">}
+element's actual browser-held selection (clearing Shiny's
+server-side value alone would leave a file still visibly
+"selected" in the widget, confusingly implying it would be
+resubmitted).
+
 Only the field types \code{\link[=map_designer_field_type]{map_designer_field_type()}} actually
-produces (\code{text}, \code{numeric}, \code{date}, \code{select}, \code{radio},
-\code{checkbox_group}) are handled explicitly; any other type falls
-back to the text-input reset, matching \code{\link[=renderPanel]{renderPanel()}}'s own
-fallback for an unrecognized type. The text-input reset uses
-\code{field_config$value} when the caller has set one (e.g. the EDC
-tab's submit handler recomputes the next free tracking ID before
-calling this, for forms with a tracking-ID convention), and
-falls back to blank otherwise.
+produces (\code{text}, \code{textarea}, \code{numeric}, \code{date}, \code{select},
+\code{radio}, \code{checkbox_group}, \code{file}) are handled explicitly; any
+other type falls back to the text-input reset, matching
+\code{\link[=renderPanel]{renderPanel()}}'s own fallback for an unrecognized type. The
+text-input reset uses \code{field_config$value} when the caller has
+set one (e.g. the EDC tab's submit handler recomputes the next
+free tracking ID before calling this, for forms with a
+tracking-ID convention), and falls back to blank otherwise.
 }
 \keyword{internal}
