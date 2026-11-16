@@ -28,9 +28,21 @@
 #'   \item \code{name}: Database name (required)
 #'   \item \code{user}: Database username (required)
 #'   \item \code{password}: Database password (required)
-#'   \item \code{ssl_mode}: SSL connection mode (optional). Pass
-#'         the literal accepted by MySQL 8.0+ / MariaDB 10.5+, for
-#'         example \code{"REQUIRED"} or \code{"VERIFY_IDENTITY"}.
+#'   \item \code{ssl_mode}: One of \code{"REQUIRED"} (use TLS, do not
+#'         verify the server certificate), \code{"VERIFY_CA"}, or
+#'         \code{"VERIFY_IDENTITY"} (both verify the server
+#'         certificate against \code{ssl_ca}; RMariaDB's underlying
+#'         connector does not expose a distinct check for the two, so
+#'         both behave identically here). Leaving this unset connects
+#'         without TLS. The \code{'regulated'} security profile
+#'         requires \code{"VERIFY_CA"} or \code{"VERIFY_IDENTITY"}.
+#'   \item \code{ssl_ca}: Path to the CA certificate file; required
+#'         when \code{ssl_mode} is \code{"VERIFY_CA"} or
+#'         \code{"VERIFY_IDENTITY"}.
+#'   \item \code{ssl_cert}, \code{ssl_key}: Optional client
+#'         certificate and key file paths, for client-certificate
+#'         authentication.
+#'   \item \code{ssl_cipher}: Optional list of permitted TLS ciphers.
 #' }
 #'
 #' Encryption-at-rest is configured at the server level via InnoDB
@@ -116,15 +128,17 @@ MySQLAdapter <- R6::R6Class(
       driver_pkg <- "RMariaDB"
       MariaDB <- utils::getFromNamespace("MariaDB", driver_pkg)
 
-      args <- list(
-        drv      = MariaDB(),
-        host     = my$host,
-        port     = my$port %||% 3306L,
-        dbname   = my$name,
-        user     = my$user,
-        password = my$password
+      args <- c(
+        list(
+          drv      = MariaDB(),
+          host     = my$host,
+          port     = my$port %||% 3306L,
+          dbname   = my$name,
+          user     = my$user,
+          password = my$password
+        ),
+        .mysql_tls_args(my)
       )
-      if (!is.null(my$ssl_mode)) args$ssl.mode <- my$ssl_mode
 
       do.call(DBI::dbConnect, args)
     },
@@ -143,17 +157,19 @@ MySQLAdapter <- R6::R6Class(
       driver_pkg <- "RMariaDB"
       MariaDB <- utils::getFromNamespace("MariaDB", driver_pkg)
 
-      args <- list(
-        drv      = MariaDB(),
-        host     = my$host,
-        port     = my$port %||% 3306L,
-        dbname   = my$name,
-        user     = my$user,
-        password = my$password,
-        minSize  = my$pool_min %||% 1L,
-        maxSize  = my$pool_max %||% 5L
+      args <- c(
+        list(
+          drv      = MariaDB(),
+          host     = my$host,
+          port     = my$port %||% 3306L,
+          dbname   = my$name,
+          user     = my$user,
+          password = my$password,
+          minSize  = my$pool_min %||% 1L,
+          maxSize  = my$pool_max %||% 5L
+        ),
+        .mysql_tls_args(my)
       )
-      if (!is.null(my$ssl_mode)) args$ssl.mode <- my$ssl_mode
 
       do.call(pool::dbPool, args)
     },
@@ -240,10 +256,21 @@ MySQLAdapter <- R6::R6Class(
     #' Describe this backend's encryption. MySQL and MariaDB encrypt at
     #' rest through InnoDB tablespace encryption, enabled on the server;
     #' the `key` argument used by the SQLite and DuckDB paths is not
-    #' honored here. TLS is enforced only when `mysql$ssl_mode` requires
-    #' it. Earlier versions reported `supports_encryption() = TRUE`,
-    #' conflating server capability and TLS with encryption zzedc
-    #' provides.
+    #' honored here. TLS is reported `"enforced"` whenever `mysql$ssl_mode`
+    #' requires it (matching `in_transit`'s documented contract in
+    #' `DatabaseAdapter$encryption_capabilities()`, and the precedent
+    #' already set by `PostgresAdapter`'s own
+    #' `encryption_capabilities()`, which does not distinguish
+    #' `"require"` from `"verify-ca"`/`"verify-full"` either). This
+    #' package does not independently confirm, against a live server,
+    #' that `VERIFY_CA`/`VERIFY_IDENTITY` (`.mysql_tls_args()`) actually
+    #' causes the MariaDB Connector/C client underneath RMariaDB to
+    #' reject a mismatched server certificate -- that behavior is
+    #' documented by MariaDB/RMariaDB, not verified here (no TLS-
+    #' configured server was reachable in this session) -- so this
+    #' function does not claim more than `"enforced"` for it. Earlier
+    #' versions reported `supports_encryption() = TRUE`, conflating
+    #' server capability and TLS with encryption zzedc provides.
     #' @return List; see `DatabaseAdapter$encryption_capabilities()`
     encryption_capabilities = function() {
       ssl_mode <- toupper(self$config$mysql$ssl_mode %||% "")
@@ -319,6 +346,91 @@ MySQLAdapter <- R6::R6Class(
     }
   )
 )
+
+
+#' Build the Real RMariaDB Connection Arguments for `mysql$ssl_mode`
+#'
+#' Defect 8 (zzedc-modernization-whitepaper-2026-11-13.md, Section
+#' 2.2): `connect()`/`pool()` used to set `args$ssl.mode <- my$ssl_mode`
+#' -- but `ssl.mode` is not a parameter `RMariaDB::dbConnect()`
+#' recognizes at all (confirmed directly against its own documented
+#' connection arguments: `ssl.key`, `ssl.cert`, `ssl.ca`,
+#' `ssl.capath`, `ssl.cipher`, and a separate `client.flag =
+#' CLIENT_SSL` to require TLS in the first place -- no `ssl.mode`
+#' among them). `do.call(DBI::dbConnect, args)` silently drops an
+#' argument name the underlying driver does not understand rather
+#' than erroring, so `mysql$ssl_mode = "REQUIRED"` (the package's own
+#' documented example) connected in plaintext with no warning, and
+#' under the `regulated` profile that is exactly the "accepts
+#' unverified TLS" gap this defect names.
+#'
+#' `ssl_mode` keeps its existing three accepted values, now mapped to
+#' real RMariaDB arguments: `"REQUIRED"` sets `client.flag =
+#' CLIENT_SSL` alone (TLS used, server certificate not checked);
+#' `"VERIFY_CA"`/`"VERIFY_IDENTITY"` additionally pass `mysql$ssl_ca`
+#' as `ssl.ca`. Per MariaDB Connector/C's own documentation, supplying
+#' `ssl.ca` is what makes it validate the server's certificate against
+#' that CA, with no separate "verify" switch independent of supplying
+#' a CA file -- this is the documented contract, not independently
+#' confirmed against a live TLS-configured server in this session (see
+#' `encryption_capabilities()`, which reports only `"enforced"`, never
+#' a stronger claim, for exactly this reason). `ssl_cert`/`ssl_key`
+#' (client certificate authentication) and `ssl_cipher` are passed
+#' through verbatim when configured, matching the connector's own
+#' optional arguments.
+#'
+#' Verification cannot happen without a CA to verify against, so
+#' `"VERIFY_CA"`/`"VERIFY_IDENTITY"` with no `ssl_ca` configured is a
+#' configuration error (`stop()`), not a silent downgrade to
+#' unverified TLS -- the same failure mode as the original bug, just
+#' with an explicit cause this time. Independently, the `regulated`
+#' security profile refuses anything weaker than `"VERIFY_CA"`
+#' (including `ssl_mode` left unset, or `"REQUIRED"` alone): per this
+#' defect, "accepts unverified TLS" is specifically what `regulated`
+#' must not do.
+#'
+#' @param my The adapter's `config$mysql` list.
+#' @return A named list of extra arguments to splice into the
+#'   `DBI::dbConnect()`/`pool::dbPool()` call (possibly empty).
+#' @keywords internal
+.mysql_tls_args <- function(my) {
+  ssl_mode <- toupper(my$ssl_mode %||% "")
+  profile <- get_security_profile()
+
+  if (profile == "regulated" && !ssl_mode %in% c("VERIFY_CA", "VERIFY_IDENTITY")) {
+    stop(
+      "The 'regulated' security profile requires mysql$ssl_mode to be ",
+      "'VERIFY_CA' or 'VERIFY_IDENTITY' (with mysql$ssl_ca configured), ",
+      "not ", if (nzchar(ssl_mode)) paste0("'", ssl_mode, "'") else "unset",
+      ". An unverified or plaintext connection is not permitted under ",
+      "'regulated'.",
+      call. = FALSE
+    )
+  }
+
+  if (!ssl_mode %in% c("REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY")) {
+    return(list())
+  }
+
+  args <- list(client.flag = RMariaDB::CLIENT_SSL)
+
+  if (ssl_mode %in% c("VERIFY_CA", "VERIFY_IDENTITY")) {
+    if (is.null(my$ssl_ca) || !nzchar(my$ssl_ca)) {
+      stop(
+        "mysql$ssl_mode = '", ssl_mode, "' requires mysql$ssl_ca (the CA ",
+        "certificate file to verify the server against); none was ",
+        "configured.",
+        call. = FALSE
+      )
+    }
+    args$ssl.ca <- my$ssl_ca
+  }
+  if (!is.null(my$ssl_cert)) args$ssl.cert <- my$ssl_cert
+  if (!is.null(my$ssl_key)) args$ssl.key <- my$ssl_key
+  if (!is.null(my$ssl_cipher)) args$ssl.cipher <- my$ssl_cipher
+
+  args
+}
 
 
 #' Parse and Strip a Trailing `RETURNING col AS alias` Clause

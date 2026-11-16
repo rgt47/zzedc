@@ -31,9 +31,21 @@ Configuration options (in \code{config$mysql}):
 \item \code{name}: Database name (required)
 \item \code{user}: Database username (required)
 \item \code{password}: Database password (required)
-\item \code{ssl_mode}: SSL connection mode (optional). Pass
-the literal accepted by MySQL 8.0+ / MariaDB 10.5+, for
-example \code{"REQUIRED"} or \code{"VERIFY_IDENTITY"}.
+\item \code{ssl_mode}: One of \code{"REQUIRED"} (use TLS, do not
+verify the server certificate), \code{"VERIFY_CA"}, or
+\code{"VERIFY_IDENTITY"} (both verify the server
+certificate against \code{ssl_ca}; RMariaDB's underlying
+connector does not expose a distinct check for the two, so
+both behave identically here). Leaving this unset connects
+without TLS. The \code{'regulated'} security profile
+requires \code{"VERIFY_CA"} or \code{"VERIFY_IDENTITY"}.
+\item \code{ssl_ca}: Path to the CA certificate file; required
+when \code{ssl_mode} is \code{"VERIFY_CA"} or
+\code{"VERIFY_IDENTITY"}.
+\item \code{ssl_cert}, \code{ssl_key}: Optional client
+certificate and key file paths, for client-certificate
+authentication.
+\item \code{ssl_cipher}: Optional list of permitted TLS ciphers.
 }
 
 Encryption-at-rest is configured at the server level via InnoDB
@@ -182,10 +194,21 @@ machinery; these are present in all supported versions.
   Describe this backend's encryption. MySQL and MariaDB encrypt at
 rest through InnoDB tablespace encryption, enabled on the server;
 the \code{key} argument used by the SQLite and DuckDB paths is not
-honored here. TLS is enforced only when \code{mysql$ssl_mode} requires
-it. Earlier versions reported \code{supports_encryption() = TRUE},
-conflating server capability and TLS with encryption zzedc
-provides.
+honored here. TLS is reported \code{"enforced"} whenever \code{mysql$ssl_mode}
+requires it (matching \code{in_transit}'s documented contract in
+\code{DatabaseAdapter$encryption_capabilities()}, and the precedent
+already set by \code{PostgresAdapter}'s own
+\code{encryption_capabilities()}, which does not distinguish
+\code{"require"} from \code{"verify-ca"}/\code{"verify-full"} either). This
+package does not independently confirm, against a live server,
+that \code{VERIFY_CA}/\code{VERIFY_IDENTITY} (\code{.mysql_tls_args()}) actually
+causes the MariaDB Connector/C client underneath RMariaDB to
+reject a mismatched server certificate -- that behavior is
+documented by MariaDB/RMariaDB, not verified here (no TLS-
+configured server was reachable in this session) -- so this
+function does not claim more than \code{"enforced"} for it. Earlier
+versions reported \code{supports_encryption() = TRUE}, conflating
+server capability and TLS with encryption zzedc provides.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{MySQLAdapter$encryption_capabilities()}
