@@ -1692,7 +1692,7 @@ setup_zzedc_from_csv <- function(
         if (is.null(user_adapter)) DBI::dbDisconnect(user_conn) else user_adapter$disconnect(user_conn),
         add = TRUE
       )
-      ensure_edc_users_table(user_conn)
+      ensure_edc_users_table(user_conn, adapter = user_adapter)
       existing_users <- DBI::dbGetQuery(user_conn, "SELECT username FROM edc_users")$username
     }
     for (i in seq_len(nrow(users_df))) {

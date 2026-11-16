@@ -53,9 +53,20 @@ NULL
 #'
 #' @param conn A DBI connection (or pool object that delegates
 #'   DBI methods).
+#' @param adapter Optional pre-built `DatabaseAdapter` to resolve
+#'   dialect-specific DDL from, forwarded to
+#'   `.ensure_audit_tables()`. When `NULL` (the default),
+#'   `.ensure_audit_tables()` falls back to `get_db_adapter()`'s
+#'   cached/`config.yml`-derived adapter, which silently defaults to
+#'   SQLite whenever `conn` was opened before a matching `config.yml`
+#'   exists -- confirmed to otherwise fail a non-SQLite `conn` (e.g.
+#'   DuckDB) with a dialect-mismatched DDL error ("syntax error at or
+#'   near AUTOINCREMENT"). Callers that already hold the adapter that
+#'   produced `conn` should pass it explicitly, the same reasoning as
+#'   `.ensure_audit_tables()`'s own `adapter` parameter.
 #' @return Invisible `NULL`.
 #' @keywords internal
-ensure_edc_users_table <- function(conn) {
+ensure_edc_users_table <- function(conn, adapter = NULL) {
   DBI::dbExecute(conn, "
     CREATE TABLE IF NOT EXISTS edc_users (
       user_id        TEXT PRIMARY KEY,
@@ -112,7 +123,7 @@ ensure_edc_users_table <- function(conn) {
   # the audit tables must exist wherever edc_users does -- including
   # the setup wizard's bootstrap call, which runs before
   # init_audit_logging() is ever invoked.
-  .ensure_audit_tables(conn)
+  .ensure_audit_tables(conn, adapter = adapter)
   invisible(NULL)
 }
 

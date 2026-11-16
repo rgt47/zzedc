@@ -4,11 +4,23 @@
 \alias{ensure_edc_users_table}
 \title{Create the canonical \code{edc_users} table if it does not exist}
 \usage{
-ensure_edc_users_table(conn)
+ensure_edc_users_table(conn, adapter = NULL)
 }
 \arguments{
 \item{conn}{A DBI connection (or pool object that delegates
 DBI methods).}
+
+\item{adapter}{Optional pre-built \code{DatabaseAdapter} to resolve
+dialect-specific DDL from, forwarded to
+\code{.ensure_audit_tables()}. When \code{NULL} (the default),
+\code{.ensure_audit_tables()} falls back to \code{get_db_adapter()}'s
+cached/\code{config.yml}-derived adapter, which silently defaults to
+SQLite whenever \code{conn} was opened before a matching \code{config.yml}
+exists -- confirmed to otherwise fail a non-SQLite \code{conn} (e.g.
+DuckDB) with a dialect-mismatched DDL error ("syntax error at or
+near AUTOINCREMENT"). Callers that already hold the adapter that
+produced \code{conn} should pass it explicitly, the same reasoning as
+\code{.ensure_audit_tables()}'s own \code{adapter} parameter.}
 }
 \value{
 Invisible \code{NULL}.
