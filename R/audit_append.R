@@ -967,6 +967,27 @@ verify_audit_checkpoints <- function(checkpoint_file,
 #' @export
 session_audit_context <- function(session) {
   if (is.null(session)) return(list(ip_address = NULL, session_id = NULL))
+  # `session` is documented as "a Shiny session, or NULL" -- a plain
+  # list stands in for one in tests (test_audit_trail_controls.R), and
+  # a real/mock ShinySession is an R6 object, so both are accepted
+  # below. Anything else (a bare string, a number, the wrong variable
+  # passed by mistake) is not a session at all: `session$request`
+  # would raise "$ operator is invalid for atomic vectors", which the
+  # tryCatch below silently turns into the same NULL/NULL result as a
+  # legitimate session with no request yet, so a caller's mistake
+  # would otherwise write an audit record with no client address or
+  # session token and no sign anything was wrong. Warn instead, since
+  # this feeds Part 11 audit records directly.
+  if (!is.list(session) && !is.environment(session) && !inherits(session, "R6")) {
+    warning(
+      "session_audit_context(): 'session' is neither NULL nor a ",
+      "session-like object (got class ", paste(class(session), collapse = "/"),
+      "); treating as unknown. The resulting audit record will have no ",
+      "client address or session token.",
+      call. = FALSE
+    )
+    return(list(ip_address = NULL, session_id = NULL))
+  }
   req <- tryCatch(session$request, error = function(e) NULL)
   remote <- req$REMOTE_ADDR %||% NULL
   forwarded <- req$HTTP_X_FORWARDED_FOR %||% ""
