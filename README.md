@@ -73,26 +73,29 @@ The application will open in your default web browser with the following interfa
 ```
 zzedc/
    DESCRIPTION              # Package metadata
-   NAMESPACE               # Generated namespace
-   README.md               # This file
-   R/                      # Package functions
-      launch_zzedc.R      # Main launcher function
-      zzedc-package.R     # Package documentation
-   ui.R                    # Bootstrap 5 user interface
-   server.R                # Server logic
-   global.R                # Global settings
-   home.R                  # Home page components
-   edc.R                   # EDC form logic
-   auth.R                  # Authentication system
-   savedata.R              # Data persistence
-   report[1-3].R           # Report modules
-   data.R                  # Data explorer
-   export.R                # Export functionality
-   forms/                  # Form definitions
-   www/                    # Web assets
-   tests/                  # Test suite
-   credentials/            # User credentials
+   NAMESPACE                # Generated namespace
+   README.md                # This file
+   R/                       # Package functions (modules, database
+                            #   adapters, audit trail, compliance,
+                            #   randomization, GDPR, etc.)
+   inst/app/                # The Shiny application itself
+      ui.R                 #   Traditional (fallback) UI
+      server.R              #   Per-session server() entry point
+      global.R              #   App-wide setup, db_pool
+      gsheets_ui_integration.R    # Enhanced UI (the one actually used)
+      gsheets_server_integration.R # Module mounting
+      home.R, edc.R, auth.R, export.R, report1-6.R, savedata.R
+   inst/tinytest/           # Test suite (tinytest, not testthat)
+   inst/extdata/            # Demonstration-trial data and form stubs
+   vignettes/               # Role-based guides (see Documentation)
+   man/                     # Generated help pages
 ```
+
+At runtime, `launch_zzedc()` creates `data/`, `credentials/`, and
+`forms/` in the current working directory (not shipped with the
+package); the last of these holds the study-specific CRF scaffolding
+(`blfieldlist.R`, `renderpanels.R`, `save.R`) that `inst/app/edc.R`
+loads.
 
 ## Technical Implementation
 
@@ -210,8 +213,12 @@ its own; see Regulatory Compliance above.
   users
 - `vignette("demonstration-trial-setup")` - Worked example with a
   demonstration trial
+- `vignette("demonstration-trial-via-gsheets")` - The same
+  demonstration trial, authored from a Google Sheets workbook
 - `vignette("mysql-redcap-migration-roadmap")` - Migrating from
   REDCap
+- `vignette("zzedc-whitepaper")` - Architectural rationale and
+  design discussion
 
 ## Reproducibility
 
