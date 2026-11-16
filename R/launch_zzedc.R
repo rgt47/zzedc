@@ -16,7 +16,15 @@
 #'   `NULL` otherwise, SQLite is used.
 #' @param profile Security profile for a new study's `config.yml`
 #'   (default `"regulated"`; see `resolve_security_profile()`). Used only
-#'   when there is no `config.yml`.
+#'   when there is no `config.yml`. This default is deliberately
+#'   stricter than `resolve_security_profile()`'s own built-in default
+#'   (`"standard"`), which instead applies whenever nothing configures
+#'   a profile at all: creating a brand-new study is the one moment
+#'   the package can still refuse an unsafe choice before any data
+#'   exists, so it defaults to the strict option here, while a
+#'   `config.yml` written some other way (or an already-deployed study)
+#'   falls back to the more permissive package-wide default rather
+#'   than being silently upgraded to `"regulated"`.
 #' @param setup Logical. `TRUE` opens the setup wizard in a browser to
 #'   create a new study (`launch_setup_wizard()`) instead of launching
 #'   the application; the wizard can launch the application when it
@@ -161,6 +169,32 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
       }
     }
     backend <- backend %||% "sqlite"
+
+    # Fail before writing config.yml, not after. A non-interactive
+    # call (or an explicit backend = "sqlite") skipped the interactive
+    # branch above entirely, so this combination previously reached
+    # create_default_config() unchecked: config.yml was written for
+    # an encryption promise SQLite could not keep, and only the first
+    # database operation afterward (inside connect_encrypted_db())
+    # discovered and refused it. By then config.yml already existed,
+    # so a retry with backend = "duckdb" silently did nothing --
+    # backend is "used only when there is no config.yml" -- and
+    # re-ran into the identical failure with no indication why.
+    # Checking here means no config.yml is written at all when this
+    # combination cannot work, so a retry with a different backend
+    # argument takes effect immediately.
+    if (backend == "sqlite" && profile == "regulated" && !sqlite_cipher_available()) {
+      stop(
+        "Cannot create a new study with backend = \"sqlite\" and the ",
+        "'regulated' security profile: the installed RSQLite does not ",
+        "support SQLCipher or SQLite3MultipleCiphers, so stored data ",
+        "could not be encrypted. No config.yml was written. Either call ",
+        "launch_zzedc(backend = \"duckdb\") (DuckDB encrypts with CRAN ",
+        "software alone), or launch_zzedc(profile = \"standard\") to ",
+        "accept unencrypted SQLite storage for this study.",
+        call. = FALSE
+      )
+    }
 
     # Prepare first (key, extensions), so that a failure leaves no
     # half-created study behind.

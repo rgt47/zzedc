@@ -33,7 +33,15 @@ interactive session, a menu compares the backends and asks; when
 
 \item{profile}{Security profile for a new study's \code{config.yml}
 (default \code{"regulated"}; see \code{resolve_security_profile()}). Used only
-when there is no \code{config.yml}.}
+when there is no \code{config.yml}. This default is deliberately
+stricter than \code{resolve_security_profile()}'s own built-in default
+(\code{"standard"}), which instead applies whenever nothing configures
+a profile at all: creating a brand-new study is the one moment
+the package can still refuse an unsafe choice before any data
+exists, so it defaults to the strict option here, while a
+\code{config.yml} written some other way (or an already-deployed study)
+falls back to the more permissive package-wide default rather
+than being silently upgraded to \code{"regulated"}.}
 
 \item{setup}{Logical. \code{TRUE} opens the setup wizard in a browser to
 create a new study (\code{launch_setup_wizard()}) instead of launching
