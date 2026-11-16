@@ -935,17 +935,26 @@ run_pq_tests <- function(db_path = NULL, verbose = TRUE, record_count = 1000) {
   DBI::dbDisconnect(conn)
 
   # PQ-001: Bulk insert performance
+  #
+  # This measures a genuine batch insert (one dbWriteTable() call
+  # transferring the whole data frame) rather than record_count
+  # individual single-row dbExecute() calls in a loop -- the latter
+  # was itself the row-by-row anti-pattern this test's own name
+  # warns against, confirmed by profiling: nearly all of its
+  # self-time was spent in per-statement prepare/bind/send/step
+  # machinery, not in doing any actual work.
   if (verbose) cat("  PQ-001: Testing bulk insert (", record_count, " records)... ")
   t1 <- Sys.time()
   bulk_test <- tryCatch({
     conn <- connect_encrypted_db(db_path = test_db)
 
-    for (i in seq_len(record_count)) {
-      DBI::dbExecute(conn, "
-        INSERT INTO perf_data (record_id, status, value)
-        VALUES (?, 'active', ?)
-      ", list(paste0("PERF", sprintf("%05d", i)), runif(1)))
-    }
+    batch <- data.frame(
+      record_id = paste0("PERF", sprintf("%05d", seq_len(record_count))),
+      status = "active",
+      value = runif(record_count),
+      stringsAsFactors = FALSE
+    )
+    DBI::dbWriteTable(conn, "perf_data", batch, append = TRUE, row.names = FALSE)
 
     insert_time <- as.numeric(difftime(Sys.time(), t1, units = "secs"))
     records_per_sec <- record_count / insert_time
