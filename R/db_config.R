@@ -499,6 +499,27 @@ clickhouse_options:
 default_db_config <- function(backend = "sqlite", ...) {
   overrides <- list(...)
 
+  # Every override name this function reads, across every backend
+  # branch below. A name in `...` that is not one of these (most often
+  # a typo of `backend` itself, since `backend` is a named formal, not
+  # part of `...`, so a misspelling like `bakend = "sqlite"` is simply
+  # absorbed here and never read) was previously discarded with no
+  # warning, no error, and no visible effect at all.
+  recognized <- c("path", "encryption_key", "threads", "memory_limit",
+                  "host", "port", "name", "user", "password",
+                  "sslmode", "ssl_mode", "pool_min", "pool_max",
+                  "database", "use_https")
+  unrecognized <- setdiff(names(overrides), recognized)
+  if (length(unrecognized) > 0) {
+    warning(
+      "default_db_config(): ignoring unrecognized argument(s) ",
+      paste(sprintf("'%s'", unrecognized), collapse = ", "),
+      " -- check for a typo (did you mean 'backend'?). Recognized ",
+      "overrides are: ", paste(recognized, collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+
   config <- switch(
     tolower(backend),
 
