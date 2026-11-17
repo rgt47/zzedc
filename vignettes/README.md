@@ -10,7 +10,7 @@ the reference material.
 This file is excluded from the package build (see
 `.Rbuildignore`) and exists only as an internal index.
 
-## Final 9 vignettes
+## Final 10 vignettes
 
 | File | Words | Role |
 |---|---:|---|
@@ -23,8 +23,9 @@ This file is excluded from the package build (see
 | `mysql-redcap-migration-roadmap.Rmd` | 3,783 | MySQL/MariaDB current capability plus the REDCap-to-ZZedc migration roadmap (phases C1, C2, C3a shipped; C3b pending). |
 | `setup-wizard-guide.Rmd` | 347 | Brief reference for the in-app web setup wizard as an alternative to the Google Sheets path. |
 | `zzedc-whitepaper.Rmd` | 2,845 | Executive overview: positioning, architecture in one diagram, audit chain, deployment patterns, where the package boundary ends. The full long-form whitepaper lives at `../docs/whitepaper/whitepaper.Rmd`. |
+| `editing-data-entries.Rmd` | ~700 | Focused reference, added 2026-11-17: how to edit a value already stored in `data_entries` (or any other table) via the `create_correction_request()` / `approve_correction()` / `apply_correction()` API, for scripts that write directly against a study database outside the Shiny app. Not an entry point; cross-referenced from Content-Author Guide section 6.2. |
 
-Total active: ~29,000 words across 9 vignettes.
+Total active: ~30,000 words across 10 vignettes.
 
 ## Consolidation history (2026-04-30)
 

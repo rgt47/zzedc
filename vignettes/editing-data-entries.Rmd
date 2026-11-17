@@ -1,0 +1,168 @@
+---
+title: "Editing an Existing Record: The Data-Correction Workflow"
+subtitle: "How to change a value already stored in data_entries (or any other table), with a full audit trail"
+author: "ZZedc Team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Editing an Existing Record: The Data-Correction Workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+# Who this is for
+
+This is a short, code-level reference for anyone calling ZZedc's R
+API directly against a study database -- for example to backfill a
+field on a record that was created by a script rather than through
+the Shiny application. If you operate the application as the
+*content author* or *site coordinator* role instead, use the
+*Raise query* / *Resolve query* flow described in
+[Content-Author Guide](content-author-guide.html), section 6.2; it
+calls the same functions documented here from the application's UI.
+
+# There is no direct update function
+
+`data_entries` (see `ensure_data_entries_table()`,
+`db_insert_data_entry()`) is insert-only: `entry_id` is its primary
+key, and the package has no `db_update_data_entry()`. This is
+deliberate, not an oversight. If code could silently overwrite a
+submitted value, the audit trail (`audit_log`, written in the same
+transaction as every insert) would no longer be a reliable record of
+what was entered and when.
+
+Editing a value that is already stored -- in `data_entries.data_json`
+or in an ordinary column of any other table -- goes through the
+**data-correction workflow** instead: `create_correction_request()`,
+`approve_correction()`, `apply_correction()`. Each step is audited,
+the three steps require two different user identities (the requester
+cannot approve their own request), and the change is only written to
+the table once it has been approved.
+
+# One-time setup
+
+The correction tables (`correction_requests`, `correction_history`,
+`correction_approvers`, `correction_overrides`) are provisioned the
+same way `data_entries` is: idempotently, from a raw connection.
+
+```{r}
+library(zzedc)
+
+init_data_correction(db_path = "data/study.db")
+```
+
+If your script never opened a connection through `get_db_adapter()`
+first (for example a bare `DBI::dbConnect()` against a SQLite file
+outside the Shiny app), warm the adapter cache before calling any
+`zzedc` database function, or you will see
+`"Configuration file must have a 'database' section"`:
+
+```{r}
+invisible(get_db_adapter(
+  config = list(db_backend = "sqlite", sqlite = list(path = "data/study.db")),
+  force_new = TRUE
+))
+```
+
+# The three-step workflow
+
+## 1. Request the correction
+
+`create_correction_request()` takes the table, the record's primary
+key, the field name, the value currently stored, and the value it
+should become. `correction_reason` must be one of the codes from
+`get_correction_reasons()` (`TYPO`, `SOURCE_DOC_ERROR`,
+`CALCULATION_ERROR`, `TRANSCRIPTION_ERROR`, `UNIT_ERROR`,
+`DATE_ERROR`, `PROTOCOL_CLARIFICATION`, `QUERY_RESPONSE`, or `OTHER`
+with `reason_details` of at least 10 characters).
+
+For a field stored inside `data_entries.data_json` (rather than a
+real column), `record_id` is the entry's `entry_id` and `field_name`
+is the JSON key -- the function resolves which case it is
+automatically.
+
+```{r}
+req <- create_correction_request(
+  table_name        = "data_entries",
+  record_id         = "DE-20261116232516273-8841",
+  field_name        = "manuscript_id",
+  original_value    = "",
+  corrected_value   = "ALZRT-D-26-00142",
+  correction_reason = "SOURCE_DOC_ERROR",
+  reason_details    = "Manuscript ID was unknown when the review was logged; now confirmed from the editor's acknowledgment e-mail.",
+  requested_by      = "rgt"
+)
+req$request_id
+```
+
+`original_value` is what the field holds *right now*. If the field
+is currently blank or was never set, pass `""` or leave it `NA` --
+`apply_correction()` treats a missing stored value as matching a
+missing or empty `original_value`.
+
+## 2. Approve it
+
+A different user than `requested_by` must approve:
+
+```{r}
+approve_correction(
+  request_id      = req$request_id,
+  reviewed_by     = "study_manager",
+  review_comments = "Confirmed against the acknowledgment e-mail."
+)
+```
+
+Passing `reviewer_role` additionally checks that the reviewer holds
+one of `"Admin"`, `"PI"`, `"StudyManager"`, or `"Data Manager"`.
+`reject_correction()` is the alternative when the change should not
+go through; it requires a comment of at least 10 characters.
+
+## 3. Apply it
+
+```{r}
+result <- apply_correction(request_id = req$request_id, applied_by = "study_manager")
+result$status        # "APPLIED"
+result$old_value      # ""
+result$new_value      # "ALZRT-D-26-00142"
+```
+
+`apply_correction()` re-reads the record inside the same transaction
+as the write and refuses to apply if the field's current value no
+longer matches `original_value` -- someone else changed it since the
+request was opened. On success it writes the `UPDATE` audit record
+and, when `record_versions` is available, stores a before/after
+version pair.
+
+# Locked records
+
+A record locked via the *Lock Visit* control (see
+[Content-Author Guide](content-author-guide.html), section 6.3), or
+one held by another user's `version_locks` entry, cannot be corrected
+through steps 1-3 alone. `apply_correction()` returns
+`requires_override = TRUE`; an administrator must first call
+`request_correction_override()` and `approve_override()` for that
+specific request before `apply_correction()` is retried.
+
+# What the workflow will not let you touch
+
+`apply_correction()` refuses to act on `audit_log`, `audit_chain`,
+`audit_events`, `record_versions`, `version_locks`, `edc_users`,
+`electronic_signatures`, or `data_entries_audit` -- and on a table's
+primary-key column or on `data_json` as a whole (only a named field
+*inside* `data_json` can be corrected, never the blob itself). These
+are the records the audit trail depends on; correcting them through
+this path would undermine the thing the path exists to guarantee.
+
+# See also
+
+- `get_pending_corrections()`, `get_correction_statistics()`,
+  `generate_correction_report()` -- auditing and reporting on
+  corrections already made.
+- `verify_correction_integrity()` -- checks the hash chain that
+  links each `correction_requests` row to the previous one.
+- [Content-Author Guide](content-author-guide.html), section 6.2 --
+  the same workflow from inside the application's UI.
