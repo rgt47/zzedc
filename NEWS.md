@@ -18,7 +18,9 @@
   or acts on an input. Without a signed-in user nothing renders, data
   already loaded is dropped from the session, and actions do not run;
   a blocked action is recorded as an `ACCESS`/`DENIED` audit event. A
-  module mounted with no identity at all now shows and does nothing.
+  signed-in user blocked for their role sees a 'Not permitted'
+  notification. A module mounted with no identity at all now shows
+  and does nothing.
 * The Corrections module enforces the reviewer roles (`Admin`, `PI`,
   `StudyManager`, `Data Manager`) on the server for approve, reject
   and apply. Applying a correction previously checked no role at all,

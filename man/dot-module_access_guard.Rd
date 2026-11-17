@@ -36,7 +36,9 @@ passive observers. Returns the current user's list
 (\code{user}, \code{role}) invisibly.
 \item \code{require_action(action_label, roles = allowed_roles)}: for
 input-triggered actions and downloads. A denial is first recorded
-as an \code{ACCESS}/\code{DENIED} audit event, then halts like \code{req()}.
+as an \code{ACCESS}/\code{DENIED} audit event, then halts like \code{req()}. A
+signed-in user denied for their role also sees a notification
+giving the reason.
 }
 }
 \description{

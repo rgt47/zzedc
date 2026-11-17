@@ -183,6 +183,9 @@ local({
       .logout(us)
       session$flushReact()
 
+      # On 60b4c06 this grant also fails, though not because of any
+      # access check (cause not traced); the grant-table render below
+      # is the discriminating assertion.
       session$setInputs(grant_user = "U_EVE", grant_btn = 2)
       expect_equal(n_grants("U_EVE"), 0L,
                    info = "after logout, randomization admin must not grant unblinded access")
@@ -220,10 +223,11 @@ local({
                                       training_date = Sys.Date())
   DBI::dbDisconnect(setup_conn)
 
-  # record_training is not driven here: through pool::poolCheckout()
-  # its audit write opens a second connection to the same SQLite file
-  # and blocks on the first one's lock under testServer. The renders
-  # and the report and verification handlers exercise the guard.
+  # record_training is not driven here: driven through a real
+  # pool::dbPool() under testServer the run did not return (cause not
+  # traced), and with a bare DBI connection poolCheckout() fails. The
+  # renders and the report and verification handlers exercise the
+  # guard.
   db_pool <- DBI::dbConnect(RSQLite::SQLite(), db)
   on.exit(DBI::dbDisconnect(db_pool), add = TRUE)
   assign("db_pool", db_pool, envir = globalenv())
@@ -279,7 +283,8 @@ local({
   init_data_correction(db_path = db)
   conn <- connect_encrypted_db(db_path = db)
   DBI::dbExecute(conn, "CREATE TABLE vitals (id INTEGER PRIMARY KEY, subject_id TEXT, sbp INTEGER)")
-  DBI::dbExecute(conn, "INSERT INTO vitals (subject_id, sbp) VALUES ('S001', 220), ('S002', 210)")
+  DBI::dbExecute(conn, "INSERT INTO vitals (subject_id, sbp) VALUES ('S001', 220), ('S002', 210),
+                        ('S003', 200)")
   DBI::dbDisconnect(conn)
 
   q <- function(sql, params = list()) {
@@ -306,6 +311,9 @@ local({
   approve_correction(approved_id, reviewed_by = "dm1", db_path = db,
                      reviewer_role = "Data Manager")
   pending_id <- request("2", "210", "110")
+  approved_id_2 <- request("3", "200", "100")
+  approve_correction(approved_id_2, reviewed_by = "dm1", db_path = db,
+                     reviewer_role = "Data Manager")
 
   us <- .login_session("Coordinator", "U_COORD", "coord1")
   shiny::testServer(
@@ -348,12 +356,18 @@ local({
       .logout(us)
       session$flushReact()
 
+      # On 60b4c06 this approve also fails, though not because of any
+      # access check (cause not traced); the apply below is the
+      # discriminating post-logout write.
       rv$selected_request <- pending_id
       session$setInputs(review_comments = "approving after logout", approve_btn = 1)
       expect_equal(status_of(pending_id), "PENDING",
                    info = "after logout, the corrections module must not approve")
+      rv$selected_request <- approved_id_2
       session$setInputs(apply_btn = 2)
-      expect_equal(sbp_of(2), 210L,
+      expect_equal(status_of(approved_id_2), "APPROVED",
+                   info = "after logout, the corrections module must not apply an approved correction")
+      expect_equal(sbp_of(3), 200L,
                    info = "after logout, the corrections module must not change data")
       expect_true(.blocked(output$pending_table),
                   info = "after logout, the pending-corrections queue must not render")
@@ -366,9 +380,9 @@ local({
 # ------------------------------------------------------------------
 # 6. The guard itself, and the session flag the app now passes
 # ------------------------------------------------------------------
-local({
-  guard_fn <- ns_get(".module_access_guard")
-
+guard_fn <- tryCatch(ns_get(".module_access_guard"), error = function(e) NULL)
+expect_true(is.function(guard_fn), info = "the shared module access guard exists")
+if (is.function(guard_fn)) local({
   g <- guard_fn()
   expect_false(shiny::isolate(g$authorized()),
                info = "a module mounted with no identity at all is denied")
@@ -395,12 +409,71 @@ local({
 local({
   us <- .login_session("Coordinator", "USER_TEST_1", "jdoe")
   us$authenticated <- FALSE
-  shiny::testServer(
+  res <- tryCatch(shiny::testServer(
     ns_get("cfr_compliance_server"),
     args = list(user_id = shiny::reactive("USER_TEST_1"), user_session = us),
     {
       expect_true(.blocked(output$signature_count),
                   info = "with user_session$authenticated FALSE, compliance renders nothing")
+    }
+  ), error = function(e) e)
+  expect_false(inherits(res, "error"),
+               info = "cfr_compliance_server() accepts the app's user_session")
+
+  res <- tryCatch(shiny::testServer(
+    ns_get("data_correction_server"),
+    args = list(current_user = shiny::reactive("dm1"),
+                user_role = shiny::reactive("Data Manager"),
+                db_path = NULL, user_session = us),
+    {
+      expect_true(.blocked(output$pending_table),
+                  info = "with user_session$authenticated FALSE, corrections renders nothing")
+    }
+  ), error = function(e) e)
+  expect_false(inherits(res, "error"),
+               info = "data_correction_server() accepts the app's user_session")
+})
+
+# ------------------------------------------------------------------
+# 7. Backup and restore after logout
+# ------------------------------------------------------------------
+if (requireNamespace("shinyjs", quietly = TRUE)) local({
+  dir <- tempfile("bkguard_")
+  bdir <- file.path(dir, "backups")
+  dir.create(bdir, recursive = TRUE)
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  path <- file.path(dir, "study.db")
+  con <- DBI::dbConnect(RSQLite::SQLite(), path)
+  DBI::dbWriteTable(con, "t", data.frame(v = "A"))
+  DBI::dbDisconnect(con)
+  backup <- file.path(bdir, "backup_1.db")
+  file.copy(path, backup)
+
+  us <- .login_session("Admin", "U_ADMIN", "admin1")
+  shiny::testServer(
+    ns_get("backup_restore_server"),
+    args = list(db_path = shiny::reactive(path), backup_dir = bdir, user_session = us),
+    {
+      session$setInputs(select_backup = backup)
+      expect_false(is.null(backup_state$selected_backup),
+                   info = "an authenticated user can select a backup")
+
+      .logout(us)
+      session$flushReact()
+
+      expect_equal(nrow(backup_state$backups), 0L,
+                   info = "after logout, the backup list is dropped from the session")
+      backup_state$selected_backup <- backup
+      session$setInputs(restore_confirmation = "RESTORE", restore_btn = 1)
+      expect_false(file.exists(paste0(path, ".restore-pending")),
+                   info = "after logout, a restore cannot be staged")
+      session$setInputs(delete_backup = backup)
+      session$setInputs(confirm_delete = TRUE)
+      expect_true(file.exists(backup),
+                  info = "after logout, a backup cannot be deleted")
+      session$setInputs(download_backup = backup)
+      expect_true(inherits(tryCatch(output$download_file, error = function(e) e), "error"),
+                  info = "after logout, a backup cannot be downloaded")
     }
   )
 })

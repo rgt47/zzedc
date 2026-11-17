@@ -276,7 +276,10 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
     )
 
     shiny::observe({
-      if (!guard$authorized()) rv$selected_request <- NULL
+      if (!guard$authorized()) {
+        rv$selected_request <- NULL
+        output$submit_message <- shiny::renderText("")
+      }
     })
 
     output$quick_stats <- shiny::renderUI({

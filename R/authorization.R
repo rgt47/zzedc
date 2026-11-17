@@ -270,7 +270,9 @@ require_authenticated_action <- function(user_input, session, db_path, action_la
 #'     (`user`, `role`) invisibly.
 #'   * `require_action(action_label, roles = allowed_roles)`: for
 #'     input-triggered actions and downloads. A denial is first recorded
-#'     as an `ACCESS`/`DENIED` audit event, then halts like `req()`.
+#'     as an `ACCESS`/`DENIED` audit event, then halts like `req()`. A
+#'     signed-in user denied for their role also sees a notification
+#'     giving the reason.
 #' @keywords internal
 .module_access_guard <- function(user_session = NULL, user = NULL, role = NULL,
                                  allowed_roles = NULL, db_path = NULL,
@@ -317,6 +319,15 @@ require_authenticated_action <- function(user_input, session, db_path, action_la
           session, db_path, action_label, reason,
           user_id = if (present(who$user)) as.character(who$user) else "unauthenticated"
         )
+        # A signed-in user with the wrong role is told why nothing
+        # happened; a signed-out session gets no response.
+        if (isTRUE(who$authenticated) && !is.null(session)) {
+          tryCatch(
+            shiny::showNotification(paste0("Not permitted: ", reason),
+                                    type = "error", session = session),
+            error = function(e) NULL
+          )
+        }
         shiny::req(FALSE)
       }
       invisible(who[c("user", "role")])
