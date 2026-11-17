@@ -9,7 +9,8 @@ data_correction_server(
   current_user = NULL,
   user_role = NULL,
   db_path = NULL,
-  user_session = NULL
+  user_session = NULL,
+  pending_entry_id = NULL
 )
 }
 \arguments{
@@ -24,6 +25,16 @@ data_correction_server(
 \item{user_session}{Optional: the session's login state
 (\code{reactiveValues} with \code{authenticated}, \code{username}, \code{role}). When
 supplied, its \code{authenticated} flag must be \code{TRUE} as well.}
+
+\item{pending_entry_id}{Optional: a \code{shiny::reactiveVal()} (not a
+plain \code{reactive()} -- this module both reads and clears it)
+another part of the application sets to a \code{data_entries.entry_id}
+to hand off into this module's "Create Request" view, pre-filled
+with \code{table_name = "data_entries"} and that \code{record_id}. Used by
+\code{inst/app/edc.R}'s per-row "Request Correction" action so a user
+never has to type an entry_id by hand. \code{NULL} (the default)
+disables the hand-off entirely, for the \verb{\dontrun{}} example
+below and any other embedding with nothing to hand off from.}
 }
 \value{
 Module server

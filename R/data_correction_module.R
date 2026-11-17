@@ -66,15 +66,22 @@ data_correction_ui <- function(id) {
           condition = sprintf("input['%s'] == 'create'", ns("view_mode")),
           shiny::wellPanel(
             shiny::h4("Create Correction Request"),
+            shiny::helpText(
+              "For Table Name \"data_entries\" with a valid Record ID (an",
+              "entry_id), Field and Corrected Value become dropdowns/typed",
+              "controls drawn from that record's own form, with validation",
+              "matching what the original form enforced. Any other table",
+              "falls back to plain text entry."
+            ),
             shiny::fluidRow(
               shiny::column(6,
-                shiny::textInput(ns("table_name"), "Table Name", placeholder = "e.g., subjects"),
-                shiny::textInput(ns("record_id"), "Record ID", placeholder = "e.g., S001"),
-                shiny::textInput(ns("field_name"), "Field Name", placeholder = "e.g., age")
+                shiny::textInput(ns("table_name"), "Table Name", placeholder = "e.g., data_entries"),
+                shiny::textInput(ns("record_id"), "Record ID", placeholder = "e.g., S001 or an entry_id"),
+                shiny::uiOutput(ns("field_picker"))
               ),
               shiny::column(6,
                 shiny::textInput(ns("original_value"), "Original Value (read-only)"),
-                shiny::textInput(ns("corrected_value"), "Corrected Value"),
+                shiny::uiOutput(ns("corrected_value_input")),
                 shiny::selectInput(
                   ns("correction_reason"),
                   "Reason for Correction",
@@ -173,7 +180,10 @@ data_correction_ui <- function(id) {
                                   value = Sys.Date())
               )
             ),
-            DT::DTOutput(ns("all_corrections_table"))
+            DT::DTOutput(ns("all_corrections_table")),
+            shiny::hr(),
+            shiny::h5("Review Selected Request"),
+            shiny::uiOutput(ns("review_panel_all"))
           )
         ),
 
@@ -232,6 +242,15 @@ data_correction_ui <- function(id) {
 #' @param user_session Optional: the session's login state
 #'   (`reactiveValues` with `authenticated`, `username`, `role`). When
 #'   supplied, its `authenticated` flag must be `TRUE` as well.
+#' @param pending_entry_id Optional: a `shiny::reactiveVal()` (not a
+#'   plain `reactive()` -- this module both reads and clears it)
+#'   another part of the application sets to a `data_entries.entry_id`
+#'   to hand off into this module's "Create Request" view, pre-filled
+#'   with `table_name = "data_entries"` and that `record_id`. Used by
+#'   `inst/app/edc.R`'s per-row "Request Correction" action so a user
+#'   never has to type an entry_id by hand. `NULL` (the default)
+#'   disables the hand-off entirely, for the `\dontrun{}` example
+#'   below and any other embedding with nothing to hand off from.
 #'
 #' @details
 #' Every output and handler checks the current user through
@@ -263,7 +282,8 @@ data_correction_ui <- function(id) {
 #' }
 #' @export
 data_correction_server <- function(id, current_user = NULL, user_role = NULL,
-                                   db_path = NULL, user_session = NULL) {
+                                   db_path = NULL, user_session = NULL,
+                                   pending_entry_id = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     guard <- .module_access_guard(user_session = user_session,
@@ -281,6 +301,22 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
         output$submit_message <- shiny::renderText("")
       }
     })
+
+    if (!is.null(pending_entry_id)) {
+      shiny::observeEvent(pending_entry_id(), {
+        if (!guard$authorized()) return()
+        entry_id <- pending_entry_id()
+        if (is.null(entry_id) || !nzchar(entry_id)) return()
+
+        shiny::updateRadioButtons(session, "view_mode", selected = "create")
+        shiny::updateTextInput(session, "table_name", value = "data_entries")
+        shiny::updateTextInput(session, "record_id", value = entry_id)
+
+        # Consumed: clear it so re-selecting the Corrections tab
+        # later (with nothing new pending) doesn't re-trigger this.
+        pending_entry_id(NULL)
+      }, ignoreInit = TRUE, ignoreNULL = TRUE)
+    }
 
     output$quick_stats <- shiny::renderUI({
       guard$require()
@@ -300,23 +336,129 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
       )
     })
 
+    # CRF context for the record under "Table Name"/"Record ID", when
+    # that table is `data_entries` and the record ID resolves to a
+    # real entry: its field metadata (type/label/required/choices,
+    # the same shape renderPanel() and validate_crf_submission()
+    # already consume) and its current field values. NULL for any
+    # other table, or a `data_entries` record_id/entry_id that does
+    # not exist -- both fall back to the plain free-text inputs this
+    # module always had.
+    crf_context <- shiny::reactive({
+      guard$require()
+      tbl <- trimws(input$table_name %||% "")
+      rid <- trimws(input$record_id %||% "")
+      if (tolower(tbl) != "data_entries" || !nzchar(rid)) return(NULL)
+
+      tryCatch({
+        conn <- connect_encrypted_db(db_path = db_path)
+        on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+        row <- DBI::dbGetQuery(conn,
+          "SELECT entry_id, form_name, data_json FROM data_entries WHERE entry_id = ?",
+          list(rid))
+        if (nrow(row) == 0) return(NULL)
+
+        forms <- get_active_crf_forms(conn)
+        match_idx <- which(tolower(forms$crf_code) == row$form_name[1])
+        if (length(match_idx) == 0) return(NULL)
+
+        metadata <- get_crf_field_metadata(conn, forms$crf_id[match_idx[1]])
+        if (length(metadata) == 0) return(NULL)
+
+        values <- jsonlite::fromJSON(row$data_json[1] %||% "{}", simplifyVector = FALSE)
+        list(metadata = metadata, values = values)
+      }, error = function(e) NULL)
+    })
+
+    output$field_picker <- shiny::renderUI({
+      guard$require()
+      ctx <- crf_context()
+      if (is.null(ctx)) {
+        return(shiny::textInput(session$ns("field_name"), "Field Name",
+                                 placeholder = "e.g., age"))
+      }
+      choices <- stats::setNames(
+        names(ctx$metadata),
+        vapply(ctx$metadata, function(m) m$label %||% "", character(1))
+      )
+      shiny::selectInput(session$ns("field_name"), "Field",
+                          choices = c("Select field..." = "", choices))
+    })
+
+    # Auto-fill "Original Value" from the record's own current value
+    # once a CRF-aware field is picked -- remains plain, manually
+    # editable text for the free-text (non-`data_entries`) path.
+    shiny::observeEvent(list(input$field_name, crf_context()), {
+      if (!guard$authorized()) return()
+      ctx <- crf_context()
+      field <- input$field_name %||% ""
+      if (!is.null(ctx) && nzchar(field) && field %in% names(ctx$metadata)) {
+        current <- ctx$values[[field]]
+        shiny::updateTextInput(session, "original_value",
+          value = if (is.null(current)) "" else paste(current, collapse = "; "))
+      }
+    }, ignoreInit = TRUE)
+
+    output$corrected_value_input <- shiny::renderUI({
+      guard$require()
+      ctx <- crf_context()
+      field <- input$field_name %||% ""
+      widget_id <- session$ns("corrected_value_widget")
+
+      if (is.null(ctx) || !nzchar(field) || !(field %in% names(ctx$metadata))) {
+        return(shiny::textInput(widget_id, "Corrected Value"))
+      }
+      # renderPanel() uses its first argument as both the widget's id
+      # and the name it looks up in field_metadata -- passing the
+      # already-namespaced `widget_id` for both keeps this a single,
+      # module-unique DOM id, since the real field_code
+      # (e.g. "manuscript_id") could otherwise collide with an
+      # identically-named, non-namespaced field the live EDC tab
+      # renders elsewhere on the same page.
+      renderPanel(widget_id, stats::setNames(list(ctx$metadata[[field]]), widget_id))[[1]]
+    })
+
     shiny::observeEvent(input$submit_request, {
       user <- guard$require_action("submit a correction request")$user
 
+      ctx <- crf_context()
+      field <- input$field_name %||% ""
+      corrected_raw <- input$corrected_value_widget
+
       if (input$table_name == "" || input$record_id == "" ||
-          input$field_name == "" || input$corrected_value == "" ||
-          input$correction_reason == "") {
+          !nzchar(field) || input$correction_reason == "") {
         output$submit_message <- shiny::renderText(
           "Error: Please fill in all required fields")
         return()
       }
 
+      if (!is.null(ctx) && field %in% names(ctx$metadata)) {
+        val_result <- validate_crf_submission(
+          stats::setNames(list(corrected_raw), field),
+          ctx$metadata[field]
+        )
+        if (!val_result$valid) {
+          err <- val_result$errors[[field]]
+          output$submit_message <- shiny::renderText(paste("Error:", err$message))
+          return()
+        }
+        corrected_value_out <- paste(corrected_raw, collapse = "; ")
+      } else {
+        if (is.null(corrected_raw) || !nzchar(trimws(as.character(corrected_raw)))) {
+          output$submit_message <- shiny::renderText(
+            "Error: Please fill in all required fields")
+          return()
+        }
+        corrected_value_out <- as.character(corrected_raw)
+      }
+
       result <- create_correction_request(
         table_name = input$table_name,
         record_id = input$record_id,
-        field_name = input$field_name,
+        field_name = field,
         original_value = input$original_value,
-        corrected_value = input$corrected_value,
+        corrected_value = corrected_value_out,
         correction_reason = input$correction_reason,
         reason_details = input$reason_details,
         requested_by = user,
@@ -334,11 +476,14 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
           paste("Request #", result$request_id, "created successfully"))
         rv$refresh_trigger <- rv$refresh_trigger + 1
 
+        # Clearing table_name/record_id drops crf_context() back to
+        # NULL, which re-renders field_picker/corrected_value_input
+        # into their blank free-text state -- simpler and safer than
+        # resetting each possible widget type (select/numeric/date/
+        # radio/...) individually.
         shiny::updateTextInput(session, "table_name", value = "")
         shiny::updateTextInput(session, "record_id", value = "")
-        shiny::updateTextInput(session, "field_name", value = "")
         shiny::updateTextInput(session, "original_value", value = "")
-        shiny::updateTextInput(session, "corrected_value", value = "")
         shiny::updateSelectInput(session, "correction_reason", selected = "")
         shiny::updateTextAreaInput(session, "reason_details", value = "")
       } else {
@@ -382,7 +527,12 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
       }
     })
 
-    output$review_panel <- shiny::renderUI({
+    # Shared by every view that can select a request into rv$selected_request
+    # (Pending Review, My Requests, All Corrections) -- a request can be
+    # APPROVED or REJECTED, not just PENDING, so the Approve/Reject/Apply
+    # controls must be reachable from whichever view a user finds it in,
+    # not only the Pending table that lists PENDING rows exclusively.
+    render_review_panel <- function() {
       guard$require()
       if (is.null(rv$selected_request)) {
         return(shiny::p("Select a request to review"))
@@ -414,6 +564,7 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
             shiny::p(shiny::strong("Reason:"), r$correction_reason)
           )
         ),
+        shiny::p(shiny::strong("Status:"), r$status),
         shiny::p(shiny::strong("Details:"), r$reason_details),
         shiny::p(shiny::strong("Requested by:"), r$requested_by,
                   "at", r$requested_at),
@@ -421,9 +572,26 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
         shiny::textAreaInput(ns("review_comments"), "Review Comments", rows = 2),
         shiny::actionButton(ns("approve_btn"), "Approve", class = "btn-success"),
         shiny::actionButton(ns("reject_btn"), "Reject", class = "btn-danger"),
-        shiny::actionButton(ns("apply_btn"), "Apply Correction", class = "btn-primary")
+        if (.normalize_role_name(
+              if (shiny::is.reactive(user_role)) user_role() else user_role
+            ) %in% .normalize_role_name(.correction_reviewer_roles)) {
+          shiny::actionButton(ns("apply_btn"), "Apply Correction", class = "btn-primary")
+        } else {
+          shiny::tagList(
+            shiny::br(),
+            shiny::span(
+              class = "text-muted",
+              "Applying an approved correction requires the Admin, PI, ",
+              "Study Manager, or Data Manager role."
+            )
+          )
+        }
       )
-    })
+    }
+
+    output$review_panel <- shiny::renderUI(render_review_panel())
+    output$review_panel_all <- shiny::renderUI(render_review_panel())
+    output$request_details <- shiny::renderUI(render_review_panel())
 
     shiny::observeEvent(input$approve_btn, {
       who <- guard$require_action("approve a data correction",
@@ -493,7 +661,7 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
       }
     })
 
-    output$my_requests_table <- DT::renderDT({
+    my_requests_data <- shiny::reactive({
       user <- guard$require()$user
       rv$refresh_trigger
 
@@ -501,22 +669,40 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
         conn <- connect_encrypted_db(db_path = db_path)
         on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-        data <- DBI::dbGetQuery(conn, "
+        DBI::dbGetQuery(conn, "
           SELECT request_id, table_name, field_name, status,
                  corrected_value, correction_reason, requested_at
           FROM correction_requests
           WHERE requested_by = ?
           ORDER BY requested_at DESC
         ", list(user))
-
-        DT::datatable(data, selection = "single",
-                      options = list(pageLength = 10))
-      }, error = function(e) {
-        DT::datatable(data.frame(Message = "Error loading requests"))
-      })
+      }, error = function(e) data.frame())
     })
 
-    output$all_corrections_table <- DT::renderDT({
+    output$my_requests_table <- DT::renderDT({
+      guard$require()
+      data <- my_requests_data()
+      if (nrow(data) == 0) {
+        return(DT::datatable(data.frame(Message = "Error loading requests")))
+      }
+      DT::datatable(data, selection = "single",
+                    options = list(pageLength = 10))
+    })
+
+    # A request a user submitted themselves can be APPROVED or REJECTED,
+    # not just PENDING, so selecting it here (unlike pending_table, which
+    # only ever lists PENDING rows) is the only UI path to the review
+    # panel -- and so to the Apply button -- once a request has moved
+    # past PENDING.
+    shiny::observeEvent(input$my_requests_table_rows_selected, {
+      guard$require()
+      data <- my_requests_data()
+      if (!is.null(input$my_requests_table_rows_selected) && nrow(data) > 0) {
+        rv$selected_request <- data$request_id[input$my_requests_table_rows_selected]
+      }
+    })
+
+    all_corrections_data <- shiny::reactive({
       guard$require()
       rv$refresh_trigger
 
@@ -545,23 +731,42 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
 
         query <- paste(query, "ORDER BY requested_at DESC")
 
-        data <- if (length(params) > 0) {
+        if (length(params) > 0) {
           DBI::dbGetQuery(conn, query, params)
         } else {
           DBI::dbGetQuery(conn, query)
         }
+      }, error = function(e) data.frame())
+    })
 
-        display_cols <- c("request_id", "table_name", "field_name", "status",
-                          "correction_reason", "requested_by", "requested_at",
-                          "reviewed_by", "reviewed_at")
+    output$all_corrections_table <- DT::renderDT({
+      guard$require()
+      data <- all_corrections_data()
+      if (nrow(data) == 0) {
+        return(DT::datatable(data.frame(Message = "Error loading corrections")))
+      }
 
-        DT::datatable(
-          data[, intersect(display_cols, names(data)), drop = FALSE],
-          options = list(pageLength = 15, scrollX = TRUE)
-        )
-      }, error = function(e) {
-        DT::datatable(data.frame(Message = "Error loading corrections"))
-      })
+      display_cols <- c("request_id", "table_name", "field_name", "status",
+                        "correction_reason", "requested_by", "requested_at",
+                        "reviewed_by", "reviewed_at")
+
+      DT::datatable(
+        data[, intersect(display_cols, names(data)), drop = FALSE],
+        selection = "single",
+        options = list(pageLength = 15, scrollX = TRUE)
+      )
+    })
+
+    # All Corrections is the only view that lists every status at once,
+    # so (like my_requests_table above) its selection must also feed the
+    # review panel -- otherwise an approved request a *different* user
+    # requested can never be selected again to be applied.
+    shiny::observeEvent(input$all_corrections_table_rows_selected, {
+      guard$require()
+      data <- all_corrections_data()
+      if (!is.null(input$all_corrections_table_rows_selected) && nrow(data) > 0) {
+        rv$selected_request <- data$request_id[input$all_corrections_table_rows_selected]
+      }
     })
 
     stats_data <- shiny::reactive({
