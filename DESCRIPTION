@@ -55,7 +55,7 @@ Suggests:
     shinyTime,
     shinyWidgets,
     haven,
-    duckdb,
+    duckdb (>= 2.0.0),
     RPostgres,
     RMariaDB,
     RClickhouse,

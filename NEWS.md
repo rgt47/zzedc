@@ -1,5 +1,23 @@
 # zzedc (development version)
 
+## Newer DuckDB required; package snapshot moved forward
+
+* `DESCRIPTION` now requires `duckdb (>= 2.0.0)`. On duckdb 1.5.4.1,
+  the version `renv.lock` pinned, `COPY FROM DATABASE` fails with a
+  foreign-key error when a database has foreign keys (DuckDB issue
+  #24215). `rotate_database_key()` failed on that error in its test
+  on Linux, on the audit tables' foreign key, and passes on 2.0.0;
+  `set_encryption_for_existing_db()` uses the same copy. Before 1.5.6,
+  `DBI::dbIsValid()` on a driver also opened the database (see the
+  next entry).
+* The Posit Package Manager snapshot in the `Dockerfile` (and so in
+  CI, which reads it from there) moves from 2026-07-05 to 2026-11-01,
+  and `renv.lock` is re-pinned against it: 57 packages change version
+  (among them duckdb 1.5.4.1 to 2.0.0, arrow 24.0.0 to 26.0.0,
+  writexl 1.5.4 to 2.0.1, curl 7.1.0 to 8.1.0, rlang 1.2.0 to 1.3.0),
+  `rdtools` is added as a new dependency, none is removed, and
+  `zzalloc` stays at the same GitHub commit. R stays at 4.6.0.
+
 ## A DuckDB adapter keeps one instance until `shutdown()`
 
 * The duckdb package releases a database instance when its last
