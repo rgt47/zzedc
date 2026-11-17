@@ -4,7 +4,7 @@
 \alias{apply_correction}
 \title{Apply Correction}
 \usage{
-apply_correction(request_id, applied_by, db_path = NULL)
+apply_correction(request_id, applied_by, db_path = NULL, applier_role = NULL)
 }
 \arguments{
 \item{request_id}{Integer: Request identifier}
@@ -12,6 +12,12 @@ apply_correction(request_id, applied_by, db_path = NULL)
 \item{applied_by}{Character: User applying the correction}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{applier_role}{Optional: the role of the user applying the
+correction, checked via \code{\link[=require_role]{require_role()}} against the same reviewer
+roles as \code{\link[=approve_correction]{approve_correction()}} (§11.10(g)). \code{NULL} skips the
+check, as for \code{reviewer_role}; the Shiny corrections module always
+supplies it.}
 }
 \value{
 List with \code{success}; on success \code{status = "APPLIED"},

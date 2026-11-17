@@ -278,20 +278,15 @@ initialize_traditional_server <- function(input, output, session) {
   # snapshot taken before login happens; admin_dashboard_server()
   # reads user_session$role directly as a reactiveValues object.
   #
-  # None of cfr_compliance_server(), admin_dashboard_server(), or
-  # data_correction_server() (nor the six further modules
-  # admin_dashboard_server() itself mounts: user management,
-  # backup/restore, audit-log viewer, randomization admin, system
-  # config, help) check authentication internally -- unlike
-  # data_server()/validation_rules_server() above, which take an
-  # authenticated reactive and req() on it. Patching every render()/
-  # observeEvent() inside that whole subtree is both large and
-  # fragile, so instead none of these three are mounted
-  # (moduleServer() is never even called, so no output/observer in
-  # the entire subtree is registered) until user_input$authenticated
-  # actually becomes TRUE. Before login, the Admin/Compliance/
-  # Corrections tabs render their static UI shell with nothing behind
-  # it: safe-by-construction rather than safe-by-every-handler.
+  # None of these three is mounted until user_input$authenticated
+  # first becomes TRUE, so before login the Admin/Compliance/
+  # Corrections tabs are a static UI shell. Once mounted they stay
+  # mounted (Shiny cannot unmount a module), so after logout or
+  # automatic logoff each module, and each of the submodules
+  # admin_dashboard_server() mounts, checks user_session itself
+  # (.module_access_guard(), R/authorization.R) before rendering data
+  # or acting on an input. The corrections module also enforces the
+  # reviewer roles for approve/reject/apply on the server.
   # once = TRUE + ignoreInit = TRUE: don't fire on the initial
   # (FALSE) value, fire exactly once on the first transition to
   # TRUE, and never re-mount the module again afterward (a second
@@ -304,7 +299,8 @@ initialize_traditional_server <- function(input, output, session) {
   if (!is.null(cfr_compliance_server_fn)) {
     shiny::observeEvent(isTRUE(user_input$authenticated), {
       if (isTRUE(user_input$authenticated)) {
-        cfr_compliance_server_fn("compliance", user_id = reactive(user_input$user_id))
+        cfr_compliance_server_fn("compliance", user_id = reactive(user_input$user_id),
+                                 user_session = user_input)
       }
     }, once = TRUE, ignoreInit = TRUE)
   }
@@ -330,10 +326,8 @@ initialize_traditional_server <- function(input, output, session) {
   # Data corrections and the validation-rule editor. Both modules
   # create or read their own tables, so those tables are ensured here
   # (idempotent DDL, not data exposure, so it runs unconditionally).
-  # Neither module checks authentication internally; the correction
-  # module additionally does not check role either, despite the role
-  # it is passed -- approval rights are not yet enforced there. Mount
-  # both gated on login, same reasoning as above.
+  # The correction module is mounted on first login, as above, and
+  # guards itself after logout.
   correction_server_fn <- tryCatch(
     utils::getFromNamespace("data_correction_server", "zzedc"),
     error = function(e) NULL
@@ -345,7 +339,8 @@ initialize_traditional_server <- function(input, output, session) {
         correction_server_fn("corrections",
                              current_user = reactive(user_input$username),
                              user_role = reactive(user_input$role),
-                             db_path = db_path)
+                             db_path = db_path,
+                             user_session = user_input)
       }
     }, once = TRUE, ignoreInit = TRUE)
   }

@@ -12,11 +12,13 @@ audit_log_viewer_server(id, db_pool = NULL, user_session = NULL)
 \item{db_pool}{Reactive expression returning database connection pool}
 
 \item{user_session}{Reactive values with the viewing user's login
-state (\code{user_id}). Used only to decide whether an
+state (\code{authenticated}, \code{username}, \code{user_id}). The trail is
+loaded and shown only while \code{authenticated} is \code{TRUE}; after
+logout the loaded rows are dropped and nothing renders, and a
+\code{NULL} session shows nothing. \code{user_id} also decides whether an
 \code{EMERGENCY_UNBLIND} row's \code{details} (the one audit event type
 that legitimately contains a revealed treatment arm -- see
-R/randomization_module.R) may be shown to this viewer; \code{NULL}
-masks it unconditionally, the fail-safe default.}
+R/randomization_module.R) may be shown to this viewer.}
 }
 \value{
 Invisible NULL

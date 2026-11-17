@@ -4,18 +4,30 @@
 \alias{cfr_compliance_server}
 \title{CFR Part 11 Compliance Module Server}
 \usage{
-cfr_compliance_server(id, user_id = NULL)
+cfr_compliance_server(id, user_id = NULL, user_session = NULL)
 }
 \arguments{
 \item{id}{The namespace id for the module}
 
-\item{user_id}{Current user identifier}
+\item{user_id}{Current user identifier (a reactive or a value)}
+
+\item{user_session}{Optional: the session's login state
+(\code{reactiveValues} with \code{authenticated}, \code{user_id}, \code{role}). When
+supplied, its \code{authenticated} flag must be \code{TRUE} as well.}
 }
 \value{
 Server function for CFR compliance module
 }
 \description{
 CFR Part 11 Compliance Module Server
+}
+\details{
+Every output and handler checks the current user through
+\code{.module_access_guard()}. With no current user (after logout,
+automatic logoff, or when mounted without one) nothing is loaded or
+rendered, loaded data is dropped from the session, and the signing,
+verification, training and report actions do not run; a denied
+action is recorded as an \code{ACCESS}/\code{DENIED} audit event.
 }
 \examples{
 \dontrun{

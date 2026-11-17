@@ -256,7 +256,11 @@ local({
   expect_equal(nrow(f), 2)
   expect_identical(sort(f$entity_type), c("data", "user"))
 
-  shiny::testServer(zzedc:::audit_log_viewer_server, args = list(db_pool = db$con), {
+  # The viewer loads nothing without a signed-in user (F-NEW1 guard).
+  viewer <- shiny::reactiveValues(authenticated = TRUE, username = "admin1",
+                                  user_id = "U_ADMIN", role = "Admin")
+  shiny::testServer(zzedc:::audit_log_viewer_server,
+                    args = list(db_pool = db$con, user_session = viewer), {
     session$setInputs(filter_user = "", filter_action = "", filter_entity_type = "",
                       search_text = "", filter_date_from = as.Date("2000-01-01"),
                       filter_date_to = Sys.Date() + 1)
@@ -267,7 +271,9 @@ local({
                info = "user-supplied text is escaped, not rendered as script")
   expect_true(any(grepl("&lt;script&gt;", tbl$User, fixed = TRUE)))
 
-  shiny::testServer(zzedc:::audit_log_viewer_server, args = list(db_pool = NULL), {
+  shiny::testServer(zzedc:::audit_log_viewer_server,
+                    args = list(db_pool = NULL, user_session = viewer), {
+    session$flushReact()
     expect_equal(nrow(log_state$all_logs), 0, info = "no connection: no fabricated sample rows")
     expect_true(nzchar(log_state$load_error))
   })

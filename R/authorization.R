@@ -189,22 +189,137 @@ require_authenticated_action <- function(user_input, session, db_path, action_la
     return(invisible(TRUE))
   }
 
-  audit_ctx <- session_audit_context(session)
-  tryCatch(
+  .log_access_denied(session, db_path, action_label,
+                     reason = "not authenticated", user_id = "unauthenticated")
+  shiny::req(FALSE)
+}
+
+
+#' Record a Denied Access Attempt (internal)
+#'
+#' Shared by [require_authenticated_action()] and the module guard
+#' built by `.module_access_guard()`: one `ACCESS`/`DENIED` audit event
+#' (`SECURITY` category, `warning` severity) carrying the blocked
+#' action and the reason. A failure to write the record is swallowed;
+#' callers halt the denied action regardless of the outcome.
+#'
+#' @param session The Shiny session (for address and session token), or
+#'   `NULL`.
+#' @param db_path Study database path, a function returning one, or
+#'   `NULL` for the configured default.
+#' @param action_label Short description of the blocked action.
+#' @param reason Why it was blocked.
+#' @param user_id Who attempted it.
+#' @return `NULL`, invisibly.
+#' @keywords internal
+.log_access_denied <- function(session, db_path, action_label, reason, user_id) {
+  tryCatch({
+    path <- if (is.function(db_path)) db_path() else db_path
+    audit_ctx <- if (!is.null(session)) {
+      session_audit_context(session)
+    } else {
+      list(ip_address = NULL, session_id = NULL)
+    }
     log_audit_event_extended(
       event_type = "ACCESS", event_category = "SECURITY",
       table_name = NA_character_, operation = "DENIED", severity = "warning",
       details = jsonlite::toJSON(
-        list(action = action_label, reason = "not authenticated"),
+        list(action = action_label, reason = reason),
         auto_unbox = TRUE
       ),
-      user_id = "unauthenticated",
+      user_id = user_id,
       ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id,
-      db_path = db_path
-    ),
-    # A failure to log the denial must not also let the denied action
-    # through -- shiny::req(FALSE) below runs regardless of this outcome.
-    error = function(e) NULL
+      db_path = path
+    )
+  }, error = function(e) NULL)
+  invisible(NULL)
+}
+
+
+#' Access Guard for a Mounted Shiny Module (internal)
+#'
+#' The Admin, Compliance and Corrections module trees are mounted once,
+#' at first login, and stay mounted for the rest of the Shiny session:
+#' Shiny cannot unmount a module. Logout (`inst/app/auth.R`) and
+#' automatic logoff ([enable_session_timeout()]) clear the session's
+#' identity, but every output and observer in those trees stays
+#' registered and reachable from the browser. Each sensitive module
+#' therefore checks the current user itself, through this one guard,
+#' before it renders data or acts on an input.
+#'
+#' The current user is resolved reactively. When `user_session` (the
+#' app's per-session `reactiveValues`) is supplied, its
+#' `authenticated` flag must be `TRUE`. `user` and `role` (plain values
+#' or reactives) override the session's `username` and `role`; without
+#' a session, a non-empty `user` stands for authentication. A missing
+#' or empty user always denies: a module mounted with no identity at
+#' all shows and does nothing.
+#'
+#' @param user_session The session's login state, or `NULL`.
+#' @param user,role The current user and role, as values or reactives,
+#'   or `NULL` to take them from `user_session`.
+#' @param allowed_roles Roles permitted by default (matched as in
+#'   [require_role()]), or `NULL` for any authenticated user.
+#' @param db_path Database path (or function returning it) for the
+#'   denial audit record.
+#' @param session The Shiny session.
+#' @return A list of three functions:
+#'   * `authorized(roles = allowed_roles)`: reactive `TRUE`/`FALSE`.
+#'   * `require()`: silent [shiny::req()] for renders, reactives and
+#'     passive observers. Returns the current user's list
+#'     (`user`, `role`) invisibly.
+#'   * `require_action(action_label, roles = allowed_roles)`: for
+#'     input-triggered actions and downloads. A denial is first recorded
+#'     as an `ACCESS`/`DENIED` audit event, then halts like `req()`.
+#' @keywords internal
+.module_access_guard <- function(user_session = NULL, user = NULL, role = NULL,
+                                 allowed_roles = NULL, db_path = NULL,
+                                 session = shiny::getDefaultReactiveDomain()) {
+  resolve <- function(x) if (is.function(x)) x() else x
+  present <- function(x) {
+    !is.null(x) && length(x) == 1 && !is.na(x) && nzchar(as.character(x))
+  }
+
+  current <- function() {
+    from_session <- !is.null(user_session)
+    u <- resolve(user)
+    if (is.null(u) && from_session) u <- user_session$username %||% user_session$user_id
+    r <- resolve(role)
+    if (is.null(r) && from_session) r <- user_session$role
+    authenticated <- if (from_session) isTRUE(user_session$authenticated) else TRUE
+    list(user = u, role = r, authenticated = authenticated && present(u))
+  }
+
+  denial_reason <- function(who, roles) {
+    if (!isTRUE(who$authenticated)) return("not authenticated")
+    if (is.null(roles)) return(NULL)
+    if (!present(who$role)) return("no role")
+    denied <- require_role(who$role, roles, "use this function")
+    if (is.null(denied)) NULL else denied$error
+  }
+
+  authorized <- function(roles = allowed_roles) {
+    is.null(denial_reason(current(), roles))
+  }
+
+  list(
+    authorized = authorized,
+    require = function() {
+      who <- current()
+      shiny::req(is.null(denial_reason(who, allowed_roles)))
+      invisible(who[c("user", "role")])
+    },
+    require_action = function(action_label, roles = allowed_roles) {
+      who <- current()
+      reason <- denial_reason(who, roles)
+      if (!is.null(reason)) {
+        .log_access_denied(
+          session, db_path, action_label, reason,
+          user_id = if (present(who$user)) as.character(who$user) else "unauthenticated"
+        )
+        shiny::req(FALSE)
+      }
+      invisible(who[c("user", "role")])
+    }
   )
-  shiny::req(FALSE)
 }

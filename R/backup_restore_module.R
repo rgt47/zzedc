@@ -169,7 +169,10 @@ backup_restore_ui <- function(id) {
 #'   file backup applies (SQLite and DuckDB only) and how to make a
 #'   consistent copy.
 #' @param user_session The session's login state; its `username` is
-#'   recorded with a restore request.
+#'   recorded with a restore request. Unless its `authenticated` flag
+#'   is `TRUE` (it is `FALSE` after logout, and a `NULL` session counts
+#'   as signed out), no backup is listed and no backup, download,
+#'   delete or restore runs.
 #'
 #' @return Invisible NULL
 #'
@@ -198,6 +201,9 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
                                   user_session = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    guard <- .module_access_guard(user_session = user_session,
+                                  db_path = db_path, session = session)
 
     actor_name <- function() {
       if (!is.null(user_session) && !is.null(user_session$username)) {
@@ -278,11 +284,19 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
       })
     }
 
-    # Initial load
-    backup_state$backups <- load_backups()
+    # Load on login; drop the list on logout.
+    observe({
+      if (guard$authorized()) {
+        backup_state$backups <- isolate(load_backups())
+      } else {
+        backup_state$backups <- data.frame()
+        backup_state$selected_backup <- NULL
+      }
+    })
 
     # Display backups table
     output$backups_table <- DT::renderDT({
+      guard$require()
       backups <- backup_state$backups
 
       if (nrow(backups) == 0) {
@@ -323,6 +337,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Create backup button
     observeEvent(input$create_backup_btn, {
+      guard$require_action("create a database backup")
       if (!file_backend) {
         shinyalert("Backup not available here", server_backend_msg, type = "info")
         return()
@@ -439,6 +454,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Select backup
     observeEvent(input$select_backup, {
+      guard$require_action("select a backup")
       filepath <- tryCatch(known_backup(input$select_backup), error = function(e) NULL)
       if (is.null(filepath)) {
         shinyalert("Error", "That file is not one of this study's backups.", type = "error")
@@ -455,6 +471,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
     # database is encrypted), so each download is audit-logged.
     download_target <- reactiveVal(NULL)
     observeEvent(input$download_backup, {
+      guard$require_action("download a backup")
       filepath <- tryCatch(known_backup(input$download_backup), error = function(e) NULL)
       if (is.null(filepath)) {
         shinyalert("Error", "That file is not one of this study's backups.", type = "error")
@@ -475,6 +492,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
     output$download_file <- downloadHandler(
       filename = function() basename(download_target() %||% "backup.db"),
       content = function(file) {
+        guard$require_action("download a backup")
         req(download_target())
         file.copy(download_target(), file, overwrite = TRUE)
       }
@@ -482,6 +500,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Delete backup
     observeEvent(input$delete_backup, {
+      guard$require_action("delete a backup")
       filepath <- tryCatch(known_backup(input$delete_backup), error = function(e) NULL)
       if (is.null(filepath)) {
         shinyalert("Error", "That file is not one of this study's backups.", type = "error")
@@ -501,6 +520,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
       )
 
       observeEvent(input$confirm_delete, {
+        guard$require_action("delete a backup")
         if (input$confirm_delete == TRUE) {
           tryCatch({
             file.remove(filepath)
@@ -516,6 +536,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Restore from backup
     observeEvent(input$restore_btn, {
+      guard$require_action("stage a database restore")
       if (!file_backend) {
         shinyalert("Restore not available here", server_backend_msg, type = "info")
         return()
@@ -569,6 +590,7 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Automatic backup settings observer
     observe({
+      guard$require()
       # These would connect to the application's scheduler
       # For now, just log the settings
       cat("Auto backup enabled:", input$auto_backup_enable, "\n")

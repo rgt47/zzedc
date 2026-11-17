@@ -99,7 +99,13 @@ randomization_admin_ui <- function(id) {
 #' @param db_pool Reactive expression or value returning database
 #'   connection pool
 #' @param user_session Reactive values with authenticated user info
-#'   (`user_id`, `username`, `role`)
+#'   (`authenticated`, `user_id`, `username`, `role`). Nothing is shown
+#'   and no action runs unless `authenticated` is `TRUE` (so not after
+#'   logout, nor with a `NULL` session). Saving the scheme and granting
+#'   or revoking unblinded access also require the `Admin` role, and an
+#'   emergency unblind `Admin` or `PI`, the same roles the underlying
+#'   functions check; a denied action is recorded as an
+#'   `ACCESS`/`DENIED` audit event.
 #' @return Invisible NULL
 #' @keywords internal
 randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) {
@@ -114,10 +120,13 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
       if (!is.null(user_session)) user_session$user_id else NULL
     }
 
+    guard <- .module_access_guard(user_session = user_session, session = session)
+
     refresh <- reactiveVal(0)
     config_refresh <- reactiveVal(0)
 
     observe({
+      guard$require()
       conn <- .db()
       shiny::req(conn)
       users <- tryCatch(
@@ -137,6 +146,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     # risk excluding a genuinely discrete numeric-coded field (e.g. a
     # 0/1 flag stored as "numeric") on a type label alone.
     observe({
+      guard$require()
       conn <- .db()
       shiny::req(conn)
       fields <- tryCatch(
@@ -148,6 +158,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     })
 
     .current_config <- reactive({
+      guard$require()
       config_refresh()
       conn <- .db()
       shiny::req(conn)
@@ -171,6 +182,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     })
 
     observeEvent(input$save_config_btn, {
+      guard$require_action("configure the randomization scheme", roles = c("Admin"))
       conn <- .db()
       shiny::req(conn, input$scheme)
       labels <- c("0" = input$arm0_label, "1" = input$arm1_label)
@@ -206,6 +218,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     })
 
     output$imbalance_display <- renderUI({
+      guard$require()
       refresh()
       conn <- .db()
       shiny::req(conn)
@@ -229,6 +242,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     })
 
     .current_grants <- reactive({
+      guard$require()
       refresh()
       conn <- .db()
       shiny::req(conn)
@@ -254,6 +268,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     })
 
     observeEvent(input$grant_btn, {
+      guard$require_action("grant unblinded access", roles = c("Admin"))
       conn <- .db()
       shiny::req(conn, input$grant_user)
       result <- zzedc::grant_unblinded_access(
@@ -271,6 +286,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     })
 
     observeEvent(input$revoke_btn, {
+      guard$require_action("revoke unblinded access", roles = c("Admin"))
       conn <- .db()
       shiny::req(conn, input$revoke_user)
       result <- zzedc::revoke_unblinded_access(
@@ -294,8 +310,12 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     # after the viewer moves on to a different subject.
     unblind_result <- reactiveVal(NULL)
     observeEvent(input$unblind_subject_id, unblind_result(NULL))
+    observe({
+      if (!guard$authorized()) unblind_result(NULL)
+    })
 
     observeEvent(input$unblind_btn, {
+      guard$require_action("perform an emergency unblind", roles = c("Admin", "PI"))
       conn <- .db()
       shiny::req(conn, input$unblind_subject_id)
       result <- zzedc::emergency_unblind_subject(
@@ -316,6 +336,7 @@ randomization_admin_server <- function(id, db_pool = NULL, user_session = NULL) 
     })
 
     output$unblind_result <- renderUI({
+      guard$require()
       val <- unblind_result()
       shiny::req(val)
       tags$div(class = "alert alert-warning mt-2", val)

@@ -205,6 +205,18 @@ user_management_ui <- function(id) {
 #'   instance, used to restrict which roles they may assign to other
 #'   users (see `.assignable_roles()`). `NULL` defaults to the most
 #'   restrictive tier.
+#' @param actor_username Username of the signed-in user, recorded with
+#'   account changes; a value or a reactive.
+#' @param user_session Optional: the session's login state. When
+#'   supplied, its `authenticated` flag must be `TRUE`.
+#'
+#' @details
+#' Every output and handler checks the current user through
+#' `.module_access_guard()`. Without a signed-in user (an empty
+#' `actor_username`, or `user_session$authenticated` `FALSE`, as after
+#' logout) the user list is not loaded or shown and no account can be
+#' added, edited, reset or deactivated; a denied action is recorded as
+#' an `ACCESS`/`DENIED` audit event.
 #'
 #' @return List of reactive expressions and functions
 #'
@@ -226,9 +238,13 @@ user_management_ui <- function(id) {
 #' }
 #' @keywords internal
 user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
-                                    actor_username = NULL) {
+                                    actor_username = NULL, user_session = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    guard <- .module_access_guard(user_session = user_session,
+                                  user = actor_username, role = actor_role,
+                                  session = session)
 
     # actor_role may be passed as a plain string or, when mounted
     # against a per-session reactiveValues login state (the role is
@@ -295,11 +311,20 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
       })
     }
 
-    # Initial load
-    user_state$users <- load_users()
+    # Load on login; drop the list on logout.
+    observe({
+      if (guard$authorized()) {
+        user_state$users <- isolate(load_users())
+      } else {
+        user_state$users <- data.frame()
+        user_state$edit_user_id <- NULL
+        user_state$selected_username <- NULL
+      }
+    })
 
     # Display users table
     output$users_table <- DT::renderDT({
+      guard$require()
       users <- user_state$users
 
       if (nrow(users) == 0) {
@@ -338,6 +363,10 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Update table info
     observe({
+      if (!guard$authorized()) {
+        shinyjs::html(ns("table_info"), "")
+        return()
+      }
       count <- nrow(user_state$users)
       active <- sum(user_state$users$active, na.rm = TRUE)
       inactive <- count - active
@@ -350,6 +379,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Add user button
     observeEvent(input$add_user_btn, {
+      guard$require_action("open the add-user form")
       user_state$modal_mode <- "add"
       user_state$edit_user_id <- NULL
 
@@ -366,6 +396,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Edit user button
     observeEvent(input$edit_user, {
+      guard$require_action("open a user account for editing")
       user_id <- input$edit_user
       user_row <- user_state$users[user_state$users$user_id == user_id, ]
 
@@ -400,6 +431,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Save user
     observeEvent(input$modal_save, {
+      guard$require_action("save a user account")
       # Validate inputs
       errors <- character()
 
@@ -470,6 +502,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Reset password button
     observeEvent(input$reset_password, {
+      guard$require_action("open a password reset")
       user_id <- input$reset_password
       user_row <- user_state$users[user_state$users$user_id == user_id, ]
       user_state$selected_username <- user_row$username[1]
@@ -480,6 +513,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Confirm reset password
     observeEvent(input$reset_confirm, {
+      guard$require_action("reset a user password")
       # Generate temporary password
       temp_password <- paste0(sample(c(letters, LETTERS, 0:9), 12, replace = TRUE), collapse = "")
 
@@ -531,6 +565,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Deactivate button
     observeEvent(input$deactivate_user, {
+      guard$require_action("open a user deactivation")
       user_id <- input$deactivate_user
       user_state$edit_user_id <- user_id
 
@@ -539,6 +574,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Confirm deactivate
     observeEvent(input$deactivate_confirm, {
+      guard$require_action("deactivate a user account")
       tryCatch({
         if (!is.null(db_pool)) {
           pool::dbExecute(db_pool,
@@ -564,6 +600,7 @@ user_management_server <- function(id, db_pool = NULL, actor_role = NULL,
 
     # Refresh button
     observeEvent(input$refresh_btn, {
+      guard$require_action("refresh the user list")
       user_state$users <- load_users()
       shinyalert("Refreshed", "User list updated", type = "success", timer = 1500)
     })

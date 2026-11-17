@@ -8,13 +8,18 @@ system_config_server(
   id,
   db_pool = NULL,
   db_path = reactive("./data/zzedc.db"),
-  db_adapter = NULL
+  db_adapter = NULL,
+  user_session = NULL
 )
 }
 \arguments{
 \item{id}{Namespace ID}
 
 \item{db_pool}{Database connection pool}
+
+\item{user_session}{The session's login state. Without an
+authenticated user the panel shows no database details and its
+buttons do nothing.}
 }
 \value{
 List of reactive values
