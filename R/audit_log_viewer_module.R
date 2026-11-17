@@ -145,11 +145,13 @@ audit_log_viewer_ui <- function(id) {
 #' @param id The namespace id for the module
 #' @param db_pool Reactive expression returning database connection pool
 #' @param user_session Reactive values with the viewing user's login
-#'   state (`user_id`). Used only to decide whether an
+#'   state (`authenticated`, `username`, `user_id`). The trail is
+#'   loaded and shown only while `authenticated` is `TRUE`; after
+#'   logout the loaded rows are dropped and nothing renders, and a
+#'   `NULL` session shows nothing. `user_id` also decides whether an
 #'   `EMERGENCY_UNBLIND` row's `details` (the one audit event type
 #'   that legitimately contains a revealed treatment arm -- see
-#'   R/randomization_module.R) may be shown to this viewer; `NULL`
-#'   masks it unconditionally, the fail-safe default.
+#'   R/randomization_module.R) may be shown to this viewer.
 #'
 #' @return Invisible NULL
 #'
@@ -172,6 +174,8 @@ audit_log_viewer_ui <- function(id) {
 audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    guard <- .module_access_guard(user_session = user_session, session = session)
 
     .pool <- function() if (is.function(db_pool) && !inherits(db_pool, "Pool")) db_pool() else db_pool
     .viewer_unblinded_for <- function(study_id) {
@@ -240,16 +244,21 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
       updateSelectInput(session, "filter_user", choices = choices)
     }
 
-    # Initial load. This runs at moduleServer top level, which is not
-    # a reactive consumer: update_user_list()'s read of
-    # log_state$all_logs needs isolate(), or it throws "Can't access
-    # reactive value 'all_logs' outside of reactive consumer" and
-    # aborts the entire enclosing server() call (this module is
-    # mounted eagerly by admin_dashboard_server(), so the failure
-    # propagated all the way up to create_enhanced_server()).
-    shiny::isolate({
-      log_state$all_logs <- load_audit_logs()
-      update_user_list()
+    # Load when a user is signed in; drop everything loaded when the
+    # user signs out. The load and update_user_list() are isolated so
+    # this observer depends on the sign-in state only.
+    observe({
+      if (guard$authorized()) {
+        shiny::isolate({
+          log_state$all_logs <- load_audit_logs()
+          update_user_list()
+        })
+      } else {
+        log_state$all_logs <- data.frame()
+        log_state$filtered_logs <- data.frame()
+        log_state$users_list <- character()
+        log_state$selected_log <- NULL
+      }
     })
 
     # Apply filters
@@ -294,11 +303,13 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
 
     # Watch for filter changes and apply
     observeEvent(input$apply_filters, {
+      guard$require()
       apply_filters()
     })
 
     # Reset filters
     observeEvent(input$reset_filters, {
+      guard$require()
       updateSelectInput(session, "filter_user", selected = "")
       updateSelectInput(session, "filter_action", selected = "")
       updateDateInput(session, "filter_date_from", value = Sys.Date() - 30)
@@ -312,6 +323,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
 
     # Display audit table
     output$audit_table <- DT::renderDT({
+      guard$require()
       logs <- apply_filters()
 
       if (nrow(logs) == 0) {
@@ -345,6 +357,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
     # source of truth for the four value_box outputs and avoids
     # running apply_filters() four times.
     stat_counts <- reactive({
+      guard$require()
       logs <- apply_filters()
       if (nrow(logs) == 0) {
         return(list(total = 0, entries = 0, users = 0, system = 0))
@@ -364,6 +377,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
 
     # View details
     observeEvent(input$view_details, {
+      guard$require_action("view an audit-trail entry")
       audit_id <- input$view_details
       log_entry <- log_state$all_logs[log_state$all_logs$audit_id == audit_id, ]
 
@@ -424,6 +438,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
 
     # Export CSV
     observeEvent(input$export_csv, {
+      guard$require_action("export the audit trail")
       logs <- apply_filters()
 
       if (nrow(logs) == 0) {
@@ -446,6 +461,7 @@ audit_log_viewer_server <- function(id, db_pool = NULL, user_session = NULL) {
 
     # Refresh logs
     observeEvent(input$refresh_logs, {
+      guard$require_action("reload the audit trail")
       log_state$all_logs <- load_audit_logs()
       update_user_list()
       apply_filters()

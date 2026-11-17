@@ -115,12 +115,19 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL,
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    # Display current user
+    # This dashboard and every submodule below stay mounted after
+    # logout (Shiny cannot unmount a module), so each submodule takes
+    # user_session and checks it itself through .module_access_guard();
+    # this shell has only the user display to guard.
+    guard <- .module_access_guard(user_session = user_session, session = session)
+
     observe({
-      if (!is.null(user_session) && !is.null(user_session$username)) {
+      if (guard$authorized()) {
         shinyjs::html(ns("current_user"), paste0(
           user_session$full_name, " (",  user_session$role, ")"
         ))
+      } else {
+        shinyjs::html(ns("current_user"), "")
       }
     })
 
@@ -145,7 +152,8 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL,
       }),
       actor_username = shiny::reactive({
         if (!is.null(user_session)) user_session$username else NULL
-      })
+      }),
+      user_session = user_session
     )
 
     backup_restore_results <- backup_restore_server(
@@ -169,7 +177,8 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL,
 
     system_config_results <- system_config_server("system_config", db_pool = db_pool,
                                                   db_path = db_path,
-                                                  db_adapter = db_adapter)
+                                                  db_adapter = db_adapter,
+                                                  user_session = user_session)
 
     help_results <- help_documentation_server("help")
 
@@ -314,6 +323,9 @@ system_config_ui <- function(id) {
 #'
 #' @param id Namespace ID
 #' @param db_pool Database connection pool
+#' @param user_session The session's login state. Without an
+#'   authenticated user the panel shows no database details and its
+#'   buttons do nothing.
 #' @return List of reactive values
 #'
 #' @examples
@@ -335,14 +347,23 @@ system_config_ui <- function(id) {
 #' @keywords internal
 system_config_server <- function(id, db_pool = NULL,
                                  db_path = reactive("./data/zzedc.db"),
-                                 db_adapter = NULL) {
+                                 db_adapter = NULL, user_session = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
+    guard <- .module_access_guard(user_session = user_session,
+                                  db_path = db_path, session = session)
+
     # Display database info for the configured database, not a fixed
     # "./data/zzedc.db" (which this panel used to report regardless of
-    # the database the app actually opened).
+    # the database the app actually opened). Cleared when no user is
+    # signed in.
     observe({
+      if (!guard$authorized()) {
+        shinyjs::html(ns("db_path"), "")
+        shinyjs::html(ns("db_size"), "")
+        return()
+      }
       path <- db_path()
       backend <- if (!is.null(db_adapter)) db_adapter$backend_name() else "sqlite"
       if (!is.null(path) && !is.na(path) && file.exists(path)) {
@@ -357,6 +378,7 @@ system_config_server <- function(id, db_pool = NULL,
 
     # Save security settings
     observeEvent(input$save_security, {
+      guard$require_action("save security settings")
       shinyalert("Settings Saved",
                 "Security settings have been updated.",
                 type = "success", timer = 2000)
@@ -364,6 +386,7 @@ system_config_server <- function(id, db_pool = NULL,
 
     # Save feature settings
     observeEvent(input$save_features, {
+      guard$require_action("save feature configuration")
       shinyalert("Configuration Saved",
                 "Feature configuration has been updated.",
                 type = "success", timer = 2000)
@@ -371,12 +394,14 @@ system_config_server <- function(id, db_pool = NULL,
 
     # Database maintenance
     observeEvent(input$repair_db, {
+      guard$require_action("repair the database")
       shinyalert("Database Repair",
                 "Database integrity check and repair started. This may take a moment.",
                 type = "info")
     })
 
     observeEvent(input$vacuum_db, {
+      guard$require_action("optimize the database")
       shinyalert("Database Optimization",
                 "Database optimization in progress. This will improve performance.",
                 type = "info")

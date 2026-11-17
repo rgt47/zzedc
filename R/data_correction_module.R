@@ -229,6 +229,18 @@ data_correction_ui <- function(id) {
 #' @param current_user Reactive: Current user ID
 #' @param user_role Reactive: Current user role
 #' @param db_path Character: Database path
+#' @param user_session Optional: the session's login state
+#'   (`reactiveValues` with `authenticated`, `username`, `role`). When
+#'   supplied, its `authenticated` flag must be `TRUE` as well.
+#'
+#' @details
+#' Every output and handler checks the current user through
+#' `.module_access_guard()`: after logout (an empty `current_user`, or
+#' `user_session$authenticated` `FALSE`) nothing renders and no action
+#' runs. Approving, rejecting and applying a correction also require
+#' one of the reviewer roles (`Admin`, `PI`, `StudyManager`,
+#' `Data Manager`), checked on the server; a denied attempt is recorded
+#' as an `ACCESS`/`DENIED` audit event.
 #'
 #' @return Module server
 #'
@@ -250,15 +262,28 @@ data_correction_ui <- function(id) {
 #' }
 #' }
 #' @export
-data_correction_server <- function(id, current_user, user_role, db_path = NULL) {
+data_correction_server <- function(id, current_user = NULL, user_role = NULL,
+                                   db_path = NULL, user_session = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
+
+    guard <- .module_access_guard(user_session = user_session,
+                                  user = current_user, role = user_role,
+                                  db_path = db_path, session = session)
 
     rv <- shiny::reactiveValues(
       refresh_trigger = 0,
       selected_request = NULL
     )
 
+    shiny::observe({
+      if (!guard$authorized()) {
+        rv$selected_request <- NULL
+        output$submit_message <- shiny::renderText("")
+      }
+    })
+
     output$quick_stats <- shiny::renderUI({
+      guard$require()
       rv$refresh_trigger
       stats <- tryCatch({
         get_correction_statistics(db_path = db_path)
@@ -276,12 +301,7 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     shiny::observeEvent(input$submit_request, {
-      user <- if (shiny::is.reactive(current_user)) current_user() else current_user
-
-      if (is.null(user) || user == "") {
-        output$submit_message <- shiny::renderText("Error: Not logged in")
-        return()
-      }
+      user <- guard$require_action("submit a correction request")$user
 
       if (input$table_name == "" || input$record_id == "" ||
           input$field_name == "" || input$corrected_value == "" ||
@@ -328,6 +348,7 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     pending_data <- shiny::reactive({
+      guard$require()
       rv$refresh_trigger
       tryCatch({
         get_pending_corrections(db_path = db_path)
@@ -335,6 +356,7 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     output$pending_table <- DT::renderDT({
+      guard$require()
       data <- pending_data()
       if (nrow(data) == 0) {
         return(DT::datatable(data.frame(Message = "No pending corrections")))
@@ -353,6 +375,7 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     shiny::observeEvent(input$pending_table_rows_selected, {
+      guard$require()
       data <- pending_data()
       if (!is.null(input$pending_table_rows_selected) && nrow(data) > 0) {
         rv$selected_request <- data$request_id[input$pending_table_rows_selected]
@@ -360,6 +383,7 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     output$review_panel <- shiny::renderUI({
+      guard$require()
       if (is.null(rv$selected_request)) {
         return(shiny::p("Select a request to review"))
       }
@@ -402,15 +426,15 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     shiny::observeEvent(input$approve_btn, {
-      user <- if (shiny::is.reactive(current_user)) current_user() else current_user
-      role <- if (shiny::is.reactive(user_role)) user_role() else user_role
+      who <- guard$require_action("approve a data correction",
+                                  roles = .correction_reviewer_roles)
 
       result <- approve_correction(
         request_id = rv$selected_request,
-        reviewed_by = user,
+        reviewed_by = who$user,
         review_comments = input$review_comments,
         db_path = db_path,
-        reviewer_role = role
+        reviewer_role = who$role
       )
 
       if (result$success) {
@@ -423,8 +447,8 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     shiny::observeEvent(input$reject_btn, {
-      user <- if (shiny::is.reactive(current_user)) current_user() else current_user
-      role <- if (shiny::is.reactive(user_role)) user_role() else user_role
+      who <- guard$require_action("reject a data correction",
+                                  roles = .correction_reviewer_roles)
 
       if (nchar(input$review_comments) < 10) {
         shiny::showNotification(
@@ -434,10 +458,10 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
 
       result <- reject_correction(
         request_id = rv$selected_request,
-        reviewed_by = user,
+        reviewed_by = who$user,
         review_comments = input$review_comments,
         db_path = db_path,
-        reviewer_role = role
+        reviewer_role = who$role
       )
 
       if (result$success) {
@@ -450,12 +474,14 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     shiny::observeEvent(input$apply_btn, {
-      user <- if (shiny::is.reactive(current_user)) current_user() else current_user
+      who <- guard$require_action("apply a data correction",
+                                  roles = .correction_reviewer_roles)
 
       result <- apply_correction(
         request_id = rv$selected_request,
-        applied_by = user,
-        db_path = db_path
+        applied_by = who$user,
+        db_path = db_path,
+        applier_role = who$role
       )
 
       if (result$success) {
@@ -468,8 +494,8 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     output$my_requests_table <- DT::renderDT({
+      user <- guard$require()$user
       rv$refresh_trigger
-      user <- if (shiny::is.reactive(current_user)) current_user() else current_user
 
       tryCatch({
         conn <- connect_encrypted_db(db_path = db_path)
@@ -491,6 +517,7 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     output$all_corrections_table <- DT::renderDT({
+      guard$require()
       rv$refresh_trigger
 
       tryCatch({
@@ -538,6 +565,7 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
     })
 
     stats_data <- shiny::reactive({
+      guard$require()
       rv$refresh_trigger
       tryCatch({
         get_correction_statistics(db_path = db_path)
@@ -610,15 +638,12 @@ data_correction_server <- function(id, current_user, user_role, db_path = NULL) 
                input$report_format)
       },
       content = function(file) {
+        who <- guard$require_action("download the correction report")
         generate_correction_report(
           output_file = file,
           format = input$report_format,
           organization = input$report_org,
-          prepared_by = if (shiny::is.reactive(current_user)) {
-            current_user()
-          } else {
-            current_user
-          },
+          prepared_by = who$user,
           db_path = db_path
         )
       }

@@ -27,7 +27,10 @@ file backup applies (SQLite and DuckDB only) and how to make a
 consistent copy.}
 
 \item{user_session}{The session's login state; its \code{username} is
-recorded with a restore request.}
+recorded with a restore request. Unless its \code{authenticated} flag
+is \code{TRUE} (it is \code{FALSE} after logout, and a \code{NULL} session counts
+as signed out), no backup is listed and no backup, download,
+delete or restore runs.}
 }
 \value{
 Invisible NULL

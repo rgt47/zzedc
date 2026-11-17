@@ -72,9 +72,13 @@ local({
     })
   }
 
+  # A signed-in user: these modules load and act on nothing without
+  # one (F-NEW1 guard; see test_module_auth_guard.R).
+  viewer <- shiny::reactiveValues(authenticated = TRUE, username = "testadmin",
+                                  user_id = "U_ADMIN", role = "Admin")
   shiny::testServer(
     zzedc:::audit_log_viewer_server,
-    args = list(db_pool = con),
+    args = list(db_pool = con, user_session = viewer),
     {
       session$setInputs(
         filter_user        = "",
@@ -117,8 +121,9 @@ local({
 
   shiny::testServer(
     zzedc:::user_management_server,
-    args = list(db_pool = NULL),
+    args = list(db_pool = NULL, actor_role = "Admin", actor_username = "testadmin"),
     {
+      session$flushReact()
       # NULL db_pool path -- load_users returns an empty frame.
       expect_equal(nrow(user_state$users), 0L)
       expect_true(all(c("user_id", "username", "full_name", "email",
@@ -207,9 +212,12 @@ local({
     args = list(
       db_pool    = NULL,
       db_path    = shiny::reactive(":memory:"),
-      backup_dir = tmp_dir
+      backup_dir = tmp_dir,
+      user_session = shiny::reactiveValues(authenticated = TRUE,
+                                           username = "testadmin", role = "Admin")
     ),
     {
+      session$flushReact()
       # Initial backup list is empty.
       expect_equal(nrow(backup_state$backups), 0L)
     }

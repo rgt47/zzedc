@@ -1,5 +1,39 @@
 # zzedc (development version)
 
+## Admin, Compliance and Corrections check the signed-in user after logout
+
+* The Admin, Compliance and Corrections modules are mounted at first
+  login and stay mounted for the rest of the browser session, but
+  carried no check of their own. After logout or automatic logoff,
+  the same session could still use them: in testing, the user
+  management panel created a new `Admin` account (the role check was
+  skipped when no role was known), reset a password and deactivated an
+  account; the audit-trail viewer kept the loaded trail; the
+  unblinding-grant table and the compliance summaries still rendered.
+  Each of `admin_dashboard_server()`, `user_management_server()`,
+  `backup_restore_server()`, `audit_log_viewer_server()`,
+  `randomization_admin_server()`, `system_config_server()`,
+  `cfr_compliance_server()` and `data_correction_server()` now checks
+  the current user through one internal guard before it renders data
+  or acts on an input. Without a signed-in user nothing renders, data
+  already loaded is dropped from the session, and actions do not run;
+  a blocked action is recorded as an `ACCESS`/`DENIED` audit event. A
+  signed-in user blocked for their role sees a 'Not permitted'
+  notification. A module mounted with no identity at all now shows
+  and does nothing.
+* The Corrections module enforces the reviewer roles (`Admin`, `PI`,
+  `StudyManager`, `Data Manager`) on the server for approve, reject
+  and apply. Applying a correction previously checked no role at all,
+  so a `Coordinator` could apply an approved change.
+  `apply_correction()` gains `applier_role`, checked like
+  `approve_correction()`'s `reviewer_role` (`NULL` still skips it).
+* The randomization admin panel requires `Admin` to save the scheme
+  and grant or revoke unblinded access, and `Admin` or `PI` for an
+  emergency unblind, the roles the underlying functions already check.
+* `cfr_compliance_server()`, `data_correction_server()`,
+  `user_management_server()` and `system_config_server()` gain a
+  `user_session` argument; the application passes its login state.
+
 ## REDCap audit replay verifies
 
 * `replay_redcap_audit()` (used by `import_redcap_to_zzedc_db()`)

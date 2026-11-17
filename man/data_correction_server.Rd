@@ -4,7 +4,13 @@
 \alias{data_correction_server}
 \title{Data Correction Server}
 \usage{
-data_correction_server(id, current_user, user_role, db_path = NULL)
+data_correction_server(
+  id,
+  current_user = NULL,
+  user_role = NULL,
+  db_path = NULL,
+  user_session = NULL
+)
 }
 \arguments{
 \item{id}{Module namespace ID}
@@ -14,12 +20,25 @@ data_correction_server(id, current_user, user_role, db_path = NULL)
 \item{user_role}{Reactive: Current user role}
 
 \item{db_path}{Character: Database path}
+
+\item{user_session}{Optional: the session's login state
+(\code{reactiveValues} with \code{authenticated}, \code{username}, \code{role}). When
+supplied, its \code{authenticated} flag must be \code{TRUE} as well.}
 }
 \value{
 Module server
 }
 \description{
 Data Correction Server
+}
+\details{
+Every output and handler checks the current user through
+\code{.module_access_guard()}: after logout (an empty \code{current_user}, or
+\code{user_session$authenticated} \code{FALSE}) nothing renders and no action
+runs. Approving, rejecting and applying a correction also require
+one of the reviewer roles (\code{Admin}, \code{PI}, \code{StudyManager},
+\verb{Data Manager}), checked on the server; a denied attempt is recorded
+as an \code{ACCESS}/\code{DENIED} audit event.
 }
 \examples{
 \dontrun{

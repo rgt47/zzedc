@@ -306,7 +306,19 @@ cfr_compliance_ui <- function(id) {
 #' CFR Part 11 Compliance Module Server
 #'
 #' @param id The namespace id for the module
-#' @param user_id Current user identifier
+#' @param user_id Current user identifier (a reactive or a value)
+#' @param user_session Optional: the session's login state
+#'   (`reactiveValues` with `authenticated`, `user_id`, `role`). When
+#'   supplied, its `authenticated` flag must be `TRUE` as well.
+#'
+#' @details
+#' Every output and handler checks the current user through
+#' `.module_access_guard()`. With no current user (after logout,
+#' automatic logoff, or when mounted without one) nothing is loaded or
+#' rendered, loaded data is dropped from the session, and the signing,
+#' verification, training and report actions do not run; a denied
+#' action is recorded as an `ACCESS`/`DENIED` audit event.
+#'
 #' @return Server function for CFR compliance module
 #'
 #' @examples
@@ -326,8 +338,11 @@ cfr_compliance_ui <- function(id) {
 #' }
 #' }
 #' @keywords internal
-cfr_compliance_server <- function(id, user_id = NULL) {
+cfr_compliance_server <- function(id, user_id = NULL, user_session = NULL) {
   moduleServer(id, function(input, output, session) {
+
+    guard <- .module_access_guard(user_session = user_session, user = user_id,
+                                  session = session)
 
     # Reactive values for data
     compliance_data <- reactiveValues(
@@ -338,10 +353,16 @@ cfr_compliance_server <- function(id, user_id = NULL) {
       report = NULL
     )
 
-    # Load initial data
+    # Load on login; drop everything loaded on logout.
     observe({
+      if (!guard$authorized()) {
+        for (field in c("signatures", "audit_trail", "validations", "training", "report")) {
+          compliance_data[[field]] <- NULL
+        }
+        return()
+      }
       if (exists("db_pool")) {
-        load_compliance_data()
+        isolate(load_compliance_data())
       }
     })
 
@@ -349,6 +370,10 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # This was previously left as choices = c() with nothing anywhere
     # updating it (see the Record Training card's selectInput, above).
     observe({
+      if (!guard$authorized()) {
+        updateSelectInput(session, "training_user", choices = character(0))
+        return()
+      }
       if (exists("db_pool")) {
         tryCatch({
           users <- pool::dbGetQuery(db_pool, "
@@ -419,6 +444,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
 
     # Update value boxes
     output$signature_count <- renderUI({
+      guard$require()
       count <- nrow(compliance_data$signatures) %||% 0
       tagList(
         h3(count),
@@ -427,6 +453,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     })
 
     output$audit_count <- renderUI({
+      guard$require()
       count <- nrow(compliance_data$audit_trail) %||% 0
       tagList(
         h3(paste(count, "K")),
@@ -435,6 +462,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     })
 
     output$validation_status <- renderUI({
+      guard$require()
       if (is.null(compliance_data$validations) || nrow(compliance_data$validations) == 0) {
         return(tagList(h3("0%"), p(class = "text-muted", "Not Started")))
       }
@@ -450,6 +478,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     })
 
     output$training_compliance <- renderUI({
+      guard$require()
       if (is.null(compliance_data$training)) {
         return(tagList(h3("0%"), p(class = "text-muted", "No Data")))
       }
@@ -481,6 +510,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # apply_electronic_signature() (R/electronic_signatures.R), which
     # does that via verify_password_for_signature().
     observeEvent(input$apply_signature, {
+      guard$require_action("apply an electronic signature")
       req(input$sig_table, input$sig_record_id, input$sig_meaning, input$sig_password)
 
       if (exists("db_pool") && !is.null(user_id())) {
@@ -541,11 +571,13 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # could not detect an invalidated signature or a record modified
     # after signing.
     observeEvent(input$verify_signature, {
+      guard$require_action("verify an electronic signature")
       req(input$verify_sig_id)
 
       result <- verify_electronic_signature(input$verify_sig_id)
 
       output$signature_verification_result <- renderUI({
+        guard$require()
         if (isTRUE(result$is_valid)) {
           div(class = "alert alert-success",
             bsicons::bs_icon("check-circle"),
@@ -569,6 +601,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
     # db_insert_training_record() in R/db_users.R for the table this
     # writes to, added alongside this handler.
     observeEvent(input$record_training, {
+      guard$require_action("record a training entry")
       req(input$training_user, input$training_type, input$training_date)
 
       if (exists("db_pool")) {
@@ -602,6 +635,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
 
     # Signature history table
     output$signature_history <- DT::renderDT({
+      guard$require()
       if (!is.null(compliance_data$signatures)) {
         # electronic_signatures has no signing_timestamp/signature_status
         # columns -- those are signed_at and is_valid (see
@@ -630,6 +664,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
 
     # Audit trail table
     output$audit_trail_table <- DT::renderDT({
+      guard$require()
       if (!is.null(compliance_data$audit_trail)) {
         display_data <- compliance_data$audit_trail |>
           select(event_type, table_name, record_id, user_name, timestamp, reason) |>
@@ -644,6 +679,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
 
     # Validation activities table
     output$validation_activities <- DT::renderDT({
+      guard$require()
       if (!is.null(compliance_data$validations)) {
         display_data <- compliance_data$validations |>
           select(validation_type, validation_title, status, execution_date,
@@ -668,6 +704,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
 
     # Training compliance table
     output$training_compliance_table <- DT::renderDT({
+      guard$require()
       if (!is.null(compliance_data$training)) {
         summary_data <- compliance_data$training |>
           group_by(role, training_type) |>
@@ -685,6 +722,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
 
     # Generate compliance report
     observeEvent(input$generate_report, {
+      guard$require_action("generate the compliance report")
       if (exists("db_pool")) {
         tryCatch({
           # Generate comprehensive report
@@ -709,6 +747,7 @@ cfr_compliance_server <- function(id, user_id = NULL) {
 
     # Display compliance report
     output$compliance_report <- renderUI({
+      guard$require()
       if (!is.null(compliance_data$report)) {
         tagList(
           h4("System Compliance Status"),

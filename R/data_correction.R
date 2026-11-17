@@ -29,6 +29,11 @@ if (is.null(x) || length(x) == 0) {
   }
 }
 
+# Roles that may approve, reject or apply a data correction
+# (21 CFR Part 11 §11.10(g)). One list for approve_correction(),
+# reject_correction(), apply_correction() and the corrections module.
+.correction_reviewer_roles <- c("Admin", "PI", "StudyManager", "Data Manager")
+
 # =============================================================================
 # Database Schema
 # =============================================================================
@@ -482,8 +487,7 @@ approve_correction <- function(request_id,
                                 reviewer_role = NULL) {
   tryCatch({
     if (!is.null(reviewer_role)) {
-      denied <- require_role(reviewer_role,
-                              c("Admin", "PI", "StudyManager", "Data Manager"),
+      denied <- require_role(reviewer_role, .correction_reviewer_roles,
                               "approve a data correction")
       if (!is.null(denied)) return(denied)
     }
@@ -601,8 +605,7 @@ reject_correction <- function(request_id,
   }
 
   if (!is.null(reviewer_role)) {
-    denied <- require_role(reviewer_role,
-                            c("Admin", "PI", "StudyManager", "Data Manager"),
+    denied <- require_role(reviewer_role, .correction_reviewer_roles,
                             "reject a data correction")
     if (!is.null(denied)) return(denied)
   }
@@ -737,9 +740,21 @@ reject_correction <- function(request_id,
 #' recorded in the audit trail; it is reported as
 #' `version_recorded = FALSE`.
 #'
+#' @param applier_role Optional: the role of the user applying the
+#'   correction, checked via [require_role()] against the same reviewer
+#'   roles as [approve_correction()] (§11.10(g)). `NULL` skips the
+#'   check, as for `reviewer_role`; the Shiny corrections module always
+#'   supplies it.
+#'
 #' @keywords internal
 #' @export
-apply_correction <- function(request_id, applied_by, db_path = NULL) {
+apply_correction <- function(request_id, applied_by, db_path = NULL,
+                             applier_role = NULL) {
+  if (!is.null(applier_role)) {
+    denied <- require_role(applier_role, .correction_reviewer_roles,
+                           "apply a data correction")
+    if (!is.null(denied)) return(denied)
+  }
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)

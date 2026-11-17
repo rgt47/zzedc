@@ -136,8 +136,13 @@ if (requireNamespace("shinyjs", quietly = TRUE)) local({
   outside <- file.path(dir, "outside.txt")
   writeLines("keep me", outside)
 
+  # The module lists and acts on nothing without a signed-in user
+  # (F-NEW1 guard).
+  admin <- shiny::reactiveValues(authenticated = TRUE, username = "admin1",
+                                 user_id = "U_ADMIN", role = "Admin")
   shiny::testServer(backup_restore_server,
-    args = list(db_path = shiny::reactive(path), backup_dir = bdir), {
+    args = list(db_path = shiny::reactive(path), backup_dir = bdir,
+                user_session = admin), {
       session$setInputs(select_backup = outside)
       expect_true(is.null(backup_state$selected_backup),
                   info = "a path outside the backup folder is not selected")

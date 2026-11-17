@@ -8,7 +8,8 @@ user_management_server(
   id,
   db_pool = NULL,
   actor_role = NULL,
-  actor_username = NULL
+  actor_username = NULL,
+  user_session = NULL
 )
 }
 \arguments{
@@ -20,12 +21,26 @@ user_management_server(
 instance, used to restrict which roles they may assign to other
 users (see \code{.assignable_roles()}). \code{NULL} defaults to the most
 restrictive tier.}
+
+\item{actor_username}{Username of the signed-in user, recorded with
+account changes; a value or a reactive.}
+
+\item{user_session}{Optional: the session's login state. When
+supplied, its \code{authenticated} flag must be \code{TRUE}.}
 }
 \value{
 List of reactive expressions and functions
 }
 \description{
 User Management Server
+}
+\details{
+Every output and handler checks the current user through
+\code{.module_access_guard()}. Without a signed-in user (an empty
+\code{actor_username}, or \code{user_session$authenticated} \code{FALSE}, as after
+logout) the user list is not loaded or shown and no account can be
+added, edited, reset or deactivated; a denied action is recorded as
+an \code{ACCESS}/\code{DENIED} audit event.
 }
 \examples{
 \dontrun{

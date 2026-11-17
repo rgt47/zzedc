@@ -13,7 +13,13 @@ randomization_admin_server(id, db_pool = NULL, user_session = NULL)
 connection pool}
 
 \item{user_session}{Reactive values with authenticated user info
-(\code{user_id}, \code{username}, \code{role})}
+(\code{authenticated}, \code{user_id}, \code{username}, \code{role}). Nothing is shown
+and no action runs unless \code{authenticated} is \code{TRUE} (so not after
+logout, nor with a \code{NULL} session). Saving the scheme and granting
+or revoking unblinded access also require the \code{Admin} role, and an
+emergency unblind \code{Admin} or \code{PI}, the same roles the underlying
+functions check; a denied action is recorded as an
+\code{ACCESS}/\code{DENIED} audit event.}
 }
 \value{
 Invisible NULL
