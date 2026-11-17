@@ -315,12 +315,11 @@ if (duck_ok && dir.exists(adhd_dir)) {
                      info = "setup_zzedc_from_csv(): a new study is created on DuckDB")
     expect_true(grepl("^[0-9a-f]{64}$", res$key %||% ""),
                 info = "setup_zzedc_from_csv(): the generated key is returned")
-    keyless <- tryCatch({
-      con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db)
-      DBI::dbDisconnect(con, shutdown = TRUE)
-      TRUE
-    }, error = function(e) FALSE)
-    expect_false(keyless, info = "setup_zzedc_from_csv(): the file cannot be opened without the key")
+    expect_true(isTRUE(res$database$encrypted),
+                info = "setup_zzedc_from_csv(): the new database is reported encrypted")
+    bytes <- readBin(db, "raw", n = file.size(db))
+    expect_equal(length(grepRaw(charToRaw("backup_admin"), bytes, fixed = TRUE)), 0,
+                 info = "setup_zzedc_from_csv(): an imported username is not stored in plaintext")
     unlink(dirname(db), recursive = TRUE)
   }))
 }

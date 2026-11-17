@@ -36,7 +36,10 @@ local({
 # create_default_config(): readable by config::get(), right backend
 # ---------------------------------------------------------------
 
-for (b in c("sqlite", "duckdb", "postgresql", "mysql")) local({
+# create_default_config(backend = "duckdb") needs the duckdb package
+# since 2026-11-17 (no fallback to SQLite), and duckdb is in Suggests.
+has_duckdb <- requireNamespace("duckdb", quietly = TRUE)
+for (b in c("sqlite", if (has_duckdb) "duckdb", "postgresql", "mysql")) local({
   f <- tempfile(fileext = ".yml")
   create_default_config(f, backend = b)
   cfg <- config::get(file = f)
@@ -50,7 +53,7 @@ for (b in c("sqlite", "duckdb", "postgresql", "mysql")) local({
   unlink(f)
 })
 
-local({
+if (has_duckdb) local({
   f <- tempfile(fileext = ".yml")
   create_default_config(f, backend = "duckdb")
   cfg <- config::get(file = f)
@@ -108,7 +111,7 @@ if (!sqlite_cipher_available()) {
 # launch_zzedc's preparation: no key, non-interactive, DuckDB
 # ---------------------------------------------------------------
 
-local({
+if (has_duckdb) local({
   old <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA)
   on.exit(if (is.na(old)) Sys.unsetenv("DB_ENCRYPTION_KEY")
           else Sys.setenv(DB_ENCRYPTION_KEY = old), add = TRUE)

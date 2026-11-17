@@ -362,6 +362,14 @@ execute_init_setup <- function(config, project_dir = ".") {
                 "is not encrypted; the application will refuse to start. ",
                 "Create the study on DuckDB (the default) ",
                 "for encrypted storage.", call. = FALSE)
+      } else if (identical(config$security_profile, "standard") &&
+                 config$db_backend == "sqlite" &&
+                 !isTRUE(config$accept_unencrypted_sqlite)) {
+        warning("security.profile is 'standard' but the SQLite database ",
+                "is not encrypted and security.accept_unencrypted_sqlite ",
+                "is not set; the application will refuse to start. Set it ",
+                "to true to accept plaintext storage, or create the study ",
+                "on DuckDB (the default).", call. = FALSE)
       } else {
         cat("Note: the database is not encrypted at rest, so the\n")
         cat("study uses the 'standard' security profile. For data that\n")
