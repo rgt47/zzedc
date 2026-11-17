@@ -5,14 +5,15 @@
 \title{Generate Sample Configuration}
 \usage{
 generate_sample_config(
-  backend = "sqlite",
+  backend = "duckdb",
   output_path = "./config.yml",
   overwrite = FALSE
 )
 }
 \arguments{
-\item{backend}{Which backend to configure: "sqlite" (default), "duckdb",
-or "postgresql"}
+\item{backend}{Which backend to configure: "duckdb" (default; encrypted
+with the key in \code{DB_ENCRYPTION_KEY}), "sqlite", "postgresql", or
+"clickhouse"}
 
 \item{output_path}{Where to write the file (default: "./config.yml")}
 
@@ -26,7 +27,7 @@ Generates a sample config.yml with documentation for all supported backends.
 }
 \examples{
 \dontrun{
-  generate_sample_config("sqlite", "config.yml")
+  generate_sample_config(output_path = "config.yml")
   generate_sample_config("postgresql", "config-prod.yml")
 }
 

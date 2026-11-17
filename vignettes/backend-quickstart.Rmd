@@ -195,9 +195,11 @@ useful for application logs, exports, and locally cached backups.
 
 ZZedc reads its database configuration from a `config.yml` in the
 working directory. The shape is the same for every backend; only the
-`database` block differs. Below is the SQLite default. Substitute the
-appropriate block from the relevant appendix when targeting a different
-backend.
+`database` block differs. Below is a SQLite block. DuckDB, encrypted,
+is the default that `launch_zzedc()`, `create_default_config()`, and
+the setup wizard write for a new study (since 2026-11-17); substitute
+the appropriate block from the relevant appendix when targeting a
+different backend.
 
 ```yaml
 default:
@@ -211,6 +213,7 @@ default:
 
   security:
     profile: regulated
+    accept_unencrypted_sqlite: false
 
   session_timeout_minutes: 30
   max_login_attempts: 3
@@ -236,11 +239,15 @@ Three conventions are worth flagging:
   encryption at rest cannot be confirmed. The plain SQLite block shown
   above, with no `encryption_key`, will *not* start under `regulated`
   on a stock CRAN RSQLite build (Section 6 and Appendix A explain why).
-  Set `profile: standard` deliberately if the deployment is
-  intentionally unencrypted (synthetic data, a local pilot), or switch
-  to an encrypted DuckDB configuration. `development` silences even the
-  `standard`-profile warning and is intended for tests and
-  demonstrations, not for any dataset involving real subjects.
+  Nor will it start under `standard` unless `accept_unencrypted_sqlite`
+  is `true`: set both (`profile: standard`,
+  `accept_unencrypted_sqlite: true`) deliberately if the deployment is
+  intentionally unencrypted (synthetic data, a local pilot, or a disk
+  protected by full-disk encryption, which then becomes the deployer's
+  responsibility), or switch to an encrypted DuckDB configuration.
+  `development` allows plaintext storage silently and is intended for
+  tests and demonstrations, not for any dataset involving real
+  subjects.
 
 ---
 
@@ -297,13 +304,18 @@ if (!isTRUE(result$success)) {
 
 The `config` list above has no `security` entry, so this call resolves
 the security profile from `./config.yml`, an environment variable, or
-the built-in default of `standard`, which allows the resulting
-plaintext SQLite file but warns once per session. Add
-`security: profile: regulated` to `config.yml`, or set the
-`zzedc.security_profile` R option or the `ZZEDC_SECURITY_PROFILE`
-environment variable, and the same call will instead stop with an
-error, because stock CRAN RSQLite cannot apply an encryption key. See
-`?resolve_security_profile` and the encryption note in Appendix A.
+the built-in default of `standard`. On stock CRAN RSQLite, which cannot
+apply an encryption key, `standard` refuses the resulting plaintext
+SQLite file (the call returns `success = FALSE` with an error naming
+DuckDB) unless `security.accept_unencrypted_sqlite` is true, or the
+`zzedc.accept_unencrypted_sqlite` option or the
+`ZZEDC_ACCEPT_UNENCRYPTED_SQLITE` environment variable is set; with
+the opt-in it creates the file and issues a notice that full-disk
+encryption is the deployer's responsibility. `regulated` refuses it
+whatever the opt-in. Before 2026-11-17 `standard` allowed it with a
+warning. See `?resolve_security_profile`,
+`?resolve_accept_unencrypted_sqlite`, and the encryption note in
+Appendix A.
 
 The `default_db_config()` helper reduces the boilerplate when the
 study-level fields are inherited from elsewhere:

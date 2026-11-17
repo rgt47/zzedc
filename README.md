@@ -38,6 +38,12 @@ library(zzedc)
 launch_zzedc()
 ```
 
+In a directory with no `config.yml`, this creates a new study on
+DuckDB, encrypted at rest (the default since 2026-11-17). It needs the
+`duckdb` package and, outside an interactive session, the key in
+`DB_ENCRYPTION_KEY` (generate one with `generate_db_key()`); there is
+no fallback to unencrypted SQLite.
+
 The application will open in your default web browser with the following interface components:
 
 1. **Home**: Welcome dashboard with system overview and status indicators
@@ -166,9 +172,13 @@ Controls currently provided:
   storage which cannot be shown to be encrypted at rest is allowed,
   warned about, or refused; see `?resolve_security_profile`. At-rest
   encryption is currently verified by execution for the DuckDB
-  backend only. SQLite is encrypted only when built against
-  SQLCipher or SQLite3MultipleCiphers (stock CRAN RSQLite ignores
-  the encryption key and stores plaintext); PostgreSQL, MySQL/MariaDB,
+  backend only, which is the default for new studies. SQLite is
+  encrypted only when built against SQLCipher or
+  SQLite3MultipleCiphers (a documented, unsupported route; stock CRAN
+  RSQLite ignores the encryption key and stores plaintext). Under the
+  default `standard` profile, plaintext SQLite is refused unless the
+  deployer sets `security.accept_unencrypted_sqlite`
+  (`?resolve_accept_unencrypted_sqlite`). PostgreSQL, MySQL/MariaDB,
   and ClickHouse depend on server-side configuration that zzedc does
   not verify.
 

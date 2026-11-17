@@ -16,7 +16,9 @@ initialize_default_database(
 \item{adapter_config}{Optional configuration for
 \code{create_db_adapter()} (see \code{app_database_config()}); when supplied,
 the database is created on that backend, with its encryption
-settings.}
+settings. When \code{NULL}, the database is created on DuckDB, the
+default backend for new studies, encrypted with the key in
+\code{DB_ENCRYPTION_KEY} (see \code{create_wizard_database()}).}
 
 \item{salt}{Password salt for the default administrator. It must be
 the salt the application's login will use; \code{launch_zzedc()} passes

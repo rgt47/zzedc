@@ -35,12 +35,19 @@ setting this function cannot observe.
 is not encrypted
 }
 
-Under the \code{regulated} security profile (see
-\code{resolve_security_profile()}), a SQLite database that would be
-written unencrypted is removed and the function returns
-\code{success = FALSE}. Under \code{standard} it succeeds with a warning;
-under \code{development}, silently. In all profiles \code{encrypted} reports
-the true state.
+On SQLite, when the installed RSQLite cannot encrypt
+(\code{sqlite_cipher_available()} is \code{FALSE}), the security profile (see
+\code{resolve_security_profile()}) decides before any file is created:
+under \code{regulated} the function returns \code{success = FALSE}; under
+\code{standard} it also returns \code{success = FALSE}, with an error naming
+DuckDB and the opt-in, unless \code{security.accept_unencrypted_sqlite} is
+true (see \code{resolve_accept_unencrypted_sqlite()}), in which case it
+creates the plaintext database with a notice and returns
+\verb{success = TRUE, encrypted = FALSE}; under \code{development} it creates
+it silently. \code{success = TRUE} is therefore never returned for an
+encryption request that was not honored, except under \code{development}
+or with the opt-in. In all profiles \code{encrypted} reports the true
+state.
 }
 \description{
 Creates a new encrypted database with complete schema.

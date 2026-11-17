@@ -80,9 +80,12 @@ local({
 if (requireNamespace("RSQLite", quietly = TRUE)) local({
   db_path <- tempfile(fileext = ".db")
   on.exit(unlink(db_path), add = TRUE)
-  old_profile <- getOption("zzedc.security_profile")
-  options(zzedc.security_profile = "standard")
-  on.exit(options(zzedc.security_profile = old_profile), add = TRUE)
+  # 'standard' with plaintext SQLite now needs the deployer's opt-in
+  # (owner decision 2026-11-17); this test is about authorization, not
+  # storage, so it opts in.
+  old_opts <- options(zzedc.security_profile = "standard",
+                      zzedc.accept_unencrypted_sqlite = TRUE)
+  on.exit(options(old_opts), add = TRUE)
 
   old_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA)
   init <- zzedc:::initialize_encrypted_database(db_path = db_path, overwrite = TRUE)

@@ -26,38 +26,42 @@ describe_backends <- function() {
   )
 }
 
+# DuckDB is listed first: it is the default backend for new studies
+# (owner decision 2026-11-17), being the only backend the package can
+# encrypt at rest with CRAN software alone.
 .backend_catalog <- list(
-  sqlite = list(
-    label = "SQLite",
-    summary = paste(
-      "One file on this computer, with no database server to run.",
-      "The simplest choice for one site and a small team."
-    ),
-    use_when = paste(
-      "Pilot studies, synthetic or de-identified data, and single-site",
-      "work with no requirement to encrypt the stored data."
-    ),
-    encryption = paste(
-      "Not encrypted with the standard CRAN build of RSQLite; only an",
-      "RSQLite built with SQLCipher can encrypt it."
-    ),
-    regulated = "Refused, unless RSQLite can encrypt."
-  ),
   duckdb = list(
     label = "DuckDB",
     summary = paste(
       "One encrypted file on this computer, with no database server to",
-      "run. Recommended when stored data must be encrypted."
+      "run. The default for new studies."
     ),
     use_when = paste(
-      "Identifiable or regulated data on a single server: 21 CFR Part 11,",
-      "HIPAA, or an IRB that requires encryption."
+      "Any single-server study, including identifiable or regulated data:",
+      "21 CFR Part 11, HIPAA, or an IRB that requires encryption."
     ),
     encryption = paste(
       "Encrypted with a 256-bit key that you keep outside the project.",
       "Losing the key makes the data unrecoverable."
     ),
     regulated = "Supported."
+  ),
+  sqlite = list(
+    label = "SQLite",
+    summary = paste(
+      "One unencrypted file on this computer, with no database server to",
+      "run."
+    ),
+    use_when = paste(
+      "Synthetic or de-identified data, or a server whose disk is",
+      "encrypted, where you accept responsibility for protecting the file."
+    ),
+    encryption = paste(
+      "Not encrypted with the standard CRAN build of RSQLite. The",
+      "'standard' profile refuses it unless security.accept_unencrypted_sqlite",
+      "is true, which makes full-disk encryption your responsibility."
+    ),
+    regulated = "Refused, unless RSQLite can encrypt."
   ),
   postgresql = list(
     label = "PostgreSQL",
@@ -123,10 +127,10 @@ describe_backends <- function() {
     backend,
     sqlite = c(
       paste0("    path: ", v("path", "data/zzedc.db")),
-      "    # SQLite is encrypted only by an RSQLite build with SQLCipher or",
-      "    # SQLite3MultipleCiphers. The standard CRAN build stores it as plain",
-      "    # text, which the 'regulated' security profile refuses; to encrypt",
-      "    # with CRAN software only, use backend: duckdb.",
+      "    # The standard CRAN build of RSQLite stores SQLite as plain text.",
+      "    # The 'regulated' security profile refuses that; 'standard' refuses",
+      "    # it unless security.accept_unencrypted_sqlite is true. To encrypt",
+      "    # with CRAN software only, use backend: duckdb (the default).",
       "    # encryption_key: ${DB_ENCRYPTION_KEY}"
     ),
     duckdb = c(
@@ -172,9 +176,13 @@ describe_backends <- function() {
 #' Write the `security:` Section of an Application config.yml (internal)
 #' @param profile Security profile.
 #' @param enforce_https Logical, recorded for when HTTPS enforcement exists.
+#' @param accept_unencrypted_sqlite Logical: the deployer's explicit
+#'   acceptance of plaintext SQLite under `standard` (see
+#'   `resolve_accept_unencrypted_sqlite()`).
 #' @return Character vector of YAML lines.
 #' @keywords internal
-.security_config_yaml <- function(profile = "regulated", enforce_https = FALSE) {
+.security_config_yaml <- function(profile = "regulated", enforce_https = FALSE,
+                                  accept_unencrypted_sqlite = FALSE) {
   profile <- match.arg(profile, .security_profile_levels)
   c(
     "  security:",
@@ -182,11 +190,72 @@ describe_backends <- function() {
     "    # that cannot be shown to be encrypted at rest. See",
     "    # ?zzedc::resolve_security_profile.",
     paste0("    profile: ", profile),
+    "    # Under 'standard', a plaintext SQLite database is refused unless this",
+    "    # is true. Setting it makes full-disk encryption of the database file",
+    "    # the deployer's responsibility. See",
+    "    # ?zzedc::resolve_accept_unencrypted_sqlite.",
+    paste0("    accept_unencrypted_sqlite: ",
+           tolower(as.character(isTRUE(accept_unencrypted_sqlite)))),
     "    # true refuses sessions that did not arrive over HTTPS ('regulated'",
     "    # always does). Shiny does not provide HTTPS: use a reverse proxy,",
     "    # e.g. system.file(\"templates\", \"nginx-zzedc.conf\", package = \"zzedc\").",
     paste0("    https_only: ", tolower(as.character(isTRUE(enforce_https))))
   )
+}
+
+
+# Default backend for new studies: DuckDB, with encryption on, since
+# 2026-11-17, being the only backend zzedc can encrypt at rest with CRAN
+# software alone. Used by every function that creates a new study or
+# deployment configuration. Functions that read an existing
+# configuration keep SQLite as the fallback for a missing `backend:`, so
+# existing deployments are not repointed.
+.new_study_backend <- "duckdb"
+
+
+#' Require a Backend's R Package (internal)
+#'
+#' Called where a new study is created on DuckDB, so that a missing
+#' package is reported with an install hint instead of a fallback to
+#' SQLite.
+#'
+#' @param pkg Package name; a parameter so the failure can be tested.
+#' @return `invisible(TRUE)`, or an error.
+#' @keywords internal
+.require_backend_package <- function(pkg = "duckdb") {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    stop(
+      "The '", pkg, "' package is required: DuckDB is the default ",
+      "database backend for new zzedc studies, because it encrypts the ",
+      "study database with CRAN software alone. Install it with ",
+      "install.packages('", pkg, "'). zzedc does not fall back to SQLite, ",
+      "which the standard CRAN build of RSQLite stores unencrypted; to use ",
+      "SQLite anyway, choose it explicitly (backend = \"sqlite\") and, ",
+      "under the 'standard' profile, set security.accept_unencrypted_sqlite.",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+
+#' Encryption Key for a New DuckDB Study (internal)
+#'
+#' @param key A key supplied by the caller, or `NULL`.
+#' @return A list with `key` (the caller's key, else `DB_ENCRYPTION_KEY`
+#'   from the environment, else a new key from `generate_db_key()`) and
+#'   `generated` (whether a new key was made, which the caller must
+#'   then report, since it is the only way to open the database).
+#' @keywords internal
+.new_study_duckdb_key <- function(key = NULL) {
+  if (!is.null(key) && nzchar(key)) {
+    return(list(key = key, generated = FALSE))
+  }
+  env_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = "")
+  if (nzchar(env_key)) {
+    return(list(key = env_key, generated = FALSE))
+  }
+  list(key = generate_db_key(), generated = TRUE)
 }
 
 
@@ -245,6 +314,7 @@ describe_backends <- function() {
 #' @keywords internal
 .prepare_new_backend <- function(backend, project_dir = getwd()) {
   if (backend == "duckdb") {
+    .require_backend_package("duckdb")
     # The key first: without one there is nothing to set up, and a
     # non-interactive run should fail before any download.
     if (!nzchar(Sys.getenv("DB_ENCRYPTION_KEY"))) {

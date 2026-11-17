@@ -8,7 +8,8 @@ check_storage_encryption(
   db_path = NULL,
   config_profile = NULL,
   config_path = "./config.yml",
-  adapter = NULL
+  adapter = NULL,
+  config_accept_unencrypted_sqlite = NULL
 )
 }
 \arguments{
@@ -24,11 +25,18 @@ configuration (\code{cfg$security$profile}).}
 
 \item{adapter}{Optional \code{DatabaseAdapter} the application will open
 its pool from. When supplied, the check follows its backend.}
+
+\item{config_accept_unencrypted_sqlite}{Optional value of
+\code{cfg$security$accept_unencrypted_sqlite} from the application's
+configuration (see \code{resolve_accept_unencrypted_sqlite()}). Like the
+profile, the resolved value is fixed for the rest of the R session,
+because the application later runs with a different working
+directory.}
 }
 \value{
-Invisibly, a list with \code{profile}, \code{source}, \code{backend}, and
+Invisibly, a list with \code{profile}, \code{source}, \code{backend},
 \code{encrypted} (\code{TRUE}, \code{FALSE}, or \code{NA} when it cannot be
-determined).
+determined), and \code{accept_unencrypted_sqlite}.
 }
 \description{
 Startup check for the Shiny application. It resolves the security
@@ -43,6 +51,8 @@ How encryption is judged, by backend:
 \itemize{
 \item SQLite: an existing file by its header; a file not yet created by
 whether a key is configured and the installed RSQLite can apply it.
+Under \code{standard}, plaintext SQLite stops the application unless
+\code{security.accept_unencrypted_sqlite} is true.
 \item DuckDB: an existing file by \code{verify_database_encryption()}; a file
 not yet created by whether \code{encryption_key} is configured (DuckDB
 creates it encrypted or refuses).

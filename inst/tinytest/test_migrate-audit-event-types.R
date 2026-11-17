@@ -211,9 +211,12 @@ if (requireNamespace("RSQLite", quietly = TRUE) && requireNamespace("pool", quie
 # then restored before exercising the real event writer and
 # verifier -- not a hand-written imitation of either.
 if (requireNamespace("RSQLite", quietly = TRUE)) local({
-  old_profile <- getOption("zzedc.security_profile")
-  on.exit(options(zzedc.security_profile = old_profile), add = TRUE)
-  options(zzedc.security_profile = "standard")
+  # 'standard' with plaintext SQLite now needs the deployer's opt-in
+  # (owner decision 2026-11-17); this test is about the audit
+  # constraint migration, not storage, so it opts in.
+  old_opts <- options(zzedc.security_profile = "standard",
+                      zzedc.accept_unencrypted_sqlite = TRUE)
+  on.exit(options(old_opts), add = TRUE)
 
   ns <- asNamespace("zzedc")
   full_types <- get(".audit_event_types", envir = ns)

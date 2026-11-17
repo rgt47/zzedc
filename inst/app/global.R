@@ -119,8 +119,11 @@ if (!is.na(db_path) && !identical(db_path, ":memory:")) {
 # Apply the security profile before any connection is opened. Under
 # the 'regulated' profile this stops the app when the database cannot
 # be shown to be encrypted at rest.
-storage_state <- zzedc::check_storage_encryption(adapter = db_adapter,
-                                                 config_profile = cfg$security$profile)
+storage_state <- zzedc::check_storage_encryption(
+  adapter = db_adapter,
+  config_profile = cfg$security$profile,
+  config_accept_unencrypted_sqlite = cfg$security$accept_unencrypted_sqlite
+)
 
 # The database key must come from the environment or a secrets
 # manager, not be written into config.yml ('regulated' refuses it).

@@ -219,15 +219,19 @@ ZZedc supports four database backends. Choose based on your deployment needs:
 
 ---
 
-### Option A: SQLite (Default, Recommended for Getting Started)
+### Option A: SQLite (Synthetic Data Only)
 
-SQLite is file-based with zero configuration. Well suited for learning and
-single-server deployments.
+SQLite is file-based with zero configuration. Well suited for learning
+with the synthetic demonstration data. It is not the default: since
+2026-11-17 new studies are created on encrypted DuckDB (Option B),
+because the standard CRAN build of RSQLite stores SQLite unencrypted.
+Under the `standard` security profile a plaintext SQLite database is
+refused unless `security.accept_unencrypted_sqlite` is true (Part 10).
 
 ```{r sqlite_setup}
 library(zzedc)
 
-# Configure for SQLite (default)
+# Configure for SQLite (named explicitly; DuckDB is the default)
 config <- list(
   db_backend = "sqlite",
   sqlite = list(
@@ -627,9 +631,11 @@ Once ZZedc launches:
 The demonstration trial is also a convenient place to see ZZedc's
 encryption-at-rest behavior and the `security.profile` setting that
 governs it (`?resolve_security_profile`). Three profiles exist:
-`development` (silent), `standard` (the built-in default; warns once
-per database), and `regulated` (refuses storage that cannot be shown
-to be encrypted, including at Shiny startup). The `config.yml`
+`development` (silent), `standard` (the built-in default; refuses
+plaintext SQLite unless `security.accept_unencrypted_sqlite` is true,
+and warns once per database about other unverified storage), and
+`regulated` (refuses storage that cannot be shown to be encrypted,
+including at Shiny startup). The `config.yml`
 shipped with the package itself sets `security: profile: regulated`,
 but that file is only read when the working directory contains it;
 the plain `01-setup_demonstration_trial.R` script used in Parts 5-7
@@ -637,8 +643,8 @@ connects with `DBI::dbConnect(RSQLite::SQLite(), ...)` directly and
 is unaffected by the profile either way. The profile only matters once
 you call zzedc's own encryption functions, as below. For a
 demonstration run on stock CRAN RSQLite (no SQLCipher), set the
-profile to `standard` or `development` first, or the calls below will
-stop under `regulated`:
+profile to `development` first (or to `standard` together with
+`ZZEDC_ACCEPT_UNENCRYPTED_SQLITE=true`), or the calls below will stop:
 
 ```{r}
 Sys.setenv(ZZEDC_SECURITY_PROFILE = "development")

@@ -462,8 +462,14 @@ if (stock_rsqlite) {
       "NOT encrypted", info = "app refuses to start on plaintext SQLite under regulated"
     )
     options(zzedc.security_profile = NULL)
+    # Since 2026-11-17 'standard' needs the plaintext opt-in, here from
+    # the application configuration; check_storage_encryption() pins
+    # it like the profile, so restore the option afterward.
+    old_accept <- options(zzedc.accept_unencrypted_sqlite = NULL)
+    on.exit(options(old_accept), add = TRUE)
     res <- suppressWarnings(suppressMessages(
-      check_storage_encryption(plain, config_profile = "standard")
+      check_storage_encryption(plain, config_profile = "standard",
+                               config_accept_unencrypted_sqlite = TRUE)
     ))
     expect_false(res$encrypted)
     expect_identical(getOption("zzedc.security_profile"), "standard",
@@ -483,9 +489,16 @@ if (stock_rsqlite) {
       chk <- .check_deployment_storage(db_path = plain)
       expect_false(chk$passed, info = "IQ-008 fails a plaintext deployment under regulated")
     })
+    # Since 2026-11-17, 'standard' passes plaintext SQLite only with the
+    # deployer's opt-in, as the application itself does.
     with_profile("standard", {
+      old_accept <- options(zzedc.accept_unencrypted_sqlite = FALSE)
+      on.exit(options(old_accept), add = TRUE)
       chk <- .check_deployment_storage(db_path = plain)
-      expect_true(chk$passed)
+      expect_false(chk$passed, info = "IQ-008 fails plaintext SQLite under standard without the opt-in")
+      options(zzedc.accept_unencrypted_sqlite = TRUE)
+      chk <- .check_deployment_storage(db_path = plain)
+      expect_true(chk$passed, info = "and passes it with the opt-in")
       expect_true(grepl("NOT encrypted", chk$message), info = "but still reports the truth")
     })
     unlink(plain)

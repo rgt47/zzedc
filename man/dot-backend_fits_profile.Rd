@@ -4,12 +4,15 @@
 \alias{.backend_fits_profile}
 \title{Whether a Backend Can Satisfy a Security Profile (internal)}
 \usage{
-.backend_fits_profile(backend, profile)
+.backend_fits_profile(backend, profile, accept_unencrypted_sqlite = FALSE)
 }
 \arguments{
 \item{backend}{Backend name.}
 
 \item{profile}{Security profile.}
+
+\item{accept_unencrypted_sqlite}{Logical: whether the user has
+accepted plaintext SQLite (needed under \code{standard}).}
 }
 \value{
 List with \code{ok} (logical) and \code{message}.

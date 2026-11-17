@@ -24,7 +24,9 @@ with_profile <- function(profile, code) {
 
 local({
   d <- describe_backends()
-  expect_identical(d$backend, c("sqlite", "duckdb", "postgresql", "mysql"))
+  # DuckDB first since 2026-11-17: it is the default for new studies.
+  expect_identical(d$backend, c("duckdb", "sqlite", "postgresql", "mysql"),
+                   info = "the default backend is listed first")
   expect_true(all(nzchar(d$summary)) && all(nzchar(d$regulated)),
               info = "every backend has a summary and a regulated-profile statement")
   expect_identical(d$regulated[d$backend == "duckdb"], "Supported.")
@@ -94,7 +96,12 @@ expect_true(backend_fits_profile("postgresql", "standard")$ok)
 if (!sqlite_cipher_available()) {
   expect_false(backend_fits_profile("sqlite", "regulated")$ok,
                info = "stock RSQLite cannot satisfy regulated")
-  expect_true(backend_fits_profile("sqlite", "standard")$ok)
+  # Since 2026-11-17 'standard' needs the explicit plaintext opt-in.
+  expect_false(backend_fits_profile("sqlite", "standard")$ok,
+               info = "standard refuses stock-RSQLite SQLite without the opt-in")
+  expect_true(backend_fits_profile("sqlite", "standard",
+                                   accept_unencrypted_sqlite = TRUE)$ok,
+              info = "standard accepts it with the opt-in")
 }
 
 # ---------------------------------------------------------------
@@ -161,15 +168,31 @@ if (duck_ok) with_profile("development", {
   unlink(base, recursive = TRUE)
 })
 
+# A SQLite study under 'standard' now needs the explicit opt-in, which
+# the wizard records in config.yml (owner decision 2026-11-17).
 with_profile("development", {
   base <- tempfile("wiz_sqlite_")
-  cl <- c(base_study_config(), list(db_backend = "sqlite", security_profile = "standard"))
-  res <- suppressWarnings(complete_wizard_setup(cl, base_path = base))
-  expect_true(res$overall_success)
+  cl <- c(base_study_config(), list(db_backend = "sqlite", security_profile = "standard",
+                                    accept_unencrypted_sqlite = TRUE))
+  res <- suppressMessages(suppressWarnings(complete_wizard_setup(cl, base_path = base)))
+  expect_true(res$overall_success, info = "SQLite under standard with the opt-in")
   expect_true(file.exists(file.path(base, "data", "zzedc.db")))
   cfg <- config::get(file = file.path(base, "config.yml"))
   expect_identical(cfg$security$profile, "standard")
   expect_identical(cfg$database$backend, "sqlite")
+  expect_true(isTRUE(cfg$security$accept_unencrypted_sqlite),
+              info = "the opt-in is recorded in config.yml")
+  unlink(base, recursive = TRUE)
+})
+
+if (!sqlite_cipher_available()) with_profile("development", {
+  base <- tempfile("wiz_sqlite_refused_")
+  cl <- c(base_study_config(), list(db_backend = "sqlite", security_profile = "standard"))
+  res <- suppressMessages(suppressWarnings(complete_wizard_setup(cl, base_path = base)))
+  expect_false(isTRUE(res$overall_success),
+               info = "SQLite under standard without the opt-in is refused")
+  expect_false(file.exists(file.path(base, "config.yml")),
+               info = "no config.yml is written for a refused study")
   unlink(base, recursive = TRUE)
 })
 

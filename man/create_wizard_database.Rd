@@ -7,18 +7,25 @@
 create_wizard_database(
   config_list,
   db_path = NULL,
-  backend = "sqlite",
+  backend = "duckdb",
   pg_config = NULL,
   adapter_config = NULL
 )
 }
 \arguments{
-\item{config_list}{List containing wizard configuration}
+\item{config_list}{List containing wizard configuration. For DuckDB,
+\code{db_encryption_key} supplies the key.}
 
 \item{db_path}{Path where database file will be created (for SQLite/DuckDB)}
 
-\item{backend}{Database backend: "sqlite" (default), "duckdb",
-"postgresql", "clickhouse", "mysql", or "mariadb"}
+\item{backend}{Database backend: "duckdb" (default), "sqlite",
+"postgresql", "clickhouse", "mysql", or "mariadb". When \code{backend}
+and \code{adapter_config} are both omitted, the DuckDB database is
+encrypted with \code{config_list$db_encryption_key} or, failing that,
+\code{DB_ENCRYPTION_KEY}; without either the function returns
+\code{success = FALSE} rather than create an unencrypted file. A SQLite
+database is subject to the security profile (see
+\code{resolve_accept_unencrypted_sqlite()}).}
 
 \item{pg_config}{Server configuration list (required for the server
 backends: "postgresql", "clickhouse", "mysql", "mariadb")}
@@ -35,8 +42,8 @@ List with success status and messages
 }
 \description{
 Creates a complete database with all required tables.
-Supports SQLite (default), DuckDB, PostgreSQL, ClickHouse, and
-MySQL/MariaDB backends.
+Supports DuckDB (default, encrypted), SQLite, PostgreSQL, ClickHouse,
+and MySQL/MariaDB backends.
 }
 \examples{
 \dontrun{
@@ -48,11 +55,11 @@ config <- list(
   security_salt = "abc123..."
 )
 
-# SQLite (default)
-create_wizard_database(config, "~/my_study.db")
+# DuckDB (default), encrypted with the key in DB_ENCRYPTION_KEY
+create_wizard_database(config, "~/my_study.duckdb")
 
-# DuckDB
-create_wizard_database(config, "~/my_study.duckdb", backend = "duckdb")
+# SQLite (plaintext on stock RSQLite; see resolve_accept_unencrypted_sqlite())
+create_wizard_database(config, "~/my_study.db", backend = "sqlite")
 
 # PostgreSQL
 create_wizard_database(config, backend = "postgresql",

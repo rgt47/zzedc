@@ -15,13 +15,14 @@ connect_encrypted(db_path, key)
 SQLiteConnection object
 }
 \description{
-Opens a SQLite connection with the key applied, then checks whether
-the file is in fact encrypted and applies the active security
-profile (see \code{resolve_security_profile()}): under \code{regulated} a
-plaintext file is an error, under \code{standard} a warning, under
-\code{development} silent. A new or empty file cannot be judged until
-something is written to it; callers that create databases
-(\code{initialize_encrypted_database()}, \code{test_encryption()}) check again
-after writing.
+Checks whether the file is encrypted (an existing file by its
+header; a new or empty file by whether the installed RSQLite can
+apply a key at all, \code{sqlite_cipher_available()}), applies the active
+security profile, and then opens the connection with the key
+applied. Under \code{regulated} plaintext is an error; under \code{standard}
+it is an error unless \code{resolve_accept_unencrypted_sqlite()} is
+\code{TRUE} (then a notice); under \code{development} it is allowed silently.
+Callers that create databases (\code{initialize_encrypted_database()},
+\code{test_encryption()}) check the written file again.
 }
 \keyword{internal}

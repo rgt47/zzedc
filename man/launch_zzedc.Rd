@@ -25,11 +25,17 @@ Default is \code{TRUE}.}
 \item{port}{Integer specifying the port to listen on. Default is \code{NULL}
 (random port).}
 
-\item{backend}{Database backend for a new study (\code{"sqlite"}, \code{"duckdb"},
-\code{"postgresql"}, or \code{"mysql"}; see \code{describe_backends()}). Used only
-when the working directory has no \code{config.yml}. When \code{NULL} in an
-interactive session, a menu compares the backends and asks; when
-\code{NULL} otherwise, SQLite is used.}
+\item{backend}{Database backend for a new study (\code{"duckdb"},
+\code{"sqlite"}, \code{"postgresql"}, or \code{"mysql"}; see \code{describe_backends()}).
+Used only when the working directory has no \code{config.yml}. When
+\code{NULL} in an interactive session, a menu compares the backends and
+asks; when \code{NULL} otherwise, DuckDB with encryption is used (it
+needs the \code{duckdb} package and \code{DB_ENCRYPTION_KEY}; there is no
+fallback to SQLite). A new SQLite study is refused under
+\code{regulated} on a stock RSQLite, and under \code{standard} unless
+\code{security.accept_unencrypted_sqlite} is set (see
+\code{resolve_accept_unencrypted_sqlite()}); the opt-in is then written
+to the new \code{config.yml}.}
 
 \item{profile}{Security profile for a new study's \code{config.yml}
 (default \code{"regulated"}; see \code{resolve_security_profile()}). Used only

@@ -275,7 +275,7 @@ SQLiteAdapter <- R6::R6Class(
       } else {
         "The installed RSQLite does not support SQLCipher or SQLite3MultipleCiphers, so the key is ignored."
       }
-      enforce_encryption_at_rest(encrypted, db_path, reason)
+      .enforce_sqlite_at_rest(encrypted, db_path, reason)
     }
   )
 )

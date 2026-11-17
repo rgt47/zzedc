@@ -6,20 +6,28 @@
 \usage{
 create_default_config(
   path = "config.yml",
-  backend = "sqlite",
-  profile = "regulated"
+  backend = "duckdb",
+  profile = "regulated",
+  accept_unencrypted_sqlite = FALSE
 )
 }
 \arguments{
 \item{path}{Path to create config file. Default is "config.yml".}
 
-\item{backend}{Database backend: \code{"sqlite"} (default), \code{"duckdb"},
-\code{"postgresql"}, or \code{"mysql"}. See \code{describe_backends()}.}
+\item{backend}{Database backend: \code{"duckdb"} (default, encrypted with
+the key in \code{DB_ENCRYPTION_KEY}), \code{"sqlite"}, \code{"postgresql"}, or
+\code{"mysql"}. See \code{describe_backends()}.}
 
 \item{profile}{Security profile written to the file: \code{"regulated"}
 (default), \code{"standard"}, or \code{"development"}. Under \code{regulated}, a
 SQLite database on the standard CRAN build of RSQLite is refused at
-startup; DuckDB with an encryption key is the CRAN-only route.}
+startup; under \code{standard}, it is refused unless
+\code{accept_unencrypted_sqlite} is true. DuckDB with an encryption key
+is the CRAN-only route to encryption.}
+
+\item{accept_unencrypted_sqlite}{Logical, written as
+\code{security.accept_unencrypted_sqlite} (see
+\code{resolve_accept_unencrypted_sqlite()}). Default \code{FALSE}.}
 }
 \value{
 Invisibly returns the path to the created file.
@@ -38,6 +46,8 @@ which are read from the environment when the application starts.
 # Write a default configuration to a temporary file (the
 # production call writes to the current working directory).
 tmp_config <- tempfile(fileext = ".yml")
-create_default_config(path = tmp_config, backend = "duckdb")
-file.exists(tmp_config)
+if (requireNamespace("duckdb", quietly = TRUE)) {
+  create_default_config(path = tmp_config)
+  file.exists(tmp_config)
+}
 }

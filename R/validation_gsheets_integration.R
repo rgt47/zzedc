@@ -1193,8 +1193,10 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #' to one of these artifacts.
 #'
 #' @param sheet_id Google Sheets ID or URL.
-#' @param db_path  Path to the encrypted SQLite database to
-#'   create. Required.
+#' @param db_path  Path to the study database file, used when
+#'   `adapter_config` is `NULL`. An existing file keeps its backend
+#'   (SQLite or DuckDB, detected from the file). A new file is created
+#'   on `backend`.
 #' @param tabs     Named list of tab names. Defaults are
 #'   `Study_Users`, `Data_Dictionary`, and `validation_rules`.
 #'   Override entries to match the workbook's tab layout.
@@ -1217,7 +1219,16 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #'   (for example `app_database_config(cfg)`), selecting the backend:
 #'   SQLite, DuckDB, PostgreSQL, or MySQL/MariaDB. When supplied,
 #'   `db_path` is taken from it (and is not needed for server
-#'   backends). When `NULL`, `db_path` is a SQLite file, as before.
+#'   backends). When `NULL`, `db_path` names the file (see `db_path`
+#'   and `backend`).
+#' @param backend Backend for a new database at `db_path` when
+#'   `adapter_config` is `NULL`: `NULL` (default) means `"duckdb"`,
+#'   encrypted with `DB_ENCRYPTION_KEY` or, when that is unset, with a
+#'   newly generated key returned as `result$key`; it needs the `duckdb`
+#'   package, and there is no fallback to SQLite. `"sqlite"` creates a
+#'   SQLite file, which the stock CRAN RSQLite stores unencrypted and
+#'   the security profile may refuse (see
+#'   `resolve_accept_unencrypted_sqlite()`).
 #' @param create_database Logical. `TRUE` (default) creates the database
 #'   first. `FALSE` imports into an existing study database, as the
 #'   application's Google Sheets actions do: a user that already
@@ -1294,7 +1305,7 @@ sync_dsl_rules_from_gsheets <- function(sheet_id, user_id, user_role) {
 #' \dontrun{
 #' result <- setup_zzedc_from_gsheets(
 #'   sheet_id = "1AbC...your-sheet-id...",
-#'   db_path  = "~/zzedc_demonstration_trial/data/demonstration_trial.db"
+#'   db_path  = "~/zzedc_demonstration_trial/data/demonstration_trial.duckdb"
 #' )
 #' Sys.setenv(DB_ENCRYPTION_KEY = result$key)
 #' Sys.setenv(ZZEDC_SALT = result$salt)
@@ -1322,7 +1333,8 @@ setup_zzedc_from_gsheets <- function(
   dry_run     = FALSE,
   salt        = NULL,
   adapter_config  = NULL,
-  create_database = TRUE
+  create_database = TRUE,
+  backend     = NULL
 ) {
   if (!requireNamespace("googlesheets4", quietly = TRUE)) {
     return(list(
@@ -1336,7 +1348,7 @@ setup_zzedc_from_gsheets <- function(
     db_path = if (missing(db_path)) NULL else db_path,
     tabs = tabs, imported_by = imported_by, overwrite = overwrite,
     dry_run = dry_run, salt = salt, adapter_config = adapter_config,
-    create_database = create_database
+    create_database = create_database, backend = backend
   )
   result$sheet_id <- sheet_id
   result
@@ -1501,7 +1513,8 @@ setup_zzedc_from_csv <- function(
   dry_run     = FALSE,
   salt        = NULL,
   adapter_config  = NULL,
-  create_database = TRUE
+  create_database = TRUE,
+  backend     = NULL
 ) {
   if (!dir.exists(csv_dir)) {
     return(list(success = FALSE, error = paste("CSV folder not found:", csv_dir)))
@@ -1516,7 +1529,7 @@ setup_zzedc_from_csv <- function(
     read_tab = read_tab, db_path = db_path, tabs = tabs,
     imported_by = imported_by, overwrite = overwrite, dry_run = dry_run,
     salt = salt, adapter_config = adapter_config,
-    create_database = create_database
+    create_database = create_database, backend = backend
   )
   result$csv_dir <- csv_dir
   result
@@ -1532,12 +1545,53 @@ setup_zzedc_from_csv <- function(
 #' @keywords internal
 .setup_zzedc_from_tables <- function(read_tab, db_path, tabs, imported_by,
                                      overwrite, dry_run, salt,
-                                     adapter_config, create_database) {
+                                     adapter_config, create_database,
+                                     backend = NULL) {
 
   # Backend: from adapter_config when given (any backend), otherwise a
   # SQLite file at db_path, as before. The adapter is cached so that the
   # initializers and import functions below, which reach the database
   # through connect_encrypted_db()/get_db_adapter(), use this backend.
+  # Without adapter_config, the backend follows an existing file at
+  # db_path (an import into an existing study keeps its backend) and is
+  # otherwise `backend`, by default encrypted DuckDB (owner decision
+  # 2026-11-17; before it, always SQLite, stored unencrypted by the
+  # standard CRAN build of RSQLite).
+  generated_key <- NULL
+  if (is.null(adapter_config) && !is.null(db_path) && nzchar(db_path)) {
+    existing <- .detect_db_file_format(db_path)
+    chosen <- if (identical(existing, "duckdb")) {
+      "duckdb"
+    } else if (!is.na(existing)) {
+      "sqlite"
+    } else {
+      tolower(backend %||% .new_study_backend)
+    }
+    if (!chosen %in% c("sqlite", "duckdb")) {
+      return(list(success = FALSE, error = paste0(
+        "backend = '", chosen, "' needs adapter_config (db_path names a ",
+        "file, which only sqlite and duckdb use).")))
+    }
+    if (chosen == "duckdb") {
+      dep <- tryCatch(.require_backend_package("duckdb"), error = function(e) e)
+      if (inherits(dep, "error")) {
+        return(list(success = FALSE, error = conditionMessage(dep)))
+      }
+      key_info <- .new_study_duckdb_key(NULL)
+      if (key_info$generated && !is.na(existing)) {
+        return(list(success = FALSE, error = paste(
+          "The DuckDB database at", db_path, "is encrypted; set",
+          "DB_ENCRYPTION_KEY to its key, or pass adapter_config.")))
+      }
+      if (key_info$generated) generated_key <- key_info$key
+      adapter_config <- list(
+        db_backend = "duckdb",
+        duckdb = list(path = normalizePath(db_path, mustWork = FALSE),
+                      encryption_key = key_info$key)
+      )
+    }
+  }
+
   backend <- "sqlite"
   if (!is.null(adapter_config)) {
     backend <- adapter_config$db_backend

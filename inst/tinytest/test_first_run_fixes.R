@@ -54,7 +54,11 @@ local({
   with_env(c(ZZEDC_SALT = "custom_deployment_salt"), {
     cfg <- list(auth = list(salt_env_var = "ZZEDC_SALT", default_salt = "unused"))
     path <- tempfile(fileext = ".db")
-    res <- suppressWarnings(initialize_default_database(path, salt = resolve_auth_salt(cfg)))
+    # SQLite named explicitly: DuckDB is the default for new studies
+    # since 2026-11-17, and this test reads the file with RSQLite.
+    res <- suppressWarnings(initialize_default_database(
+      path, adapter_config = list(db_backend = "sqlite", sqlite = list(path = path)),
+      salt = resolve_auth_salt(cfg)))
     expect_true(res$success)
     con <- DBI::dbConnect(RSQLite::SQLite(), path)
     stored <- DBI::dbGetQuery(con, "SELECT password_hash FROM edc_users WHERE username = 'admin'")$password_hash
@@ -350,7 +354,10 @@ if (dir.exists(adhd_dir)) local({
   dir <- tempfile("adhd_")
   dir.create(file.path(dir, "data"), recursive = TRUE)
   db <- file.path(dir, "data", "study.db")
-  res <- suppressWarnings(setup_zzedc_from_csv(adhd_dir, db_path = db, salt = "s"))
+  # SQLite named explicitly (DuckDB is the default for a new db_path
+  # since 2026-11-17); this test reads the file with RSQLite.
+  res <- suppressWarnings(setup_zzedc_from_csv(adhd_dir, db_path = db, salt = "s",
+                                               backend = "sqlite"))
   expect_true(res$success, info = "the bundled example loads without errors")
   expect_equal(res$users$imported, 4)
   expect_equal(res$forms$imported_forms, 9)

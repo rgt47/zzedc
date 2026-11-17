@@ -1,20 +1,43 @@
 # Google Sheets Form Loader for ZZedc
 # Integrates generated forms from Google Sheets into the main ZZedc application
 
+#' Adapter Configuration for the Google Sheets Form Loader
+#'
+#' The loader opens the study database through a `DatabaseAdapter`, the
+#' same path the application's pool uses, so the configured backend, its
+#' encryption key, and the security profile (including the 'standard'
+#' rule for plaintext SQLite) all apply. Until 2026-11-17 the loader
+#' sent `cfg$database$path` (or a hard-coded `data/zzedc_gsheets.db`)
+#' down the SQLite-only path whatever the configured backend, so a
+#' DuckDB study was opened as SQLite and its key ignored.
+#'
+#' @param db_path Explicit database file, or `NULL` for the application
+#'   configuration (`cfg`).
+#' @return A configuration list for `zzedc::create_db_adapter()`.
+gsheets_loader_db_config <- function(db_path = NULL) {
+  env_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = "")
+  key <- if (nzchar(env_key)) env_key
+  if (!is.null(db_path)) {
+    if (!file.exists(db_path)) {
+      stop("Database file not found: ", db_path)
+    }
+    format <- zzedc:::.detect_db_file_format(db_path)
+    backend <- if (identical(format, "duckdb")) "duckdb" else "sqlite"
+    out <- list(db_backend = backend)
+    out[[backend]] <- list(path = db_path, encryption_key = key)
+    return(out)
+  }
+  if (!exists("cfg") || is.null(cfg)) {
+    stop("No database configured: pass db_path, or call this inside the ",
+         "application, which reads config.yml.")
+  }
+  zzedc::app_database_config(cfg, Sys.getenv("ZZEDC_WORK_DIR", getwd()))
+}
+
 #' Load forms generated from Google Sheets into ZZedc
 #' @param forms_dir Directory containing generated form files
 #' @param db_path Path to database file
 load_gsheets_forms <- function(forms_dir = "forms_generated", db_path = NULL) {
-
-  explicit_path <- !is.null(db_path)
-  if (is.null(db_path)) {
-    # Try to get from config
-    if (exists("cfg")) {
-      db_path <- cfg$database$path
-    } else {
-      db_path <- "data/zzedc_gsheets.db"
-    }
-  }
 
   message("Loading Google Sheets forms from: ", forms_dir)
 
@@ -25,17 +48,22 @@ load_gsheets_forms <- function(forms_dir = "forms_generated", db_path = NULL) {
 
   # Load form definitions from database. Inside the application, use
   # its pool (global.R), which follows the configured backend and its
-  # encryption. A caller that passes an explicit db_path outside the
-  # application goes through connect_encrypted_db() rather than a raw
-  # RSQLite::dbConnect() -- the latter silently opened the file
-  # plaintext even when it held an encrypted database, bypassing the
-  # package's one encryption-aware connection path and its
-  # security-profile enforcement entirely.
-  if (!explicit_path && exists("db_pool", inherits = TRUE)) {
+  # encryption. Otherwise open the database through an adapter (see
+  # gsheets_loader_db_config()), never a raw RSQLite::dbConnect(),
+  # which opened the file without the key or the security profile.
+  if (is.null(db_path) && exists("db_pool", inherits = TRUE)) {
     con <- get("db_pool", inherits = TRUE)
   } else {
-    con <- connect_encrypted_db(db_path = db_path)
-    on.exit(DBI::dbDisconnect(con))
+    db_config <- gsheets_loader_db_config(db_path)
+    file_path <- zzedc::app_database_path(db_config)
+    if (!is.na(file_path) && !identical(file_path, ":memory:") &&
+        !file.exists(file_path)) {
+      stop("Database file not found: ", file_path)
+    }
+    adapter <- zzedc::create_db_adapter(db_config)
+    on.exit(adapter$shutdown(), add = TRUE)
+    con <- adapter$connect()
+    on.exit(adapter$disconnect(con), add = TRUE, after = FALSE)
   }
 
   tryCatch({

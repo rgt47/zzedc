@@ -4,10 +4,11 @@
 \alias{default_db_config}
 \title{Get Default Configuration for Backend}
 \usage{
-default_db_config(backend = "sqlite", ...)
+default_db_config(backend = "duckdb", ...)
 }
 \arguments{
-\item{backend}{Backend type: "sqlite", "duckdb", or "postgresql"}
+\item{backend}{Backend type: "duckdb" (the default for new studies),
+"sqlite", "postgresql", "mysql", "mariadb", or "clickhouse"}
 
 \item{...}{Override values (e.g., path = "custom.db")}
 }
@@ -18,8 +19,20 @@ Configuration list suitable for create_db_adapter()
 Returns default configuration values for the specified backend.
 Useful for programmatic configuration without YAML files.
 }
+\details{
+When \code{backend} is not supplied, the configuration is DuckDB with
+encryption on: \code{encryption_key} is taken from \code{...} or, failing that,
+from the \code{DB_ENCRYPTION_KEY} environment variable, and an error is
+raised when neither is set (generate a key with \code{generate_db_key()})
+or when the \code{duckdb} package is not installed. There is no fallback
+to SQLite. An explicit \code{backend = "duckdb"} keeps the earlier
+behavior, in which the key is optional.
+}
 \examples{
 \dontrun{
+  # DuckDB, encrypted with the key in DB_ENCRYPTION_KEY
+  config <- default_db_config(path = "mydata.duckdb")
+
   # SQLite with custom path
   config <- default_db_config("sqlite", path = "mydata.db")
   adapter <- create_db_adapter(config)
