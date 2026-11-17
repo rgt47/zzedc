@@ -68,6 +68,8 @@ migrate_between_backends <- function(source_config, dest_config, tables = NULL,
   on.exit({
     source_adapter$disconnect(source_conn)
     dest_adapter$disconnect(dest_conn)
+    source_adapter$shutdown()
+    dest_adapter$shutdown()
   })
 
   # Get table list if not specified
@@ -208,8 +210,9 @@ export_to_files <- function(config, output_dir, format = "csv",
   }
 
   adapter <- create_db_adapter(config)
+  on.exit(adapter$shutdown(), add = TRUE)
   conn <- adapter$connect()
-  on.exit(adapter$disconnect(conn))
+  on.exit(adapter$disconnect(conn), add = TRUE, after = FALSE)
 
   if (is.null(tables)) {
     tables <- adapter$list_tables(conn)
@@ -305,8 +308,9 @@ import_from_files <- function(config, input_dir, format = NULL,
   }
 
   adapter <- create_db_adapter(config)
+  on.exit(adapter$shutdown(), add = TRUE)
   conn <- adapter$connect()
-  on.exit(adapter$disconnect(conn))
+  on.exit(adapter$disconnect(conn), add = TRUE, after = FALSE)
 
   results <- list(success = TRUE, format = format, tables = list())
 
@@ -364,6 +368,8 @@ compare_databases <- function(config1, config2, tables = NULL) {
   on.exit({
     adapter1$disconnect(conn1)
     adapter2$disconnect(conn2)
+    adapter1$shutdown()
+    adapter2$shutdown()
   })
 
   tables1 <- adapter1$list_tables(conn1)

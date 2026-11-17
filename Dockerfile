@@ -17,7 +17,7 @@ LABEL org.opencontainers.image.created="2026-07-06T00:27:58Z" \
       zzcollab.r.version="4.6.0" \
       zzcollab.base.image="rocker/verse:4.6.0" \
       zzcollab.base.digest="sha256:0b50fdee9288723b5a6802502341f0429ab05edb9db04d57958f49e18d3ea883" \
-      zzcollab.ppm.snapshot="2026-07-05" \
+      zzcollab.ppm.snapshot="2026-11-01" \
       zzcollab.install.mode="renv"
 
 ARG USERNAME=analyst
@@ -29,7 +29,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 TZ=UTC \
     RENV_PATHS_LIBRARY=/opt/renv/library \
     RENV_PATHS_CACHE=/opt/renv/cache \
-    RENV_CONFIG_REPOS_OVERRIDE="https://packagemanager.posit.co/cran/__linux__/noble/2026-07-05" \
+    RENV_CONFIG_REPOS_OVERRIDE="https://packagemanager.posit.co/cran/__linux__/noble/2026-11-01" \
     ZZCOLLAB_CONTAINER=true \
     ZZCOLLAB_INSTALL_MODE=renv \
     ZZCOLLAB_AUTO_RESTORE=false
@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -rf /var/lib/apt/lists/*
 
 # Configure R to use Posit Package Manager for pre-compiled binaries
-RUN echo 'options(repos = c(CRAN = "https://packagemanager.posit.co/cran/__linux__/noble/2026-07-05"))' \
+RUN echo 'options(repos = c(CRAN = "https://packagemanager.posit.co/cran/__linux__/noble/2026-11-01"))' \
         >> /usr/local/lib/R/etc/Rprofile.site && \
     echo 'options(HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(), paste(getRversion(), R.version["platform"], R.version["arch"], R.version["os"])))' \
         >> /usr/local/lib/R/etc/Rprofile.site

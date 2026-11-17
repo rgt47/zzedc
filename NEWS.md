@@ -23,6 +23,41 @@
   previously unwired `request_details` output; All Corrections gains
   a new `review_panel_all`).
 
+## Newer DuckDB required; package snapshot moved forward
+
+* `DESCRIPTION` now requires `duckdb (>= 2.0.0)`. On duckdb 1.5.4.1,
+  the version `renv.lock` pinned, `COPY FROM DATABASE` fails with a
+  foreign-key error when a database has foreign keys (DuckDB issue
+  #24215). `rotate_database_key()` failed on that error in its test
+  on Linux, on the audit tables' foreign key, and passes on 2.0.0;
+  `set_encryption_for_existing_db()` uses the same copy. Before 1.5.6,
+  `DBI::dbIsValid()` on a driver also opened the database (see the
+  next entry).
+* The Posit Package Manager snapshot in the `Dockerfile` (and so in
+  CI, which reads it from there) moves from 2026-07-05 to 2026-11-01,
+  and `renv.lock` is re-pinned against it: 57 packages change version
+  (among them duckdb 1.5.4.1 to 2.0.0, arrow 24.0.0 to 26.0.0,
+  writexl 1.5.4 to 2.0.1, curl 7.1.0 to 8.1.0, rlang 1.2.0 to 1.3.0),
+  `rdtools` is added as a new dependency, none is removed, and
+  `zzalloc` stays at the same GitHub commit. R stays at 4.6.0.
+
+## Replaced and short-lived DuckDB adapters release the file
+
+* `get_db_adapter(force_new = TRUE)` shuts down the cached adapter it
+  replaces when both are DuckDB adapters on the same file, so the old
+  adapter no longer keeps a second instance on the file beside the new
+  one. A replaced adapter on a different file is left open, since the
+  application's pool may still use it.
+* `migrate_between_backends()`, `export_to_files()`,
+  `import_from_files()` and `compare_databases()` shut down the
+  adapters they create before returning. The other places that create
+  an adapter either shut it down already (`create_wizard_database()`,
+  `check_database_initialized()`, the launcher, the Google Sheets form
+  loader, key rotation), never open a connection through it (the
+  adapters passed to `verify_database_encryption()` and
+  `check_storage_encryption()`, `adapter_from_config()`), or are
+  long-lived (the cached adapter and the application's pool).
+
 ## A DuckDB adapter keeps one instance until `shutdown()`
 
 * The duckdb package releases a database instance when its last
