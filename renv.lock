@@ -7706,6 +7706,38 @@
       "Author": "Gábor Csárdi [aut, cre], Kuba Podgórski [ctb], Rich Geldreich [ctb], Arm Limited [ctb, cph] (bundled Mbed TLS crypto subset in src/mbedtls/ (Apache-2.0)), Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
       "Maintainer": "Gábor Csárdi <csardi.gabor@gmail.com>",
       "Repository": "RSPM"
+    },
+    "zzalloc": {
+      "Package": "zzalloc",
+      "Version": "0.3.0",
+      "Source": "GitHub",
+      "Title": "Treatment Allocation Schemes for Clinical Trials",
+      "Authors@R": "person(given = \"Ronald G.\", family = \"Thomas\", email = \"rgthomas@ucsd.edu\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"0000-0003-1686-4965\"))",
+      "Description": "A unified implementation of treatment allocation procedures for randomized clinical trials, spanning unrestricted randomization, restricted procedures that bound imbalance in the total sample size, stratified designs, the covariate-adaptive minimization family, and covariate-adjusted response-adaptive designs. Every procedure shares one sequential interface and returns assignments in arrival order, so that procedures can be substituted for one another in simulation studies. Imbalance diagnostics, including the response-weighted measure appropriate when covariates differ in prognostic strength, are provided alongside.",
+      "License": "GPL-3",
+      "URL": "https://github.com/rgt47/zzalloc",
+      "BugReports": "https://github.com/rgt47/zzalloc/issues",
+      "Encoding": "UTF-8",
+      "Roxygen": "list(markdown = TRUE)",
+      "Depends": [
+        "R (>= 4.1.0)"
+      ],
+      "Imports": [
+        "stats"
+      ],
+      "Suggests": [
+        "knitr",
+        "rmarkdown",
+        "tinytest (>= 1.4.0)"
+      ],
+      "VignetteBuilder": "knitr",
+      "Config/roxygen2/version": "8.0.0",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "rgt47",
+      "RemoteRepo": "zzalloc",
+      "RemoteRef": "main",
+      "RemoteSha": "cb6dba7c9ca5e76e7f8999e52665f3ea06f61be9"
     }
   }
 }
