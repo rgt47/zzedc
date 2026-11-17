@@ -1,5 +1,31 @@
 # zzedc (development version)
 
+## A DuckDB adapter keeps one instance until `shutdown()`
+
+* The duckdb package releases a database instance when its last
+  connection closes, and a later connection on the same driver opens a
+  new one. The DuckDB adapter did not notice: before duckdb 1.5.6,
+  `DBI::dbIsValid()` on a driver opened the database to answer and so
+  reported a released instance as valid (fixed upstream in duckdb-r
+  #2754). After the first connection of an adapter closed, every
+  later `connect()` therefore opened its own instance, and connections
+  open at the same time each attached the encrypted study file. Two
+  instances writing and checkpointing one file corrupted it. On Linux
+  with duckdb 1.5.4.1, the version `renv.lock` pins, this aborted R CMD
+  check in `test_first_run_fixes.R` ('MarkBlockAsModified called with
+  already modified block id'); run alone, the Google Sheets import
+  into an encrypted DuckDB study failed every time with 'Could not
+  read enough bytes' or 'block was written with a mode that is not
+  recognized'. The adapter now holds one connection of its own from
+  the moment it creates the instance until `shutdown()`, so every
+  connection and pool connection shares that instance (tested with
+  duckdb 1.5.4.1 and 2.0.0). Because the file stays open until `shutdown()`, the two
+  places that create a short-lived second adapter release it at once:
+  `connect_encrypted_db(key = ...)` with a key other than the
+  configured one, and the keyed check in `verify_database_encryption()`.
+  `setup_zzedc_from_gsheets()` and `setup_zzedc_from_csv()` shut down
+  the adapter they create when no matching one was cached.
+
 ## Admin, Compliance and Corrections check the signed-in user after logout
 
 * The Admin, Compliance and Corrections modules are mounted at first

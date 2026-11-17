@@ -1606,8 +1606,11 @@ setup_zzedc_from_csv <- function(
       had_adapter <- exists("adapter", envir = cache)
       previous <- if (had_adapter) cache$adapter else NULL
       if (is.null(previous) || !identical(previous$config, adapter_config)) {
-        get_db_adapter(config = adapter_config, force_new = TRUE)
+        import_adapter <- get_db_adapter(config = adapter_config, force_new = TRUE)
         on.exit({
+          # Release the file: a DuckDB adapter holds its instance open
+          # until shutdown().
+          import_adapter$shutdown()
           if (had_adapter) {
             cache$adapter <- previous
           } else if (exists("adapter", envir = cache)) {

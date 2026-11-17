@@ -121,8 +121,15 @@ DuckDBAdapter <- R6::R6Class(
     #' Shut down this adapter's shared DuckDB instance, releasing the
     #' database file. Call it when the adapter is finished with, before
     #' another adapter (for example a later application pool) opens the
-    #' same file. Connections and pools from this adapter become invalid.
+    #' same file. Close this adapter's connections and pools first: a
+    #' connection that is still open keeps the instance, and the file,
+    #' open until it is closed. A later `connect()` or `pool()` on this
+    #' adapter opens a new instance.
     shutdown = function() {
+      if (!is.null(private$anchor)) {
+        tryCatch(DBI::dbDisconnect(private$anchor), error = function(e) NULL)
+        private$anchor <- NULL
+      }
       if (!is.null(private$drv)) {
         tryCatch(duckdb::duckdb_shutdown(private$drv), error = function(e) NULL)
         private$drv <- NULL
@@ -320,6 +327,7 @@ DuckDBAdapter <- R6::R6Class(
 
   private = list(
     drv = NULL,
+    anchor = NULL,
     extensions_ready = FALSE,
 
     is_encrypted = function() {
@@ -328,14 +336,34 @@ DuckDBAdapter <- R6::R6Class(
     },
 
     # The adapter's one DuckDB instance, created on first use and
-    # recreated if it has been shut down (including by a caller's
-    # DBI::dbDisconnect(conn, shutdown = TRUE) on one of its
-    # connections). An encrypted file is attached to an in-memory
-    # instance; an unencrypted file is the instance's own database.
+    # recreated after shutdown(). An encrypted file is attached to an
+    # in-memory instance; an unencrypted file is the instance's own
+    # database.
+    #
+    # The duckdb package releases an instance when its last connection
+    # closes. A later dbConnect() on the same driver object then opens a
+    # new instance, and two connections opened that way while neither
+    # instance is held each get their own. With an encrypted file each
+    # instance attaches it, and two instances writing and checkpointing
+    # one file corrupt it (CI, 2026-11-17, duckdb 1.5.4.1: "Could not
+    # read enough bytes", "block was written with a mode that is not
+    # recognized", and an abort on "MarkBlockAsModified called with
+    # already modified block id"). Before duckdb 1.5.6, dbIsValid() on
+    # a driver also opened the database to answer, so it reported a
+    # released instance as valid and this adapter never replaced it.
+    # The adapter therefore holds one connection of its own (the
+    # anchor) from the moment the instance is created until
+    # shutdown(): the instance stays open, every connect() and pool
+    # connection shares it, and liveness is read from the anchor, not
+    # from dbIsValid() on the driver.
     driver = function() {
-      if (!is.null(private$drv) &&
-          isTRUE(tryCatch(DBI::dbIsValid(private$drv), error = function(e) FALSE))) {
+      if (!is.null(private$drv) && !is.null(private$anchor) &&
+          isTRUE(tryCatch(DBI::dbIsValid(private$anchor), error = function(e) FALSE))) {
         return(private$drv)
+      }
+      if (!is.null(private$anchor)) {
+        tryCatch(DBI::dbDisconnect(private$anchor), error = function(e) NULL)
+        private$anchor <- NULL
       }
       db_path <- self$config$duckdb$path
       if (!identical(db_path, ":memory:")) {
@@ -351,6 +379,7 @@ DuckDBAdapter <- R6::R6Class(
         private$check_unencrypted(db_path)
         duckdb::duckdb(dbdir = db_path, read_only = FALSE)
       }
+      private$anchor <- DBI::dbConnect(private$drv)
       private$drv
     },
 

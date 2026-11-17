@@ -181,7 +181,10 @@ adapter's other connections; see \code{shutdown()}.
   Shut down this adapter's shared DuckDB instance, releasing the
 database file. Call it when the adapter is finished with, before
 another adapter (for example a later application pool) opens the
-same file. Connections and pools from this adapter become invalid.
+same file. Close this adapter's connections and pools first: a
+connection that is still open keeps the instance, and the file,
+open until it is closed. A later \code{connect()} or \code{pool()} on this
+adapter opens a new instance.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{DuckDBAdapter$shutdown()}

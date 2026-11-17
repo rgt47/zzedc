@@ -488,10 +488,17 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
     backend <- if (!is.null(adapter)) adapter$backend_name() else "sqlite"
 
     if (!is.null(adapter) && backend != "sqlite") {
-      if (!is.null(key)) {
+      if (!is.null(key) && !identical(key, adapter$config[[backend]]$encryption_key)) {
         config <- adapter$config
         config[[backend]]$encryption_key <- key
-        return(create_db_adapter(config)$connect())
+        # A separate adapter, so a separate DuckDB instance. Release its
+        # own hold on the instance at once: the returned connection then
+        # keeps it open only for as long as the caller holds that
+        # connection, as before adapters held their instance open.
+        keyed <- create_db_adapter(config)
+        conn <- keyed$connect()
+        keyed$shutdown()
+        return(conn)
       }
       return(adapter$connect())
     }
@@ -1125,7 +1132,9 @@ verify_database_encryption <- function(db_path = NULL, key = NULL,
         duck <- if (configured_backend == "duckdb") adapter$config$duckdb else list()
         duck$path <- db_path
         duck$encryption_key <- key
-        create_db_adapter(list(db_backend = "duckdb", duckdb = duck))$connect()
+        probe <- create_db_adapter(list(db_backend = "duckdb", duckdb = duck))
+        on.exit(probe$shutdown(), add = TRUE)
+        probe$connect()
       } else {
         .connect_sqlite_with_key(db_path, key %||% "")
       }
