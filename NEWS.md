@@ -1,5 +1,28 @@
 # zzedc (development version)
 
+## Corrections: reachable from the CRF, and reachable once approved
+
+* The EDC tab's entries table gains a per-row "Request Correction"
+  action that hands the row's `entry_id` to the Corrections tab's
+  Create Request view, pre-filled with `table_name = "data_entries"`
+  and that record. `data_correction_server()` gains a
+  `pending_entry_id` argument for this hand-off.
+* Create Request's "Field Name" and "Corrected Value" inputs, for a
+  `data_entries` record, are now a dropdown of that record's own CRF
+  fields and a typed widget drawn from the same field metadata
+  `renderPanel()` already uses elsewhere (select/radio/numeric/date/
+  etc.), with the proposed value validated against the field's own
+  choices/required/type before a request is created. Any other table
+  keeps the previous free-text inputs.
+* Once a request moved past PENDING, there was no way to select it
+  back into the review panel: only the Pending Review table's
+  row-selection fed it, and that table lists PENDING requests only.
+  An approved request a user found via My Requests or All Corrections
+  had no path to the Apply button. Both tables now have their own
+  row-selection handler and a review panel (My Requests reuses the
+  previously unwired `request_details` output; All Corrections gains
+  a new `review_panel_all`).
+
 ## A DuckDB adapter keeps one instance until `shutdown()`
 
 * The duckdb package releases a database instance when its last

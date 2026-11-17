@@ -21,9 +21,10 @@ API directly against a study database -- for example to backfill a
 field on a record that was created by a script rather than through
 the Shiny application. If you operate the application as the
 *content author* or *site coordinator* role instead, use the
-*Raise query* / *Resolve query* flow described in
-[Content-Author Guide](content-author-guide.html), section 6.2; it
-calls the same functions documented here from the application's UI.
+*Request Correction* flow described in
+[Content-Author Guide](content-author-guide.html), section 6.2, or
+the "From the application" section below; both call the same
+functions documented here from the application's UI.
 
 # There is no direct update function
 
@@ -124,7 +125,11 @@ go through; it requires a comment of at least 10 characters.
 ## 3. Apply it
 
 ```{r}
-result <- apply_correction(request_id = req$request_id, applied_by = "study_manager")
+result <- apply_correction(
+  request_id   = req$request_id,
+  applied_by   = "study_manager",
+  applier_role = "Study Manager"
+)
 result$status        # "APPLIED"
 result$old_value      # ""
 result$new_value      # "ALZRT-D-26-00142"
@@ -136,6 +141,47 @@ longer matches `original_value` -- someone else changed it since the
 request was opened. On success it writes the `UPDATE` audit record
 and, when `record_versions` is available, stores a before/after
 version pair.
+
+`applier_role` is optional (default `NULL`, which skips the check --
+every call above that omits it keeps working exactly as before this
+parameter existed) but, when given, is checked against the same
+allowed set `approve_correction()`'s `reviewer_role` already uses
+(`"Admin"`, `"PI"`, `"StudyManager"`, `"Data Manager"`). Before
+2026-11-17, approval was role-gated but applying an already-approved
+correction was not -- any authenticated caller could write the new
+value regardless of role. A script that calls `apply_correction()`
+directly should pass `applier_role` for the same reason a person
+using the application's Corrections tab now only sees an *Apply
+Correction* control when their own role is one of the four above.
+
+# From the application
+
+The application's Corrections tab (`data_correction_ui()`/
+`data_correction_server()`, mounted under the Admin dropdown) wraps
+the same three functions in a UI, with two entry points:
+
+- From the EDC tab, a form's entries table (right below where you
+  enter data for that form) has a *Request Correction* button on
+  each row. Clicking it switches to the Corrections tab with that
+  record already selected -- the entry point this vignette's
+  `record_id` example above stands in for when called from a
+  script instead.
+- From the Corrections tab directly, under *Create Request*: set
+  Table Name to `data_entries` and Record ID to the entry's
+  identifier, and the Field and Corrected Value controls become a
+  dropdown of that record's own fields and a typed input matching
+  the selected field's type (a RADIO field gets radio buttons, a
+  DATE field gets a date picker, and so on) -- the same validation
+  `validate_crf_submission()` performs here is exactly the
+  structural check this vignette's R-level calls skip past, so a
+  value the original form would have rejected is rejected here too,
+  before a request is even created. Any table other than
+  `data_entries` falls back to plain text fields, matching the
+  R-level calls above exactly.
+
+Approve, reject, and apply all happen from the same tab's *Pending
+Review* view, and an *Apply Correction* control only appears for a
+logged-in role in the allowed set described above.
 
 # Locked records
 
@@ -165,4 +211,4 @@ this path would undermine the thing the path exists to guarantee.
 - `verify_correction_integrity()` -- checks the hash chain that
   links each `correction_requests` row to the previous one.
 - [Content-Author Guide](content-author-guide.html), section 6.2 --
-  the same workflow from inside the application's UI.
+  the same workflow narrated for a non-technical, UI-only user.

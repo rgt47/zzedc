@@ -635,16 +635,30 @@ Common reasons: a value is implausible (a 27-year-old in a
 
 ### The query life cycle
 
-1. **Open** the query in the application: navigate to the
-   subject, click the field in question, choose
-   *Raise query*. Write a specific question
-   (*'Is the height value 1.65 in meters or 165 in cm?'*).
-2. The site coordinator gets the query in their *Open Queries*
-   list at next login.
-3. **Respond.** The coordinator either corrects the value
-   (with a reason) or explains why the value is correct.
-4. **Close** the query. You read the response, accept it (or
-   send it back if more clarification is needed), and close.
+1. **Open** the query. From the EDC tab, find the entry in the
+   form's own entries table (right below where you enter data for
+   that form) and click *Request Correction* on its row --
+   this takes you straight to the Corrections tab with the record
+   already selected. You can also open the Corrections tab directly
+   and pick the record and field there (Table Name `data_entries`,
+   Record ID the entry's identifier). Either way, pick the field,
+   enter the corrected value (the control matches the field's own
+   type -- a dropdown stays a dropdown, a date stays a date, and an
+   out-of-range or invalid value is rejected before the request is
+   even created), and give a reason.
+2. The request appears in *Pending Review* for anyone with the
+   Admin, PI, Study Manager, or Data Manager role -- not routed to
+   one specific person, so whoever reviews the Corrections tab next
+   sees it.
+3. **Approve or reject.** A reviewer reads the original and
+   corrected values and the stated reason, and approves or rejects
+   (a rejection requires a comment explaining why). The requester
+   cannot approve their own request.
+4. **Apply.** Applying an approved correction -- the step that
+   actually changes the stored value -- is itself restricted to the
+   same four roles; a user without one of them can review and
+   approve but will not see an *Apply Correction* control. Applying
+   writes the new value and an audit-trail entry in the same step.
 
 ### Query SLA
 

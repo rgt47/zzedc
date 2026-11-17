@@ -215,6 +215,19 @@ run_gsheets_import <- function(sheet_id) {
 #' Initialize traditional server modules
 initialize_traditional_server <- function(input, output, session) {
 
+  # Cross-module hand-off for the EDC tab's "Request Correction" row
+  # action (inst/app/edc.R's crf_entries_table): a reactiveVal
+  # (doubling as getter/setter, so either side can read or clear it
+  # with no further plumbing) carrying the entry_id whose correction
+  # the user just asked to start. edc.R sets it and switches to the
+  # Corrections tab (bslib::nav_select()); data_correction_server()
+  # (mounted below) reads it once the tab is shown, pre-fills Table
+  # Name/Record ID, and clears it. Created here, before source("edc.R")
+  # and the correction_server_fn mount below, since both share this
+  # function's environment (source(..., local = TRUE) and a plain
+  # function argument respectively).
+  rv_pending_correction_entry <- shiny::reactiveVal(NULL)
+
   # Only load traditional modules if Google Sheets forms are not available
   if (!exists("gsheets_integration_data")) {
     # Load traditional EDC forms
@@ -327,7 +340,9 @@ initialize_traditional_server <- function(input, output, session) {
   # create or read their own tables, so those tables are ensured here
   # (idempotent DDL, not data exposure, so it runs unconditionally).
   # The correction module is mounted on first login, as above, and
-  # guards itself after logout.
+  # guards itself after logout (user_session). Its approve/reject/
+  # apply handlers are also role-gated on the server
+  # (.correction_reviewer_roles, R/data_correction.R).
   correction_server_fn <- tryCatch(
     utils::getFromNamespace("data_correction_server", "zzedc"),
     error = function(e) NULL
@@ -340,7 +355,8 @@ initialize_traditional_server <- function(input, output, session) {
                              current_user = reactive(user_input$username),
                              user_role = reactive(user_input$role),
                              db_path = db_path,
-                             user_session = user_input)
+                             user_session = user_input,
+                             pending_entry_id = rv_pending_correction_entry)
       }
     }, once = TRUE, ignoreInit = TRUE)
   }

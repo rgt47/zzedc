@@ -184,3 +184,38 @@ local({
   expect_identical(query(s$db, "SELECT status FROM correction_requests WHERE request_id = ?",
                          list(id))$status, "APPROVED")
 })
+
+# applier_role (2026-11-17): until this parameter existed,
+# approve_correction()/reject_correction() were role-gated via
+# reviewer_role but apply_correction() -- the step that actually
+# writes the new value -- was not, so any authenticated caller could
+# apply an already-approved correction regardless of role.
+local({
+  s <- setup_db()
+  on.exit(cleanup_db(s$db), add = TRUE)
+  id <- request_and_approve(s$db, "vitals", "1", "sbp", "220", "120")
+  res <- apply_correction(id, "coordinator1", db_path = s$db, applier_role = "Coordinator")
+  expect_false(res$success, info = "a disallowed role is refused")
+  expect_true(grepl("not (authorized|permitted|allowed)", res$error, ignore.case = TRUE),
+              info = res$error %||% "")
+  expect_identical(query(s$db, "SELECT sbp FROM vitals WHERE id = 1")$sbp, 220L,
+                   info = "nothing applied when the role is refused")
+  expect_identical(query(s$db, "SELECT status FROM correction_requests WHERE request_id = ?",
+                         list(id))$status, "APPROVED",
+                   info = "request stays APPROVED, so a permitted role can still apply it")
+
+  res2 <- apply_correction(id, "data_manager", db_path = s$db, applier_role = "Data Manager")
+  expect_true(res2$success, info = res2$error %||% "")
+  expect_identical(query(s$db, "SELECT sbp FROM vitals WHERE id = 1")$sbp, 120L)
+})
+
+# applier_role defaults to NULL: scripts and the vignette's
+# zzedc::apply_correction() calls with no role argument keep working
+# exactly as before this parameter was added.
+local({
+  s <- setup_db()
+  on.exit(cleanup_db(s$db), add = TRUE)
+  id <- request_and_approve(s$db, "vitals", "1", "sbp", "220", "120")
+  res <- apply_correction(id, "data_manager", db_path = s$db)
+  expect_true(res$success, info = res$error %||% "")
+})

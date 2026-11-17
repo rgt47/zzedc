@@ -787,7 +787,7 @@ output$crf_entries_table <- DT::renderDataTable({
   if (nrow(crf_row) == 0) return(NULL)
   rows <- DBI::dbGetQuery(
     db_pool,
-    "SELECT subject_id, created_date FROM data_entries WHERE form_name = ? ORDER BY created_date DESC",
+    "SELECT entry_id, subject_id, created_date FROM data_entries WHERE form_name = ? ORDER BY created_date DESC",
     params = list(tolower(crf_row$crf_code[1]))
   )
   audit_ctx <- zzedc::session_audit_context(session)
@@ -796,7 +796,37 @@ output$crf_entries_table <- DT::renderDataTable({
                          user_id = user_input$user_id,
                          ip_address = audit_ctx$ip_address,
                          session_id = audit_ctx$session_id)
-  DT::datatable(rows, options = list(pageLength = 5), rownames = FALSE)
+
+  # One "Request Correction" button per row, carrying that row's
+  # entry_id -- the entry point into the Corrections tab's CRF-aware
+  # field picker, so fixing an already-submitted value never requires
+  # typing an entry_id by hand. Same onclick/Shiny.setInputValue
+  # convention as the row actions in R/user_management_module.R.
+  display_rows <- rows[, c("subject_id", "created_date")]
+  display_rows$Actions <- vapply(rows$entry_id, function(eid) {
+    paste0(
+      '<button class="btn btn-outline-secondary btn-sm" ',
+      'onclick="Shiny.setInputValue(\'edc_request_correction\', \'', eid,
+      '\', {priority: \'event\'})">Request Correction</button>'
+    )
+  }, character(1))
+
+  DT::datatable(display_rows, escape = FALSE, rownames = FALSE,
+                 options = list(
+                   pageLength = 5,
+                   columnDefs = list(
+                     list(targets = 2, searchable = FALSE, orderable = FALSE)
+                   )
+                 ))
+})
+
+# Hand off to the Corrections tab's CRF-aware "Create Request" view,
+# pre-filled with this entry (see R/data_correction_module.R's
+# pending_entry_id parameter and the shared reactiveVal created in
+# inst/app/gsheets_server_integration.R's initialize_traditional_server()).
+shiny::observeEvent(input$edc_request_correction, {
+  rv_pending_correction_entry(input$edc_request_correction)
+  bslib::nav_select("main_nav", selected = "corrections", session = session)
 })
 
 # Source the form helpers only when they exist; otherwise the
