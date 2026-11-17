@@ -114,6 +114,34 @@ if (!force_new && exists("adapter", envir = .db_adapter_cache)) {
 }
 
 
+#' Resolve the Adapter for the Legacy SQLite Entry Points (internal)
+#'
+#' `connect_encrypted_db()` and `initialize_encrypted_database()` take
+#' the SQLite path when no backend is configured. A `config.yml` without
+#' a `database:` section (the application's own `config::get()` schema)
+#' configures none, and yields `NULL` here. Any other failure to build
+#' the configured adapter is an error: before 2026-11-17 every failure
+#' was treated as "no backend configured", so a configuration naming
+#' DuckDB that failed to load silently produced a SQLite database.
+#'
+#' @param caller Name reported in the fallback message, or `NULL` for
+#'   no message.
+#' @return A `DatabaseAdapter`, or `NULL` for the SQLite legacy path.
+#' @keywords internal
+.adapter_or_legacy_sqlite <- function(caller = NULL) {
+  tryCatch(get_db_adapter(), error = function(e) {
+    if (!grepl("must have a 'database' section", conditionMessage(e), fixed = TRUE)) {
+      stop(e)
+    }
+    if (!is.null(caller)) {
+      message(caller, ": config.yml has no 'database' section; using the ",
+              "sqlite legacy path.")
+    }
+    NULL
+  })
+}
+
+
 #' Connect to Database
 #'
 #' Creates a database connection using the configured backend.
@@ -441,23 +469,22 @@ sql_date_diff_days <- function(col_a, col_b) {
 #' this package and with the live Promotion Review Tracker deployment)
 #' is a different schema than `load_db_config()` expects (a top-level
 #' `database:` key with no environment wrapper) and will not parse as
-#' a backend selection. `get_db_adapter()` failing to resolve a
-#' backend from such a file -- or from no file at all -- is treated
-#' the same as "no backend configured": this function falls back to
-#' the sqlite path below rather than propagating that error, so an
-#' app-config-only `config.yml` cannot change this function's
-#' behavior. A `message()` reports the fallback so it is visible to
-#' someone debugging a `config.yml` that was meant to pick a backend.
+#' a backend selection. Such a file, or no file at all, is treated as
+#' "no backend configured": this function takes the sqlite path below,
+#' so an app-config-only `config.yml` cannot change this function's
+#' behavior, and a `message()` reports it. Any other failure to build
+#' the configured adapter (an invalid `database:` section, for
+#' example) is an error rather than a silent switch to SQLite.
+#'
+#' Plaintext SQLite is subject to the security profile: refused under
+#' `regulated`, and under `standard` unless
+#' `security.accept_unencrypted_sqlite` is true (see
+#' `resolve_accept_unencrypted_sqlite()`).
 #' @export
 connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
                                  key = NULL) {
   tryCatch({
-    adapter <- tryCatch(get_db_adapter(), error = function(e) {
-      message("connect_encrypted_db(): could not resolve a database ",
-               "backend from config.yml (", e$message, "); using the ",
-               "sqlite legacy path.")
-      NULL
-    })
+    adapter <- .adapter_or_legacy_sqlite(caller = "connect_encrypted_db()")
     backend <- if (!is.null(adapter)) adapter$backend_name() else "sqlite"
 
     if (!is.null(adapter) && backend != "sqlite") {
@@ -508,7 +535,7 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
     # is acceptable. An encrypted file without a key is still an error.
     if (inherits(key, "error")) {
       if (isFALSE(sqlite_file_is_encrypted(db_path))) {
-        enforce_encryption_at_rest(
+        .enforce_sqlite_at_rest(
           FALSE, db_path, "The file has a plaintext SQLite header and no key is configured."
         )
         return(DBI::dbConnect(RSQLite::SQLite(), db_path))
@@ -556,12 +583,19 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
 #'   - message: Status message, which states plainly when the database
 #'     is not encrypted
 #'
-#' Under the `regulated` security profile (see
-#' `resolve_security_profile()`), a SQLite database that would be
-#' written unencrypted is removed and the function returns
-#' `success = FALSE`. Under `standard` it succeeds with a warning;
-#' under `development`, silently. In all profiles `encrypted` reports
-#' the true state.
+#' On SQLite, when the installed RSQLite cannot encrypt
+#' (`sqlite_cipher_available()` is `FALSE`), the security profile (see
+#' `resolve_security_profile()`) decides before any file is created:
+#' under `regulated` the function returns `success = FALSE`; under
+#' `standard` it also returns `success = FALSE`, with an error naming
+#' DuckDB and the opt-in, unless `security.accept_unencrypted_sqlite` is
+#' true (see `resolve_accept_unencrypted_sqlite()`), in which case it
+#' creates the plaintext database with a notice and returns
+#' `success = TRUE, encrypted = FALSE`; under `development` it creates
+#' it silently. `success = TRUE` is therefore never returned for an
+#' encryption request that was not honored, except under `development`
+#' or with the opt-in. In all profiles `encrypted` reports the true
+#' state.
 #'
 #' @details
 #' This function:
@@ -613,7 +647,11 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
 #' @export
 initialize_encrypted_database <- function(db_path = NULL, overwrite = FALSE,
                                           key = NULL) {
-  adapter <- tryCatch(get_db_adapter(), error = function(e) NULL)
+  adapter <- tryCatch(.adapter_or_legacy_sqlite(), error = function(e) e)
+  if (inherits(adapter, "error")) {
+    return(list(success = FALSE,
+                error = paste("Initialization failed:", conditionMessage(adapter))))
+  }
   backend <- if (!is.null(adapter)) adapter$backend_name() else "sqlite"
 
   if (is.null(adapter) || backend == "sqlite") {
@@ -648,16 +686,26 @@ init_encrypted_sqlite_database <- function(db_path = NULL, overwrite = FALSE,
            "\nSet overwrite=TRUE to replace it")
     }
 
-    # Remove if overwriting
-    if (file.exists(db_path) && overwrite) {
-      file.remove(db_path)
-    }
-
     # Use the caller-supplied key, or generate a new one
     if (is.null(key)) {
       key <- generate_db_key()
     } else {
       verify_db_key(key)
+    }
+
+    # Apply the security profile before anything is created or removed:
+    # on a stock RSQLite the key below would be ignored, and a refused
+    # request must leave neither a plaintext file nor a deleted one.
+    if (!sqlite_cipher_available()) {
+      .enforce_sqlite_at_rest(
+        FALSE, db_path,
+        "The installed RSQLite does not support SQLCipher or SQLite3MultipleCiphers, so the key would not be applied."
+      )
+    }
+
+    # Remove if overwriting
+    if (file.exists(db_path) && overwrite) {
+      file.remove(db_path)
     }
 
     # The key is passed explicitly; we deliberately do not write it to
@@ -692,7 +740,7 @@ init_encrypted_sqlite_database <- function(db_path = NULL, overwrite = FALSE,
     # schema has been written, since an empty file has no header yet.
     encrypted <- isTRUE(sqlite_file_is_encrypted(db_path))
     tryCatch(
-      enforce_encryption_at_rest(
+      .enforce_sqlite_at_rest(
         encrypted, db_path,
         "The installed RSQLite does not support SQLCipher or SQLite3MultipleCiphers, so the key was not applied."
       ),
@@ -711,6 +759,12 @@ init_encrypted_sqlite_database <- function(db_path = NULL, overwrite = FALSE,
       encrypted = encrypted,
       message = if (encrypted) {
         paste("Database created and encrypted at:", db_path)
+      } else if (resolve_security_profile()$profile == "standard") {
+        paste(
+          "Database created at:", db_path,
+          "-- NOT encrypted at rest (stock RSQLite ignores the key);",
+          "plaintext accepted by security.accept_unencrypted_sqlite"
+        )
       } else {
         paste(
           "Database created at:", db_path,

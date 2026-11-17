@@ -180,14 +180,15 @@ sqlite_cipher_available <- function(refresh = FALSE) {
 
 #' Create encrypted database connection (internal)
 #'
-#' Opens a SQLite connection with the key applied, then checks whether
-#' the file is in fact encrypted and applies the active security
-#' profile (see `resolve_security_profile()`): under `regulated` a
-#' plaintext file is an error, under `standard` a warning, under
-#' `development` silent. A new or empty file cannot be judged until
-#' something is written to it; callers that create databases
-#' (`initialize_encrypted_database()`, `test_encryption()`) check again
-#' after writing.
+#' Checks whether the file is encrypted (an existing file by its
+#' header; a new or empty file by whether the installed RSQLite can
+#' apply a key at all, `sqlite_cipher_available()`), applies the active
+#' security profile, and then opens the connection with the key
+#' applied. Under `regulated` plaintext is an error; under `standard`
+#' it is an error unless `resolve_accept_unencrypted_sqlite()` is
+#' `TRUE` (then a notice); under `development` it is allowed silently.
+#' Callers that create databases (`initialize_encrypted_database()`,
+#' `test_encryption()`) check the written file again.
 #'
 #' @param db_path Character: Path to database file
 #' @param key Character: Encryption key
@@ -198,9 +199,14 @@ sqlite_cipher_available <- function(refresh = FALSE) {
 connect_encrypted <- function(db_path, key) {
   encrypted <- sqlite_file_is_encrypted(db_path)
   if (!is.na(encrypted)) {
-    enforce_encryption_at_rest(
+    .enforce_sqlite_at_rest(
       encrypted, db_path,
       "The file has a plaintext SQLite header; the installed RSQLite does not apply the key."
+    )
+  } else if (!sqlite_cipher_available()) {
+    .enforce_sqlite_at_rest(
+      FALSE, db_path,
+      "The installed RSQLite does not support SQLCipher or SQLite3MultipleCiphers, so the key would be ignored."
     )
   }
   .connect_sqlite_with_key(db_path, key)

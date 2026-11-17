@@ -136,7 +136,7 @@ setup_wizard_ui <- function(id) {
         selectInput(ns("security_profile"), NULL,
           choices = c(
             "Regulated: refuse unencrypted storage (recommended)" = "regulated",
-            "Standard: allow unencrypted storage, with a warning" = "standard",
+            "Standard: warn about unverified encryption; unencrypted SQLite only if accepted" = "standard",
             "Development: synthetic or test data only" = "development"
           ),
           selected = "regulated")
@@ -204,6 +204,14 @@ setup_wizard_ui <- function(id) {
         selected = "duckdb"),
 
       uiOutput(ns("db_fit")),
+
+      conditionalPanel(ns = ns, condition = "input.db_backend == 'sqlite'",
+        checkboxInput(ns("accept_unencrypted_sqlite"),
+          paste("I accept that the SQLite database will not be encrypted at",
+                "rest, and that protecting the file (for example with",
+                "full-disk encryption) is my responsibility"),
+          value = FALSE)
+      ),
 
       conditionalPanel(ns = ns, condition = "input.db_backend == 'duckdb'",
         div(class = "alert alert-warning",
@@ -299,8 +307,7 @@ setup_wizard_ui <- function(id) {
       tags$ul(
         tags$li("Import a data dictionary from a CSV file (",
                 code("setup_zzedc_from_csv()"), ")"),
-        tags$li("Import from Google Sheets (", code("setup_zzedc_from_gsheets()"),
-                "; SQLite studies only for now)"),
+        tags$li("Import from Google Sheets (", code("setup_zzedc_from_gsheets()"), ")"),
         tags$li("Re-run either import later to add or change forms; there ",
                 "is no in-browser form designer")
       ),
@@ -332,9 +339,25 @@ setup_wizard_ui <- function(id) {
 #'
 #' @param backend Backend name.
 #' @param profile Security profile.
+#' @param accept_unencrypted_sqlite Logical: whether the user has
+#'   accepted plaintext SQLite (needed under `standard`).
 #' @return List with `ok` (logical) and `message`.
 #' @keywords internal
-.backend_fits_profile <- function(backend, profile) {
+.backend_fits_profile <- function(backend, profile, accept_unencrypted_sqlite = FALSE) {
+  if (profile == "standard" && backend == "sqlite" && !sqlite_cipher_available()) {
+    if (isTRUE(accept_unencrypted_sqlite)) {
+      return(list(ok = TRUE, message = paste(
+        "Allowed under 'standard' because you accept unencrypted SQLite:",
+        "config.yml will record security.accept_unencrypted_sqlite: true,",
+        "and protecting the file (full-disk encryption) is your responsibility."
+      )))
+    }
+    return(list(ok = FALSE, message = paste(
+      "The 'standard' profile refuses unencrypted SQLite unless you accept",
+      "it: this computer's RSQLite cannot encrypt it. Choose DuckDB, or tick",
+      "the box below to accept unencrypted storage."
+    )))
+  }
   if (profile != "regulated") {
     return(list(ok = TRUE, message = if (backend %in% c("sqlite", "postgresql", "mysql")) {
       paste0("Allowed under '", profile, "'. Encryption at rest: ",
@@ -347,7 +370,8 @@ setup_wizard_ui <- function(id) {
     return(list(ok = FALSE, message = paste(
       "The 'regulated' profile refuses SQLite here: this computer's RSQLite",
       "cannot encrypt it. Choose DuckDB, or go back and choose the",
-      "'standard' profile if this study does not need encrypted storage."
+      "'standard' profile (and accept unencrypted SQLite) if this study",
+      "does not need encrypted storage."
     )))
   }
   if (backend %in% c("postgresql", "mysql")) {
@@ -559,7 +583,8 @@ setup_wizard_server <- function(id, base_path = getwd(), on_launch = NULL,
 
     output$db_fit <- renderUI({
       req(input$db_backend)
-      fit <- .backend_fits_profile(input$db_backend, input$security_profile %||% "regulated")
+      fit <- .backend_fits_profile(input$db_backend, input$security_profile %||% "regulated",
+                                   isTRUE(input$accept_unencrypted_sqlite))
       div(class = paste("alert", if (fit$ok) "alert-success" else "alert-danger"),
           fit$message)
     })
@@ -578,7 +603,8 @@ setup_wizard_server <- function(id, base_path = getwd(), on_launch = NULL,
 
     observeEvent(input$stepdb_next, {
       backend <- input$db_backend
-      fit <- .backend_fits_profile(backend, input$security_profile %||% "regulated")
+      fit <- .backend_fits_profile(backend, input$security_profile %||% "regulated",
+                                   isTRUE(input$accept_unencrypted_sqlite))
       errors <- character()
       if (!fit$ok) errors <- c(errors, fit$message)
       if (backend == "duckdb" && !isTRUE(input$confirm_db_key)) {
@@ -595,6 +621,8 @@ setup_wizard_server <- function(id, base_path = getwd(), on_launch = NULL,
       if (length(errors) > 0) return(validation_error(errors))
 
       wizard_state$system_config$db_backend <- backend
+      wizard_state$system_config$accept_unencrypted_sqlite <-
+        backend == "sqlite" && isTRUE(input$accept_unencrypted_sqlite)
       wizard_state$system_config$db_encryption_key <- if (backend == "duckdb") db_key
       wizard_state$system_config$install_extensions <- isTRUE(input$install_extensions)
       wizard_state$system_config$db_settings <- if (backend %in% c("postgresql", "mysql")) {
@@ -676,7 +704,7 @@ setup_wizard_server <- function(id, base_path = getwd(), on_launch = NULL,
     output$setup_summary <- renderUI({
       result <- wizard_state$result
       req(result)
-      backend <- wizard_state$system_config$db_backend %||% "sqlite"
+      backend <- wizard_state$system_config$db_backend %||% .new_study_backend
       tagList(
         tags$pre(result$summary),
         if (backend == "duckdb") {

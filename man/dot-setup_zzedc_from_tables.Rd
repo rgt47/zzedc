@@ -13,7 +13,8 @@
   dry_run,
   salt,
   adapter_config,
-  create_database
+  create_database,
+  backend = NULL
 )
 }
 \description{

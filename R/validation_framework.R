@@ -161,7 +161,26 @@ create_validation_result <- function(test_id, test_name, category,
     }
   }
 
-  passed <- if (resolved$profile == "regulated") isTRUE(encrypted) else TRUE
+  # Since 2026-11-17 'standard' refuses plaintext SQLite unless the
+  # deployer opts in, so IQ-008 judges it the way the application will.
+  plaintext_sqlite <- isFALSE(encrypted) && !is.na(where) &&
+    identical(.detect_db_file_format(where), "sqlite")
+  accepted <- isTRUE(tryCatch(resolve_accept_unencrypted_sqlite()$accept,
+                              error = function(e) FALSE))
+  passed <- if (resolved$profile == "regulated") {
+    isTRUE(encrypted)
+  } else if (resolved$profile == "standard" && plaintext_sqlite) {
+    accepted
+  } else {
+    TRUE
+  }
+  if (resolved$profile == "standard" && plaintext_sqlite) {
+    note <- paste0(note, if (accepted) {
+      "; plaintext accepted by security.accept_unencrypted_sqlite"
+    } else {
+      "; refused: security.accept_unencrypted_sqlite is not set"
+    })
+  }
   state <- if (isTRUE(encrypted)) {
     "encrypted at rest"
   } else if (isFALSE(encrypted)) {

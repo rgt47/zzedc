@@ -11,13 +11,20 @@ NULL
 #' Create ZZedc Database from Wizard Configuration
 #'
 #' Creates a complete database with all required tables.
-#' Supports SQLite (default), DuckDB, PostgreSQL, ClickHouse, and
-#' MySQL/MariaDB backends.
+#' Supports DuckDB (default, encrypted), SQLite, PostgreSQL, ClickHouse,
+#' and MySQL/MariaDB backends.
 #'
-#' @param config_list List containing wizard configuration
+#' @param config_list List containing wizard configuration. For DuckDB,
+#'   `db_encryption_key` supplies the key.
 #' @param db_path Path where database file will be created (for SQLite/DuckDB)
-#' @param backend Database backend: "sqlite" (default), "duckdb",
-#'   "postgresql", "clickhouse", "mysql", or "mariadb"
+#' @param backend Database backend: "duckdb" (default), "sqlite",
+#'   "postgresql", "clickhouse", "mysql", or "mariadb". When `backend`
+#'   and `adapter_config` are both omitted, the DuckDB database is
+#'   encrypted with `config_list$db_encryption_key` or, failing that,
+#'   `DB_ENCRYPTION_KEY`; without either the function returns
+#'   `success = FALSE` rather than create an unencrypted file. A SQLite
+#'   database is subject to the security profile (see
+#'   `resolve_accept_unencrypted_sqlite()`).
 #' @param pg_config Server configuration list (required for the server
 #'   backends: "postgresql", "clickhouse", "mysql", "mariadb")
 #' @param adapter_config Optional complete configuration for
@@ -38,11 +45,11 @@ NULL
 #'   security_salt = "abc123..."
 #' )
 #'
-#' # SQLite (default)
-#' create_wizard_database(config, "~/my_study.db")
+#' # DuckDB (default), encrypted with the key in DB_ENCRYPTION_KEY
+#' create_wizard_database(config, "~/my_study.duckdb")
 #'
-#' # DuckDB
-#' create_wizard_database(config, "~/my_study.duckdb", backend = "duckdb")
+#' # SQLite (plaintext on stock RSQLite; see resolve_accept_unencrypted_sqlite())
+#' create_wizard_database(config, "~/my_study.db", backend = "sqlite")
 #'
 #' # PostgreSQL
 #' create_wizard_database(config, backend = "postgresql",
@@ -51,9 +58,10 @@ NULL
 #' }
 #' @export
 create_wizard_database <- function(config_list, db_path = NULL,
-                                   backend = "sqlite", pg_config = NULL,
+                                   backend = "duckdb", pg_config = NULL,
                                    adapter_config = NULL) {
 
+  default_backend <- missing(backend) && is.null(adapter_config)
   if (!is.null(adapter_config)) {
     backend <- adapter_config$db_backend
     if (is.null(backend) || !nzchar(backend)) {
@@ -90,6 +98,23 @@ create_wizard_database <- function(config_list, db_path = NULL,
     # Build adapter configuration
     if (is.null(adapter_config)) {
       adapter_config <- build_adapter_config(backend, db_path, pg_config)
+      if (default_backend) {
+        .require_backend_package("duckdb")
+        key <- config_list$db_encryption_key %||%
+          Sys.getenv("DB_ENCRYPTION_KEY", unset = "")
+        if (!nzchar(key)) {
+          return(list(
+            success = FALSE,
+            message = paste(
+              "Error: DuckDB (the default backend) creates the study database",
+              "encrypted and needs a key. Set DB_ENCRYPTION_KEY (generate one",
+              "with generate_db_key()), pass config_list$db_encryption_key or",
+              "adapter_config, or choose another backend explicitly."
+            )
+          ))
+        }
+        adapter_config$duckdb$encryption_key <- key
+      }
     }
 
     # Create adapter and connection
@@ -298,9 +323,11 @@ create_wizard_database <- function(config_list, db_path = NULL,
 #' Creates the application's `config.yml` from the wizard's choices.
 #'
 #' @param config_list List containing wizard configuration. Database
-#'   fields: `db_backend` (default `"sqlite"`) and, for server backends,
+#'   fields: `db_backend` (default `"duckdb"`) and, for server backends,
 #'   `db_settings` (`host`, `port`, `name`, `user`, `ssl`). Security
-#'   fields: `security_profile` (default `"regulated"`), `enforce_https`.
+#'   fields: `security_profile` (default `"regulated"`), `enforce_https`,
+#'   `accept_unencrypted_sqlite` (default `FALSE`; see
+#'   `resolve_accept_unencrypted_sqlite()`).
 #' @param config_path Path where config.yml will be written
 #' @param security_salt The security salt for hashing
 #'
@@ -327,7 +354,7 @@ create_wizard_config <- function(config_list, config_path, security_salt) {
       x <- if (is.null(x) || length(x) == 0 || is.na(x)) "" else as.character(x)
       paste0('"', gsub('"', '\\\\"', x), '"')
     }
-    backend <- config_list$db_backend %||% "sqlite"
+    backend <- config_list$db_backend %||% .new_study_backend
     settings <- config_list$db_settings %||% list()
 
     lines <- c(
@@ -349,7 +376,9 @@ create_wizard_config <- function(config_list, config_path, security_salt) {
       "",
       .security_config_yaml(
         config_list$security_profile %||% "regulated",
-        enforce_https = identical(config_list$enforce_https, "yes")
+        enforce_https = identical(config_list$enforce_https, "yes"),
+        accept_unencrypted_sqlite = backend == "sqlite" &&
+          isTRUE(config_list$accept_unencrypted_sqlite)
       ),
       "    password_min_length: 8",
       "    password_require_special_chars: true",
@@ -594,7 +623,25 @@ complete_wizard_setup <- function(config_list, base_path = NULL) {
   # Step 2: Create database, on the backend chosen in the wizard, through
   # the same adapter configuration the application builds from the
   # config.yml written in Step 3. Before 2026-11-10 this always created
-  # SQLite at data/zzedc.db.
+  # SQLite at data/zzedc.db. Since 2026-11-17 a configuration that names
+  # no backend gets encrypted DuckDB; a key not supplied by the caller or
+  # DB_ENCRYPTION_KEY is generated and returned, since it is the only way
+  # to open the database.
+  config_list$db_backend <- config_list$db_backend %||% .new_study_backend
+  if (config_list$db_backend == "duckdb") {
+    dep <- tryCatch(.require_backend_package("duckdb"), error = function(e) e)
+    if (inherits(dep, "error")) {
+      results$overall_success <- FALSE
+      results$steps$database <- list(success = FALSE,
+                                     message = conditionMessage(dep))
+      return(results)
+    }
+    key_info <- .new_study_duckdb_key(config_list$db_encryption_key)
+    config_list$db_encryption_key <- key_info$key
+    if (key_info$generated) {
+      results$encryption_key <- key_info$key
+    }
+  }
   adapter_config <- wizard_adapter_config(config_list, base_path)
   backend <- adapter_config$db_backend
   db_path <- app_database_path(adapter_config)
@@ -619,6 +666,13 @@ complete_wizard_setup <- function(config_list, base_path = NULL) {
   if (!is.null(config_list$security_profile)) {
     old_profile <- options(zzedc.security_profile = config_list$security_profile)
     on.exit(options(old_profile), add = TRUE)
+  }
+  # The caller's acceptance of plaintext SQLite (the browser wizard's
+  # checkbox) applies to creating the database as well as to the
+  # config.yml written below.
+  if (backend == "sqlite" && isTRUE(config_list$accept_unencrypted_sqlite)) {
+    old_accept <- options(zzedc.accept_unencrypted_sqlite = TRUE)
+    on.exit(options(old_accept), add = TRUE)
   }
   db_result <- create_wizard_database(config_list, adapter_config = adapter_config)
   results$steps$database <- db_result
@@ -677,13 +731,18 @@ complete_wizard_setup <- function(config_list, base_path = NULL) {
       "\n\nNOTE: The database is not verified as encrypted at rest, and ",
       "config.yml sets security.profile to 'regulated', which will refuse ",
       "to start. Use the DuckDB backend with an encryption key, or set ",
-      "security.profile to 'standard' if this study does not require ",
-      "encryption at rest."
+      "security.profile to 'standard' and security.accept_unencrypted_sqlite ",
+      "to true if this study does not require encryption at rest."
     )
   }
   if (backend == "duckdb") {
     results$summary <- paste0(
       results$summary,
+      if (!is.null(results$encryption_key)) {
+        paste0("\n\nA new database encryption key was generated and is ",
+               "returned as encryption_key. Save it now: it is the only way ",
+               "to open the study database.")
+      },
       "\n\nBefore each launch, set DB_ENCRYPTION_KEY to the encryption key ",
       "shown in the wizard (it is not stored in the project)."
     )
@@ -1301,14 +1360,14 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
 #' database is created where the application will look for it.
 #'
 #' @param config_list Wizard configuration. Uses `db_backend` (default
-#'   `"sqlite"`), `db_encryption_key` (DuckDB), and `db_settings` (a list
+#'   `"duckdb"`), `db_encryption_key` (DuckDB), and `db_settings` (a list
 #'   with `host`, `port`, `name`, `user`, `ssl` for server backends; the
 #'   password is read from `ZZEDC_DB_PASSWORD`).
 #' @param base_path Study directory.
 #' @return A configuration list for `create_db_adapter()`.
 #' @keywords internal
 wizard_adapter_config <- function(config_list, base_path) {
-  backend <- config_list$db_backend %||% "sqlite"
+  backend <- config_list$db_backend %||% .new_study_backend
   s <- config_list$db_settings %||% list()
   flat <- switch(
     backend,

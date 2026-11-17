@@ -9,11 +9,17 @@
 #' @param host Character string of IP address to listen on. Default is "127.0.0.1".
 #' @param port Integer specifying the port to listen on. Default is \code{NULL}
 #'   (random port).
-#' @param backend Database backend for a new study (`"sqlite"`, `"duckdb"`,
-#'   `"postgresql"`, or `"mysql"`; see `describe_backends()`). Used only
-#'   when the working directory has no `config.yml`. When `NULL` in an
-#'   interactive session, a menu compares the backends and asks; when
-#'   `NULL` otherwise, SQLite is used.
+#' @param backend Database backend for a new study (`"duckdb"`,
+#'   `"sqlite"`, `"postgresql"`, or `"mysql"`; see `describe_backends()`).
+#'   Used only when the working directory has no `config.yml`. When
+#'   `NULL` in an interactive session, a menu compares the backends and
+#'   asks; when `NULL` otherwise, DuckDB with encryption is used (it
+#'   needs the `duckdb` package and `DB_ENCRYPTION_KEY`; there is no
+#'   fallback to SQLite). A new SQLite study is refused under
+#'   `regulated` on a stock RSQLite, and under `standard` unless
+#'   `security.accept_unencrypted_sqlite` is set (see
+#'   `resolve_accept_unencrypted_sqlite()`); the opt-in is then written
+#'   to the new `config.yml`.
 #' @param profile Security profile for a new study's `config.yml`
 #'   (default `"regulated"`; see `resolve_security_profile()`). Used only
 #'   when there is no `config.yml`. This default is deliberately
@@ -146,6 +152,7 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     message("No config.yml found in current directory: ", getwd())
     message("\n")
 
+    accept_sqlite <- isTRUE(resolve_accept_unencrypted_sqlite()$accept)
     if (is.null(backend) && interactive()) {
       choice <- .choose_backend_interactive()
       if (identical(choice, "wizard")) {
@@ -153,10 +160,13 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
                                       host = host, port = port, setup = TRUE)))
       }
       backend <- choice
-      if (backend == "sqlite" && profile == "regulated" && !sqlite_cipher_available()) {
+      if (backend == "sqlite" && profile %in% c("regulated", "standard") &&
+          !accept_sqlite && !sqlite_cipher_available()) {
         message(
-          "\nSQLite cannot be encrypted with the standard CRAN build of RSQLite, ",
-          "and the 'regulated' security profile refuses unencrypted storage."
+          "\nSQLite cannot be encrypted with the standard CRAN build of RSQLite. ",
+          "The '", profile, "' security profile refuses unencrypted SQLite ",
+          "unless you accept responsibility for protecting the file (for ",
+          "example with full-disk encryption)."
         )
         answer <- readline(
           "Does this study need its stored data encrypted (regulated data)? (y/n): "
@@ -165,10 +175,20 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
           stop("Choose DuckDB for encrypted storage: run launch_zzedc() again and ",
                "pick DuckDB, or launch_zzedc(backend = \"duckdb\").", call. = FALSE)
         }
+        answer <- readline(paste0(
+          "Accept unencrypted SQLite storage, with full-disk encryption as ",
+          "your responsibility? This is recorded in config.yml as ",
+          "security.accept_unencrypted_sqlite: true. (y/n): "
+        ))
+        if (tolower(substr(answer, 1, 1)) != "y") {
+          stop("No study created. Run launch_zzedc() again and pick DuckDB, ",
+               "or launch_zzedc(backend = \"duckdb\").", call. = FALSE)
+        }
         profile <- "standard"
+        accept_sqlite <- TRUE
       }
     }
-    backend <- backend %||% "sqlite"
+    backend <- backend %||% .new_study_backend
 
     # Fail before writing config.yml, not after. A non-interactive
     # call (or an explicit backend = "sqlite") skipped the interactive
@@ -190,8 +210,23 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
         "support SQLCipher or SQLite3MultipleCiphers, so stored data ",
         "could not be encrypted. No config.yml was written. Either call ",
         "launch_zzedc(backend = \"duckdb\") (DuckDB encrypts with CRAN ",
-        "software alone), or launch_zzedc(profile = \"standard\") to ",
-        "accept unencrypted SQLite storage for this study.",
+        "software alone), or set options(zzedc.accept_unencrypted_sqlite = ",
+        "TRUE) and call launch_zzedc(backend = \"sqlite\", profile = ",
+        "\"standard\") to accept unencrypted SQLite storage for this study.",
+        call. = FALSE
+      )
+    }
+    if (backend == "sqlite" && profile == "standard" && !accept_sqlite &&
+        !sqlite_cipher_available()) {
+      stop(
+        "Cannot create a new study with backend = \"sqlite\" under the ",
+        "'standard' security profile: the installed RSQLite cannot encrypt, ",
+        "and 'standard' refuses plaintext SQLite unless ",
+        "security.accept_unencrypted_sqlite is true. No config.yml was ",
+        "written. Either call launch_zzedc(backend = \"duckdb\") (the ",
+        "default), or set options(zzedc.accept_unencrypted_sqlite = TRUE) ",
+        "(or ZZEDC_ACCEPT_UNENCRYPTED_SQLITE=true) to accept unencrypted ",
+        "storage, with full-disk encryption as your responsibility.",
         call. = FALSE
       )
     }
@@ -199,7 +234,8 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     # Prepare first (key, extensions), so that a failure leaves no
     # half-created study behind.
     .prepare_new_backend(backend)
-    create_default_config(backend = backend, profile = profile)
+    create_default_config(backend = backend, profile = profile,
+                          accept_unencrypted_sqlite = backend == "sqlite" && accept_sqlite)
     message("Created config.yml for backend '", backend, "' with security profile '",
             profile, "'")
   }
@@ -243,7 +279,8 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
   Sys.setenv(ZZEDC_WORK_DIR = normalizePath(getwd()))
 
   # Check if database needs initialization. The configured backend
-  # (config.yml database.backend; SQLite by default) is used for every
+  # (config.yml database.backend; SQLite when an existing file names
+  # none) is used for every
   # step below, the same one the application's pool will open
   # (inst/app/global.R), so initialization and migrations reach the
   # study database whatever backend it is on.
@@ -263,8 +300,13 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
   # caller's option is restored when this function returns.
   prior_profile <- getOption("zzedc.security_profile")
   on.exit(options(zzedc.security_profile = prior_profile), add = TRUE)
-  check_storage_encryption(adapter = create_db_adapter(db_config),
-                           config_profile = cfg$security$profile)
+  prior_accept <- getOption("zzedc.accept_unencrypted_sqlite")
+  on.exit(options(zzedc.accept_unencrypted_sqlite = prior_accept), add = TRUE)
+  check_storage_encryption(
+    adapter = create_db_adapter(db_config),
+    config_profile = cfg$security$profile,
+    config_accept_unencrypted_sqlite = cfg$security$accept_unencrypted_sqlite
+  )
   check_key_custody(cfg)
 
   if (!check_database_initialized(db_path, adapter_config = db_config)) {
@@ -420,7 +462,9 @@ check_database_initialized <- function(db_path, adapter_config = NULL) {
 #' @param adapter_config Optional configuration for
 #'   `create_db_adapter()` (see `app_database_config()`); when supplied,
 #'   the database is created on that backend, with its encryption
-#'   settings.
+#'   settings. When `NULL`, the database is created on DuckDB, the
+#'   default backend for new studies, encrypted with the key in
+#'   `DB_ENCRYPTION_KEY` (see `create_wizard_database()`).
 #' @param salt Password salt for the default administrator. It must be
 #'   the salt the application's login will use; `launch_zzedc()` passes
 #'   `resolve_auth_salt(cfg)`. Defaults to the package's built-in salt,
@@ -457,12 +501,18 @@ DEFAULT_SECURITY_SALT <- "zzedc_default_salt_change_in_production_2024"
 #' security profile.
 #'
 #' @param path Path to create config file. Default is "config.yml".
-#' @param backend Database backend: `"sqlite"` (default), `"duckdb"`,
-#'   `"postgresql"`, or `"mysql"`. See `describe_backends()`.
+#' @param backend Database backend: `"duckdb"` (default, encrypted with
+#'   the key in `DB_ENCRYPTION_KEY`), `"sqlite"`, `"postgresql"`, or
+#'   `"mysql"`. See `describe_backends()`.
 #' @param profile Security profile written to the file: `"regulated"`
 #'   (default), `"standard"`, or `"development"`. Under `regulated`, a
 #'   SQLite database on the standard CRAN build of RSQLite is refused at
-#'   startup; DuckDB with an encryption key is the CRAN-only route.
+#'   startup; under `standard`, it is refused unless
+#'   `accept_unencrypted_sqlite` is true. DuckDB with an encryption key
+#'   is the CRAN-only route to encryption.
+#' @param accept_unencrypted_sqlite Logical, written as
+#'   `security.accept_unencrypted_sqlite` (see
+#'   `resolve_accept_unencrypted_sqlite()`). Default `FALSE`.
 #'
 #' @return Invisibly returns the path to the created file.
 #'
@@ -476,13 +526,19 @@ DEFAULT_SECURITY_SALT <- "zzedc_default_salt_change_in_production_2024"
 #' # Write a default configuration to a temporary file (the
 #' # production call writes to the current working directory).
 #' tmp_config <- tempfile(fileext = ".yml")
-#' create_default_config(path = tmp_config, backend = "duckdb")
-#' file.exists(tmp_config)
+#' if (requireNamespace("duckdb", quietly = TRUE)) {
+#'   create_default_config(path = tmp_config)
+#'   file.exists(tmp_config)
+#' }
 #' @export
-create_default_config <- function(path = "config.yml", backend = "sqlite",
-                                  profile = "regulated") {
+create_default_config <- function(path = "config.yml", backend = "duckdb",
+                                  profile = "regulated",
+                                  accept_unencrypted_sqlite = FALSE) {
   backend <- match.arg(backend, names(.backend_catalog))
   profile <- match.arg(profile, .security_profile_levels)
+  if (backend == "duckdb") {
+    .require_backend_package("duckdb")
+  }
   lines <- c(
     "default:",
     .database_config_yaml(backend),
@@ -494,7 +550,8 @@ create_default_config <- function(path = "config.yml", backend = "sqlite",
     "    session_timeout_minutes: 30",
     sprintf('    default_salt: "%s"', DEFAULT_SECURITY_SALT),
     "",
-    .security_config_yaml(profile),
+    .security_config_yaml(profile,
+                          accept_unencrypted_sqlite = accept_unencrypted_sqlite),
     "",
     "  app:",
     '    name: "ZZedc - Electronic Data Capture"',

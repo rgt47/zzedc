@@ -4,12 +4,20 @@
 \alias{.security_config_yaml}
 \title{Write the \verb{security:} Section of an Application config.yml (internal)}
 \usage{
-.security_config_yaml(profile = "regulated", enforce_https = FALSE)
+.security_config_yaml(
+  profile = "regulated",
+  enforce_https = FALSE,
+  accept_unencrypted_sqlite = FALSE
+)
 }
 \arguments{
 \item{profile}{Security profile.}
 
 \item{enforce_https}{Logical, recorded for when HTTPS enforcement exists.}
+
+\item{accept_unencrypted_sqlite}{Logical: the deployer's explicit
+acceptance of plaintext SQLite under \code{standard} (see
+\code{resolve_accept_unencrypted_sqlite()}).}
 }
 \value{
 Character vector of YAML lines.

@@ -14,11 +14,17 @@
 #'     warning. Result fields still report the true encryption state.
 #'     Intended for tests, demonstrations, and local work with
 #'     synthetic data.}
-#'   \item{`standard`}{The built-in default. Unencrypted storage is
-#'     allowed, but a warning naming the risk is issued once per
-#'     database per session, and result fields report the true state.
-#'     An AWS KMS failure falls back to `DB_ENCRYPTION_KEY` with a
-#'     warning.}
+#'   \item{`standard`}{The built-in default. A plaintext SQLite
+#'     database (stock CRAN RSQLite cannot encrypt) is refused with an
+#'     error naming DuckDB, unless the deployer sets
+#'     `security.accept_unencrypted_sqlite` to true (see
+#'     `resolve_accept_unencrypted_sqlite()`); with that opt-in it is
+#'     used, and a notice states that full-disk encryption is the
+#'     deployer's responsibility. Other storage that cannot be shown to
+#'     be encrypted (DuckDB without a key, server backends) is allowed
+#'     with a warning issued once per database per session. Result
+#'     fields report the true state. An AWS KMS failure falls back to
+#'     `DB_ENCRYPTION_KEY` with a warning.}
 #'   \item{`regulated`}{Fail closed. Storage that cannot be shown to be
 #'     encrypted is refused with an error, and an AWS KMS failure is an
 #'     error rather than a fallback. Intended for 21 CFR Part 11,
@@ -113,37 +119,194 @@ get_security_profile <- function(config_path = "./config.yml") {
   resolve_security_profile(config_path)$profile
 }
 
-#' Read `security: profile:` from a config.yml (internal)
+#' Read the `security:` Section of a config.yml (internal)
 #'
-#' Cached by path and modification time, because this is consulted on
-#' every encrypted connection.
+#' Reads the section at the top level (the `load_db_config()` schema)
+#' or under `default:` (the `config::get()` application schema). Cached
+#' by path and modification time, because it is consulted on every
+#' encrypted connection. The whole section is cached, so that the
+#' profile and `accept_unencrypted_sqlite` cannot be served from a cache
+#' entry written for the other key.
 #'
 #' @param config_path Path to `config.yml`.
-#' @return Character scalar or `NULL`.
+#' @return A list (possibly empty).
 #' @keywords internal
-.security_profile_from_config <- function(config_path) {
+.security_section_from_config <- function(config_path) {
   if (is.null(config_path) || !file.exists(config_path)) {
-    return(NULL)
+    return(list())
   }
   if (!requireNamespace("yaml", quietly = TRUE)) {
-    return(NULL)
+    return(list())
   }
 
   path <- normalizePath(config_path, winslash = "/", mustWork = FALSE)
   mtime <- as.numeric(file.mtime(path))
-  cache <- .zzedc_env$security_profile_config_cache
+  cache <- .zzedc_env$security_section_config_cache
   if (!is.null(cache) && identical(cache$path, path) &&
       identical(cache$mtime, mtime)) {
     return(cache$value)
   }
 
   parsed <- tryCatch(yaml::read_yaml(path), error = function(e) NULL)
-  value <- parsed$security$profile %||% parsed$default$security$profile
+  top <- parsed$security %||% list()
+  nested <- parsed$default$security %||% list()
+  value <- utils::modifyList(nested, top)
 
-  .zzedc_env$security_profile_config_cache <- list(
+  .zzedc_env$security_section_config_cache <- list(
     path = path, mtime = mtime, value = value
   )
   value
+}
+
+#' Read `security: profile:` from a config.yml (internal)
+#'
+#' @param config_path Path to `config.yml`.
+#' @return Character scalar or `NULL`.
+#' @keywords internal
+.security_profile_from_config <- function(config_path) {
+  .security_section_from_config(config_path)$profile
+}
+
+
+#' Resolve the Plaintext-SQLite Opt-in
+#'
+#' Under the `standard` security profile, a SQLite database that is not
+#' encrypted at rest (the only possibility with the standard CRAN build
+#' of RSQLite) is refused unless the deployer has opted in to plaintext
+#' storage. This resolves that opt-in, in the same order as
+#' `resolve_security_profile()` resolves the profile.
+#'
+#' @param config_path Path to `config.yml`, consulted when neither the
+#'   option nor the environment variable is set.
+#' @param config_value Optional value already read from an application
+#'   configuration (`cfg$security$accept_unencrypted_sqlite` from
+#'   `config::get()`). When supplied, it is used in place of reading
+#'   `config_path`.
+#'
+#' @return A list with `accept` (logical) and `source` (`"option"`,
+#'   `"environment"`, `"config.yml"`, or `"default"`).
+#'
+#' @details
+#' The opt-in is read from the first of these that is set:
+#'
+#' 1. The R option `zzedc.accept_unencrypted_sqlite`.
+#' 2. The environment variable `ZZEDC_ACCEPT_UNENCRYPTED_SQLITE`.
+#' 3. `security: accept_unencrypted_sqlite:` in `config.yml`, at the top
+#'    level or under `default:`.
+#' 4. The built-in default, `FALSE`.
+#'
+#' Accepted values are `TRUE`/`FALSE` and the strings `"true"`,
+#' `"false"`, `"yes"`, `"no"`, `"1"`, `"0"` (any case). Anything else is
+#' an error, so that a misspelled value cannot silently decide whether
+#' plaintext storage is allowed.
+#'
+#' The opt-in has no effect under `development` (plaintext is allowed
+#' anyway) or `regulated` (plaintext is always refused). It records a
+#' decision the deployer is responsible for: the database file is then
+#' readable by anyone with access to it, so full-disk encryption and
+#' file permissions must protect it.
+#'
+#' @examples
+#' resolve_accept_unencrypted_sqlite()
+#'
+#' @export
+resolve_accept_unencrypted_sqlite <- function(config_path = "./config.yml",
+                                              config_value = NULL) {
+  candidates <- list(
+    option = getOption("zzedc.accept_unencrypted_sqlite"),
+    environment = Sys.getenv("ZZEDC_ACCEPT_UNENCRYPTED_SQLITE", unset = ""),
+    "config.yml" = config_value %||%
+      .security_section_from_config(config_path)$accept_unencrypted_sqlite
+  )
+  for (src in names(candidates)) {
+    value <- candidates[[src]]
+    if (is.null(value) || length(value) == 0 ||
+        (is.character(value) && !nzchar(value))) {
+      next
+    }
+    parsed <- .parse_flag(value)
+    if (is.na(parsed)) {
+      stop(
+        "Invalid zzedc security.accept_unencrypted_sqlite value '",
+        paste(format(value), collapse = ", "), "' (from ", src,
+        "). Use true or false.",
+        call. = FALSE
+      )
+    }
+    pinned <- .zzedc_env$pinned_accept_sqlite
+    if (src == "option" && !is.null(pinned) && identical(pinned$accept, parsed)) {
+      src <- pinned$source
+    }
+    return(list(accept = parsed, source = src))
+  }
+  list(accept = FALSE, source = "default")
+}
+
+#' Parse a Yes/No Setting (internal)
+#' @param x A logical or character scalar.
+#' @return `TRUE`, `FALSE`, or `NA` when `x` is not recognized.
+#' @keywords internal
+.parse_flag <- function(x) {
+  if (length(x) != 1) return(NA)
+  if (is.logical(x)) return(x)
+  v <- tolower(trimws(as.character(x)))
+  if (v %in% c("true", "yes", "1")) return(TRUE)
+  if (v %in% c("false", "no", "0")) return(FALSE)
+  NA
+}
+
+
+#' Enforce the Encryption-at-Rest Policy for SQLite (internal)
+#'
+#' SQLite-specific counterpart of `enforce_encryption_at_rest()`, used by
+#' every path that opens or creates a SQLite database for study data.
+#' Under `standard`, a SQLite database that is not encrypted is an
+#' error unless `resolve_accept_unencrypted_sqlite()` is `TRUE`, in
+#' which case a notice is issued once per database per session and the
+#' database is used. `development` and `regulated` behave as in
+#' `enforce_encryption_at_rest()`.
+#'
+#' @inheritParams enforce_encryption_at_rest
+#' @return `invisible(encrypted)`.
+#' @keywords internal
+.enforce_sqlite_at_rest <- function(encrypted, target, reason) {
+  if (isTRUE(encrypted)) {
+    return(invisible(TRUE))
+  }
+  resolved <- resolve_security_profile()
+  if (resolved$profile != "standard") {
+    return(enforce_encryption_at_rest(encrypted, target, reason))
+  }
+
+  optin <- resolve_accept_unencrypted_sqlite()
+  if (!isTRUE(optin$accept)) {
+    stop(
+      "Database is NOT encrypted at rest: ", target, ". ", reason,
+      " The 'standard' security profile (from ", resolved$source, ") ",
+      "refuses plaintext SQLite storage. Use the DuckDB backend ",
+      "(backend: duckdb, with duckdb.encryption_key set; DuckDB encrypts ",
+      "with CRAN software alone), or, if full-disk encryption protects ",
+      "this file, opt in to plaintext SQLite with ",
+      "security.accept_unencrypted_sqlite: true in config.yml (or the ",
+      "option zzedc.accept_unencrypted_sqlite = TRUE, or the environment ",
+      "variable ZZEDC_ACCEPT_UNENCRYPTED_SQLITE=true).",
+      call. = FALSE
+    )
+  }
+
+  if (is.null(.zzedc_env$sqlite_optin_noticed)) {
+    .zzedc_env$sqlite_optin_noticed <- character(0)
+  }
+  if (!target %in% .zzedc_env$sqlite_optin_noticed) {
+    .zzedc_env$sqlite_optin_noticed <- c(.zzedc_env$sqlite_optin_noticed, target)
+    message(
+      "zzedc notice: SQLite database ", target, " is NOT encrypted at rest. ",
+      "Plaintext storage is accepted by security.accept_unencrypted_sqlite ",
+      "(from ", optin$source, "). Full-disk encryption and file permissions ",
+      "protecting this file are the deployer's responsibility."
+    )
+  }
+  invisible(encrypted)
 }
 
 #' Enforce the Encryption-at-Rest Policy (internal)
@@ -225,16 +388,24 @@ enforce_encryption_at_rest <- function(encrypted, target, reason) {
 #'   `config_profile` is `NULL`.
 #' @param adapter Optional `DatabaseAdapter` the application will open
 #'   its pool from. When supplied, the check follows its backend.
+#' @param config_accept_unencrypted_sqlite Optional value of
+#'   `cfg$security$accept_unencrypted_sqlite` from the application's
+#'   configuration (see `resolve_accept_unencrypted_sqlite()`). Like the
+#'   profile, the resolved value is fixed for the rest of the R session,
+#'   because the application later runs with a different working
+#'   directory.
 #'
-#' @return Invisibly, a list with `profile`, `source`, `backend`, and
+#' @return Invisibly, a list with `profile`, `source`, `backend`,
 #'   `encrypted` (`TRUE`, `FALSE`, or `NA` when it cannot be
-#'   determined).
+#'   determined), and `accept_unencrypted_sqlite`.
 #'
 #' @details
 #' How encryption is judged, by backend:
 #'
 #' - SQLite: an existing file by its header; a file not yet created by
 #'   whether a key is configured and the installed RSQLite can apply it.
+#'   Under `standard`, plaintext SQLite stops the application unless
+#'   `security.accept_unencrypted_sqlite` is true.
 #' - DuckDB: an existing file by `verify_database_encryption()`; a file
 #'   not yet created by whether `encryption_key` is configured (DuckDB
 #'   creates it encrypted or refuses).
@@ -254,12 +425,20 @@ enforce_encryption_at_rest <- function(encrypted, target, reason) {
 #' @export
 check_storage_encryption <- function(db_path = NULL, config_profile = NULL,
                                      config_path = "./config.yml",
-                                     adapter = NULL) {
+                                     adapter = NULL,
+                                     config_accept_unencrypted_sqlite = NULL) {
   resolved <- resolve_security_profile(config_path, config_profile)
   if (is.null(getOption("zzedc.security_profile")) &&
       !nzchar(Sys.getenv("ZZEDC_SECURITY_PROFILE"))) {
     options(zzedc.security_profile = resolved$profile)
     .zzedc_env$pinned_profile <- resolved
+  }
+  optin <- resolve_accept_unencrypted_sqlite(config_path,
+                                             config_accept_unencrypted_sqlite)
+  if (is.null(getOption("zzedc.accept_unencrypted_sqlite")) &&
+      !nzchar(Sys.getenv("ZZEDC_ACCEPT_UNENCRYPTED_SQLITE"))) {
+    options(zzedc.accept_unencrypted_sqlite = optin$accept)
+    .zzedc_env$pinned_accept_sqlite <- optin
   }
 
   state <- if (is.null(adapter)) {
@@ -267,7 +446,11 @@ check_storage_encryption <- function(db_path = NULL, config_profile = NULL,
   } else {
     .storage_state_adapter(adapter)
   }
-  enforce_encryption_at_rest(state$encrypted, state$target, state$reason)
+  if (identical(state$backend, "sqlite")) {
+    .enforce_sqlite_at_rest(state$encrypted, state$target, state$reason)
+  } else {
+    enforce_encryption_at_rest(state$encrypted, state$target, state$reason)
+  }
 
   message(
     "zzedc security profile: ", resolved$profile, " (from ", resolved$source,
@@ -278,7 +461,8 @@ check_storage_encryption <- function(db_path = NULL, config_profile = NULL,
   invisible(list(profile = resolved$profile, source = resolved$source,
                  backend = state$backend, encrypted = state$encrypted,
                  basis = state$basis %||% if (is.na(state$encrypted)) "unknown" else "verified",
-                 tls = state$tls, reason = state$reason))
+                 tls = state$tls, reason = state$reason,
+                 accept_unencrypted_sqlite = optin$accept))
 }
 
 #' Storage Encryption State for a SQLite File (internal)
@@ -406,5 +590,6 @@ session_https_status <- function(session) {
 #' @keywords internal
 reset_encryption_warnings <- function() {
   .zzedc_env$encryption_warned <- NULL
+  .zzedc_env$sqlite_optin_noticed <- NULL
   invisible(NULL)
 }

@@ -8,9 +8,11 @@ create_wizard_config(config_list, config_path, security_salt)
 }
 \arguments{
 \item{config_list}{List containing wizard configuration. Database
-fields: \code{db_backend} (default \code{"sqlite"}) and, for server backends,
+fields: \code{db_backend} (default \code{"duckdb"}) and, for server backends,
 \code{db_settings} (\code{host}, \code{port}, \code{name}, \code{user}, \code{ssl}). Security
-fields: \code{security_profile} (default \code{"regulated"}), \code{enforce_https}.}
+fields: \code{security_profile} (default \code{"regulated"}), \code{enforce_https},
+\code{accept_unencrypted_sqlite} (default \code{FALSE}; see
+\code{resolve_accept_unencrypted_sqlite()}).}
 
 \item{config_path}{Path where config.yml will be written}
 

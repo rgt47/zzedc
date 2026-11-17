@@ -39,7 +39,9 @@ local({
               )
             )
 
-            result <- create_wizard_database(config, temp_db)
+            # SQLite named explicitly: DuckDB is the default for new
+            # studies since 2026-11-17, and this test reads with RSQLite.
+            result <- create_wizard_database(config, temp_db, backend = "sqlite")
 
             expect_true(result$success)
             expect_true(file.exists(temp_db))
@@ -170,6 +172,9 @@ local({
               session_timeout = 30,
               max_login_attempts = 3,
               enforce_https = "no",
+              # SQLite named explicitly (DuckDB is the default since
+              # 2026-11-17); the assertions below expect data/zzedc.db.
+              db_backend = "sqlite",
               team_members = data.frame()
             )
 
@@ -307,6 +312,9 @@ local({
               session_timeout = 30,
               max_login_attempts = 3,
               enforce_https = "no",
+              # SQLite named explicitly (DuckDB is the default since
+              # 2026-11-17); this test reads the database with RSQLite.
+              db_backend = "sqlite",
               team_members = data.frame(
                 username = c("coord1", "dm1"),
                 full_name = c("Test Coordinator", "Test Data Manager"),

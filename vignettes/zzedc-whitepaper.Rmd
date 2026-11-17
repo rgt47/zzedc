@@ -582,7 +582,10 @@ decision: `development` allows unencrypted storage silently,
 running) allows it with a warning, and `regulated` refuses it,
 including at application startup, and refuses a KMS fallback. New
 configuration templates, the setup wizard, and the bundled
-`config.yml` write `regulated`. Result fields report the true state
+`config.yml` write `regulated`. A later decision (2026-11-17)
+narrowed `standard`: plaintext SQLite is refused unless the deployer
+sets `security.accept_unencrypted_sqlite`, and new studies default to
+encrypted DuckDB. Result fields report the true state
 under every profile. Verification now tests the property encryption
 exists to provide (unreadable without the key, readable with it) for
 both SQLite and DuckDB files. `set_encryption_for_existing_db()`

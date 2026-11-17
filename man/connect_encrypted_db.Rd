@@ -62,13 +62,17 @@ settings (a top-level \verb{default:} environment key, as shipped with
 this package and with the live Promotion Review Tracker deployment)
 is a different schema than \code{load_db_config()} expects (a top-level
 \verb{database:} key with no environment wrapper) and will not parse as
-a backend selection. \code{get_db_adapter()} failing to resolve a
-backend from such a file -- or from no file at all -- is treated
-the same as "no backend configured": this function falls back to
-the sqlite path below rather than propagating that error, so an
-app-config-only \code{config.yml} cannot change this function's
-behavior. A \code{message()} reports the fallback so it is visible to
-someone debugging a \code{config.yml} that was meant to pick a backend.
+a backend selection. Such a file, or no file at all, is treated as
+"no backend configured": this function takes the sqlite path below,
+so an app-config-only \code{config.yml} cannot change this function's
+behavior, and a \code{message()} reports it. Any other failure to build
+the configured adapter (an invalid \verb{database:} section, for
+example) is an error rather than a silent switch to SQLite.
+
+Plaintext SQLite is subject to the security profile: refused under
+\code{regulated}, and under \code{standard} unless
+\code{security.accept_unencrypted_sqlite} is true (see
+\code{resolve_accept_unencrypted_sqlite()}).
 }
 \examples{
 \dontrun{

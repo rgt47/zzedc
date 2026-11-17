@@ -34,6 +34,72 @@
   `user_management_server()` and `system_config_server()` gain a
   `user_session` argument; the application passes its login state.
 
+## DuckDB by default; 'standard' refuses unhonored SQLite encryption
+
+Owner decisions of 2026-11-17 (encryption plan, Section 7, decisions
+1, 2 and 4).
+
+* **Breaking: plaintext SQLite under `standard` needs an opt-in
+  (F1).** On a SQLite driver that cannot encrypt
+  (`sqlite_cipher_available()` is `FALSE`, as with stock CRAN
+  RSQLite), `initialize_encrypted_database()` now returns
+  `success = FALSE` under the default `standard` profile, with an
+  error naming DuckDB and the opt-in, and creates no file; it
+  previously returned `success = TRUE, encrypted = FALSE` with a
+  warning. `connect_encrypted()`, `connect_encrypted_db()` (with or
+  without a key), the SQLite adapter, `create_wizard_database()`, and
+  the application's startup check (`check_storage_encryption()`) stop
+  with the same error. Plaintext proceeds only when
+  `security.accept_unencrypted_sqlite` is true; it is read from the
+  option `zzedc.accept_unencrypted_sqlite`, the environment variable
+  `ZZEDC_ACCEPT_UNENCRYPTED_SQLITE`, or `config.yml` (top level or
+  under `default:`), in that order, by the new
+  `resolve_accept_unencrypted_sqlite()`. With it, a notice states
+  that full-disk encryption is the deployer's responsibility, and
+  results report `encrypted = FALSE`. Existing SQLite deployments
+  running under `standard` must add the opt-in or move to DuckDB.
+  `development` is unchanged (plaintext allowed); `regulated` is
+  unchanged (refused, whatever the opt-in).
+* **DuckDB, encrypted, is the default backend for new studies.**
+  `launch_zzedc()` without `backend` (non-interactive),
+  `create_default_config()`, `generate_sample_config()`,
+  `default_db_config()` without `backend` (which now needs a key from
+  `encryption_key` or `DB_ENCRYPTION_KEY`), the setup wizard
+  (`create_wizard_config()`, `wizard_adapter_config()`,
+  `complete_wizard_setup()`, which generates and returns
+  `encryption_key` when none is supplied), `init()`,
+  `create_wizard_database()` and `initialize_default_database()`
+  without a backend, and `setup_zzedc_from_csv()` /
+  `setup_zzedc_from_gsheets()` given only a new `db_path` (new
+  `backend` argument; a generated key is returned as `key`) all
+  create DuckDB. If the `duckdb` package is not installed they stop
+  with an install hint; there is no fallback to SQLite. Existing
+  deployments are unaffected: a `config.yml` naming a backend keeps
+  it, one naming none is still read as SQLite, and an existing
+  database file keeps its format. `describe_backends()` lists DuckDB
+  first.
+* **No RSQLite cipher fork.** The SQLite3MultipleCiphers build stays a
+  documented, unsupported route (`vignette("technical-lead-guide")`,
+  Section 3.2).
+* **Google Sheets form loader (F-NEW8).** `load_gsheets_forms()`
+  (`inst/app/gsheets_form_loader.R`) now opens the study database
+  through an adapter built from the application configuration, or,
+  for an explicit `db_path`, from the file's detected format with
+  `DB_ENCRYPTION_KEY`. It previously sent `cfg$database$path` (or a
+  hard-coded `data/zzedc_gsheets.db`) down the SQLite-only path
+  whatever the configured backend, so a DuckDB study was opened as
+  SQLite without its key, and plaintext SQLite under `standard` was
+  read with only a warning. Without a configuration or `db_path` it
+  now stops instead of guessing a path.
+* `connect_encrypted_db()` and `initialize_encrypted_database()` no
+  longer treat every failure to build the configured adapter as "no
+  backend configured"; only a `config.yml` without a `database:`
+  section falls back to the SQLite path.
+* The setup wizard's Database step has a checkbox to accept
+  unencrypted SQLite under `standard`, recorded in `config.yml`.
+  Configuration writers now write
+  `security.accept_unencrypted_sqlite` (default `false`).
+
 ## REDCap audit replay verifies
 
 * `replay_redcap_audit()` (used by `import_redcap_to_zzedc_db()`)

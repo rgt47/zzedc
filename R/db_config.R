@@ -236,8 +236,9 @@ adapter_from_config <- function(config_path = "./config.yml") {
 #'
 #' Generates a sample config.yml with documentation for all supported backends.
 #'
-#' @param backend Which backend to configure: "sqlite" (default), "duckdb",
-#'   or "postgresql"
+#' @param backend Which backend to configure: "duckdb" (default; encrypted
+#'   with the key in `DB_ENCRYPTION_KEY`), "sqlite", "postgresql", or
+#'   "clickhouse"
 #' @param output_path Where to write the file (default: "./config.yml")
 #' @param overwrite Overwrite existing file (default: FALSE)
 #'
@@ -245,18 +246,21 @@ adapter_from_config <- function(config_path = "./config.yml") {
 #'
 #' @examples
 #' \dontrun{
-#'   generate_sample_config("sqlite", "config.yml")
+#'   generate_sample_config(output_path = "config.yml")
 #'   generate_sample_config("postgresql", "config-prod.yml")
 #' }
 #'
 #' @keywords internal
 #' @export
-generate_sample_config <- function(backend = "sqlite",
+generate_sample_config <- function(backend = "duckdb",
                                    output_path = "./config.yml",
                                    overwrite = FALSE) {
   if (file.exists(output_path) && !overwrite) {
     stop("Configuration file already exists: ", output_path,
          "\nSet overwrite=TRUE to replace it")
+  }
+  if (tolower(backend) == "duckdb") {
+    .require_backend_package("duckdb")
   }
 
   config_template <- switch(
@@ -281,7 +285,8 @@ generate_sample_config <- function(backend = "sqlite",
 #' @keywords internal
 sqlite_config_template <- function() {
   "# ZZedc Database Configuration
-# Backend: SQLite (recommended for desktop/single-server deployments)
+# Backend: SQLite (unencrypted with the standard CRAN build of RSQLite;
+# DuckDB is the default and encrypts with CRAN software alone)
 
 database:
   backend: sqlite
@@ -293,8 +298,10 @@ database:
     # Encryption key. Stock CRAN RSQLite ignores it and writes plaintext,
     # which the 'regulated' profile below refuses: this template starts
     # only with an RSQLite build compiled with SQLCipher or
-    # SQLite3MultipleCiphers. Otherwise use the DuckDB backend, or set
-    # security.profile to 'standard' and rely on full-disk encryption.
+    # SQLite3MultipleCiphers (a documented, unsupported route). Otherwise
+    # use the DuckDB backend, or set security.profile to 'standard' and
+    # security.accept_unencrypted_sqlite to true, relying on full-disk
+    # encryption.
     encryption_key: ${DB_ENCRYPTION_KEY}
 
 # Study configuration
@@ -308,6 +315,9 @@ security:
   # 'regulated' refuses storage that cannot be shown to be encrypted at
   # rest and refuses an AWS KMS fallback. See ?resolve_security_profile.
   profile: regulated
+  # Under 'standard', plaintext SQLite is refused unless this is true;
+  # setting it makes full-disk encryption the deployer's responsibility.
+  accept_unencrypted_sqlite: false
   session_timeout_minutes: 30
   enforce_https: true
   salt: ${ZZEDC_SALT}
@@ -320,7 +330,8 @@ security:
 #' @keywords internal
 duckdb_config_template <- function() {
   "# ZZedc Database Configuration
-# Backend: DuckDB (recommended for analytics-heavy workloads)
+# Backend: DuckDB (the default for new studies; encrypted at rest with
+# CRAN software alone)
 
 database:
   backend: duckdb
@@ -474,13 +485,26 @@ clickhouse_options:
 #' Returns default configuration values for the specified backend.
 #' Useful for programmatic configuration without YAML files.
 #'
-#' @param backend Backend type: "sqlite", "duckdb", or "postgresql"
+#' @param backend Backend type: "duckdb" (the default for new studies),
+#'   "sqlite", "postgresql", "mysql", "mariadb", or "clickhouse"
 #' @param ... Override values (e.g., path = "custom.db")
 #'
 #' @return Configuration list suitable for create_db_adapter()
 #'
+#' @details
+#' When `backend` is not supplied, the configuration is DuckDB with
+#' encryption on: `encryption_key` is taken from `...` or, failing that,
+#' from the `DB_ENCRYPTION_KEY` environment variable, and an error is
+#' raised when neither is set (generate a key with `generate_db_key()`)
+#' or when the `duckdb` package is not installed. There is no fallback
+#' to SQLite. An explicit `backend = "duckdb"` keeps the earlier
+#' behavior, in which the key is optional.
+#'
 #' @examples
 #' \dontrun{
+#'   # DuckDB, encrypted with the key in DB_ENCRYPTION_KEY
+#'   config <- default_db_config(path = "mydata.duckdb")
+#'
 #'   # SQLite with custom path
 #'   config <- default_db_config("sqlite", path = "mydata.db")
 #'   adapter <- create_db_adapter(config)
@@ -496,8 +520,23 @@ clickhouse_options:
 #'
 #' @keywords internal
 #' @export
-default_db_config <- function(backend = "sqlite", ...) {
+default_db_config <- function(backend = "duckdb", ...) {
   overrides <- list(...)
+  if (missing(backend)) {
+    .require_backend_package("duckdb")
+    env_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = "")
+    overrides$encryption_key <- overrides$encryption_key %||%
+      if (nzchar(env_key)) env_key
+    if (is.null(overrides$encryption_key) || !nzchar(overrides$encryption_key)) {
+      stop(
+        "default_db_config(): DuckDB, the default backend for new studies, ",
+        "is created encrypted and needs a key. Pass encryption_key = ",
+        "generate_db_key(), or set DB_ENCRYPTION_KEY; or name another ",
+        "backend explicitly.",
+        call. = FALSE
+      )
+    }
+  }
 
   # Every override name this function reads, across every backend
   # branch below. A name in `...` that is not one of these (most often

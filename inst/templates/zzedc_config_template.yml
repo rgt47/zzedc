@@ -110,8 +110,13 @@ compliance:
 # DATABASE CONFIGURATION (Optional)
 # ─────────────────────────────────────────────────────────────────
 database:
-  # Database type (currently only SQLite supported)
-  type: "sqlite"
+  # Database backend. duckdb (the default) is encrypted at rest with the
+  # key in the DB_ENCRYPTION_KEY environment variable (generated and
+  # printed once if unset; store it, since it is the only way to open
+  # the database). sqlite is stored unencrypted by the standard CRAN
+  # build of RSQLite: the 'standard' security profile then requires
+  # security.accept_unencrypted_sqlite: true, and 'regulated' refuses it.
+  backend: "duckdb"
 
   # Maximum number of concurrent database connections
   pool_size: 5

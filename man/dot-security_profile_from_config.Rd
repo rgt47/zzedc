@@ -13,7 +13,6 @@
 Character scalar or \code{NULL}.
 }
 \description{
-Cached by path and modification time, because this is consulted on
-every encrypted connection.
+Read \verb{security: profile:} from a config.yml (internal)
 }
 \keyword{internal}

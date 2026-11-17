@@ -18,11 +18,17 @@ Three profiles are defined:
 warning. Result fields still report the true encryption state.
 Intended for tests, demonstrations, and local work with
 synthetic data.}
-\item{\code{standard}}{The built-in default. Unencrypted storage is
-allowed, but a warning naming the risk is issued once per
-database per session, and result fields report the true state.
-An AWS KMS failure falls back to \code{DB_ENCRYPTION_KEY} with a
-warning.}
+\item{\code{standard}}{The built-in default. A plaintext SQLite
+database (stock CRAN RSQLite cannot encrypt) is refused with an
+error naming DuckDB, unless the deployer sets
+\code{security.accept_unencrypted_sqlite} to true (see
+\code{resolve_accept_unencrypted_sqlite()}); with that opt-in it is
+used, and a notice states that full-disk encryption is the
+deployer's responsibility. Other storage that cannot be shown to
+be encrypted (DuckDB without a key, server backends) is allowed
+with a warning issued once per database per session. Result
+fields report the true state. An AWS KMS failure falls back to
+\code{DB_ENCRYPTION_KEY} with a warning.}
 \item{\code{regulated}}{Fail closed. Storage that cannot be shown to be
 encrypted is refused with an error, and an AWS KMS failure is an
 error rather than a fallback. Intended for 21 CFR Part 11,

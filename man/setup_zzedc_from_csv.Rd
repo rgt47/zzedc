@@ -14,14 +14,17 @@ setup_zzedc_from_csv(
   dry_run = FALSE,
   salt = NULL,
   adapter_config = NULL,
-  create_database = TRUE
+  create_database = TRUE,
+  backend = NULL
 )
 }
 \arguments{
 \item{csv_dir}{Folder containing the CSV files.}
 
-\item{db_path}{Path to the encrypted SQLite database to
-create. Required.}
+\item{db_path}{Path to the study database file, used when
+\code{adapter_config} is \code{NULL}. An existing file keeps its backend
+(SQLite or DuckDB, detected from the file). A new file is created
+on \code{backend}.}
 
 \item{tabs}{Named list of tab names. Defaults are
 \code{Study_Users}, \code{Data_Dictionary}, and \code{validation_rules}.
@@ -50,7 +53,8 @@ behavior is no longer present.}
 (for example \code{app_database_config(cfg)}), selecting the backend:
 SQLite, DuckDB, PostgreSQL, or MySQL/MariaDB. When supplied,
 \code{db_path} is taken from it (and is not needed for server
-backends). When \code{NULL}, \code{db_path} is a SQLite file, as before.}
+backends). When \code{NULL}, \code{db_path} names the file (see \code{db_path}
+and \code{backend}).}
 
 \item{create_database}{Logical. \code{TRUE} (default) creates the database
 first. \code{FALSE} imports into an existing study database, as the
@@ -65,6 +69,15 @@ row whose \code{field_name} is already on the form is left as is, not
 re-added or overwritten. This is how adding one new field to an
 existing form's Google Sheet, then re-running Setup, adds just
 that field.}
+
+\item{backend}{Backend for a new database at \code{db_path} when
+\code{adapter_config} is \code{NULL}: \code{NULL} (default) means \code{"duckdb"},
+encrypted with \code{DB_ENCRYPTION_KEY} or, when that is unset, with a
+newly generated key returned as \code{result$key}; it needs the \code{duckdb}
+package, and there is no fallback to SQLite. \code{"sqlite"} creates a
+SQLite file, which the stock CRAN RSQLite stores unencrypted and
+the security profile may refuse (see
+\code{resolve_accept_unencrypted_sqlite()}).}
 }
 \value{
 As for \code{setup_zzedc_from_gsheets()}, with \code{csv_dir} in place of

@@ -284,6 +284,9 @@ init_from_config <- function(config_file, project_dir = ".") {
     session_timeout = as.numeric(security$session_timeout_minutes %||% 30),
     enforce_https = as.logical(security$enforce_https %||% TRUE),
     security_profile = security$profile %||% NULL,
+    accept_unencrypted_sqlite = isTRUE(.parse_flag(
+      security$accept_unencrypted_sqlite %||% FALSE)),
+    db_backend = config_yaml$database$backend %||% config_yaml$database$type,
     team_members = data.frame()
   )
 
@@ -314,35 +317,63 @@ execute_init_setup <- function(config, project_dir = ".") {
       stop(result$message)
     }
 
-    # Create database
+    # Create database: encrypted DuckDB unless the configuration names
+    # another backend (before 2026-11-17, always SQLite, which the
+    # standard CRAN build of RSQLite stores unencrypted). A key not
+    # supplied by DB_ENCRYPTION_KEY is generated and reported below.
     cat("Creating database...\n")
-    db_path <- file.path(project_path, "data", "zzedc.db")
-    db_result <- create_wizard_database(config, db_path)
+    config$db_backend <- config$db_backend %||% .new_study_backend
+    generated_key <- NULL
+    if (config$db_backend == "duckdb") {
+      .require_backend_package("duckdb")
+      key_info <- .new_study_duckdb_key(config$db_encryption_key)
+      config$db_encryption_key <- key_info$key
+      if (key_info$generated) generated_key <- key_info$key
+    }
+    adapter_config <- wizard_adapter_config(config, project_path)
+    db_path <- app_database_path(adapter_config)
+    if (config$db_backend == "sqlite" && isTRUE(config$accept_unencrypted_sqlite)) {
+      old_accept <- options(zzedc.accept_unencrypted_sqlite = TRUE)
+      on.exit(options(old_accept), add = TRUE)
+    }
+    db_result <- create_wizard_database(config, adapter_config = adapter_config)
     if (!db_result$success) {
       stop(db_result$message)
     }
 
-    # init() creates an unencrypted SQLite database, so the profile it
-    # writes must accept one: the config writer's default ('regulated')
-    # refuses unencrypted storage, and the first launch would then
-    # refuse to start. A profile given explicitly is kept, with a
-    # warning when it cannot be satisfied.
-    db_encrypted <- isTRUE(tryCatch(sqlite_file_is_encrypted(db_path),
-                                    error = function(e) FALSE))
+    # The profile written must be one the database satisfies: the config
+    # writer's default ('regulated') refuses unencrypted storage, and the
+    # first launch would then refuse to start. A profile given explicitly
+    # is kept, with a warning when it cannot be satisfied.
+    db_encrypted <- if (config$db_backend == "duckdb") {
+      isTRUE(verify_database_encryption(
+        db_path, key = adapter_config$duckdb$encryption_key,
+        adapter = create_db_adapter(adapter_config)
+      )$encrypted)
+    } else {
+      isTRUE(tryCatch(sqlite_file_is_encrypted(db_path), error = function(e) FALSE))
+    }
     if (is.null(config$security_profile)) {
       config$security_profile <- if (db_encrypted) "regulated" else "standard"
     }
     if (!db_encrypted) {
       if (identical(config$security_profile, "regulated")) {
-        warning("security.profile is 'regulated' but the SQLite database ",
+        warning("security.profile is 'regulated' but the database ",
                 "is not encrypted; the application will refuse to start. ",
-                "Create the study with launch_zzedc(backend = \"duckdb\") ",
+                "Create the study on DuckDB (the default) ",
                 "for encrypted storage.", call. = FALSE)
+      } else if (identical(config$security_profile, "standard") &&
+                 config$db_backend == "sqlite" &&
+                 !isTRUE(config$accept_unencrypted_sqlite)) {
+        warning("security.profile is 'standard' but the SQLite database ",
+                "is not encrypted and security.accept_unencrypted_sqlite ",
+                "is not set; the application will refuse to start. Set it ",
+                "to true to accept plaintext storage, or create the study ",
+                "on DuckDB (the default).", call. = FALSE)
       } else {
-        cat("Note: the SQLite database is not encrypted at rest, so the\n")
+        cat("Note: the database is not encrypted at rest, so the\n")
         cat("study uses the 'standard' security profile. For data that\n")
-        cat("must be encrypted, create the study with\n")
-        cat("launch_zzedc(backend = \"duckdb\") instead.\n\n")
+        cat("must be encrypted, create the study on DuckDB (the default).\n\n")
       }
     }
 
@@ -380,6 +411,16 @@ execute_init_setup <- function(config, project_dir = ".") {
 
     cat("1. Set environment variable:\n")
     cat(sprintf("   export ZZEDC_SALT='%s'\n\n", config$security_salt))
+    if (config$db_backend == "duckdb") {
+      cat("   The study database is encrypted. Before each launch, set\n")
+      cat("   DB_ENCRYPTION_KEY to its key (it is not stored in the project).\n")
+      if (!is.null(generated_key)) {
+        cat("   A new key was generated. Save it now; losing it makes the\n")
+        cat("   data unrecoverable:\n")
+        cat(sprintf("   export DB_ENCRYPTION_KEY='%s'\n", generated_key))
+      }
+      cat("\n")
+    }
 
     cat("2. Launch your ZZedc application:\n")
     if (.Platform$OS.type == "windows") {
@@ -409,6 +450,9 @@ execute_init_setup <- function(config, project_dir = ".") {
       study_name = config$study_name,
       protocol_id = config$protocol_id,
       database_path = db_path,
+      database_backend = config$db_backend,
+      database_encrypted = db_encrypted,
+      encryption_key = generated_key,
       config_path = config_path,
       launch_script = launch_path
     ))

@@ -100,8 +100,11 @@ about preserving them:
    encryption, or a vendor feature), which zzedc cannot
    observe. The `security.profile` setting decides what
    happens when encryption cannot be shown to be active:
-   `regulated` refuses to start, `standard` (the default)
-   warns, `development` is silent (Chapter 5, §5.0). Verify
+   `regulated` refuses to start; `standard` (the default)
+   refuses plaintext SQLite unless the deployer sets
+   `security.accept_unencrypted_sqlite`, and warns about other
+   unverified storage; `development` is silent (Chapter 5,
+   §5.0). New studies default to encrypted DuckDB. Verify
    on the deployment host with `verify_database_encryption()`
    (§5.5).
 2. **Hash-chained audit log.** Every database mutation appends
@@ -235,18 +238,25 @@ This pulls all required dependencies, including `shiny`,
 For backends other than SQLite, install the optional driver:
 
 ```{r}
+install.packages("duckdb")      # DuckDB (the default for new studies)
 install.packages("RPostgres")   # PostgreSQL
 install.packages("RMariaDB")    # MySQL / MariaDB
-install.packages("duckdb")      # DuckDB
 # ClickHouse: see vignette('backend-quickstart') Appendix E
 ```
+
+`duckdb` is needed to create a new study with the defaults;
+without it, study creation stops with an install hint rather
+than falling back to unencrypted SQLite.
 
 For encryption at rest on SQLite, the installed `RSQLite` must
 be built with a cipher. The CRAN build is not: it accepts
 `PRAGMA key` and ignores it, and the file stays plaintext. For
-most deployments that need encryption, DuckDB (encrypted by its
-own engine) is the simpler choice. If SQLite is required, the
-route zzedc is written for is SQLite3MultipleCiphers:
+deployments that need encryption, DuckDB (encrypted by its own
+engine, and the default) is the supported choice. The
+SQLite3MultipleCiphers build below is documented but
+unsupported: zzedc maintains no RSQLite fork, the route is not
+part of the package's validation, and it has not been exercised
+here. If SQLite is required anyway:
 
 1. Download the SQLite3MultipleCiphers amalgamation
    (`sqlite3mc_amalgamation.c` and `.h`) for a SQLite version
@@ -439,11 +449,11 @@ layout is identical.
 One setting decides how zzedc reacts when storage cannot be
 shown to be encrypted at rest:
 
-| Profile | Unencrypted database | AWS KMS failure | Use for |
-|---|---|---|---|
-| `development` | Allowed silently | Falls back to `DB_ENCRYPTION_KEY` | Tests, demonstrations, synthetic data |
-| `standard` (default) | Allowed, with a warning naming the risk | Falls back, with a warning | Low-risk or de-identified studies |
-| `regulated` | Refused: the app will not start | Error | 21 CFR Part 11, HIPAA, IRB-governed studies |
+| Profile | Unencrypted SQLite | Other unencrypted storage | AWS KMS failure | Use for |
+|---|---|---|---|---|
+| `development` | Allowed silently | Allowed silently | Falls back to `DB_ENCRYPTION_KEY` | Tests, demonstrations, synthetic data |
+| `standard` (default) | Refused, unless `accept_unencrypted_sqlite: true` | Allowed, with a warning naming the risk | Falls back, with a warning | Low-risk or de-identified studies |
+| `regulated` | Refused: the app will not start | Refused | Error | 21 CFR Part 11, HIPAA, IRB-governed studies |
 
 Set it in `config.yml`:
 
@@ -461,8 +471,43 @@ where it came from. The app logs both at startup. The
 configuration templates, the setup wizard, and the bundled
 `config.yml` all write `regulated`; a stock-RSQLite SQLite
 deployment therefore will not start until it moves to DuckDB
-with an encryption key, gains a cipher-enabled RSQLite, or is
-deliberately set to `standard`.
+with an encryption key, or is set to `standard` with the
+plaintext opt-in described below.
+
+**Plaintext SQLite under `standard` (since 2026-11-17).** The
+standard CRAN build of RSQLite cannot encrypt. Under
+`standard`, every path that opens or creates a SQLite study
+database (`initialize_encrypted_database()`,
+`connect_encrypted_db()`, the SQLite adapter, the application's
+startup check, the Google Sheets loader) stops with an error
+naming DuckDB, unless the deployer opts in:
+
+```yaml
+default:
+  security:
+    profile: standard
+    accept_unencrypted_sqlite: true
+```
+
+The opt-in is resolved like the profile: the option
+`zzedc.accept_unencrypted_sqlite` outranks the environment
+variable `ZZEDC_ACCEPT_UNENCRYPTED_SQLITE`, which outranks
+`config.yml` (`resolve_accept_unencrypted_sqlite()`). With it,
+the database is used, results report `encrypted = FALSE`, and a
+notice states that full-disk encryption of the file is the
+deployer's responsibility. This is the documented hook for
+HIPAA's addressable encryption specification when the
+deployment relies on disk encryption. Before 2026-11-17,
+`standard` continued on plaintext SQLite with only a warning,
+and `initialize_encrypted_database()` returned
+`success = TRUE` for a database it had not encrypted. The opt-in
+has no effect under `regulated`, which always refuses
+plaintext.
+
+A SQLite build with SQLCipher or SQLite3MultipleCiphers
+(Section 3.2) remains a documented but unsupported route: it is
+not part of the package's validation, and zzedc does not
+maintain an RSQLite fork.
 
 Under every profile the result fields tell the truth:
 `initialize_encrypted_database()$encrypted`,
@@ -521,8 +566,9 @@ flat:
 ```yaml
 default:
   database:
-    backend: duckdb            # sqlite (default), duckdb,
-                               # postgresql, mysql
+    backend: duckdb            # duckdb, sqlite, postgresql,
+                               # mysql; an existing file that
+                               # names none is read as sqlite
     path: data/study.duckdb
     encryption_key: ${DB_ENCRYPTION_KEY}
     extension_directory: /srv/zzedc/duckdb_extensions
@@ -540,12 +586,30 @@ all open it through one adapter. Before 2026-11-10 the
 application ignored the backend and always opened SQLite.
 
 For a new study you need not write this section by hand:
-`launch_zzedc(backend = "duckdb")` (or the interactive
-prompt, or the setup wizard, `launch_setup_wizard()`) writes
-it, with `${...}` references for the key and passwords, and
-for DuckDB installs the extensions into
-`duckdb_extensions/`. `describe_backends()` compares the
-options.
+`launch_zzedc()` (or the interactive prompt, or the setup
+wizard, `launch_setup_wizard()`) writes it, with `${...}`
+references for the key and passwords, and for DuckDB installs
+the extensions into `duckdb_extensions/`.
+`describe_backends()` compares the options.
+
+**DuckDB is the default for new studies (since 2026-11-17).**
+Every function that creates a new study or deployment
+configuration, `launch_zzedc()` without `backend`,
+`create_default_config()`, `generate_sample_config()`,
+`default_db_config()`, the setup wizard, `init()`,
+`create_wizard_database()`, `initialize_default_database()`,
+and `setup_zzedc_from_csv()`/`setup_zzedc_from_gsheets()` given
+only a new `db_path`, now chooses DuckDB with encryption on. The
+key comes from `DB_ENCRYPTION_KEY`; where a function can return
+one, it generates and returns a key when that variable is unset
+(store it at once: it is the only way to open the database).
+If the `duckdb` package is not installed these functions stop
+with an install hint; they do not fall back to SQLite. Existing
+deployments are unaffected: a `config.yml` that names a backend
+keeps it, one that names none is still read as SQLite, and an
+existing database file keeps its format. To create a SQLite
+study, name it (`backend = "sqlite"`) and, under `standard`, set
+the plaintext opt-in above.
 
 For PostgreSQL/MySQL/ClickHouse, encryption at rest is a
 server or storage setting (InnoDB tablespace encryption,

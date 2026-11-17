@@ -32,9 +32,12 @@ default:
     # rest, and refuses an AWS KMS fallback. This app opens SQLite
     # without a key, so on stock CRAN RSQLite it will not start under
     # 'regulated': use the DuckDB backend with an encryption key, or set
-    # 'standard' deliberately for synthetic or de-identified data and
-    # rely on full-disk encryption. See ?resolve_security_profile.
+    # 'standard' and accept_unencrypted_sqlite: true deliberately for
+    # synthetic or de-identified data and rely on full-disk encryption
+    # ('standard' refuses plaintext SQLite without that opt-in). See
+    # ?resolve_security_profile and ?resolve_accept_unencrypted_sqlite.
     profile: regulated
+    accept_unencrypted_sqlite: false
     # true refuses any session that did not arrive over HTTPS (the
     # 'regulated' profile always does). Shiny does not provide HTTPS:
     # put the app behind a reverse proxy, for example

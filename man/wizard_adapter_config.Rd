@@ -8,7 +8,7 @@ wizard_adapter_config(config_list, base_path)
 }
 \arguments{
 \item{config_list}{Wizard configuration. Uses \code{db_backend} (default
-\code{"sqlite"}), \code{db_encryption_key} (DuckDB), and \code{db_settings} (a list
+\code{"duckdb"}), \code{db_encryption_key} (DuckDB), and \code{db_settings} (a list
 with \code{host}, \code{port}, \code{name}, \code{user}, \code{ssl} for server backends; the
 password is read from \code{ZZEDC_DB_PASSWORD}).}
 

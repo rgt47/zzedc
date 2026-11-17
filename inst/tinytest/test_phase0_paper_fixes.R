@@ -31,8 +31,10 @@ if (dir.exists(adhd_dir)) local({
     dir <- tempfile("imp_audit_")
     dir.create(file.path(dir, "data"), recursive = TRUE)
     db <- file.path(dir, "data", "study.db")
+    # SQLite named explicitly (DuckDB is the default for a new db_path
+    # since 2026-11-17); this test reads the file with RSQLite.
     res <- suppressWarnings(setup_zzedc_from_csv(adhd_dir, db_path = db,
-                                                 salt = "s"))
+                                                 salt = "s", backend = "sqlite"))
     expect_true(res$success, info = "example study imports")
     expect_true(grepl("^[0-9a-f]{64}$", res$config_sha256 %||% ""),
                 info = "the import reports a SHA-256 configuration digest")
@@ -112,6 +114,31 @@ local({
     team_members = data.frame()
   )
 
+  # Since 2026-11-17 init() creates encrypted DuckDB unless told
+  # otherwise; the SQLite case is exercised explicitly below.
+  if (requireNamespace("duckdb", quietly = TRUE)) with_adapter_restored({
+    old_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA)
+    on.exit(if (is.na(old_key)) Sys.unsetenv("DB_ENCRYPTION_KEY")
+            else Sys.setenv(DB_ENCRYPTION_KEY = old_key), add = TRUE)
+    Sys.setenv(DB_ENCRYPTION_KEY = generate_db_key())
+    dir <- tempfile("init_duck_")
+    dir.create(dir)
+    res <- suppressWarnings(utils::capture.output(
+      out <- execute_init_setup(base_cfg, project_dir = dir)
+    ))
+    expect_true(isTRUE(out$success), info = "init setup completes on DuckDB")
+    expect_identical(out$database_backend, "duckdb",
+                     info = "init() creates DuckDB by default")
+    expect_true(isTRUE(out$database_encrypted),
+                info = "init()'s default database is encrypted")
+    cfg <- yaml::read_yaml(out$config_path)
+    prof <- cfg$default$security$profile %||% cfg$security$profile
+    expect_identical(prof, "regulated",
+                     info = "an encrypted default database gets the regulated profile")
+    unlink(dir, recursive = TRUE)
+  })
+
+  base_cfg$db_backend <- "sqlite"
   with_adapter_restored({
     dir <- tempfile("init_prof_")
     dir.create(dir)
