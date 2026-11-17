@@ -478,4 +478,43 @@ if (requireNamespace("shinyjs", quietly = TRUE)) local({
   )
 })
 
+# ------------------------------------------------------------------
+# 8. Restore is limited to Admin
+# ------------------------------------------------------------------
+if (requireNamespace("shinyjs", quietly = TRUE)) local({
+  stage_restore_as <- function(role) {
+    dir <- tempfile("bkrole_")
+    bdir <- file.path(dir, "backups")
+    dir.create(bdir, recursive = TRUE)
+    on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+    path <- file.path(dir, "study.db")
+    con <- DBI::dbConnect(RSQLite::SQLite(), path)
+    DBI::dbWriteTable(con, "t", data.frame(v = "A"))
+    DBI::dbDisconnect(con)
+    backup <- file.path(bdir, "backup_1.db")
+    file.copy(path, backup)
+    us <- .login_session(role, paste0("U_", role), tolower(role))
+    staged <- NA
+    shiny::testServer(
+      ns_get("backup_restore_server"),
+      args = list(db_path = shiny::reactive(path), backup_dir = bdir, user_session = us),
+      {
+        session$setInputs(select_backup = backup)
+        backup_state$selected_backup <- backup
+        try(session$setInputs(restore_confirmation = "RESTORE", restore_btn = 1),
+            silent = TRUE)
+        staged <<- file.exists(paste0(path, ".restore-pending"))
+      }
+    )
+    staged
+  }
+
+  expect_false(stage_restore_as("Coordinator"),
+               info = "a signed-in Coordinator cannot stage a database restore")
+  expect_false(stage_restore_as("PI"),
+               info = "a signed-in PI cannot stage a database restore")
+  expect_true(stage_restore_as("Admin"),
+              info = "an Admin can still stage a database restore")
+})
+
 if (is.na(old_work_dir)) Sys.unsetenv("ZZEDC_WORK_DIR") else Sys.setenv(ZZEDC_WORK_DIR = old_work_dir)

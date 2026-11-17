@@ -1524,6 +1524,10 @@ restore. Behavior notes:
   closed the connection pool shared by every session.) See
   `?database_restore`; `request_database_restore()` and
   `apply_pending_restore()` do the same from the console.
+- **Only the `Admin` role can stage a restore.** Any signed-in
+  user can open the panel, take a backup, and download or
+  delete one, but pressing Restore as any other role shows 'Not
+  permitted' and records an `ACCESS`/`DENIED` audit event.
 - Only files in the backup folder can be selected, restored, or
   deleted; the paths the browser sends are checked against the
   server's own list.

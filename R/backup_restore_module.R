@@ -536,7 +536,10 @@ backup_restore_server <- function(id, db_pool = NULL, db_path = reactive("./data
 
     # Restore from backup
     observeEvent(input$restore_btn, {
-      guard$require_action("stage a database restore")
+      # A restore replaces every study record on the next start, so it
+      # is limited to Admin even though the rest of this panel is open
+      # to any signed-in user.
+      guard$require_action("stage a database restore", roles = "Admin")
       if (!file_backend) {
         shinyalert("Restore not available here", server_backend_msg, type = "info")
         return()

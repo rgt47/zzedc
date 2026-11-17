@@ -30,6 +30,10 @@
 * The randomization admin panel requires `Admin` to save the scheme
   and grant or revoke unblinded access, and `Admin` or `PI` for an
   emergency unblind, the roles the underlying functions already check.
+* Staging a database restore in the Backup & Restore panel now
+  requires the `Admin` role. A restore replaces every study record at
+  the next start, and the panel previously let any signed-in user
+  stage one.
 * `cfr_compliance_server()`, `data_correction_server()`,
   `user_management_server()` and `system_config_server()` gain a
   `user_session` argument; the application passes its login state.
