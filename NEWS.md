@@ -18,6 +18,23 @@
   `rdtools` is added as a new dependency, none is removed, and
   `zzalloc` stays at the same GitHub commit. R stays at 4.6.0.
 
+## Replaced and short-lived DuckDB adapters release the file
+
+* `get_db_adapter(force_new = TRUE)` shuts down the cached adapter it
+  replaces when both are DuckDB adapters on the same file, so the old
+  adapter no longer keeps a second instance on the file beside the new
+  one. A replaced adapter on a different file is left open, since the
+  application's pool may still use it.
+* `migrate_between_backends()`, `export_to_files()`,
+  `import_from_files()` and `compare_databases()` shut down the
+  adapters they create before returning. The other places that create
+  an adapter either shut it down already (`create_wizard_database()`,
+  `check_database_initialized()`, the launcher, the Google Sheets form
+  loader, key rotation), never open a connection through it (the
+  adapters passed to `verify_database_encryption()` and
+  `check_storage_encryption()`, `adapter_from_config()`), or are
+  long-lived (the cached adapter and the application's pool).
+
 ## A DuckDB adapter keeps one instance until `shutdown()`
 
 * The duckdb package releases a database instance when its last

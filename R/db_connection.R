@@ -104,13 +104,46 @@ if (!force_new && exists("adapter", envir = .db_adapter_cache)) {
     }
   }
 
-  # Create adapter
   adapter <- create_db_adapter(config)
 
-  # Cache it
+  # A DuckDB adapter holds its instance, and the file, open until
+  # shutdown(). A replaced adapter on the same file would otherwise
+  # keep a second instance on it beside the new adapter's. One on a
+  # different file is left open: the application's pool may still be
+  # using it while a package function works on another study.
+  if (exists("adapter", envir = .db_adapter_cache)) {
+    replaced <- .db_adapter_cache$adapter
+    if (.same_duckdb_file(replaced, adapter)) replaced$shutdown()
+  }
+
   .db_adapter_cache$adapter <- adapter
 
   adapter
+}
+
+
+#' Whether Two Adapters Are DuckDB Adapters on One File (internal)
+#'
+#' @param a,b `DatabaseAdapter` objects (or `NULL`).
+#' @return `TRUE` when both are DuckDB adapters, distinct objects, on
+#'   the same database file (not `:memory:`).
+#' @keywords internal
+.same_duckdb_file <- function(a, b) {
+  if (is.null(a) || is.null(b) || identical(a, b)) {
+    return(FALSE)
+  }
+  is_duck <- function(x) {
+    isTRUE(tryCatch(x$backend_name() == "duckdb", error = function(e) FALSE))
+  }
+  if (!is_duck(a) || !is_duck(b)) {
+    return(FALSE)
+  }
+  pa <- a$config$duckdb$path %||% ""
+  pb <- b$config$duckdb$path %||% ""
+  if (!nzchar(pa) || identical(pa, ":memory:") || identical(pb, ":memory:")) {
+    return(FALSE)
+  }
+  identical(normalizePath(pa, mustWork = FALSE), normalizePath(pb, mustWork = FALSE))
 }
 
 
