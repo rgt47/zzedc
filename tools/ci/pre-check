@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Run by the zzcollab r-package.yml workflow before R CMD check, with
+# CI_TOOLS_LIB set to the library the check uses.
+#
+# Warm the DuckDB extension cache. DuckDB's extension autoload
+# (triggered implicitly by CURRENT_DATE or CURRENT_TIMESTAMP) does not
+# download on its own; it looks only in the resolved
+# extension_directory and fails with "Extension ... not found ...
+# Install it first using 'INSTALL icu'". The duckdb package's default
+# extension_directory lies alongside the installed package under
+# CI_TOOLS_LIB, so one explicit INSTALL here persists for the check
+# subprocess and the test step. A failure is reported but does not stop
+# the job, so a network hiccup shows up as the tests that need icu.
+
+Rscript --no-init-file -e "
+  .libPaths(c(Sys.getenv('CI_TOOLS_LIB'), .libPaths()))
+  if (requireNamespace('duckdb', quietly = TRUE)) {
+    con <- DBI::dbConnect(duckdb::duckdb())
+    tryCatch({
+      DBI::dbExecute(con, 'INSTALL icu')
+      DBI::dbExecute(con, 'LOAD icu')
+      message('icu extension installed and loaded')
+    }, error = function(e) message('icu warm-up failed: ', conditionMessage(e)))
+    DBI::dbDisconnect(con, shutdown = TRUE)
+  } else {
+    message('duckdb not installed, skipping extension warm-up')
+  }
+" || echo "pre-check: DuckDB warm-up did not complete"
+exit 0
