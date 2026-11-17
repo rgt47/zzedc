@@ -10,6 +10,11 @@ local({
   if (!exists("change_password_server")) return(invisible())
 
   test_con <- create_test_db()
+  # create_test_db()'s hand-written edc_users predates the
+  # password_changed_date column (255c419) that the module writes.
+  # launch_zzedc() runs ensure_edc_users_table() before any session,
+  # so apply the same migration here.
+  zzedc:::ensure_edc_users_table(test_con)
   user_input <- shiny::reactiveValues(
     user_id = 1L,
     must_change_password = TRUE
