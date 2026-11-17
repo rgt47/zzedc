@@ -19,9 +19,13 @@ local({
     # Check that it contains expected components
     ui_html <- as.character(ui_output)
 
-    # Check for hero section
-    expect_true(grepl("Welcome to ZZedc Portal", ui_html, fixed = TRUE))
-    expect_true(grepl("Electronic Data Capture for Clinical Trials", ui_html, fixed = TRUE))
+    # Check for hero section (slate gradient strip since 0d28bfc,
+    # which replaced the 'Welcome to ZZedc Portal' bg-primary card)
+    expect_true(grepl("<h1[^>]*>\\s*ZZedc Portal\\s*</h1>", ui_html),
+                info = "hero title is the page h1")
+    expect_true(grepl("Electronic data capture for clinical trials",
+                      ui_html, fixed = TRUE),
+                info = "hero tagline present")
 
     # Check for feature cards
     expect_true(grepl("Getting Started", ui_html, fixed = TRUE))
@@ -154,7 +158,13 @@ local({
 
     # Check that important elements have proper structure
     expect_true(grepl("<h[1-6]", ui_html))  # Proper heading hierarchy
-    expect_true(grepl("class=\"lead\"", ui_html))  # Semantic lead text
+    # The hero no longer uses a class="lead" subtitle (0d28bfc); the
+    # tagline is a paragraph immediately following the single h1.
+    expect_equal(lengths(regmatches(ui_html, gregexpr("<h1", ui_html))), 1L,
+                 info = "exactly one h1 on the home page")
+    expect_true(grepl("</h1>\\s*<p[^>]*>\\s*Electronic data capture",
+                      ui_html),
+                info = "tagline paragraph directly follows the h1")
 
     })
 })
