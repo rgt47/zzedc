@@ -34,6 +34,62 @@ if (is.null(x) || length(x) == 0) {
 # reject_correction(), apply_correction() and the corrections module.
 .correction_reviewer_roles <- c("Admin", "PI", "StudyManager", "Data Manager")
 
+#' Whether a User May Approve Their Own Correction Request (internal)
+#'
+#' `approve_correction()`'s "someone else must approve" rule
+#' (§11.10(g)) assumes a second reviewer exists. A single-user
+#' deployment -- a solo researcher's own tracker, one of
+#' `zzedc::launch_lab()`'s studies with one account -- has no one
+#' else, so that rule makes every request a dead end: it can be
+#' created but never approved. This flag relaxes that one rule and
+#' nothing else: approval, its audit trail, and the role check (when
+#' a role is supplied) all still happen exactly as before, just
+#' without requiring a second person.
+#'
+#' Resolved from the first of: the R option
+#' `zzedc.allow_self_approval`, the environment variable
+#' `ZZEDC_ALLOW_SELF_APPROVAL`, `security: allow_self_approval:` in
+#' `config.yml` (top level or under `default:`, the same two schemas
+#' `resolve_accept_unencrypted_sqlite()` reads), or the default,
+#' `FALSE`.
+#'
+#' @param config_path Path to `config.yml` consulted when neither the
+#'   option nor the environment variable is set.
+#' @param config_value Optional value already read from an
+#'   application configuration (for example
+#'   `cfg$security$allow_self_approval` from `config::get()`). When
+#'   supplied, it is used in place of reading `config_path`.
+#' @return A list with `allow` (logical) and `source` (`"option"`,
+#'   `"environment"`, `"config.yml"`, or `"default"`).
+#' @keywords internal
+resolve_allow_self_approval <- function(config_path = "./config.yml",
+                                         config_value = NULL) {
+  candidates <- list(
+    option = getOption("zzedc.allow_self_approval"),
+    environment = Sys.getenv("ZZEDC_ALLOW_SELF_APPROVAL", unset = ""),
+    "config.yml" = config_value %||%
+      .security_section_from_config(config_path)$allow_self_approval
+  )
+  for (src in names(candidates)) {
+    value <- candidates[[src]]
+    if (is.null(value) || length(value) == 0 ||
+        (is.character(value) && !nzchar(value))) {
+      next
+    }
+    parsed <- .parse_flag(value)
+    if (is.na(parsed)) {
+      stop(
+        "Invalid zzedc security.allow_self_approval value '",
+        paste(format(value), collapse = ", "), "' (from ", src,
+        "). Use true or false.",
+        call. = FALSE
+      )
+    }
+    return(list(allow = parsed, source = src))
+  }
+  list(allow = FALSE, source = "default")
+}
+
 # =============================================================================
 # Database Schema
 # =============================================================================
@@ -493,14 +549,20 @@ get_pending_corrections <- function(reviewer_id = NULL,
 
 #' Approve Correction Request
 #'
-#' Approves a pending correction request.
+#' Approves a pending correction request. Refuses to approve a
+#' request the same user submitted, unless
+#' [resolve_allow_self_approval()] says otherwise (default `FALSE`;
+#' intended for a single-user deployment with no second reviewer to
+#' require) -- a self-approval is noted in the audit record, never
+#' silent.
 #'
 #' @param request_id Integer: Request identifier
 #' @param reviewed_by Character: Approver user ID
 #' @param review_comments Character: Approval comments (optional)
 #' @param db_path Character: Database path (optional)
 #'
-#' @return List with approval status
+#' @return List with approval status; `self_approved` (logical)
+#'   reports whether the approver was also the requester.
 #'
 #' @keywords internal
 #' @param reviewer_role Optional: the reviewer's role, checked via
@@ -539,7 +601,8 @@ approve_correction <- function(request_id,
       ))
     }
 
-    if (request$requested_by == reviewed_by) {
+    self_approved <- identical(request$requested_by, reviewed_by)
+    if (self_approved && !isTRUE(resolve_allow_self_approval()$allow)) {
       return(list(
         success = FALSE,
         error = "Cannot approve own correction request"
@@ -580,14 +643,20 @@ approve_correction <- function(request_id,
       history_hash
     ))
 
+    approval_note <- paste("Correction approved for", request$field_name)
+    if (self_approved) {
+      approval_note <- paste0(approval_note, " (self-approved: ",
+                               "security.allow_self_approval is enabled)")
+    }
+
     tryCatch({
       log_audit_event(
         event_type = "UPDATE",
         user_id = reviewed_by,
         table_name = "correction_requests",
         record_id = as.character(request_id),
-        operation = paste("Correction approved for", request$field_name),
-        details = paste("Correction approved for", request$field_name),
+        operation = approval_note,
+        details = approval_note,
         db_path = db_path
       )
     }, error = function(e) NULL)
@@ -596,6 +665,7 @@ approve_correction <- function(request_id,
       success = TRUE,
       request_id = request_id,
       status = "APPROVED",
+      self_approved = self_approved,
       message = "Correction request approved"
     )
 

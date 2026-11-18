@@ -1,5 +1,19 @@
 # zzedc (development version)
 
+## Optional self-approval for single-user deployments
+
+* `approve_correction()`'s "someone else must approve" rule
+  (§11.10(g)) assumed a second reviewer exists. A single-user
+  deployment -- a solo researcher's own tracker, a one-account study
+  registered with `zzedc::launch_lab()` -- has no one else, so every
+  correction request was a dead end: created, never approvable.
+  `resolve_allow_self_approval()` (option `zzedc.allow_self_approval`,
+  environment variable `ZZEDC_ALLOW_SELF_APPROVAL`, or `security:
+  allow_self_approval:` in `config.yml`; default `FALSE`) lets the
+  deployer opt in. Approval, its role check, and its audit trail are
+  otherwise unchanged; a self-approval is recorded in the audit
+  details, never silent.
+
 ## Reports link to the entries behind a count
 
 * Activity Summary's per-form entry count, Domain Breakdown's
