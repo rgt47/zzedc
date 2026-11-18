@@ -562,9 +562,12 @@ https_required <- function(cfg) {
 #' @export
 session_https_status <- function(session) {
   loopback <- c("localhost", "127.0.0.1", "::1", "[::1]")
-  client <- shiny::isolate(session$clientData)
-  protocol <- client$url_protocol %||% ""
-  hostname <- client$url_hostname %||% ""
+  client_vals <- shiny::isolate(list(
+    protocol = session$clientData$url_protocol,
+    hostname = session$clientData$url_hostname
+  ))
+  protocol <- client_vals$protocol %||% ""
+  hostname <- client_vals$hostname %||% ""
   forwarded <- tolower(session$request$HTTP_X_FORWARDED_PROTO %||% "")
   remote <- session$request$REMOTE_ADDR %||% ""
 
