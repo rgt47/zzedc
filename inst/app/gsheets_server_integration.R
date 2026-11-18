@@ -255,6 +255,11 @@ initialize_traditional_server <- function(input, output, session) {
   if (file.exists("report6.R")) {
     source("report6.R", local = TRUE)
   }
+  # Drill-through from a report's summary count to a modal listing of
+  # the matching entries (reuses rv_pending_correction_entry above).
+  if (file.exists("report_drilldown.R")) {
+    source("report_drilldown.R", local = TRUE)
+  }
 
   # Data Explorer is a real Shiny module (R/data_module.R), not a flat
   # script like the files above -- previously nothing here ever

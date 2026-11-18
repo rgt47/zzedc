@@ -342,9 +342,12 @@ compute_data_quality_summary <- function(conn) {
 #'
 #' @param conn A DBI connection (or pool object).
 #' @return A data frame with columns `crf_code`, `field_code`,
-#'   `field_label`, `option_label`, `n`, one row per option that has
-#'   at least one matching stored value. Zero rows if no choice
-#'   fields have both options and data.
+#'   `field_label`, `option_label`, `option_value` (the raw stored
+#'   value `option_label` is the display label for -- the Domain
+#'   Breakdown report's drill-through needs it to filter entries by
+#'   the value actually stored, not its label), `n`, one row per
+#'   option that has at least one matching stored value. Zero rows if
+#'   no choice fields have both options and data.
 #' @keywords internal
 summarize_choice_field_values <- function(conn) {
   entries <- get_data_entries(conn)
@@ -375,6 +378,7 @@ summarize_choice_field_values <- function(conn) {
       out[[length(out) + 1]] <- data.frame(
         crf_code = crf_row$crf_code, field_code = field_code,
         field_label = m$label, option_label = labels,
+        option_value = names(tab),
         n = as.integer(tab), stringsAsFactors = FALSE
       )
     }
@@ -383,6 +387,7 @@ summarize_choice_field_values <- function(conn) {
   if (length(out) == 0) {
     return(data.frame(crf_code = character(), field_code = character(),
                        field_label = character(), option_label = character(),
+                       option_value = character(),
                        n = integer(), stringsAsFactors = FALSE))
   }
   do.call(rbind, out)
@@ -503,6 +508,19 @@ generate_personal_statement_draft <- function(conn) {
     gsub(">", "&gt;", x, fixed = TRUE)
   }
 
+  # Wrap a count clause (e.g. "6 assignments") in a link that opens
+  # the Domain Breakdown/Activity Summary reports' drill-through
+  # modal (inst/app/report_drilldown.R's show_entries_modal(),
+  # triggered via the 'report_drill' Shiny input) listing that form's
+  # entries. Not linked when there is nothing to list.
+  drill_link <- function(form_code, label, n) {
+    if (n == 0) return(label)
+    sprintf(
+      '<a href="#" onclick="Shiny.setInputValue(\'report_drill\', {form: \'%s\'}, {priority: \'event\'}); return false;">%s</a>',
+      form_code, label
+    )
+  }
+
   manuscripts <- by_form("manuscripts")
   courses <- by_form("courses")
   mentoring <- by_form("mentoring")
@@ -530,16 +548,20 @@ generate_personal_statement_draft <- function(conn) {
   html <- character(0)
   html <- c(html, "<h3>Research and Scholarly Activities</h3>")
   html <- c(html, sprintf(
-    "<p>Over the period covered by this tracker, %d manuscript%s %s been logged. Status breakdown: %s.</p>",
-    nrow(manuscripts), if (nrow(manuscripts) == 1) "" else "s",
+    "<p>Over the period covered by this tracker, %s %s been logged. Status breakdown: %s.</p>",
+    drill_link("manuscripts",
+               sprintf("%d manuscript%s", nrow(manuscripts), if (nrow(manuscripts) == 1) "" else "s"),
+               nrow(manuscripts)),
     if (nrow(manuscripts) == 1) "has" else "have",
     status_counts(manuscripts, "status")
   ))
 
   html <- c(html, "<h3>Teaching Activities</h3>")
   html <- c(html, sprintf(
-    "<p>%d course offering%s %s been logged, totaling %s contact hours across %s students taught (sums of the Contact Hours and Student Count fields where entered).</p>",
-    nrow(courses), if (nrow(courses) == 1) "" else "s",
+    "<p>%s %s been logged, totaling %s contact hours across %s students taught (sums of the Contact Hours and Student Count fields where entered).</p>",
+    drill_link("courses",
+               sprintf("%d course offering%s", nrow(courses), if (nrow(courses) == 1) "" else "s"),
+               nrow(courses)),
     if (nrow(courses) == 1) "has" else "have",
     {
       hrs <- suppressWarnings(as.numeric(field_values(courses, "contact_hours")))
@@ -551,30 +573,40 @@ generate_personal_statement_draft <- function(conn) {
     }
   ))
   html <- c(html, sprintf(
-    "<p>%d mentoring relationship%s %s been logged.</p>",
-    nrow(mentoring), if (nrow(mentoring) == 1) "" else "s",
+    "<p>%s %s been logged.</p>",
+    drill_link("mentoring",
+               sprintf("%d mentoring relationship%s", nrow(mentoring), if (nrow(mentoring) == 1) "" else "s"),
+               nrow(mentoring)),
     if (nrow(mentoring) == 1) "has" else "have"
   ))
 
   html <- c(html, "<h3>Service Contributions</h3>")
   html <- c(html, sprintf(
-    "<p>Grant review service: %d assignment%s logged, by role: %s.</p>",
-    nrow(grant_reviews), if (nrow(grant_reviews) == 1) "" else "s",
+    "<p>Grant review service: %s logged, by role: %s.</p>",
+    drill_link("grant_reviews",
+               sprintf("%d assignment%s", nrow(grant_reviews), if (nrow(grant_reviews) == 1) "" else "s"),
+               nrow(grant_reviews)),
     status_counts(grant_reviews, "role")
   ))
   html <- c(html, sprintf(
-    "<p>Committee service: %d membership%s logged, by scope: %s.</p>",
-    nrow(committees), if (nrow(committees) == 1) "" else "s",
+    "<p>Committee service: %s logged, by scope: %s.</p>",
+    drill_link("committees",
+               sprintf("%d membership%s", nrow(committees), if (nrow(committees) == 1) "" else "s"),
+               nrow(committees)),
     status_counts(committees, "scope")
   ))
   html <- c(html, sprintf(
-    "<p>Journal peer review: %d assignment%s logged, by recommendation: %s.</p>",
-    nrow(journal_reviews), if (nrow(journal_reviews) == 1) "" else "s",
+    "<p>Journal peer review: %s logged, by recommendation: %s.</p>",
+    drill_link("journal_reviews",
+               sprintf("%d assignment%s", nrow(journal_reviews), if (nrow(journal_reviews) == 1) "" else "s"),
+               nrow(journal_reviews)),
     status_counts(journal_reviews, "recommendation")
   ))
   html <- c(html, sprintf(
-    "<p>Data Safety Monitoring Board service: %d membership%s logged.</p>",
-    nrow(dsmb), if (nrow(dsmb) == 1) "" else "s"
+    "<p>Data Safety Monitoring Board service: %s logged.</p>",
+    drill_link("dsmb",
+               sprintf("%d membership%s", nrow(dsmb), if (nrow(dsmb) == 1) "" else "s"),
+               nrow(dsmb))
   ))
 
   html <- c(html, paste(

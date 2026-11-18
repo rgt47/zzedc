@@ -157,6 +157,10 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_equal(nrow(tab), 2)
     expect_equal(sort(tab$option_label), c("Ideation", "Submitted"))
     expect_true(all(tab$n == 1))
+    expect_true("option_value" %in% names(tab),
+                info = "the raw stored value, for the Domain Breakdown drill-through to filter entries by")
+    expect_equal(sort(tab$option_value), c("ideation", "submitted"),
+                 info = "option_value is the raw value, not option_label's display form")
   })
 
   local({
@@ -179,6 +183,19 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_true(is.character(html) && length(html) == 1)
     expect_true(grepl("3 manuscript", html, fixed = TRUE))
     expect_true(grepl("0 course", html, fixed = TRUE))
+
+    # A non-zero count is a drill-through link (inst/app/
+    # report_drilldown.R's 'report_drill' Shiny input, {form:
+    # "manuscripts"}); a zero count stays plain text, since there is
+    # nothing to list.
+    expect_true(grepl(
+      "onclick=\"Shiny.setInputValue\\('report_drill', \\{form: 'manuscripts'\\}",
+      html
+    ), info = "manuscripts (3 entries) is linked")
+    expect_false(grepl(
+      "onclick=\"Shiny.setInputValue\\('report_drill', \\{form: 'courses'\\}",
+      html
+    ), info = "courses (0 entries) is not linked")
   })
 
   local({
