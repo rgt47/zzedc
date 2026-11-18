@@ -1,5 +1,25 @@
 # zzedc (development version)
 
+## Reports link to the entries behind a count
+
+* Activity Summary's per-form entry count, Domain Breakdown's
+  per-field-value count, and the Personal Statement draft's count
+  clauses (manuscripts, courses, mentoring, grant/committee/journal
+  reviews, DSMB) are now links. Clicking one opens a modal listing
+  the matching `data_entries` rows (narrowed to one field's value for
+  Domain Breakdown), each with a "Review" button. There is no direct
+  in-place editor for a submitted entry (every change goes through
+  `create_correction_request()`/`approve_correction()`/
+  `apply_correction()`, per R/data_correction.R's 21 CFR Part 11
+  design), so "Review" starts a correction request on that entry --
+  the same Corrections-tab hand-off the EDC tab's "Request
+  Correction" button already uses. The Manuscripts report, which
+  already lists every entry individually rather than a count, gets a
+  "Review" button per row instead of a count to drill through.
+  `summarize_choice_field_values()` gains an `option_value` column
+  (the raw stored value, alongside the existing display label) for
+  this filter to use.
+
 ## Two crashes found in a live browser walkthrough
 
 * Every browser session crashed at startup under the default

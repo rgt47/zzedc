@@ -42,6 +42,27 @@ output$rep3_table <- DT::renderDT({
   if (!is.null(input$rep3_form) && input$rep3_form != "All forms") {
     tab <- tab[tab$crf_code == input$rep3_form, ]
   }
-  names(tab) <- c("Form", "Field Code", "Field", "Option", "Count")
-  DT::datatable(tab, options = list(pageLength = 15), rownames = FALSE)
+
+  # Each count opens the drill-through modal filtered to this form
+  # AND this field's raw stored value (option_value, not
+  # option_label -- entries store the raw value).
+  count_col <- vapply(seq_len(nrow(tab)), function(i) {
+    paste0(
+      '<button class="btn btn-link p-0" onclick="Shiny.setInputValue(',
+      '\'report_drill\', {form: \'', tab$crf_code[i],
+      '\', field: \'', tab$field_code[i],
+      '\', value: \'', tab$option_value[i],
+      '\'}, {priority: \'event\'})">', tab$n[i], '</button>'
+    )
+  }, character(1))
+
+  display <- tab[, c("crf_code", "field_code", "field_label", "option_label")]
+  display$Count <- count_col
+  names(display) <- c("Form", "Field Code", "Field", "Option", "Count")
+  DT::datatable(display, options = list(
+                  pageLength = 15,
+                  columnDefs = list(
+                    list(targets = 4, searchable = FALSE, orderable = FALSE)
+                  )
+                ), rownames = FALSE, escape = FALSE)
 })

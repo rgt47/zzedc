@@ -27,5 +27,26 @@ output$rep6_table <- DT::renderDT({
                          "submission_date", "acceptance_date",
                          "publication_date", "doi"))]
 
-  DT::datatable(display, options = list(pageLength = 10), rownames = FALSE)
+  # Every manuscript row is already individually listed here (unlike
+  # the other reports, there is no aggregate count to drill into), so
+  # each row's own Review button goes straight to starting a
+  # correction request on it -- same report_drill_edit handler as
+  # the drill-through modal's row buttons
+  # (inst/app/report_drilldown.R). flatten_crf_entries_for_export()
+  # does not carry entry_id (it also backs the CSV export, which
+  # should not gain an internal id column), so it is read here
+  # separately, in the same form/order, for this column alone.
+  entries <- zzedc:::get_data_entries(db_pool, crf_code = "manuscripts")
+  if (nrow(entries) == nrow(display)) {
+    display$Review <- vapply(entries$entry_id, function(eid) {
+      paste0(
+        '<button class="btn btn-outline-secondary btn-sm" ',
+        'onclick="Shiny.setInputValue(\'report_drill_edit\', \'', eid,
+        '\', {priority: \'event\'})">Review</button>'
+      )
+    }, character(1))
+  }
+
+  DT::datatable(display, escape = FALSE, rownames = FALSE,
+                 options = list(pageLength = 10))
 })

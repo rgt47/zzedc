@@ -11,9 +11,12 @@ summarize_choice_field_values(conn)
 }
 \value{
 A data frame with columns \code{crf_code}, \code{field_code},
-\code{field_label}, \code{option_label}, \code{n}, one row per option that has
-at least one matching stored value. Zero rows if no choice
-fields have both options and data.
+\code{field_label}, \code{option_label}, \code{option_value} (the raw stored
+value \code{option_label} is the display label for -- the Domain
+Breakdown report's drill-through needs it to filter entries by
+the value actually stored, not its label), \code{n}, one row per
+option that has at least one matching stored value. Zero rows if
+no choice fields have both options and data.
 }
 \description{
 Counts of stored values for every choice-type field with options
