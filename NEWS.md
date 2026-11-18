@@ -1,5 +1,32 @@
 # zzedc (development version)
 
+## Two crashes found in a live browser walkthrough
+
+* Every browser session crashed at startup under the default
+  (`regulated`) security profile: `session_https_status()`'s
+  `shiny::isolate()` wrapped only the `session$clientData` lookup,
+  not the `$url_protocol`/`$url_hostname` field reads that followed,
+  so a real session (not the plain-list fixture the existing tests
+  used) failed with "Can't access reactive value 'url_protocol'
+  outside of reactive consumer." Both reads now happen inside the
+  `isolate()`.
+* `approve_correction()`, `reject_correction()`, and
+  `apply_correction()` all failed on DuckDB with "Constraint Error:
+  Violates foreign key constraint because key ... is still referenced
+  by a foreign key in a different table," for every correction
+  request, blocking the entire workflow on DuckDB (the default
+  backend for new studies). `correction_history` and
+  `correction_overrides` both hold a `FOREIGN KEY` on
+  `correction_requests.request_id`; DuckDB can only update an indexed
+  column in place when nothing references the row, and otherwise
+  rewrites the `UPDATE` as a `DELETE` + `INSERT`, which trips its
+  documented "Over-Eager Constraint Checking in Foreign Keys"
+  limitation on the `DELETE` half before the `INSERT` half restores
+  the row. `init_data_correction()` no longer creates the
+  `idx_corrections_status` index on DuckDB (and drops it from a study
+  initialized before this fix); SQLite and PostgreSQL, which update
+  the indexed column in place, are unaffected and keep the index.
+
 ## Corrections: reachable from the CRF, and reachable once approved
 
 * The EDC tab's entries table gains a per-row "Request Correction"

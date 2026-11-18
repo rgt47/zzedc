@@ -137,10 +137,39 @@ init_data_correction <- function(db_path = NULL) {
       )
     ", auto_increment_ddl("correction_overrides", "override_id")))
 
-    DBI::dbExecute(conn, "
-      CREATE INDEX IF NOT EXISTS idx_corrections_status
-      ON correction_requests(status)
-    ")
+    # No index on correction_requests(status) on DuckDB: approve/
+    # reject/apply all UPDATE that column, and correction_history and
+    # correction_overrides both hold a FOREIGN KEY on request_id back
+    # to this table. DuckDB can only update an indexed column in
+    # place when nothing references the row; otherwise it rewrites
+    # the UPDATE as a DELETE followed by an INSERT, and its "Over-
+    # Eager Constraint Checking in Foreign Keys" limitation (DuckDB
+    # docs, "Limitations of ART Indexes") raises the DELETE half's
+    # constraint violation before the INSERT half restores the row,
+    # even though the key value itself never changes
+    # ("Violates foreign key constraint because key ... is still
+    # referenced by a foreign key in a different table"). Verified:
+    # the same UPDATE succeeds once this index is absent. SQLite and
+    # PostgreSQL update the indexed column in place and are unaffected.
+    adapter_for_index <- tryCatch(.adapter_or_legacy_sqlite(), error = function(e) NULL)
+    backend_for_index <- if (!is.null(adapter_for_index)) {
+      adapter_for_index$backend_name()
+    } else {
+      "sqlite"
+    }
+    if (backend_for_index != "duckdb") {
+      DBI::dbExecute(conn, "
+        CREATE INDEX IF NOT EXISTS idx_corrections_status
+        ON correction_requests(status)
+      ")
+    } else {
+      # Self-heal a study whose database was initialized before this
+      # fix: drop the index if an earlier run already created it.
+      tryCatch(
+        DBI::dbExecute(conn, "DROP INDEX IF EXISTS idx_corrections_status"),
+        error = function(e) NULL
+      )
+    }
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_corrections_table_record

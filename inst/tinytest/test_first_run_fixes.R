@@ -468,3 +468,30 @@ local({
   options(zzedc.security_profile = "regulated")
   expect_true(https_required(list()), info = "regulated always requires HTTPS")
 })
+
+# session_https_status() against a genuine reactive session, called
+# as a bare top-level statement -- the same way server.R calls it
+# (not inside observe()/reactive()/isolate()). Found live (2026-11-17):
+# `client <- shiny::isolate(session$clientData); protocol <-
+# client$url_protocol` isolated only the `session$clientData` lookup,
+# not the `$url_protocol` read that followed, so every real session
+# crashed with "Can't access reactive value 'url_protocol' outside of
+# reactive consumer." The fake_session() tests above use a plain
+# list, not a shiny::reactiveValues(), so they never exercised this
+# path.
+local({
+  real_session <- list(
+    clientData = shiny::reactiveValues(url_protocol = "http:",
+                                       url_hostname = "study.example.edu"),
+    request = list(HTTP_X_FORWARDED_PROTO = NULL, REMOTE_ADDR = "203.0.113.5")
+  )
+  res <- tryCatch(session_https_status(real_session),
+                  error = function(e) e)
+  expect_false(inherits(res, "error"),
+               info = paste("session_https_status() must not require a reactive",
+                            "consumer to read session$clientData:",
+                            if (inherits(res, "error")) conditionMessage(res) else ""))
+  if (!inherits(res, "error")) {
+    expect_false(res$ok, info = "plain HTTP from outside is still refused")
+  }
+})
