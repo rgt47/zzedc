@@ -1,5 +1,22 @@
 # zzedc (development version)
 
+## A cleared field crashed the Manuscripts report and the Export tab
+
+* `flatten_crf_entries_for_export()` coerced each field's stored
+  value with a plain `as.character(v)`, which assumed a blank value
+  is always a length-1 `NA`. A cleared `dateInput()` (and similarly
+  cleared optional fields) round-trips through
+  `jsonlite::toJSON()`/`fromJSON()` as a zero-length `list()`, not
+  `NA` -- JSON has no `NA`, only `null` or `[]` -- so
+  `as.character(list())` returned `character(0)`, and `vapply()`
+  rejected it outright ("values must be length 1, but FUN(X[[1]])
+  result is length 0"), crashing every form's row with such a field
+  for both the Manuscripts report and the Export tab.
+  `flatten_all_entries_for_explorer()` already had the correct
+  length-aware coercion for this; `flatten_crf_entries_for_export()`
+  now has the same one. Reproduced live against a real study's
+  manuscripts entries.
+
 ## Optional self-approval for single-user deployments
 
 * `approve_correction()`'s "someone else must approve" rule

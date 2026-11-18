@@ -433,7 +433,19 @@ flatten_crf_entries_for_export <- function(conn, crf_code,
   for (fc in field_codes) {
     base[[fc]] <- vapply(entries$fields, function(f) {
       v <- f[[fc]]
-      if (is.null(v)) NA_character_ else as.character(v)
+      # Same coercion as flatten_all_entries_for_explorer(): a blank
+      # field's stored value is not always a length-1 NA. NULL (a
+      # JSON "null", round-tripped from NA_character_) and a
+      # zero-length value (a cleared dateInput(), round-tripped as
+      # JSON "[]" -> R list()) both mean "not entered"; a
+      # multi-select's value can be longer than length 1 and is
+      # joined rather than dropped. Reproduced live against
+      # ~/prj/srv/14-promotion-tracker's manuscripts entries, where
+      # this crashed the Manuscripts report and the Export tab.
+      if (is.null(v) || length(v) == 0) return(NA_character_)
+      if (length(v) > 1) return(paste(as.character(v), collapse = ", "))
+      if (is.na(v)) return(NA_character_)
+      as.character(v)
     }, character(1))
   }
   base
