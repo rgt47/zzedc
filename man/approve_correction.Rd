@@ -27,9 +27,15 @@ callers that do not yet pass a role are unaffected; new callers
 should supply one.}
 }
 \value{
-List with approval status
+List with approval status; \code{self_approved} (logical)
+reports whether the approver was also the requester.
 }
 \description{
-Approves a pending correction request.
+Approves a pending correction request. Refuses to approve a
+request the same user submitted, unless
+\code{\link[=resolve_allow_self_approval]{resolve_allow_self_approval()}} says otherwise (default \code{FALSE};
+intended for a single-user deployment with no second reviewer to
+require) -- a self-approval is noted in the audit record, never
+silent.
 }
 \keyword{internal}

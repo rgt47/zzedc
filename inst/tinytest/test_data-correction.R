@@ -342,6 +342,89 @@ local({
 
     })
 })
+# Test: resolve_allow_self_approval() defaults to FALSE, and resolves
+# from the option/environment/config.yml precedence
+# resolve_accept_unencrypted_sqlite() already uses. Single-user
+# deployments (a solo researcher's own tracker, one of
+# zzedc::launch_lab()'s studies) have no second reviewer, so
+# approve_correction()'s "someone else must approve" rule otherwise
+# makes every request a dead end. Added 2026-11-18.
+local({
+  expect_identical(resolve_allow_self_approval()$allow, FALSE,
+                    info = "default is FALSE: Part 11's two-person rule stays on")
+  expect_identical(resolve_allow_self_approval()$source, "default")
+
+  old <- options(zzedc.allow_self_approval = TRUE)
+  on.exit(options(old), add = TRUE)
+  resolved <- resolve_allow_self_approval()
+  expect_identical(resolved$allow, TRUE)
+  expect_identical(resolved$source, "option")
+})
+
+local({
+  old <- Sys.getenv("ZZEDC_ALLOW_SELF_APPROVAL", unset = NA)
+  Sys.setenv(ZZEDC_ALLOW_SELF_APPROVAL = "true")
+  on.exit({
+    if (is.na(old)) Sys.unsetenv("ZZEDC_ALLOW_SELF_APPROVAL")
+    else Sys.setenv(ZZEDC_ALLOW_SELF_APPROVAL = old)
+  }, add = TRUE)
+  expect_identical(resolve_allow_self_approval()$allow, TRUE)
+  expect_identical(resolve_allow_self_approval()$source, "environment")
+})
+
+local({
+  expect_error(resolve_allow_self_approval(config_value = "not-a-boolean"),
+               info = "an unrecognized value is refused, not silently treated as FALSE")
+})
+
+# Test: approve_correction() approves a self-authored request once
+# resolve_allow_self_approval() says to, and the audit record notes
+# that it was self-approved -- the relaxation is never silent.
+local({
+    if (requireNamespace("RSQLite", quietly = TRUE)) local({
+
+    test_db <- setup_test_db()
+    on.exit(cleanup_test_db(test_db), add = TRUE)
+
+    create_result <- create_correction_request(
+      table_name = "test_data",
+      record_id = "S001",
+      field_name = "age",
+      original_value = "45",
+      corrected_value = "46",
+      correction_reason = "TYPO",
+      requested_by = "solo_user",
+      db_path = test_db
+    )
+
+    old <- options(zzedc.allow_self_approval = TRUE)
+    on.exit(options(old), add = TRUE)
+
+    result <- approve_correction(
+      request_id = create_result$request_id,
+      reviewed_by = "solo_user",
+      db_path = test_db
+    )
+
+    expect_true(result$success, info = result$error %||% "")
+    expect_identical(result$status, "APPROVED")
+    expect_true(result$self_approved)
+
+    req <- get_correction_request(create_result$request_id, db_path = test_db)
+    expect_equal(req$request$status, "APPROVED")
+    expect_equal(req$request$reviewed_by, "solo_user")
+
+    conn <- connect_encrypted_db(db_path = test_db)
+    audit <- DBI::dbGetQuery(conn, "
+      SELECT details FROM audit_log
+      WHERE table_name = 'correction_requests' AND record_id = ?
+    ", list(as.character(create_result$request_id)))
+    DBI::dbDisconnect(conn)
+    expect_true(any(grepl("self-approved", audit$details, fixed = TRUE)),
+                info = "the relaxation is recorded, not silent")
+
+    })
+})
 # Test: approve_correction/reject_correction enforce §11.10(g)
 # reviewer_role gating when supplied, and skip the check (existing
 # behavior) when it is omitted. Added 2026-11-09.
