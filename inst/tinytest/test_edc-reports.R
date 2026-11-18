@@ -175,6 +175,34 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_error(zzedc:::flatten_crf_entries_for_export(conn, "nope"))
   })
 
+  # Reproduced live against ~/prj/srv/14-promotion-tracker's real
+  # manuscripts entries (2026-11-18): a cleared dateInput() (or
+  # similarly cleared optional field) round-trips through
+  # jsonlite::toJSON()/fromJSON() as a zero-length list(), not a
+  # length-1 NA -- JSON has no NA, only null or []. The field loop's
+  # as.character(v) on that zero-length value returned character(0),
+  # which vapply() rejected ("values must be length 1, but FUN(X[[1]])
+  # result is length 0"), crashing the Manuscripts report and the
+  # Export tab outright for any form with such a row.
+  # flatten_all_entries_for_explorer() already guarded against this;
+  # flatten_crf_entries_for_export() did not.
+  local({
+    conn <- .make_reports_fixture()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-4", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-4", status = character(0)),
+      is_complete = FALSE, created_by = "rgt"
+    )
+
+    flat <- zzedc:::flatten_crf_entries_for_export(conn, "manuscripts")
+    expect_equal(nrow(flat), 4)
+    row <- flat[flat$subject_id == "PUB-4", ]
+    expect_true(is.na(row$status),
+                info = "a cleared field reads as NA, not a crash")
+  })
+
   local({
     conn <- .make_reports_fixture()
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
