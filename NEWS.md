@@ -12,6 +12,19 @@
   `launch_zzedc()` now initializes it alongside audit logging, the
   same idempotent `CREATE TABLE IF NOT EXISTS` pattern as the rest of
   the checklist. Reproduced live against a real study.
+* Fixing that uncovered two more of the same class in the Compliance
+  dashboard's other queries. Its audit-trail query read from
+  `enhanced_audit_trail`, a table nothing in the package ever
+  created; its columns (`timestamp`, `user_id`) are exactly
+  `audit_log`'s, so the query now reads from `audit_log` instead. Its
+  system-validation query read from `system_validation`, which also
+  had no `CREATE TABLE` anywhere and no writer of any kind (the same
+  gap `user_training` had before an earlier fix) -- new
+  `ensure_system_validation_table()` closes it, wired into
+  `launch_zzedc()`'s startup checklist alongside
+  `ensure_user_training_table()`. There is still no UI for recording
+  a validation run; this only stops the dashboard's read from
+  failing.
 
 ## A cleared field crashed the Manuscripts report and the Export tab
 

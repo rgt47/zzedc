@@ -180,6 +180,66 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
                  info = if (inherits(result, "error")) conditionMessage(result) else "")
   })
 
+  # Regression test (2026-11-18): load_compliance_data()'s audit-trail
+  # query read "enhanced_audit_trail", a table nothing in the package
+  # ever created -- Catalog Error on every study. Its columns
+  # (timestamp, user_id) are exactly audit_log's (R/audit_append.R,
+  # initialized by launch_zzedc() via init_audit_logging()), so the
+  # fix is reading from audit_log instead. system_validation had the
+  # same gap with no table at all; ensure_system_validation_table()
+  # (R/db_users.R) now closes it, wired into launch_zzedc()'s startup
+  # checklist alongside ensure_user_training_table(). This replicates
+  # that full checklist directly (launch_zzedc() itself cannot be
+  # unit-tested: it ends in a blocking shiny::runApp()) and then runs
+  # the dashboard's own two previously-failing queries.
+  local({
+    ctx <- setup_test_db()
+    on.exit(cleanup_test_db(ctx), add = TRUE)
+
+    conn <- DBI::dbConnect(RSQLite::SQLite(), ctx$test_db)
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    zzedc:::ensure_user_training_table(conn)
+    zzedc:::ensure_system_validation_table(conn)
+    expect_true(DBI::dbExistsTable(conn, "system_validation"))
+
+    DBI::dbExecute(conn, "
+      INSERT INTO audit_log (timestamp, user_id, event_type, operation)
+      VALUES (CURRENT_TIMESTAMP, 'USER_TEST_1', 'LOGIN', 'test login')
+    ")
+
+    cutoff <- format(Sys.Date() - 30, "%Y-%m-%d")
+    audit_trail <- tryCatch(
+      DBI::dbGetQuery(conn, "
+        SELECT e.*, u.full_name as user_name
+        FROM audit_log e
+        JOIN edc_users u ON e.user_id = u.user_id
+        WHERE e.timestamp >= ?
+        ORDER BY e.timestamp DESC
+      ", params = list(cutoff)),
+      error = function(e) e
+    )
+    expect_false(inherits(audit_trail, "error"),
+                 info = "the dashboard's audit-trail query must not error on a fresh study")
+    expect_equal(nrow(audit_trail), 1L)
+    expect_equal(audit_trail$user_name[1], "Jane Doe")
+
+    validations <- tryCatch(
+      DBI::dbGetQuery(conn, "
+        SELECT v.*, u1.full_name as validator_name,
+               u2.full_name as reviewer_name, u3.full_name as approver_name
+        FROM system_validation v
+        LEFT JOIN edc_users u1 ON v.validator_user_id = u1.user_id
+        LEFT JOIN edc_users u2 ON v.reviewer_user_id = u2.user_id
+        LEFT JOIN edc_users u3 ON v.approver_user_id = u3.user_id
+        ORDER BY v.execution_date DESC
+      "),
+      error = function(e) e
+    )
+    expect_false(inherits(validations, "error"),
+                 info = "the dashboard's system_validation query must not error on a fresh study")
+    expect_equal(nrow(validations), 0L)
+  })
+
 }) else {
   exit_file("RSQLite and/or digest not installed")
 }
