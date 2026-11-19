@@ -840,3 +840,65 @@ local({
 
     })
 })
+
+# Regression test (2026-11-18): init_electronic_signatures() existed
+# but nothing in launch_zzedc()'s own startup path ever called it --
+# unlike data_entries/edc_users/user_training/audit_log, which are
+# all ensured there before the app starts. Every study, old or
+# freshly wizard-created, hit "Catalog Error: Table with name
+# electronic_signatures does not exist!" the first time anyone opened
+# the Compliance tab (R/cfr_compliance_module.R's load_compliance_data(),
+# `FROM electronic_signatures s`). Reproduced live against a real
+# migrated study. This replicates launch_zzedc()'s table-
+# initialization checklist directly (the function itself cannot be
+# unit-tested: it ends in a blocking shiny::runApp()), the same way
+# test_change-password-module.R replicates ensure_edc_users_table().
+local({
+  old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
+  if (old_key != "") Sys.setenv(ZZEDC_OLD_KEY = old_key)
+  test_db <- tempfile(fileext = ".db")
+  init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
+  Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
+  on.exit({
+    unlink(test_db)
+    old <- Sys.getenv("ZZEDC_OLD_KEY")
+    if (old != "") { Sys.setenv(DB_ENCRYPTION_KEY = old); Sys.unsetenv("ZZEDC_OLD_KEY") }
+  }, add = TRUE)
+
+  conn <- connect_encrypted_db(db_path = test_db)
+  expect_false(DBI::dbExistsTable(conn, "electronic_signatures"),
+               info = "initialize_encrypted_database() alone does not create it (the gap)")
+  DBI::dbDisconnect(conn)
+
+  # launch_zzedc()'s own checklist, replicated.
+  for (step in list(ensure_data_entries_table, ensure_edc_users_table,
+                     ensure_user_training_table)) {
+    conn <- connect_encrypted_db(db_path = test_db)
+    step(conn)
+    DBI::dbDisconnect(conn)
+  }
+  init_audit_logging(db_path = test_db)
+  sig_result <- init_electronic_signatures(db_path = test_db)
+  expect_true(sig_result$success, info = sig_result$error %||% "")
+
+  conn <- connect_encrypted_db(db_path = test_db)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  expect_true(DBI::dbExistsTable(conn, "electronic_signatures"))
+
+  # The exact query load_compliance_data() runs must no longer error.
+  edc_users_cols <- DBI::dbListFields(conn, "edc_users")
+  if ("user_id" %in% edc_users_cols) {
+    sigs <- tryCatch(
+      DBI::dbGetQuery(conn, "
+        SELECT s.*, u.full_name as signer_name
+        FROM electronic_signatures s
+        JOIN edc_users u ON s.signer_user_id = u.user_id
+        ORDER BY s.signed_at DESC
+      "),
+      error = function(e) e
+    )
+    expect_false(inherits(sigs, "error"),
+                 info = "the Compliance tab's signatures query must not error on a fresh study")
+    expect_equal(nrow(sigs), 0)
+  }
+})

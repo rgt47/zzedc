@@ -412,6 +412,26 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     }
   })
 
+  # electronic_signatures (R/electronic_signatures.R) had no CREATE
+  # TABLE call anywhere in the application's own startup path --
+  # unlike data_entries/edc_users/user_training above, nothing ever
+  # created it lazily either, so the Compliance tab's dashboard query
+  # ("FROM electronic_signatures", R/cfr_compliance_module.R) failed
+  # with "Catalog Error: Table ... does not exist" on every single
+  # study, old or freshly wizard-created, the first time anyone opened
+  # Compliance. init_electronic_signatures() is idempotent (CREATE
+  # TABLE IF NOT EXISTS) and opens its own connection through the
+  # cached adapter set above.
+  local({
+    adapter <- get_db_adapter(config = db_config, force_new = TRUE)
+    on.exit(adapter$shutdown(), add = TRUE)
+    result <- init_electronic_signatures(db_path = if (is.na(db_path)) NULL else db_path)
+    if (!isTRUE(result$success)) {
+      message("Could not initialize electronic signatures tables: ",
+              result$error %||% result$message %||% "unknown error")
+    }
+  })
+
   # Run the app
   shiny::runApp(
     appDir = app_dir,
