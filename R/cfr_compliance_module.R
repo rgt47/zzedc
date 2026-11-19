@@ -409,9 +409,14 @@ cfr_compliance_server <- function(id, user_id = NULL, user_session = NULL) {
         } else {
           "CAST(? AS TIMESTAMP)"
         }
+        # "enhanced_audit_trail" (never created anywhere in the
+        # package) was the wrong table name here -- audit_log
+        # (R/audit_append.R, initialized by launch_zzedc() via
+        # init_audit_logging()) has the exact timestamp/user_id
+        # columns this query already expects.
         compliance_data$audit_trail <- pool::dbGetQuery(db_pool, paste0("
           SELECT e.*, u.full_name as user_name
-          FROM enhanced_audit_trail e
+          FROM audit_log e
           JOIN edc_users u ON e.user_id = u.user_id
           WHERE e.timestamp >= ", cutoff_sql, "
           ORDER BY e.timestamp DESC

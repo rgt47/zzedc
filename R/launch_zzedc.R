@@ -372,10 +372,12 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
   # anywhere else, unlike edc_users/data_entries -- ensuring it here
   # means the Compliance tab's "Record Training" button
   # (R/cfr_compliance_module.R) has somewhere to write to from the
-  # very first app launch.
+  # very first app launch. system_validation is the same gap, minus
+  # the writer: nothing populates it yet, but ensuring it here stops
+  # the Compliance dashboard's query from failing outright.
   #
   # These used to open the file with RSQLite directly, whatever the
-  # configured backend. One adapter connection now serves all three,
+  # configured backend. One adapter connection now serves all four,
   # and is closed (for DuckDB, the instance shut down) before the
   # application opens its own pool.
   local({
@@ -386,7 +388,8 @@ launch_zzedc <- function(..., launch.browser = TRUE, host = "127.0.0.1", port = 
     for (step in list(
       list(ensure_data_entries_table, "data_entries table exists"),
       list(ensure_edc_users_table, "edc_users table is current"),
-      list(ensure_user_training_table, "user_training table is current")
+      list(ensure_user_training_table, "user_training table is current"),
+      list(ensure_system_validation_table, "system_validation table is current")
     )) {
       tryCatch(step[[1]](conn), error = function(e) {
         message("Could not ensure ", step[[2]], ": ", e$message)

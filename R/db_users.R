@@ -275,6 +275,41 @@ ensure_user_training_table <- function(conn) {
 }
 
 
+#' Create the `system_validation` table if it does not exist
+#'
+#' §11.10(a) system validation records (IQ/OQ/PQ-style qualification
+#' runs). Same gap as [ensure_user_training_table()] documents for
+#' `user_training`: before this, `system_validation` was referenced
+#' by exactly one query in the whole package -- the read-only
+#' `SELECT` in `cfr_compliance_module.R`'s compliance dashboard --
+#' with no `CREATE TABLE` anywhere and no writer of any kind. There
+#' is still no writer (recording a validation run is not yet a
+#' feature); this only stops the dashboard query from failing with
+#' "table does not exist" on every study.
+#'
+#' @param conn A DBI connection (or pool object that delegates DBI
+#'   methods).
+#' @return Invisible `NULL`.
+#' @keywords internal
+ensure_system_validation_table <- function(conn) {
+  DBI::dbExecute(conn, "
+    CREATE TABLE IF NOT EXISTS system_validation (
+      validation_id      TEXT PRIMARY KEY,
+      validation_name    TEXT,
+      validation_type    TEXT,
+      execution_date     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      result             TEXT,
+      validator_user_id  TEXT REFERENCES edc_users(user_id),
+      reviewer_user_id   TEXT REFERENCES edc_users(user_id),
+      approver_user_id   TEXT REFERENCES edc_users(user_id),
+      notes              TEXT,
+      created_date       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+  invisible(NULL)
+}
+
+
 #' Insert a single row into `user_training`
 #'
 #' @param conn A DBI connection (or pool object).
