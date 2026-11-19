@@ -1,5 +1,18 @@
 # zzedc (development version)
 
+## The Compliance tab errored on every study, old or new
+
+* `init_electronic_signatures()` existed but nothing in
+  `launch_zzedc()`'s own startup path ever called it -- unlike
+  `data_entries`/`edc_users`/`user_training`/`audit_log`, which are
+  all ensured there before the app starts. Opening the Compliance
+  tab on any study, freshly wizard-created or years old, failed with
+  "Catalog Error: Table with name electronic_signatures does not
+  exist!" the moment its dashboard tried to read signatures.
+  `launch_zzedc()` now initializes it alongside audit logging, the
+  same idempotent `CREATE TABLE IF NOT EXISTS` pattern as the rest of
+  the checklist. Reproduced live against a real study.
+
 ## A cleared field crashed the Manuscripts report and the Export tab
 
 * `flatten_crf_entries_for_export()` coerced each field's stored
