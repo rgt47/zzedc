@@ -93,6 +93,7 @@ if (!exists("ui_content") || is.null(ui_content)) {
   },
   zzedc:::.zzedc_crf_reset_message_handlers(),
   zzedc:::.zzedc_login_modal_scripts(),
+  zzedc:::.zzedc_dark_mode_overrides(),
 
   # Busy indicators: keep the global progress pulse, suppress
   # per-output spinners. Spinner overlays redraw cards on every
@@ -306,16 +307,21 @@ if (!exists("ui_content") || is.null(ui_content)) {
     safe_module_ui("admin_dashboard_ui", "admin", "Admin dashboard not available")
   ),
 
-  # Settings/Admin (future)
   bslib::nav_spacer(),
 
   bslib::nav_item(uiOutput("logout_nav_slot", inline = TRUE)),
 
+  # Per-session Display control (dark mode / form columns / tooltip
+  # verbosity, Part C) -- a plain nav_item like the logout slot
+  # above, not gated behind any role, since it is a display
+  # preference rather than a privileged action. See
+  # R/rgtlab_theme.R's .zzedc_display_settings_control().
+  zzedc:::.zzedc_display_settings_control(),
+
   bslib::nav_menu(
-    title = tagList(safe_icon("gear-fill")),
+    title = tagList(safe_icon("question-circle-fill")),
     align = "right",
 
-    bslib::nav_panel("Settings", div(class="p-4", h4("Settings"), p("Settings coming soon..."))),
     bslib::nav_panel("Help", div(class="p-4", h4("Help"), p("Help documentation"))),
     bslib::nav_panel("About", div(class="p-4", h4("About"), p("ZZedc v1.0")))
   )

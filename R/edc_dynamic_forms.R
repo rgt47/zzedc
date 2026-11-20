@@ -106,7 +106,7 @@ get_crf_field_metadata <- function(conn, crf_id) {
     paste(
       "SELECT field_id, field_code, field_label, field_type,",
       "       is_required, placeholder, help_text, default_value, widget_file,",
-      "       help_detail",
+      "       help_detail, field_row, field_column, field_width",
       "FROM designer_fields",
       "WHERE design_id = ?",
       "ORDER BY field_row, field_column, field_id"
@@ -153,7 +153,18 @@ get_crf_field_metadata <- function(conn, crf_id) {
       value       = if (!is.na(fr$default_value)) fr$default_value else NULL,
       choices     = choices,
       widget      = if (!is.na(fr$widget_file)) fr$widget_file else NULL,
-      help_detail = if (!is.na(fr$help_detail)) fr$help_detail else NULL
+      help_detail = if (!is.na(fr$help_detail)) fr$help_detail else NULL,
+      # Carried through for renderPanel()'s `columns` argument
+      # (R/renderpanels.R): previously fetched (the ORDER BY above)
+      # and never placed anywhere a caller could read them, so the
+      # multi-column layout these columns exist to drive had no data
+      # to act on. Defaults match designer_fields' own column
+      # defaults (R/crf_designer.R) for a metadata list built by a
+      # caller that never set them (e.g. the correction module's
+      # single-field renderPanel() call).
+      field_row    = if (!is.na(fr$field_row)) as.integer(fr$field_row) else 1L,
+      field_column = if (!is.na(fr$field_column)) as.integer(fr$field_column) else 1L,
+      field_width  = if (!is.na(fr$field_width)) as.integer(fr$field_width) else 100L
     )
   })
   stats::setNames(metadata, fields$field_code)

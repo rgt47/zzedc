@@ -11,7 +11,13 @@ flatten_all_entries_for_explorer(conn)
 }
 \value{
 A data frame with \code{entry_id}, \code{subject_id}, \code{form_name},
-\code{created_date}, \code{created_by}, \code{fields}.
+\code{created_date}, \code{created_by}, \code{status}, \code{fields}. \code{status} is
+\code{"Incomplete"} for an open "Save and Finish Later" draft
+(\code{is_complete = 0}) and \code{"Complete"} otherwise -- unlike
+\code{\link[=flatten_crf_entries_for_export]{flatten_crf_entries_for_export()}}, this is the raw, admin-level
+Data Explorer view, where a draft is included (deliberately
+visible, not silently dropped) but clearly labeled so it is
+never mistaken for a finished record.
 }
 \description{
 Different forms have different fields, so there is no single set

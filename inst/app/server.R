@@ -42,6 +42,27 @@ server <- function(input, output, session) {
   )
   user_input <- user_session
 
+  # Per-session DISPLAY preferences (Part C): dark mode, the EDC
+  # form's column count, and tooltip verbosity. Deliberately created
+  # the same way as user_session above -- a local binding of this
+  # per-session server() call, not something in global.R -- and for
+  # the same reason: it must never be shared across concurrent
+  # browser sessions. Unlike user_session it is also never persisted
+  # to the database or to localStorage even for this one session:
+  # this app is typically used on shared site/clinic machines
+  # (content-author-guide.Rmd), so a display preference staying
+  # attached to one person's browser profile indefinitely would be
+  # the wrong default. It resets to these defaults on every fresh
+  # page load (including after a logout on the same still-open
+  # Shiny session, which does not recreate this object -- a shared
+  # clinic machine's display preference is not privileged, unlike
+  # user_session, so there is no need to clear it at logout).
+  display_settings <- shiny::reactiveValues(
+    dark_mode = FALSE,
+    columns = 1L,
+    tooltip_mode = "minimal"
+  )
+
   # If enhanced server integration is present and loads successfully,
   # use it and short-circuit. The previous `return(NULL)` was inside
   # a `tryCatch` body and so returned only from the tryCatch, not

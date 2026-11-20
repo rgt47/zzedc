@@ -9,7 +9,8 @@ get_data_entries(
   crf_code = NULL,
   subject_id = NULL,
   start_date = NULL,
-  end_date = NULL
+  end_date = NULL,
+  include_incomplete = TRUE
 )
 }
 \arguments{
@@ -25,12 +26,24 @@ single subject rather than filtering the whole table in R.}
 
 \item{start_date, end_date}{Optional \code{Date}/character bounds
 (inclusive) on \code{created_date}.}
+
+\item{include_incomplete}{When \code{FALSE}, excludes rows with
+\code{is_complete = 0} (an unfinished "Save and Finish Later" draft,
+see \code{db_update_incomplete_data_entry()}). Defaults to \code{TRUE} --
+every caller of this function before drafts existed assumed
+every row was a finished entry, and most still should see every
+row (tracking-ID allocation most of all: a draft's tracking_id
+is already claimed and must not be handed to a second entry).
+The two caller-facing flatten functions below set this
+explicitly, one each way; pass \code{FALSE} at any other call site
+that is user-facing reporting rather than ID bookkeeping.}
 }
 \value{
 A data frame with columns \code{entry_id}, \code{subject_id},
 \code{form_name}, \code{visit_label}, \code{visit_date}, \code{created_date},
-\code{created_by}, plus a list-column \code{fields} (one named list per
-row, the parsed \code{data_json}). Zero rows (with the right columns)
+\code{created_by}, \code{is_complete}, plus a list-column \code{fields} (one
+named list per row, the parsed \code{data_json}). Zero rows (with the
+right columns)
 when nothing matches, including when \code{data_entries} doesn't
 exist yet (it is only created lazily, on first submission via
 \code{\link[=ensure_data_entries_table]{ensure_data_entries_table()}} -- a freshly initialized or

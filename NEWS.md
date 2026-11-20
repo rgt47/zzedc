@@ -1,5 +1,84 @@
 # zzedc (development version)
 
+## A per-session "Display" control: dark mode, multi-column CRF layout, expanded tooltips
+
+* A gear-icon "Display" popover, reachable from every tab (not gated
+  behind any role -- it is a display preference, not a privileged
+  action), holds three independent, session-only settings: dark mode,
+  the EDC form's column count (1/2/3), and field-help-text verbosity
+  (minimal/expanded). None of the three is persisted to the database
+  or `localStorage`: this app is typically used on shared site/clinic
+  machines (`content-author-guide.Rmd`), so a display preference
+  sticking to one person's browser indefinitely is the wrong default.
+  Added `.zzedc_display_settings_control()` and
+  `.zzedc_dark_mode_overrides()` (`R/rgtlab_theme.R`), mounted by both
+  `inst/app/ui.R` and `inst/app/gsheets_ui_integration.R`; the three
+  inputs are mirrored into a `display_settings` `reactiveValues`
+  (`inst/app/server.R`) by observers in
+  `gsheets_server_integration.R`'s `create_enhanced_server()`.
+* **Dark mode** is `bslib::input_dark_mode(mode = "light")` wired to
+  the existing `bs_theme()` -- `bs_theme()`'s own theme colors flip
+  automatically, but several hardcoded light-mode values (the
+  `--rgt-*` custom properties, `.card-header`/`.well`/
+  `table.dataTable thead th`'s literal hex colors) do not;
+  `.zzedc_dark_mode_overrides()` supplies the missing
+  `[data-bs-theme="dark"]` rules. Visually confirmed: navbar, form
+  cards, the EDC form panel, and a `DT::datatable()`-based report all
+  stay legible after toggling.
+* **Multi-column CRF layout.** `designer_fields` has long had
+  `field_row`/`field_column`/`field_width` columns, set at form-design
+  time and already used to `ORDER BY` in
+  `get_crf_field_metadata()` -- but never read into the metadata list
+  that function returns, so nothing could act on them.
+  `get_crf_field_metadata()` now includes all three, and
+  `renderPanel()` (`R/renderpanels.R`) gains a `columns` argument:
+  `columns > 1` groups the already-ordered field list into the
+  already-ordered field list's contiguous runs of equal `field_row`,
+  splits any run longer than `columns` into chunks of at most
+  `columns` fields, and wraps each chunk in `shiny::fluidRow()` with
+  one `shiny::column()` per field, width scaled from that field's
+  `field_width` percentage against the chunk's total. A form whose
+  fields were each given their own `field_row` (as some imports
+  annotate every field) still renders one field per visual row
+  regardless of `columns` -- the cap only ever reduces how many
+  fields share a row, it never combines fields the form's own author
+  put on separate rows. `columns <= 1` (the default) returns the
+  original flat, one-field-per-line stack -- byte-identical to
+  calling `renderPanel()` without the argument at all.
+* **Expanded tooltip mode.** Every field already got an
+  always-present hover icon with help text. `tooltip_mode =
+  "expanded"` additionally renders that help text as a permanently
+  visible `shiny::tags$small()` beneath the input -- strictly
+  additive, the hover icon is never removed. `tooltip_mode =
+  "minimal"` (the default) is unchanged.
+* `renderPanel()` also gains an `extra_tags` argument: a named list,
+  keyed by field name, of extra UI (e.g. a custom field widget's
+  trigger control) to attach to that exact field. This replaces
+  `inst/app/edc.R`'s previous pattern of splicing extra UI into
+  `renderPanel()`'s returned list by position, which broke once
+  `columns > 1` meant that list was no longer one element per field.
+* Both `renderPanel()` call sites in `inst/app/edc.R` now read
+  `columns`/`tooltip_mode` from the session's `display_settings`,
+  live (not `isolate()`d), so a Display-preference change applies
+  immediately. Toggling a preference re-renders the current form's
+  fields, which would otherwise silently discard whatever the viewer
+  had already typed (and, for a resumed "Save and Finish Later"
+  draft, risk saving blanks over it on the next save); a snapshot/
+  restore pass (`output$edc_crf_fields`, guarded by "is this a
+  same-form re-render, not an actual form switch or first render")
+  captures every field's current value before the re-render and
+  restores it via `fill_crf_field_inputs()` once the new DOM exists,
+  re-applying a resumed draft's `tracking_id` lock as well. A `file`
+  field's chosen upload cannot be restored this way (no
+  `updateFileInput()` exists) -- the same pre-existing limitation
+  `fill_crf_field_inputs()` already documents for the draft-resume
+  path.
+* Left for later, not built this pass: letting a study designer
+  *cap* a form's column count (so a dense form can force 2-column
+  display regardless of a viewer's 1-column preference) -- this
+  pass's columns setting is purely a per-viewer preference, as the
+  plan's "open decision" explicitly allowed.
+
 ## A CRF form that takes more than one sitting can now be saved as "Incomplete" and resumed
 
 * Previously every CRF submission was all-or-nothing: `save_crf_entry()`

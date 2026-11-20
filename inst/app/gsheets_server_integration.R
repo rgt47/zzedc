@@ -10,6 +10,30 @@ create_enhanced_server <- function(input, output, session) {
   # Load authentication logic (always needed)
   source("auth.R", local = TRUE)
 
+  # Mirror the Display popover's three inputs (gear icon, every tab
+  # -- see R/rgtlab_theme.R's .zzedc_display_settings_control(),
+  # mounted by both ui.R and gsheets_ui_integration.R) into this
+  # session's display_settings reactiveValues (created in server.R,
+  # in scope here the same way user_input is -- see that file's own
+  # comment on lexical scoping). renderPanel() call sites
+  # (inst/app/edc.R) read display_settings$columns/$tooltip_mode
+  # rather than input$display_columns/input$display_tooltip_mode
+  # directly, so there is exactly one place that holds "the current
+  # session's display preference," independent of which popover
+  # instance (ui.R's or gsheets_ui_integration.R's) is actually on
+  # screen. ignoreNULL = TRUE: a popover not yet opened client-side
+  # has not registered these inputs at all, and NULL must not
+  # overwrite the reactiveValues' own defaults.
+  shiny::observeEvent(input$display_dark_mode, {
+    display_settings$dark_mode <- identical(input$display_dark_mode, "dark")
+  }, ignoreNULL = TRUE)
+  shiny::observeEvent(input$display_columns, {
+    display_settings$columns <- as.integer(input$display_columns)
+  }, ignoreNULL = TRUE)
+  shiny::observeEvent(input$display_tooltip_mode, {
+    display_settings$tooltip_mode <- input$display_tooltip_mode
+  }, ignoreNULL = TRUE)
+
   # Check if Google Sheets integration is available
   if (exists("gsheets_integration_data")) {
     message("Initializing Google Sheets server integration")
