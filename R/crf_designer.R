@@ -101,6 +101,7 @@ init_crf_designer <- function() {
         css_class TEXT,
         widget_file TEXT,
         help_detail TEXT,
+        require_double_entry INTEGER DEFAULT 0,
         FOREIGN KEY (design_id) REFERENCES designer_forms(design_id),
         FOREIGN KEY (section_id) REFERENCES designer_sections(section_id)
       )
@@ -108,15 +109,24 @@ init_crf_designer <- function() {
 
     # CREATE TABLE IF NOT EXISTS only takes effect for a brand-new
     # database; a database initialized before widget_file (or, later,
-    # help_detail) existed (e.g. this package's own live promotion-
-    # tracker deployment) needs each added on to the table it already
-    # has.
+    # help_detail, or, later still, require_double_entry) existed
+    # (e.g. this package's own live promotion-tracker deployment)
+    # needs each added on to the table it already has.
     existing_cols <- get_db_adapter()$describe_table(con, "designer_fields")$name
     if (!"widget_file" %in% existing_cols) {
       DBI::dbExecute(con, "ALTER TABLE designer_fields ADD COLUMN widget_file TEXT")
     }
     if (!"help_detail" %in% existing_cols) {
       DBI::dbExecute(con, "ALTER TABLE designer_fields ADD COLUMN help_detail TEXT")
+    }
+    if (!"require_double_entry" %in% existing_cols) {
+      # Double-data-entry opt-in (2026-11-19): per-field, alongside
+      # is_required, rather than a per-form or per-project flag -- see
+      # R/double_data_entry.R. Defaults to 0/FALSE on migration, so an
+      # already-deployed study's existing fields are not retroactively
+      # put behind a second-entry requirement nobody asked for.
+      DBI::dbExecute(con,
+        "ALTER TABLE designer_fields ADD COLUMN require_double_entry INTEGER DEFAULT 0")
     }
 
     prepare_auto_increment(con, "designer_field_options", "option_id")
@@ -369,6 +379,12 @@ add_form_section <- function(design_id, section_code, section_name,
 #'   hover hint. Shown instead in a modal, opened by clicking the
 #'   field's hint icon (see `inst/app/edc.R`); a field with no
 #'   `help_detail` keeps the plain hover tooltip for that click.
+#' @param require_double_entry Whether this field must be captured by
+#'   two independent, full submissions of the form (same subject/
+#'   visit/form, linked by `data_entries.dde_group_id`) before it is
+#'   considered settled -- see `R/double_data_entry.R`. Opt-in per
+#'   field, alongside `is_required`, rather than per form or
+#'   per-project.
 #' @param user_id Optional: the user performing this change, recorded
 #'   in the audit trail (see `audit_cd_event()`). `NULL` records an
 #'   unattributed entry rather than failing the operation.
@@ -395,7 +411,8 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
                             field_width = 100, is_required = FALSE,
                             placeholder = NULL, help_text = NULL,
                             default_value = NULL, widget_file = NULL,
-                            help_detail = NULL, user_id = NULL) {
+                            help_detail = NULL, require_double_entry = FALSE,
+                            user_id = NULL) {
   tryCatch({
     valid_types <- names(get_designer_field_types())
     if (!field_type %in% valid_types) {
@@ -410,8 +427,9 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
       INSERT INTO designer_fields (
         design_id, section_id, field_code, field_label, field_type,
         field_row, field_column, field_width, is_required,
-        placeholder, help_text, default_value, widget_file, help_detail
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        placeholder, help_text, default_value, widget_file, help_detail,
+        require_double_entry
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING field_id AS id
     ", params = list(
       design_id,
@@ -421,14 +439,15 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
       as.integer(field_width), as.integer(is_required),
       safe_scalar_cd(placeholder), safe_scalar_cd(help_text),
       safe_scalar_cd(default_value), safe_scalar_cd(widget_file),
-      safe_scalar_cd(help_detail)
+      safe_scalar_cd(help_detail), as.integer(require_double_entry)
     ))$id[1]
 
     audit_cd_event(
       event_type = "INSERT", table_name = "designer_fields",
       record_id = field_id, user_id = user_id,
       operation = paste("Added field", field_code, "to design", design_id),
-      details = paste0("field_type=", field_type, "; field_label=", field_label)
+      details = paste0("field_type=", field_type, "; field_label=", field_label,
+                       "; require_double_entry=", isTRUE(require_double_entry))
     )
 
     list(success = TRUE, field_id = field_id)
@@ -482,6 +501,8 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
 #'   or `NULL` for none (see `add_form_field()`)
 #' @param help_detail Optional long-form help content (see
 #'   `add_form_field()`)
+#' @param require_double_entry Whether this field requires double data
+#'   entry (see `add_form_field()`)
 #' @param user_id Optional: the user performing this change, passed
 #'   through to `add_form_field()`'s audit-trail entry. `NULL`
 #'   records an unattributed entry rather than failing the operation.
@@ -515,6 +536,7 @@ add_form_field_by_code <- function(form_code, field_code, field_label,
                                    is_required = FALSE, placeholder = NULL,
                                    help_text = NULL, default_value = NULL,
                                    widget_file = NULL, help_detail = NULL,
+                                   require_double_entry = FALSE,
                                    user_id = NULL) {
   tryCatch({
     # Each step below opens and closes its own connection rather than
@@ -569,7 +591,8 @@ add_form_field_by_code <- function(form_code, field_code, field_label,
       field_width = field_width, is_required = is_required,
       placeholder = placeholder, help_text = help_text,
       default_value = default_value, widget_file = widget_file,
-      help_detail = help_detail, user_id = user_id
+      help_detail = help_detail, require_double_entry = require_double_entry,
+      user_id = user_id
     )
 
     if (!isTRUE(result$success)) {

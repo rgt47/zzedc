@@ -19,6 +19,7 @@ add_form_field(
   default_value = NULL,
   widget_file = NULL,
   help_detail = NULL,
+  require_double_entry = FALSE,
   user_id = NULL
 )
 }
@@ -59,6 +60,13 @@ description that would be too much for \code{help_text}'s one-line
 hover hint. Shown instead in a modal, opened by clicking the
 field's hint icon (see \code{inst/app/edc.R}); a field with no
 \code{help_detail} keeps the plain hover tooltip for that click.}
+
+\item{require_double_entry}{Whether this field must be captured by
+two independent, full submissions of the form (same subject/
+visit/form, linked by \code{data_entries.dde_group_id}) before it is
+considered settled -- see \code{R/double_data_entry.R}. Opt-in per
+field, alongside \code{is_required}, rather than per form or
+per-project.}
 
 \item{user_id}{Optional: the user performing this change, recorded
 in the audit trail (see \code{audit_cd_event()}). \code{NULL} records an

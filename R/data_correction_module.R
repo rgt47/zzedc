@@ -49,6 +49,7 @@ data_correction_ui <- function(id) {
             choices = c(
               "Create Request" = "create",
               "Pending Review" = "pending",
+              "DDE Reconciliation" = "dde_queue",
               "My Requests" = "my_requests",
               "All Corrections" = "all",
               "Statistics" = "stats"
@@ -95,6 +96,7 @@ data_correction_ui <- function(id) {
                     "Date/Time Error" = "DATE_ERROR",
                     "Protocol Clarification" = "PROTOCOL_CLARIFICATION",
                     "Query Response" = "QUERY_RESPONSE",
+                    "Double-Data-Entry Discrepancy" = "DDE_DISCREPANCY",
                     "Other" = "OTHER"
                   )
                 )
@@ -145,6 +147,27 @@ data_correction_ui <- function(id) {
             shiny::hr(),
             shiny::h5("Review Selected Request"),
             shiny::uiOutput(ns("review_panel"))
+          )
+        ),
+
+        shiny::conditionalPanel(
+          condition = sprintf("input['%s'] == 'dde_queue'", ns("view_mode")),
+          shiny::wellPanel(
+            shiny::h4("Double-Data-Entry Reconciliation Queue"),
+            shiny::helpText(
+              "Flagged fields where the two independent entries differ and",
+              "the discrepancy was not resolved at second-entry save time",
+              "(\"leave both and flag for review\"). Select a row and file a",
+              "correction request (reason DDE_DISCREPANCY) to resolve it --",
+              "the person who files it can be either entry's user, but",
+              "approving and applying requires a third reviewer, neither of",
+              "the two."
+            ),
+            DT::DTOutput(ns("dde_queue_table")),
+            shiny::hr(),
+            shiny::actionButton(ns("dde_file_request"),
+                                "File Correction Request for Selected Row",
+                                class = "btn-primary")
           )
         ),
 
@@ -292,7 +315,9 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
 
     rv <- shiny::reactiveValues(
       refresh_trigger = 0,
-      selected_request = NULL
+      selected_request = NULL,
+      selected_dde_row = NULL,
+      dde_prefill_field = NULL
     )
 
     shiny::observe({
@@ -623,9 +648,45 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
     output$review_panel_all <- shiny::renderUI(render_review_panel())
     output$request_details <- shiny::renderUI(render_review_panel())
 
+    # DDE_DISCREPANCY-specific reviewer-separation guard
+    # (require_dde_reviewer_separation(), R/double_data_entry.R):
+    # neither of the two users who made the two entries may approve
+    # or apply the reconciliation of their own discrepancy. A new,
+    # narrower rule than approve_correction()'s existing "requester
+    # can't approve their own request" check -- that check only ever
+    # blocks the *requester*, and never applies to apply_correction()
+    # at all -- so it is enforced here, as an additional guard, rather
+    # than by changing either function's own behavior for ordinary
+    # corrections. NULL (no error) for any request whose
+    # correction_reason is not DDE_DISCREPANCY, or whose record_id
+    # does not resolve to a dde_group_id.
+    .dde_reviewer_guard <- function(request_id, actor) {
+      req <- tryCatch(get_correction_request(request_id, db_path = db_path),
+                      error = function(e) list(success = FALSE))
+      if (!isTRUE(req$success) ||
+            !identical(req$request$correction_reason[1], "DDE_DISCREPANCY")) {
+        return(NULL)
+      }
+      tryCatch({
+        conn <- connect_encrypted_db(db_path = db_path)
+        on.exit(DBI::dbDisconnect(conn), add = TRUE)
+        gid <- DBI::dbGetQuery(conn,
+          "SELECT dde_group_id FROM data_entries WHERE entry_id = ?",
+          list(req$request$record_id[1]))$dde_group_id[1]
+        if (is.null(gid) || is.na(gid)) return(NULL)
+        require_dde_reviewer_separation(conn, gid, actor)
+      }, error = function(e) NULL)
+    }
+
     shiny::observeEvent(input$approve_btn, {
       who <- guard$require_action("approve a data correction",
                                   roles = .correction_reviewer_roles)
+
+      dde_denied <- .dde_reviewer_guard(rv$selected_request, who$user)
+      if (!is.null(dde_denied)) {
+        shiny::showNotification(paste("Error:", dde_denied$error), type = "error")
+        return()
+      }
 
       result <- approve_correction(
         request_id = rv$selected_request,
@@ -675,6 +736,12 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
       who <- guard$require_action("apply a data correction",
                                   roles = .correction_reviewer_roles)
 
+      dde_denied <- .dde_reviewer_guard(rv$selected_request, who$user)
+      if (!is.null(dde_denied)) {
+        shiny::showNotification(paste("Error:", dde_denied$error), type = "error")
+        return()
+      }
+
       result <- apply_correction(
         request_id = rv$selected_request,
         applied_by = who$user,
@@ -686,10 +753,95 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
         shiny::showNotification("Correction applied successfully", type = "message")
         rv$refresh_trigger <- rv$refresh_trigger + 1
         rv$selected_request <- NULL
+
+        # Once applied, this may have been the last open discrepancy
+        # for this dde_group_id -- if so, mark the non-canonical entry
+        # superseded (close_dde_group_if_resolved(), kept, never
+        # deleted, per the insert-only design).
+        tryCatch({
+          conn <- connect_encrypted_db(db_path = db_path)
+          on.exit(DBI::dbDisconnect(conn), add = TRUE)
+          gid <- DBI::dbGetQuery(conn,
+            "SELECT dde_group_id FROM data_entries WHERE entry_id = ?",
+            list(result$record_id))$dde_group_id[1]
+          if (!is.null(gid) && !is.na(gid)) {
+            close_dde_group_if_resolved(conn, gid)
+          }
+        }, error = function(e) NULL)
       } else {
         shiny::showNotification(paste("Error:", result$error), type = "error")
       }
     })
+
+    # --- DDE Reconciliation Queue -------------------------------------
+
+    dde_queue_data <- shiny::reactive({
+      guard$require()
+      rv$refresh_trigger
+      tryCatch({
+        conn <- connect_encrypted_db(db_path = db_path)
+        on.exit(DBI::dbDisconnect(conn), add = TRUE)
+        list_dde_discrepancies(conn)
+      }, error = function(e) data.frame())
+    })
+
+    output$dde_queue_table <- DT::renderDT({
+      guard$require()
+      data <- dde_queue_data()
+      if (nrow(data) == 0) {
+        return(DT::datatable(data.frame(Message = "No open DDE discrepancies")))
+      }
+      DT::datatable(data, selection = "single",
+                    options = list(pageLength = 10, scrollX = TRUE))
+    })
+
+    shiny::observeEvent(input$dde_queue_table_rows_selected, {
+      guard$require()
+      data <- dde_queue_data()
+      if (!is.null(input$dde_queue_table_rows_selected) && nrow(data) > 0) {
+        rv$selected_dde_row <- data[input$dde_queue_table_rows_selected, , drop = FALSE]
+      }
+    })
+
+    # Pre-fills the Create Request view from the selected queue row:
+    # table_name/record_id target the first (canonical) entry, the
+    # reason is fixed to DDE_DISCREPANCY, and the field/original value
+    # are carried through rv$dde_prefill_field for the field_picker/
+    # auto-fill observers (below) to apply once crf_context() has
+    # re-resolved for the new record_id.
+    shiny::observeEvent(input$dde_file_request, {
+      guard$require()
+      row <- rv$selected_dde_row
+      if (is.null(row) || nrow(row) == 0) {
+        shiny::showNotification("Select a row in the queue first", type = "error")
+        return()
+      }
+      shiny::updateRadioButtons(session, "view_mode", selected = "create")
+      shiny::updateTextInput(session, "table_name", value = "data_entries")
+      shiny::updateTextInput(session, "record_id", value = row$first_entry_id[1])
+      shiny::updateSelectInput(session, "correction_reason", selected = "DDE_DISCREPANCY")
+      rv$dde_prefill_field <- row$field_code[1]
+    })
+
+    shiny::observeEvent(list(crf_context(), rv$dde_prefill_field), {
+      if (!guard$authorized()) return()
+      field <- rv$dde_prefill_field
+      ctx <- crf_context()
+      if (is.null(field) || is.null(ctx) || isTRUE(ctx$draft)) return()
+      if (!field %in% names(ctx$metadata)) return()
+      # output$field_picker's renderUI() depends on this same
+      # crf_context() recompute and rebuilds the selectInput's DOM
+      # node from scratch -- an updateSelectInput() call made in the
+      # same reactive flush can be overwritten by that rebuild
+      # depending on flush ordering (confirmed directly: the
+      # selection was lost without this). session$onFlushed() defers
+      # the update to just after the current flush completes, once
+      # the rebuilt <select> actually exists in the DOM.
+      session$onFlushed(function() {
+        shiny::updateSelectInput(session, "field_name", selected = field)
+      }, once = TRUE)
+      rv$dde_prefill_field <- NULL
+    }, ignoreInit = TRUE)
 
     my_requests_data <- shiny::reactive({
       user <- guard$require()$user

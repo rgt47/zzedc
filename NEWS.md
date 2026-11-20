@@ -1,5 +1,100 @@
 # zzedc (development version)
 
+## Double data entry (DDE), per field, with immediate discrepancy detection and a reconciliation queue
+
+* Per-*field* opt-in: a new `designer_fields.require_double_entry`
+  boolean (`R/crf_designer.R`, migrated onto an existing database the
+  same idempotent describe-then-ALTER way `widget_file`/`help_detail`
+  were), settable via `add_form_field()`/`add_form_field_by_code()`
+  alongside `is_required`. Finer-grained than either reference tool
+  this design was checked against: REDCap's DDE module is
+  project-wide, OpenClinica's is per-form; see
+  `~/.claude/plans/soft-orbiting-acorn.md` (Part B) for the full
+  comparison and rationale.
+* **Capture.** A form with any flagged field requires two independent,
+  full submissions of the same Subject ID (`inst/app/edc.R`'s
+  `submitcrf` handler), linked by a new, nullable
+  `data_entries.dde_group_id` -- both rows are ordinary, complete
+  (`is_complete = 1`) `data_entries` rows, never routed through the
+  draft/"Save and Finish Later" machinery, which is hidden entirely
+  for a flagged form (`output$savedraftcrf_ui`) since completing a
+  resumed draft would otherwise bypass DDE's group-linking and diff.
+  Different users are required by default (REDCap's default); the
+  second submission's form-load path never fetches the first entry's
+  `data_json` at all (only its `entry_id`/`created_by`, via the blind
+  probe `db_get_dde_first_entry()`) -- there is nothing in the DOM or
+  server-side reactive state for the second enterer to see or recover,
+  a stronger guarantee than disabling copy/paste on a visible value.
+* **Immediate per-item check**, flagged fields only: at second-entry
+  save time, `R/double_data_entry.R`'s `dde_check_discrepancies()`
+  diffs the in-memory second submission against the first entry's
+  saved values (fetched only here), reusing
+  `R/version_control.R`'s `diff_field_lists()` -- the same per-field
+  diff engine `compare_versions()` uses, extracted so there is one
+  diff implementation, not two. A mismatch on a field that is *not*
+  flagged is never checked. A flagged mismatch surfaces immediately in
+  a modal with three choices (`apply_dde_resolutions()`): keep the
+  second entry's value, revert to the first entry's, or leave both and
+  flag for reconciliation review. The first two are recorded directly
+  in the second entry's own audit record (`db_insert_data_entry()`'s
+  new `audit_extra` parameter) -- no separate correction request for a
+  discrepancy resolved in the moment.
+* **Reconciliation queue**: a new "DDE Reconciliation" view in the
+  Corrections tab (`R/data_correction_module.R`), listing every open
+  `dde_group_id`/field left "flag for review"
+  (`list_dde_discrepancies()`). Resolving one files a correction
+  request through the existing `create_correction_request()` /
+  `approve_correction()` / `apply_correction()` workflow with a new
+  reason, `DDE_DISCREPANCY`. A new, narrower guard,
+  `require_dde_reviewer_separation()`, blocks either of the two
+  entry's users from approving or applying a `DDE_DISCREPANCY`
+  request specifically (REDCap's "reviewer is neither entry person"
+  rule) without changing `approve_correction()`/`apply_correction()`'s
+  existing self-approval behavior for any other correction. Once a
+  group's last open discrepancy is applied, the non-canonical entry is
+  marked `superseded_by` the canonical one (a new, nullable
+  `data_entries` column) -- kept for audit, never deleted, per this
+  package's insert-only design.
+* `correction_requests.correction_reason` carries its own hardcoded
+  `CHECK(correction_reason IN (...))` list, independent of
+  `get_correction_reasons()`; adding `DDE_DISCREPANCY` to the latter
+  without also migrating the former left every reconciliation request
+  rejected at the database layer with a raw `CHECK constraint failed`
+  error (caught during this pass's own manual walkthrough, not left
+  for a user to find). `migrate_correction_reasons()`
+  (`R/data_correction.R`) rebuilds `correction_requests` (and its two
+  FK-dependent tables, `correction_history`/`correction_overrides`,
+  unchanged) with the current reason list, mirroring
+  `migrate_audit_event_types()`'s SQLite/DuckDB table-rebuild strategy
+  (no `ALTER ... DROP/ADD CONSTRAINT` on either backend) and
+  PostgreSQL/MySQL's direct `ALTER TABLE` (the latter inspected, not
+  verified against a live server, same disclosure
+  `migrate_audit_event_types()` makes). Runs automatically,
+  idempotently, at the top of `init_data_correction()`.
+* **Known cosmetic gap, not blocking, found and still open**: the
+  Corrections tab's DDE-Reconciliation-queue "File Correction Request"
+  hand-off pre-fills Table Name/Record ID/Reason correctly, but the
+  Field dropdown's own pre-selection is lost -- it comes up still
+  showing "Select field...", requiring one manual click to pick the
+  flagged field. Tried deferring the `updateSelectInput()` call via
+  `session$onFlushed()` (the pattern `inst/app/edc.R` uses to restore
+  field values after a same-form re-render), on the theory that it was
+  racing `output$field_picker`'s `renderUI()` (both depend on the same
+  `crf_context()` recompute); re-tested in the browser afterward and
+  the field is still not pre-selected, so that was not the actual
+  cause -- the `session$onFlushed()` change is kept (harmless) but
+  this is reported as still open, not fixed. Does not affect the
+  Create Request view's own validation or submission once the field is
+  picked.
+* **Documented, not built this pass** (open decisions from the design,
+  made explicit rather than left as implementation accidents): an
+  unreconciled discrepancy is intended to block a future "Lock Visit"
+  control, but no such control exists yet anywhere in this app to wire
+  that into. A coarser project- or form-wide bulk "require double
+  entry on every field" toggle (REDCap-style convenience) was
+  considered and deliberately not built -- a thin helper over the same
+  per-field flag would be a reasonable later addition.
+
 ## A per-session "Display" control: dark mode, multi-column CRF layout, expanded tooltips
 
 * A gear-icon "Display" popover, reachable from every tab (not gated

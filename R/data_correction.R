@@ -109,6 +109,14 @@ init_data_correction <- function(db_path = NULL) {
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
+    # DDE_DISCREPANCY (2026-11-19): a database provisioned before this
+    # reason code existed still has the old CHECK(correction_reason IN
+    # (...)) constraint with no 'DDE_DISCREPANCY', so every DDE
+    # reconciliation request would be rejected at the database layer
+    # with no actionable error. Migrated before the (idempotent)
+    # CREATE TABLE below, which only ever applies to a brand-new table.
+    migrate_correction_reasons(conn)
+
     prepare_auto_increment(conn, "correction_requests", "request_id")
     DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS correction_requests (
@@ -121,7 +129,8 @@ init_data_correction <- function(db_path = NULL) {
         correction_reason TEXT NOT NULL CHECK(correction_reason IN
           ('TYPO', 'SOURCE_DOC_ERROR', 'CALCULATION_ERROR',
            'TRANSCRIPTION_ERROR', 'UNIT_ERROR', 'DATE_ERROR',
-           'PROTOCOL_CLARIFICATION', 'QUERY_RESPONSE', 'OTHER')),
+           'PROTOCOL_CLARIFICATION', 'QUERY_RESPONSE', 'DDE_DISCREPANCY',
+           'OTHER')),
         reason_details TEXT,
         original_source_doc TEXT,
         corrected_source_doc TEXT,
@@ -257,6 +266,277 @@ init_data_correction <- function(db_path = NULL) {
 }
 
 
+#' Migrate `correction_requests.correction_reason`'s `CHECK` List (internal)
+#'
+#' `correction_reason`'s `CHECK(correction_reason IN (...))` is a fixed
+#' list (`init_data_correction()`'s `CREATE TABLE`), so a database
+#' provisioned before a new reason code existed (e.g.
+#' `DDE_DISCREPANCY`, added 2026-11-19 for the double-data-entry
+#' reconciliation queue, `R/double_data_entry.R`) rejects every request
+#' with that reason at the database layer, with only a raw
+#' `CHECK constraint failed` error -- `create_correction_request()`'s
+#' own `valid_reasons` check (against [get_correction_reasons()])
+#' would already have let it through, since that list is not the
+#' database's; this is the migration that brings the database's own
+#' constraint into agreement with it.
+#'
+#' Mirrors [migrate_audit_event_types()]'s per-backend strategy: SQLite
+#' and DuckDB have no `ALTER TABLE ... DROP/ADD CONSTRAINT`, so both
+#' rebuild `correction_requests` (and, since `correction_history` and
+#' `correction_overrides` hold a `FOREIGN KEY ... REFERENCES
+#' correction_requests(request_id)`, those two as well, unchanged) via
+#' a create-copy-drop-rename sequence rather than editing the
+#' constraint in place; PostgreSQL/MySQL support `ALTER TABLE ... DROP
+#' CONSTRAINT`/`ADD CONSTRAINT ... CHECK (...)` directly. The
+#' PostgreSQL/MySQL path is inspected, not verified against a live
+#' server (none reachable in this session), matching
+#' [migrate_audit_event_types()]'s own disclosure for the same two
+#' backends.
+#'
+#' @param conn A DBI connection (or pool object).
+#' @return Invisible `TRUE`. A no-op (returns immediately) if
+#'   `correction_requests` does not exist yet (a brand-new database:
+#'   the `CREATE TABLE` right after this call already has the current
+#'   list), or if its `CHECK` already lists every reason in
+#'   [get_correction_reasons()].
+#' @keywords internal
+migrate_correction_reasons <- function(conn) {
+  is_pool <- inherits(conn, "Pool")
+  work_conn <- if (is_pool) pool::poolCheckout(conn) else conn
+  if (is_pool) on.exit(pool::poolReturn(work_conn), add = TRUE)
+
+  if (!DBI::dbExistsTable(work_conn, "correction_requests")) {
+    return(invisible(TRUE))
+  }
+
+  backend <- tryCatch(.conn_backend(work_conn), error = function(e) "other")
+  expected <- names(get_correction_reasons())
+  expected_list <- paste0("'", expected, "'", collapse = ", ")
+
+  current_check <- .correction_reason_check_text(work_conn, backend)
+  if (!is.null(current_check) &&
+        all(vapply(expected,
+                   function(r) grepl(paste0("'", r, "'"), current_check, fixed = TRUE),
+                   logical(1)))) {
+    return(invisible(TRUE))
+  }
+
+  if (backend %in% c("sqlite", "duckdb")) {
+    history_cols <- "history_id, request_id, action, action_by, action_at, action_details, action_hash, previous_hash"
+    overrides_cols <- paste(
+      "override_id, request_id, override_type, override_reason, override_by,",
+      "override_at, approved_by, approved_at, override_hash"
+    )
+    requests_cols <- paste(
+      "request_id, table_name, record_id, field_name, original_value,",
+      "corrected_value, correction_reason, reason_details, original_source_doc,",
+      "corrected_source_doc, status, requested_by, requested_at, reviewed_by,",
+      "reviewed_at, review_comments, applied_by, applied_at, request_hash,",
+      "previous_request_hash, site_id, study_id, subject_id, visit_id, form_id"
+    )
+
+    rebuild <- function(c) {
+      DBI::dbExecute(c, "ALTER TABLE correction_history RENAME TO zzedc_correction_history_old")
+      DBI::dbExecute(c, "ALTER TABLE correction_overrides RENAME TO zzedc_correction_overrides_old")
+      DBI::dbExecute(c, "ALTER TABLE correction_requests RENAME TO zzedc_correction_requests_old")
+
+      DBI::dbExecute(c, sprintf("
+        CREATE TABLE correction_requests (
+          request_id INTEGER PRIMARY KEY,
+          table_name TEXT NOT NULL,
+          record_id TEXT NOT NULL,
+          field_name TEXT NOT NULL,
+          original_value TEXT,
+          corrected_value TEXT NOT NULL,
+          correction_reason TEXT NOT NULL CHECK(correction_reason IN (%s)),
+          reason_details TEXT,
+          original_source_doc TEXT,
+          corrected_source_doc TEXT,
+          status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN
+            ('PENDING', 'APPROVED', 'REJECTED', 'APPLIED', 'CANCELLED')),
+          requested_by TEXT NOT NULL,
+          requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          reviewed_by TEXT,
+          reviewed_at TIMESTAMP,
+          review_comments TEXT,
+          applied_by TEXT,
+          applied_at TIMESTAMP,
+          request_hash TEXT NOT NULL,
+          previous_request_hash TEXT,
+          site_id TEXT,
+          study_id TEXT,
+          subject_id TEXT,
+          visit_id TEXT,
+          form_id TEXT
+        )
+      ", expected_list))
+      DBI::dbExecute(c, sprintf(
+        "INSERT INTO correction_requests (%s) SELECT %s FROM zzedc_correction_requests_old",
+        requests_cols, requests_cols
+      ))
+
+      DBI::dbExecute(c, "
+        CREATE TABLE correction_history (
+          history_id INTEGER PRIMARY KEY,
+          request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
+          action TEXT NOT NULL CHECK(action IN
+            ('CREATED', 'SUBMITTED', 'APPROVED', 'REJECTED',
+             'APPLIED', 'CANCELLED', 'RESUBMITTED', 'ESCALATED')),
+          action_by TEXT NOT NULL,
+          action_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          action_details TEXT,
+          action_hash TEXT NOT NULL,
+          previous_hash TEXT
+        )
+      ")
+      DBI::dbExecute(c, sprintf(
+        "INSERT INTO correction_history (%s) SELECT %s FROM zzedc_correction_history_old",
+        history_cols, history_cols
+      ))
+
+      DBI::dbExecute(c, "
+        CREATE TABLE correction_overrides (
+          override_id INTEGER PRIMARY KEY,
+          request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
+          override_type TEXT NOT NULL CHECK(override_type IN
+            ('LOCKED_RECORD', 'FINALIZED_DATA', 'SIGNATURE_PRESENT')),
+          override_reason TEXT NOT NULL,
+          override_by TEXT NOT NULL,
+          override_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          approved_by TEXT,
+          approved_at TIMESTAMP,
+          override_hash TEXT NOT NULL
+        )
+      ")
+      DBI::dbExecute(c, sprintf(
+        "INSERT INTO correction_overrides (%s) SELECT %s FROM zzedc_correction_overrides_old",
+        overrides_cols, overrides_cols
+      ))
+
+      DBI::dbExecute(c, "DROP TABLE zzedc_correction_overrides_old")
+      DBI::dbExecute(c, "DROP TABLE zzedc_correction_history_old")
+      DBI::dbExecute(c, "DROP TABLE zzedc_correction_requests_old")
+
+      DBI::dbExecute(c, "
+        CREATE INDEX IF NOT EXISTS idx_corrections_table_record
+        ON correction_requests(table_name, record_id)
+      ")
+      DBI::dbExecute(c, "
+        CREATE INDEX IF NOT EXISTS idx_corrections_requested_by
+        ON correction_requests(requested_by)
+      ")
+      DBI::dbExecute(c, "
+        CREATE INDEX IF NOT EXISTS idx_corrections_requested_at
+        ON correction_requests(requested_at)
+      ")
+    }
+
+    if (backend == "sqlite") {
+      # DROP/rename below touches three FK-linked tables at once;
+      # SQLite enforces FKs on every statement when PRAGMA foreign_keys
+      # is ON (set at connect time), so it must be off for this
+      # sequence and restored after, exactly as
+      # migrate_audit_event_types() does for audit_log.
+      prior_fk <- DBI::dbGetQuery(work_conn, "PRAGMA foreign_keys")[[1]][1]
+      DBI::dbExecute(work_conn, "PRAGMA foreign_keys = OFF")
+      on.exit(DBI::dbExecute(work_conn, sprintf("PRAGMA foreign_keys = %d", prior_fk)),
+              add = TRUE, after = FALSE)
+      .with_db_transaction(work_conn, rebuild)
+    } else {
+      # DuckDB refuses to DROP/rename a table anything still
+      # references (same "Dependency Error"/"is main key table of"
+      # limitation migrate_audit_event_types() documents) -- all three
+      # tables are rebuilt together in one transaction instead of one
+      # at a time, same ordering (history/overrides before requests on
+      # the way out, after on the way in) so no intermediate state
+      # ever has a dangling reference.
+      .with_db_transaction(work_conn, rebuild)
+    }
+  } else if (backend %in% c("postgresql", "mysql")) {
+    constraint_name <- tryCatch(
+      .correction_reason_check_constraint_name(work_conn, backend),
+      error = function(e) NULL
+    )
+    if (is.null(constraint_name)) {
+      stop("Could not locate correction_requests' correction_reason CHECK ",
+           "constraint to migrate it; the database is unchanged.")
+    }
+    DBI::dbExecute(work_conn, sprintf(
+      "ALTER TABLE correction_requests DROP CONSTRAINT %s, ADD CONSTRAINT %s CHECK (correction_reason IN (%s))",
+      DBI::dbQuoteIdentifier(work_conn, constraint_name),
+      DBI::dbQuoteIdentifier(work_conn, constraint_name),
+      expected_list
+    ))
+  }
+
+  invisible(TRUE)
+}
+
+
+#' The `correction_reason` `CHECK` Constraint's Current Text (internal)
+#' @keywords internal
+.correction_reason_check_text <- function(conn, backend) {
+  tryCatch({
+    if (backend == "sqlite") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'correction_requests'
+      ")
+      if (nrow(row) == 0) NULL else row$sql[1]
+    } else if (backend == "duckdb") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT constraint_text FROM duckdb_constraints()
+        WHERE table_name = 'correction_requests' AND constraint_type = 'CHECK'
+      ")
+      if (nrow(row) == 0) NULL else paste(row$constraint_text, collapse = " ")
+    } else if (backend == "postgresql") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+        WHERE conrelid = 'correction_requests'::regclass AND contype = 'c'
+      ")
+      if (nrow(row) == 0) NULL else paste(row$def, collapse = " ")
+    } else if (backend == "mysql") {
+      row <- DBI::dbGetQuery(conn, "
+        SELECT CHECK_CLAUSE AS def FROM information_schema.CHECK_CONSTRAINTS
+        WHERE CONSTRAINT_SCHEMA = DATABASE()
+          AND CONSTRAINT_NAME IN (
+            SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'correction_requests'
+              AND CONSTRAINT_TYPE = 'CHECK'
+          )
+      ")
+      if (nrow(row) == 0) NULL else paste(row$def, collapse = " ")
+    } else {
+      NULL
+    }
+  }, error = function(e) NULL)
+}
+
+
+#' The `correction_reason` `CHECK` Constraint's Name, on PostgreSQL/MySQL (internal)
+#' @keywords internal
+.correction_reason_check_constraint_name <- function(conn, backend) {
+  if (backend == "postgresql") {
+    row <- DBI::dbGetQuery(conn, "
+      SELECT conname FROM pg_constraint
+      WHERE conrelid = 'correction_requests'::regclass AND contype = 'c'
+        AND pg_get_constraintdef(oid) LIKE '%correction_reason%'
+    ")
+  } else {
+    row <- DBI::dbGetQuery(conn, "
+      SELECT CONSTRAINT_NAME FROM information_schema.CHECK_CONSTRAINTS
+      WHERE CONSTRAINT_SCHEMA = DATABASE()
+        AND CHECK_CLAUSE LIKE '%correction_reason%'
+        AND CONSTRAINT_NAME IN (
+          SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'correction_requests'
+            AND CONSTRAINT_TYPE = 'CHECK'
+        )
+    ")
+  }
+  if (nrow(row) == 0) NULL else row[[1]][1]
+}
+
+
 # =============================================================================
 # Correction Request Management
 # =============================================================================
@@ -279,6 +559,11 @@ get_correction_reasons <- function() {
     DATE_ERROR = "Incorrect date or time",
     PROTOCOL_CLARIFICATION = "Protocol clarification required change",
     QUERY_RESPONSE = "Response to data query",
+    DDE_DISCREPANCY = paste(
+      "Double-data-entry discrepancy: the two independent entries",
+      "differed on a field flagged for double entry and were not",
+      "resolved at entry time"
+    ),
     OTHER = "Other reason (specify in details)"
   )
 }
