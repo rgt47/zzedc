@@ -14,6 +14,8 @@ db_insert_data_entry(
   is_complete = TRUE,
   created_by,
   entry_id = NULL,
+  dde_group_id = NULL,
+  audit_extra = NULL,
   ip_address = NULL,
   session_id = NULL
 )
@@ -39,6 +41,18 @@ for the visit this entry belongs to.}
 
 \item{entry_id}{Optional pre-generated identifier;
 auto-generated from a timestamp if \code{NULL}.}
+
+\item{dde_group_id}{Optional double-data-entry group identifier
+(see \code{R/double_data_entry.R}); \code{NULL} (the default) for an
+ordinary, single-keyed entry.}
+
+\item{audit_extra}{Optional named list merged into this insert's
+audit \code{details} JSON (alongside \code{subject_id}/\code{form_name}/
+\code{new_values}/...). Used by the double-data-entry save path to
+record a within-save discrepancy resolution (which fields
+differed from the first entry and how each was resolved)
+directly on the same \code{INSERT} audit record, rather than as a
+second write.}
 
 \item{ip_address, session_id}{Client address and Shiny session token,
 recorded in the audit record when known.}

@@ -427,6 +427,64 @@ get_current_version <- function(table_name, record_id, db_path = NULL) {
 # Version Comparison
 # =============================================================================
 
+#' Per-Field Diff Between Two Named Lists (internal)
+#'
+#' The field-by-field comparison [compare_versions()] does between two
+#' stored version snapshots, factored out so a second caller can run
+#' the same comparison between two in-memory field lists that are not
+#' (yet, or ever) stored `record_versions` rows -- e.g. the
+#' double-data-entry item-level check in `R/double_data_entry.R`,
+#' which must diff a second entry's just-submitted `field_data` against
+#' a first entry's already-saved `data_json` *before* the second entry
+#' is itself saved. One diff engine, two callers, rather than a second
+#' one reimplementing this loop.
+#'
+#' @param data_a,data_b Named lists (or data frames, coerced via
+#'   `as.list()`) of field values to compare.
+#' @param fields Optional character vector restricting the comparison
+#'   to just these field names (e.g. only the fields flagged
+#'   `require_double_entry = TRUE`). `NULL` (the default) compares
+#'   every field present in either list, [compare_versions()]'s
+#'   original behavior.
+#' @return A named list (by field) of
+#'   `list(field=, version_a_value=, version_b_value=, change_type=)`,
+#'   `change_type` one of `"ADDED"`/`"REMOVED"`/`"MODIFIED"`. A field
+#'   with identical values in both lists is omitted entirely.
+#' @keywords internal
+diff_field_lists <- function(data_a, data_b, fields = NULL) {
+  if (is.data.frame(data_a)) data_a <- as.list(data_a)
+  if (is.data.frame(data_b)) data_b <- as.list(data_b)
+
+  all_fields <- if (is.null(fields)) {
+    unique(c(names(data_a), names(data_b)))
+  } else {
+    fields
+  }
+
+  differences <- list()
+  for (field in all_fields) {
+    val_a <- if (field %in% names(data_a)) as.character(data_a[[field]]) else NA
+    val_b <- if (field %in% names(data_b)) as.character(data_b[[field]]) else NA
+
+    if (!identical(val_a, val_b)) {
+      differences[[field]] <- list(
+        field = field,
+        version_a_value = val_a,
+        version_b_value = val_b,
+        change_type = if (is.na(val_a)) {
+          "ADDED"
+        } else if (is.na(val_b)) {
+          "REMOVED"
+        } else {
+          "MODIFIED"
+        }
+      )
+    }
+  }
+  differences
+}
+
+
 #' Compare Two Versions
 #'
 #' Compares two versions of a record and returns the differences.
@@ -438,7 +496,6 @@ get_current_version <- function(table_name, record_id, db_path = NULL) {
 #' @param db_path Character: Database path (optional)
 #'
 #' @return List with comparison results
-#'
 #' @keywords internal
 #' @export
 compare_versions <- function(table_name, record_id,
@@ -462,34 +519,7 @@ compare_versions <- function(table_name, record_id,
     ))
   }
 
-  data_a <- version_a_data$data
-  data_b <- version_b_data$data
-
-  if (is.data.frame(data_a)) data_a <- as.list(data_a)
-  if (is.data.frame(data_b)) data_b <- as.list(data_b)
-
-  all_fields <- unique(c(names(data_a), names(data_b)))
-
-  differences <- list()
-  for (field in all_fields) {
-    val_a <- if (field %in% names(data_a)) as.character(data_a[[field]]) else NA
-    val_b <- if (field %in% names(data_b)) as.character(data_b[[field]]) else NA
-
-    if (!identical(val_a, val_b)) {
-      differences[[field]] <- list(
-        field = field,
-        version_a_value = val_a,
-        version_b_value = val_b,
-        change_type = if (is.na(val_a)) {
-          "ADDED"
-        } else if (is.na(val_b)) {
-          "REMOVED"
-        } else {
-          "MODIFIED"
-        }
-      )
-    }
-  }
+  differences <- diff_field_lists(version_a_data$data, version_b_data$data)
 
   list(
     success = TRUE,

@@ -10,6 +10,8 @@ save_crf_entry(
   field_data,
   created_by,
   is_complete = TRUE,
+  dde_group_id = NULL,
+  audit_extra = NULL,
   ip_address = NULL,
   session_id = NULL
 )
@@ -34,6 +36,11 @@ caller's behavior unchanged) for an ordinary full "Submit";
 subsequent saves of that same draft go through
 \code{\link[=db_update_incomplete_data_entry]{db_update_incomplete_data_entry()}} instead, not back through
 this insert-only path.}
+
+\item{dde_group_id, audit_extra}{Passed through unchanged to
+\code{\link[=db_insert_data_entry]{db_insert_data_entry()}}; see its own documentation. Used by the
+double-data-entry save path (\code{R/double_data_entry.R}), \code{NULL} for
+every ordinary submission.}
 
 \item{ip_address, session_id}{Recorded in the entry's audit record
 (see \code{session_audit_context()}).}

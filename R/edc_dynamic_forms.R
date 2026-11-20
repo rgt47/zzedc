@@ -101,12 +101,25 @@ map_designer_field_type <- function(x) {
 #'   [renderPanel()]. An empty list when the form has no fields.
 #' @keywords internal
 get_crf_field_metadata <- function(conn, crf_id) {
+  # require_double_entry (2026-11-19) is added to designer_fields by
+  # init_crf_designer()'s idempotent ALTER (R/crf_designer.R), but
+  # that function is only ever called from the REDCap/Google-Sheets
+  # import orchestrators, not unconditionally at app startup -- so an
+  # existing database that has never run either import since this
+  # column was introduced may not have it yet. Selecting a column
+  # that doesn't exist would break every form's metadata lookup, not
+  # just double-data-entry's, so this checks first and selects a
+  # literal FALSE in its place when absent, rather than requiring
+  # every caller to have migrated first.
+  has_dde_col <- "require_double_entry" %in%
+    DBI::dbListFields(conn, "designer_fields")
   fields <- DBI::dbGetQuery(
     conn,
     paste(
       "SELECT field_id, field_code, field_label, field_type,",
       "       is_required, placeholder, help_text, default_value, widget_file,",
-      "       help_detail, field_row, field_column, field_width",
+      "       help_detail, field_row, field_column, field_width,",
+      if (has_dde_col) "require_double_entry" else "0 AS require_double_entry",
       "FROM designer_fields",
       "WHERE design_id = ?",
       "ORDER BY field_row, field_column, field_id"
@@ -164,7 +177,10 @@ get_crf_field_metadata <- function(conn, crf_id) {
       # single-field renderPanel() call).
       field_row    = if (!is.na(fr$field_row)) as.integer(fr$field_row) else 1L,
       field_column = if (!is.na(fr$field_column)) as.integer(fr$field_column) else 1L,
-      field_width  = if (!is.na(fr$field_width)) as.integer(fr$field_width) else 100L
+      field_width  = if (!is.na(fr$field_width)) as.integer(fr$field_width) else 100L,
+      # Double-data-entry opt-in (R/double_data_entry.R); see the
+      # has_dde_col fallback above for why this can never be NA here.
+      require_double_entry = isTRUE(fr$require_double_entry == 1)
     )
   })
   stats::setNames(metadata, fields$field_code)
@@ -706,6 +722,10 @@ fill_crf_field_inputs <- function(session, metadata, values) {
 #'   subsequent saves of that same draft go through
 #'   [db_update_incomplete_data_entry()] instead, not back through
 #'   this insert-only path.
+#' @param dde_group_id,audit_extra Passed through unchanged to
+#'   [db_insert_data_entry()]; see its own documentation. Used by the
+#'   double-data-entry save path (`R/double_data_entry.R`), `NULL` for
+#'   every ordinary submission.
 #' @param ip_address,session_id Recorded in the entry's audit record
 #'   (see `session_audit_context()`).
 #' @return The `list(success=, entry_id=)` / `list(success=FALSE,
@@ -713,6 +733,7 @@ fill_crf_field_inputs <- function(session, metadata, values) {
 #' @keywords internal
 save_crf_entry <- function(conn, crf_code, field_data, created_by,
                            is_complete = TRUE,
+                           dde_group_id = NULL, audit_extra = NULL,
                            ip_address = NULL, session_id = NULL) {
   ensure_data_entries_table(conn)
 
@@ -731,6 +752,8 @@ save_crf_entry <- function(conn, crf_code, field_data, created_by,
     data        = field_data,
     is_complete = is_complete,
     created_by  = created_by,
+    dde_group_id = dde_group_id,
+    audit_extra  = audit_extra,
     ip_address  = ip_address,
     session_id  = session_id
   )

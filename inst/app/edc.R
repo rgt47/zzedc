@@ -234,10 +234,19 @@ viscode_rv <- shiny::reactiveVal(1L)
         # here" toast as its only gate.
         uiOutput("randomize_subject_btn_ui", inline = TRUE),
         uiOutput("crf_draft_banner"),
+        # Double-data-entry banner/button gating (see
+        # output$dde_form_banner and output$savedraftcrf_ui below):
+        # "Save and Finish Later" is a second route to a complete row
+        # that would skip DDE's group-linking and item-level diff
+        # entirely (db_update_incomplete_data_entry(is_complete = TRUE)
+        # never runs through save_crf_entry()'s DDE path), so it is
+        # replaced by a server-rendered control that hides itself for
+        # any form with at least one require_double_entry field,
+        # rather than a static actionButton.
+        uiOutput("dde_form_banner"),
         actionButton("submitcrf", "Submit entry",
                      class = "btn btn-primary mt-3"),
-        actionButton("savedraftcrf", "Save and Finish Later",
-                     class = "btn btn-outline-secondary mt-3"),
+        uiOutput("savedraftcrf_ui"),
         shinyjs::hidden(div(id = "crf_results",
                             class = "alert alert-success mt-3",
                             "Entry saved."))
@@ -482,6 +491,41 @@ crf_field_metadata <- reactive({
   zzedc:::get_crf_field_metadata(db_pool, as.integer(input$edc_crf_form))
 })
 
+# Field codes on the current form flagged require_double_entry = TRUE
+# (R/double_data_entry.R). character(0) for an ordinary, single-keyed
+# form -- every DDE-specific branch below is skipped entirely in that
+# case, so an unflagged form's submit path is byte-for-byte what it
+# was before this feature.
+crf_dde_flagged <- reactive({
+  zzedc:::flagged_dde_fields(crf_field_metadata())
+})
+
+# "Save and Finish Later" would bypass DDE's group-linking and
+# item-level diff (see the comment at its call site in the UI above),
+# so it is hidden entirely for a flagged form rather than merely
+# discouraged -- the savedraftcrf observeEvent below also refuses the
+# action server-side, belt-and-suspenders against a crafted
+# Shiny.setInputValue('savedraftcrf', 1) bypassing this hidden button.
+output$savedraftcrf_ui <- renderUI({
+  if (length(crf_dde_flagged()) > 0) return(NULL)
+  actionButton("savedraftcrf", "Save and Finish Later",
+               class = "btn btn-outline-secondary mt-3")
+})
+
+output$dde_form_banner <- renderUI({
+  flagged <- crf_dde_flagged()
+  if (length(flagged) == 0) return(NULL)
+  div(class = "alert alert-info py-2 px-3 mt-2",
+      sprintf(
+        paste("This form requires double data entry on %d field(s). It must",
+              "be submitted in full (no \"Save and Finish Later\") twice, by",
+              "two different users, for the same Subject ID; any difference",
+              "on a flagged field is caught immediately on the second",
+              "submission."),
+        length(flagged)
+      ))
+})
+
 # Fired by the click handler in .zzedc_crf_dynamic_panel() (above)
 # when a field's hint icon has data-has-detail="true". Looks up that
 # field's full-page help_detail (never sent to the browser until
@@ -592,6 +636,91 @@ crf_submit_attempted <- shiny::reactiveVal(FALSE)
 # save of the same draft is a true update of its one row, never a
 # second data_entries row.
 crf_draft <- shiny::reactiveVal(NULL)
+
+# NULL except while a second double-data-entry submission has an
+# unresolved discrepancy on at least one flagged field and the
+# resolution modal (.zzedc_dde_discrepancy_modal() below) is on
+# screen: list(group_id=, first_entry_id=, field_data=, first_values=,
+# discrepancies=, metadata=, crf_code=, created_by=, ip_address=,
+# session_id=). The confirm handler (input$dde_confirm_resolution,
+# below) reads this, applies the chosen resolutions, and performs the
+# actual insert -- the submit handler itself never inserts a
+# discrepant second entry directly.
+dde_pending <- shiny::reactiveVal(NULL)
+
+# Builds the resolution modal: one three-way radio choice per
+# discrepant flagged field, showing both entries' values -- the first
+# point in this entire flow that entry #1's value for a field is ever
+# shown to the second enterer, and only for a field already known (by
+# the save-time diff) to disagree. Not dismissable by clicking outside
+# it (easyClose = FALSE): the design's blinding requirement is that
+# entry #2 was keyed with no access to entry #1's values, which a
+# cancel-and-silently-rekey-while-now-aware-of-the-mismatch escape
+# hatch would partially defeat; the modal itself is also the audit
+# trail's own record that this discrepancy was shown and resolved, not
+# quietly reloaded away.
+.zzedc_dde_discrepancy_modal <- function(discrepancies, metadata) {
+  rows <- lapply(names(discrepancies), function(field) {
+    label <- metadata[[field]]$label %||% field
+    d <- discrepancies[[field]]
+    ns_id <- paste0("dde_resolve_", field)
+    shiny::wellPanel(
+      tags$strong(label),
+      tags$p(sprintf("Entry #1: \"%s\"  |  Entry #2 (yours): \"%s\"",
+                     d$version_a_value, d$version_b_value)),
+      shiny::radioButtons(
+        ns_id, NULL,
+        choices = c(
+          "Keep my (entry #2) value" = "keep_second",
+          "Revert to entry #1's value" = "revert_first",
+          "Leave both and flag for reconciliation review" = "flag_for_review"
+        ),
+        selected = "flag_for_review"
+      )
+    )
+  })
+  shiny::modalDialog(
+    title = "Double-data-entry discrepancy",
+    tags$p(paste(
+      "The following field(s) flagged for double data entry differ",
+      "between the first and second (this) submission. Choose how to",
+      "resolve each one before this entry can be saved."
+    )),
+    shiny::tagList(rows),
+    footer = shiny::actionButton("dde_confirm_resolution", "Confirm and Save",
+                                 class = "btn-primary"),
+    easyClose = FALSE
+  )
+}
+
+# Shared by the ordinary submit path and the DDE confirm-resolution
+# handler below: the UI side effects of a successful/failed save used
+# to be inline at the end of observeEvent(input$submitcrf, ...); both
+# call sites need the identical behavior, so this is the one place it
+# is written.
+.zzedc_finish_submit <- function(result, crf_row, metadata, crf_code) {
+  if (isTRUE(result$success)) {
+    shiny::showNotification(
+      sprintf("Entry saved (%s, %s).", crf_row$crf_name[1], result$entry_id),
+      type = "message", duration = 5
+    )
+    shinyjs::show("crf_results")
+    crf_entries_refresh(crf_entries_refresh() + 1)
+    crf_submit_attempted(FALSE)
+    crf_draft(NULL)
+    shinyjs::enable("tracking_id")
+    if (!is.null(zzedc:::tracking_id_prefix_for_form(crf_code)) &&
+          "tracking_id" %in% names(metadata)) {
+      metadata$tracking_id$value <- zzedc:::next_manuscript_tracking_id(db_pool)
+    }
+    zzedc:::reset_crf_field_inputs(session, metadata)
+  } else {
+    shiny::showNotification(
+      paste("Database error saving entry:", result$error),
+      type = "error", duration = 10
+    )
+  }
+}
 
 output$crf_draft_banner <- renderUI({
   draft <- crf_draft()
@@ -857,49 +986,134 @@ observeEvent(input$submitcrf, {
   }
 
   audit_ctx <- zzedc::session_audit_context(session)
-  # A resumed draft (crf_draft() set, via the "Continue" action on
-  # crf_entries_table) is a true update of that same data_entries
-  # row, marking it complete -- never a second INSERT. A fresh entry
-  # (no draft loaded) keeps the original insert-only path.
-  result <- if (!is.null(draft)) {
-    zzedc:::db_update_incomplete_data_entry(
-      db_pool, entry_id = draft$entry_id, data = field_data,
-      is_complete = TRUE, modified_by = created_by,
+  flagged <- zzedc:::flagged_dde_fields(metadata)
+
+  # The one bypass db_update_incomplete_data_entry() otherwise opens:
+  # completing an already-open draft never goes through
+  # save_crf_entry()'s DDE group-linking/diff at all. Forms with a
+  # flagged field no longer offer "Save and Finish Later" (see
+  # output$savedraftcrf_ui above), so no *new* draft can start down
+  # this path; this refuses only a pre-existing one from before a
+  # field was flagged.
+  if (!is.null(draft) && length(flagged) > 0) {
+    shiny::showNotification(
+      paste("This form now requires double data entry and no longer",
+            "supports resuming a draft. Contact an administrator to",
+            "resolve entry", draft$entry_id, "."),
+      type = "error", duration = 10
+    )
+    return(invisible(NULL))
+  }
+
+  if (length(flagged) == 0) {
+    # A resumed draft (crf_draft() set, via the "Continue" action on
+    # crf_entries_table) is a true update of that same data_entries
+    # row, marking it complete -- never a second INSERT. A fresh entry
+    # (no draft loaded) keeps the original insert-only path.
+    result <- if (!is.null(draft)) {
+      zzedc:::db_update_incomplete_data_entry(
+        db_pool, entry_id = draft$entry_id, data = field_data,
+        is_complete = TRUE, modified_by = created_by,
+        ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
+      )
+    } else {
+      zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
+                              created_by = created_by, is_complete = TRUE,
+                              ip_address = audit_ctx$ip_address,
+                              session_id = audit_ctx$session_id)
+    }
+    .zzedc_finish_submit(result, crf_row, metadata, crf_code)
+    return(invisible(NULL))
+  }
+
+  # Double-data-entry path: decide, via the blind probe
+  # (dde_decide_role() -> db_get_dde_first_entry(), which never
+  # selects data_json), whether this submission is the first or
+  # second entry for this subject_id/form_name.
+  subject_id <- as.character(
+    field_data$tracking_id %||%
+      paste0(toupper(crf_code), "-", format(Sys.time(), "%Y%m%d%H%M%OS3", tz = "UTC"))
+  )
+  decision <- zzedc:::dde_decide_role(db_pool, subject_id, tolower(crf_code), created_by)
+
+  if (isTRUE(decision$blocked_same_user)) {
+    shiny::showNotification(
+      paste("The second entry of a double-data-entry form must be made",
+            "by a different user than the first entry."),
+      type = "error", duration = 10
+    )
+    return(invisible(NULL))
+  }
+
+  if (identical(decision$role, "first")) {
+    result <- zzedc:::save_crf_entry(
+      db_pool, crf_row$crf_code[1], field_data, created_by = created_by,
+      is_complete = TRUE, dde_group_id = decision$group_id,
       ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
     )
-  } else {
-    zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
-                            created_by = created_by, is_complete = TRUE,
-                            ip_address = audit_ctx$ip_address,
-                            session_id = audit_ctx$session_id)
+    .zzedc_finish_submit(result, crf_row, metadata, crf_code)
+    return(invisible(NULL))
   }
-  if (isTRUE(result$success)) {
-    shiny::showNotification(
-      sprintf("Entry saved (%s, %s).", crf_row$crf_name[1], result$entry_id),
-      type = "message", duration = 5
+
+  # Second entry: the one place this session's save path reads the
+  # first entry's data_json (dde_check_discrepancies() ->
+  # db_get_dde_first_entry_values()), restricted to only the flagged
+  # fields -- a mismatch on any other field is never checked.
+  chk <- zzedc:::dde_check_discrepancies(db_pool, decision$first_entry_id,
+                                        field_data, flagged)
+  if (length(chk$discrepancies) == 0) {
+    result <- zzedc:::save_crf_entry(
+      db_pool, crf_row$crf_code[1], field_data, created_by = created_by,
+      is_complete = TRUE, dde_group_id = decision$group_id,
+      ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
     )
-    shinyjs::show("crf_results")
-    crf_entries_refresh(crf_entries_refresh() + 1)
-    # Next entry on this form starts from a clean slate: a blank
-    # required field on the now-reset form is an unfilled-in field
-    # again, not a still-rejected one. A just-completed draft is also
-    # done -- this form is free to start a brand-new entry again.
-    crf_submit_attempted(FALSE)
-    crf_draft(NULL)
-    shinyjs::enable("tracking_id")
-    # The just-saved tracking_id is now taken, so a plain blank
-    # reset would invite the next entry to collide with it; recompute
-    # the next free id (same convention used to prefill the form
-    # originally) instead, for forms that have one.
-    if (!is.null(zzedc:::tracking_id_prefix_for_form(crf_code)) &&
-          "tracking_id" %in% names(metadata)) {
-      metadata$tracking_id$value <- zzedc:::next_manuscript_tracking_id(db_pool)
-    }
-    zzedc:::reset_crf_field_inputs(session, metadata)
-  } else {
+    .zzedc_finish_submit(result, crf_row, metadata, crf_code)
+    return(invisible(NULL))
+  }
+
+  # A flagged field actually disagrees: hold the submission (no insert
+  # yet) and show the three-way resolution prompt. input$dde_confirm_resolution
+  # below performs the real insert once the user has chosen.
+  dde_pending(list(
+    group_id = decision$group_id, first_entry_id = decision$first_entry_id,
+    field_data = field_data, first_values = chk$first_values,
+    discrepancies = chk$discrepancies, metadata = metadata,
+    crf_row = crf_row, crf_code = crf_code, created_by = created_by,
+    ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
+  ))
+  shiny::showModal(.zzedc_dde_discrepancy_modal(chk$discrepancies, metadata))
+})
+
+observeEvent(input$dde_confirm_resolution, {
+  zzedc::require_authenticated_action(user_input, session, db_path,
+                                      "resolve a double-data-entry discrepancy")
+  pending <- dde_pending()
+  shiny::req(pending)
+
+  resolutions <- stats::setNames(
+    lapply(names(pending$discrepancies), function(f) input[[paste0("dde_resolve_", f)]]),
+    names(pending$discrepancies)
+  )
+  applied <- zzedc:::apply_dde_resolutions(
+    pending$field_data, pending$first_values, pending$discrepancies, resolutions
+  )
+
+  result <- zzedc:::save_crf_entry(
+    db_pool, pending$crf_code, applied$field_data, created_by = pending$created_by,
+    is_complete = TRUE, dde_group_id = pending$group_id,
+    audit_extra = list(dde_resolution = applied$resolution_detail,
+                       dde_first_entry_id = pending$first_entry_id,
+                       dde_pending_review_fields = applied$pending_fields),
+    ip_address = pending$ip_address, session_id = pending$session_id
+  )
+  shiny::removeModal()
+  dde_pending(NULL)
+  .zzedc_finish_submit(result, pending$crf_row, pending$metadata, pending$crf_code)
+  if (isTRUE(result$success) && length(applied$pending_fields) > 0) {
     shiny::showNotification(
-      paste("Database error saving entry:", result$error),
-      type = "error", duration = 10
+      paste("Flagged for reconciliation review:",
+            paste(applied$pending_fields, collapse = ", ")),
+      type = "warning", duration = 8
     )
   }
 })
@@ -919,6 +1133,20 @@ observeEvent(input$savedraftcrf, {
   field_data <- shiny::isolate(crf_live_field_data())
   crf_code <- crf_row$crf_code[1]
   draft <- shiny::isolate(crf_draft())
+
+  # Server-side belt-and-suspenders: output$savedraftcrf_ui above
+  # never renders this button for a form with a flagged field, but
+  # that only stops the normal UI, not a crafted
+  # Shiny.setInputValue('savedraftcrf', 1) -- and a drafted,
+  # incomplete row would bypass DDE's group-linking/diff entirely if
+  # ever completed (see the submitcrf handler's matching check).
+  if (length(zzedc:::flagged_dde_fields(metadata)) > 0) {
+    shiny::showNotification(
+      "This form requires double data entry; it must be submitted in full, not saved as a draft.",
+      type = "error", duration = 8
+    )
+    return(invisible(NULL))
+  }
 
   # "Save and Finish Later" accepts whatever subset of fields is
   # filled in -- required-ness is deliberately not checked here (that

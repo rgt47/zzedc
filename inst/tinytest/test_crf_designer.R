@@ -716,3 +716,44 @@ local({
     expect_true(all(rows$user_id == "alice"))
 
 })
+
+# Double-data-entry opt-in (2026-11-19): require_double_entry is a
+# per-field flag, set via add_form_field()/add_form_field_by_code()
+# alongside is_required, migrated onto designer_fields the same
+# idempotent describe-then-ALTER way widget_file/help_detail were.
+local({
+    setup_cd_test()
+    on.exit(cleanup_cd_test())
+
+    con <- connect_encrypted_db()
+    cols <- get_db_adapter()$describe_table(con, "designer_fields")$name
+    DBI::dbDisconnect(con)
+    expect_true("require_double_entry" %in% cols)
+
+    design <- create_designer_form(form_code = "DDE_TEST", form_name = "DDE Test",
+                                   created_by = "alice")
+    expect_true(design$success)
+
+    plain <- add_form_field(design_id = design$design_id, field_code = "note",
+                            field_label = "Note", field_type = "TEXT")
+    expect_true(plain$success)
+
+    flagged <- add_form_field(design_id = design$design_id, field_code = "sbp",
+                              field_label = "SBP", field_type = "NUMBER",
+                              require_double_entry = TRUE)
+    expect_true(flagged$success)
+
+    con <- connect_encrypted_db()
+    on.exit(DBI::dbDisconnect(con), add = TRUE)
+    rows <- DBI::dbGetQuery(con, "
+      SELECT field_code, require_double_entry FROM designer_fields
+      WHERE design_id = ? ORDER BY field_id
+    ", list(design$design_id))
+    expect_equal(rows$require_double_entry[rows$field_code == "note"], 0L)
+    expect_equal(rows$require_double_entry[rows$field_code == "sbp"], 1L)
+
+    metadata <- zzedc:::get_crf_field_metadata(con, design$design_id)
+    expect_false(metadata$note$require_double_entry)
+    expect_true(metadata$sbp$require_double_entry)
+    expect_identical(zzedc:::flagged_dde_fields(metadata), "sbp")
+})

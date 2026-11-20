@@ -47,10 +47,129 @@ ensure_data_entries_table <- function(conn) {
       locked         INTEGER DEFAULT 0
     )
   ")
+  # Double-data-entry (DDE) support, added 2026-11-19. Neither column
+  # is a foreign key (nothing elsewhere references data_entries by
+  # it, same reasoning db_update_incomplete_data_entry()'s own
+  # comment gives for why its UPDATE needs no DuckDB FK workaround),
+  # so a plain ALTER is safe on every backend this package targets.
+  # `CREATE TABLE IF NOT EXISTS` above only takes effect for a
+  # brand-new database; a database created before this feature
+  # existed needs each column added on, the same idempotent
+  # describe-then-ALTER pattern used for edc_users' later columns
+  # (R/db_users.R) and designer_fields' (R/crf_designer.R).
+  existing_cols <- DBI::dbListFields(conn, "data_entries")
+  if (!"dde_group_id" %in% existing_cols) {
+    # Links the two independent submissions of a double-data-entry
+    # form (same subject_id/form_name) together; NULL for every
+    # ordinary, single-keyed entry. Generated like entry_id, not a
+    # foreign key to any other table.
+    DBI::dbExecute(conn, "ALTER TABLE data_entries ADD COLUMN dde_group_id TEXT")
+  }
+  if (!"superseded_by" %in% existing_cols) {
+    # Set on the non-canonical row of a dde_group_id once its
+    # discrepancies are reconciled (see
+    # R/double_data_entry.R:close_dde_group_if_resolved()), to the
+    # entry_id of the row that remains canonical. The insert-only
+    # design this package's correction workflow already follows
+    # (vignettes/editing-data-entries.Rmd) rules out deleting the
+    # non-canonical row outright; this is its pointer instead. NULL
+    # for every row that has never been superseded.
+    DBI::dbExecute(conn, "ALTER TABLE data_entries ADD COLUMN superseded_by TEXT")
+  }
   # Every insert is audited in its own transaction (see
   # db_insert_data_entry()), so the audit tables must exist wherever
   # data_entries does.
   .ensure_audit_tables(conn)
+  invisible(NULL)
+}
+
+
+#' Blind probe for an existing double-data-entry "first entry" (internal)
+#'
+#' The one query a double-data-entry form's second-entry save path may
+#' run *before* it decides it is in fact a second entry: it returns
+#' only `entry_id`, `created_by`, and `dde_group_id` -- never
+#' `data_json` -- so nothing about the first entry's actual field
+#' values is ever fetched (let alone rendered) while the second
+#' enterer is still keying their own, independent copy of the form.
+#' [db_get_dde_first_entry()] is the one place `data_json` is read, and
+#' only once this probe has already confirmed a first entry exists.
+#'
+#' Matches on `subject_id` + `form_name` (the design's "same subject/
+#' visit/form" grain -- `data_entries` has no separate visit key in
+#' active use). Only a settled, still-canonical row counts as "the
+#' first entry": `is_complete = 1` (a `TRUE` double-data-entry capture
+#' is never a draft, see `R/double_data_entry.R`) and `superseded_by
+#' IS NULL` (a row already superseded by a prior reconciliation is not
+#' a live "first entry" to pair a new submission against).
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param subject_id,form_name Identify the (subject, form) pair to
+#'   probe for an existing first entry. `form_name` is matched exactly
+#'   (callers pass the already-lower-cased form code, as
+#'   `save_crf_entry()` does).
+#' @return A one-row data frame with `entry_id`, `created_by`,
+#'   `dde_group_id` if a first entry exists, or a zero-row data frame
+#'   otherwise.
+#' @keywords internal
+db_get_dde_first_entry <- function(conn, subject_id, form_name) {
+  DBI::dbGetQuery(
+    conn,
+    paste(
+      "SELECT entry_id, created_by, dde_group_id FROM data_entries",
+      "WHERE subject_id = ? AND form_name = ? AND is_complete = 1",
+      "AND superseded_by IS NULL",
+      "ORDER BY created_date ASC LIMIT 1"
+    ),
+    params = list(subject_id, form_name)
+  )
+}
+
+
+#' Fetch a Known First Entry's Saved Values (internal)
+#'
+#' The one place a double-data-entry second-entry save reads the first
+#' entry's `data_json` -- only ever called after
+#' [db_get_dde_first_entry()] has already confirmed, without reading
+#' `data_json` itself, that a first entry exists. Kept as its own tiny
+#' function (rather than inlined where it's used) so that boundary is
+#' visible and testable on its own: a test can assert this function is
+#' never called during second-entry *form load*, only at save time.
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param entry_id The first entry's `data_entries.entry_id`.
+#' @return A named list of the first entry's saved field values
+#'   (parsed from `data_json`), or an empty list if the row is gone.
+#' @keywords internal
+db_get_dde_first_entry_values <- function(conn, entry_id) {
+  row <- DBI::dbGetQuery(
+    conn, "SELECT data_json FROM data_entries WHERE entry_id = ?",
+    params = list(entry_id)
+  )
+  if (nrow(row) == 0) return(list())
+  jsonlite::fromJSON(row$data_json[1] %||% "{}", simplifyVector = FALSE)
+}
+
+
+#' Mark a `data_entries` Row Superseded (internal)
+#'
+#' Sets `superseded_by` on a row once a double-data-entry group's
+#' discrepancies are fully reconciled -- see
+#' `R/double_data_entry.R:close_dde_group_if_resolved()`. Never
+#' deletes the row (the insert-only design
+#' `vignettes/editing-data-entries.Rmd` documents).
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param entry_id The row to mark.
+#' @param superseded_by The `entry_id` of the row that remains
+#'   canonical.
+#' @return Invisible `NULL`.
+#' @keywords internal
+db_mark_entry_superseded <- function(conn, entry_id, superseded_by) {
+  DBI::dbExecute(
+    conn, "UPDATE data_entries SET superseded_by = ? WHERE entry_id = ?",
+    params = list(superseded_by, entry_id)
+  )
   invisible(NULL)
 }
 
@@ -70,6 +189,16 @@ ensure_data_entries_table <- function(conn) {
 #'   (typically the logged-in username).
 #' @param entry_id Optional pre-generated identifier;
 #'   auto-generated from a timestamp if `NULL`.
+#' @param dde_group_id Optional double-data-entry group identifier
+#'   (see `R/double_data_entry.R`); `NULL` (the default) for an
+#'   ordinary, single-keyed entry.
+#' @param audit_extra Optional named list merged into this insert's
+#'   audit `details` JSON (alongside `subject_id`/`form_name`/
+#'   `new_values`/...). Used by the double-data-entry save path to
+#'   record a within-save discrepancy resolution (which fields
+#'   differed from the first entry and how each was resolved)
+#'   directly on the same `INSERT` audit record, rather than as a
+#'   second write.
 #' @param ip_address,session_id Client address and Shiny session token,
 #'   recorded in the audit record when known.
 #' @return Named list with `success` (logical) and either
@@ -90,6 +219,8 @@ db_insert_data_entry <- function(conn,
                                   is_complete = TRUE,
                                   created_by,
                                   entry_id = NULL,
+                                  dde_group_id = NULL,
+                                  audit_extra = NULL,
                                   ip_address = NULL,
                                   session_id = NULL) {
   if (is.null(entry_id)) {
@@ -103,36 +234,63 @@ db_insert_data_entry <- function(conn,
   data_json <- as.character(jsonlite::toJSON(data, auto_unbox = TRUE, null = "null"))
   result <- tryCatch({
     .with_db_transaction(conn, function(c) {
-      DBI::dbExecute(
-        c,
-        paste(
-          "INSERT INTO data_entries",
-          "(entry_id, subject_id, form_name, visit_label, visit_date,",
-          " data_json, is_complete, created_by)",
-          "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        ),
-        params = list(
-          entry_id,
-          subject_id,
-          form_name,
-          if (is.null(visit_label)) NA_character_ else visit_label,
-          if (is.null(visit_date)) NA_character_ else visit_date,
-          data_json,
-          if (isTRUE(is_complete)) 1L else 0L,
-          created_by
+      has_dde_col <- "dde_group_id" %in% DBI::dbListFields(c, "data_entries")
+      if (has_dde_col) {
+        DBI::dbExecute(
+          c,
+          paste(
+            "INSERT INTO data_entries",
+            "(entry_id, subject_id, form_name, visit_label, visit_date,",
+            " data_json, is_complete, created_by, dde_group_id)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          ),
+          params = list(
+            entry_id,
+            subject_id,
+            form_name,
+            if (is.null(visit_label)) NA_character_ else visit_label,
+            if (is.null(visit_date)) NA_character_ else visit_date,
+            data_json,
+            if (isTRUE(is_complete)) 1L else 0L,
+            created_by,
+            if (is.null(dde_group_id)) NA_character_ else dde_group_id
+          )
         )
+      } else {
+        DBI::dbExecute(
+          c,
+          paste(
+            "INSERT INTO data_entries",
+            "(entry_id, subject_id, form_name, visit_label, visit_date,",
+            " data_json, is_complete, created_by)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          ),
+          params = list(
+            entry_id,
+            subject_id,
+            form_name,
+            if (is.null(visit_label)) NA_character_ else visit_label,
+            if (is.null(visit_date)) NA_character_ else visit_date,
+            data_json,
+            if (isTRUE(is_complete)) 1L else 0L,
+            created_by
+          )
+        )
+      }
+      details <- list(
+        subject_id = subject_id, form_name = form_name,
+        visit_label = visit_label, visit_date = visit_date,
+        is_complete = isTRUE(is_complete),
+        new_values = jsonlite::fromJSON(data_json, simplifyVector = FALSE)
       )
+      if (!is.null(dde_group_id)) details$dde_group_id <- dde_group_id
+      if (!is.null(audit_extra)) details <- utils::modifyList(details, audit_extra)
       .append_audit_record(
         c, event_type = "INSERT", table_name = "data_entries",
         record_id = entry_id,
         operation = paste0("Case report form entry created (form ", form_name,
                            ", subject ", subject_id, ")"),
-        details = as.character(jsonlite::toJSON(list(
-          subject_id = subject_id, form_name = form_name,
-          visit_label = visit_label, visit_date = visit_date,
-          is_complete = isTRUE(is_complete),
-          new_values = jsonlite::fromJSON(data_json, simplifyVector = FALSE)
-        ), auto_unbox = TRUE, null = "null")),
+        details = as.character(jsonlite::toJSON(details, auto_unbox = TRUE, null = "null")),
         user_id = created_by, ip_address = ip_address, session_id = session_id
       )
     })
