@@ -871,8 +871,8 @@ local({
   DBI::dbDisconnect(conn)
 
   # launch_zzedc()'s own checklist, replicated.
-  for (step in list(ensure_data_entries_table, ensure_edc_users_table,
-                     ensure_user_training_table)) {
+  for (step in list(zzedc:::ensure_data_entries_table, zzedc:::ensure_edc_users_table,
+                     zzedc:::ensure_user_training_table)) {
     conn <- connect_encrypted_db(db_path = test_db)
     step(conn)
     DBI::dbDisconnect(conn)
