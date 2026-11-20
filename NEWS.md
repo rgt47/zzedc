@@ -57,10 +57,19 @@
   `inst/app/edc.R`'s previous pattern of splicing extra UI into
   `renderPanel()`'s returned list by position, which broke once
   `columns > 1` meant that list was no longer one element per field.
-* Both `renderPanel()` call sites in `inst/app/edc.R` now read
-  `columns`/`tooltip_mode` from the session's `display_settings`,
-  live (not `isolate()`d), so a Display-preference change applies
-  immediately. Toggling a preference re-renders the current form's
+* The dynamic-CRF `renderPanel()` call site in `inst/app/edc.R`
+  (`output$edc_crf_fields`, the one driving every study-defined form)
+  now reads `columns`/`tooltip_mode` from the session's
+  `display_settings`, live (not `isolate()`d), so a Display-preference
+  change applies immediately. The other call site
+  (`renderPanel(blfieldlist)`, the legacy demo `forms/*.R` scaffold
+  inside `output$ui`) is deliberately left untouched: it has no
+  `field_metadata` to act on (`columns`/`tooltip_mode` are no-ops on
+  that path regardless, per `renderPanel()`'s own roxygen), and it
+  sits inside a different `renderUI` with no snapshot/restore of its
+  own -- wiring it in without that would re-render the legacy form on
+  every preference change and silently drop whatever was typed.
+  Toggling a preference re-renders the current form's
   fields, which would otherwise silently discard whatever the viewer
   had already typed (and, for a resumed "Save and Finish Later"
   draft, risk saving blanks over it on the next save); a snapshot/
@@ -72,7 +81,12 @@
   field's chosen upload cannot be restored this way (no
   `updateFileInput()` exists) -- the same pre-existing limitation
   `fill_crf_field_inputs()` already documents for the draft-resume
-  path.
+  path. The "same-form re-render" guard is by `crf_id`, not by what
+  triggered the re-render, so it also protects (as a side effect, not
+  requested this pass) the pre-existing `randomize_refresh()` bump
+  after a successful Randomize click, which previously re-rendered
+  the whole form and silently discarded every other field's typed-in
+  value too.
 * Left for later, not built this pass: letting a study designer
   *cap* a form's column count (so a dense form can force 2-column
   display regardless of a viewer's 1-column preference) -- this
