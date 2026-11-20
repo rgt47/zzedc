@@ -1,21 +1,25 @@
 library(tinytest)
 if (file.exists("_setup.R")) source("_setup.R")
 
-# Double data entry (DDE), added 2026-11-19 (Part B of
-# ~/.claude/plans/soft-orbiting-acorn.md). Covers: the dde_group_id/
-# superseded_by migration on data_entries (idempotent, preserves
-# existing rows); the designer_fields.require_double_entry migration;
-# the blind-probe/decide-role split that never reads the first
-# entry's data_json until the one save-time diff function; the
+# Double data entry (DDE), added 2026-11-19. Covers: the
+# dde_group_id/superseded_by migration on data_entries (idempotent,
+# preserves existing rows); the designer_fields.require_double_entry
+# migration; the blind-probe/decide-role split that never reads the
+# first entry's data_json until the one save-time diff function; the
 # item-level diff restricted to flagged fields only; the three
-# in-save resolution choices and their audit detail; the
-# reconciliation queue; and the reviewer-separation guard.
+# in-save resolution choices, their audit detail, and that
+# "keep_second"/"revert_first" actually resolve the field (not just
+# record a choice); a third submission against an already-complete
+# pair; the reconciliation queue; and the reviewer-separation guard
+# enforced inside approve_correction()/apply_correction() themselves.
 
 if (!exists("list_dde_discrepancies")) exit_file("double_data_entry functions not available")
 for (fn in c("ensure_data_entries_table", "db_insert_data_entry", "db_get_dde_first_entry",
              "db_get_dde_first_entry_values", "db_mark_entry_superseded",
+             "db_count_dde_group_entries",
              "flagged_dde_fields", "dde_decide_role", "dde_check_discrepancies",
-             "apply_dde_resolutions", "list_dde_discrepancies",
+             "apply_dde_resolutions", "update_first_entry_for_dde_resolution",
+             "list_dde_discrepancies",
              "require_dde_reviewer_separation", "close_dde_group_if_resolved",
              "diff_field_lists", "generate_dde_group_id")) {
   assign(fn, get(fn, envir = asNamespace("zzedc")))
@@ -254,29 +258,47 @@ local({
               info = "an in-save resolution writes no separate correction request")
 })
 
-# --- list_dde_discrepancies() / close_dde_group_if_resolved() / reviewer separation ---
+# --- list_dde_discrepancies(), against a real flagged form ---
+# Builds an actual designer_fields form (sbp flagged, dbp not) so
+# .dde_flagged_fields_for_form() resolves for real, instead of the
+# character(0) a form-less unit test would silently pass against.
+setup_vitals_form <- function(db) {
+  Sys.setenv(ZZEDC_DB_PATH = db)
+  zzedc:::init_crf_version()
+  init_crf_designer()
+  conn <- connect_encrypted_db(db_path = db)
+  on.exit(DBI::dbDisconnect(conn))
+  crf <- create_crf_definition(crf_code = "VITALS", crf_name = "Vitals", created_by = "admin")
+  zzedc:::ensure_designer_form_row(crf$crf_id, "VITALS", "Vitals", "admin")
+  add_form_field(design_id = crf$crf_id, field_code = "sbp", field_label = "SBP",
+                 field_type = "NUMBER", require_double_entry = TRUE)
+  add_form_field(design_id = crf$crf_id, field_code = "dbp", field_label = "DBP",
+                 field_type = "NUMBER", require_double_entry = FALSE)
+  crf$crf_id
+}
+
 local({
   db <- setup_db()
   on.exit(cleanup_db(db), add = TRUE)
-  init_crf_designer_db <- tempfile() # not used; designer tables not needed for this unit
+  setup_vitals_form(db)
   conn <- connect_encrypted_db(db_path = db)
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
+  # "flag_for_review": sbp (flagged) differs and stays open; dbp
+  # (not flagged) differs too but is never checked at all.
   gid <- generate_dde_group_id()
   first <- db_insert_data_entry(conn, "S001", "vitals", list(sbp = 120, dbp = 80),
                                 created_by = "alice", dde_group_id = gid)
-  second <- db_insert_data_entry(conn, "S001", "vitals", list(sbp = 130, dbp = 80),
+  second <- db_insert_data_entry(conn, "S001", "vitals", list(sbp = 130, dbp = 99),
                                  created_by = "bob", dde_group_id = gid,
                                  audit_extra = list(dde_pending_review_fields = "sbp"))
   expect_true(first$success && second$success)
 
-  # No designer_fields/CRF form exists for "vitals" in this unit, so
-  # .dde_flagged_fields_for_form() resolves to character(0) and the
-  # queue (which restricts to flagged fields) is empty here -- this
-  # block exercises the superseding/guard functions directly instead
-  # of through the full form-resolution path (covered by the
-  # integration test below).
-  expect_equal(nrow(list_dde_discrepancies(conn, dde_group_id = gid)), 0)
+  open_items <- list_dde_discrepancies(conn, dde_group_id = gid)
+  expect_equal(nrow(open_items), 1, info = "only the flagged, unresolved field shows up")
+  expect_identical(open_items$field_code[1], "sbp")
+  expect_identical(open_items$first_value[1], "120")
+  expect_identical(open_items$second_value[1], "130")
 
   # Reviewer-separation guard, independent of the queue's own
   # form-resolution: neither alice nor bob may act as reviewer.
@@ -285,17 +307,133 @@ local({
   expect_true(is.null(require_dde_reviewer_separation(conn, gid, "carol")),
              info = "a third user, neither entry's author, may review")
 
-  # close_dde_group_if_resolved(): with no flagged-field diff engine
-  # finding anything open (character(0) fields above), the group is
-  # already "resolved" and the second row is marked superseded.
-  closed <- close_dde_group_if_resolved(conn, gid)
-  expect_true(closed)
-  row2 <- query(db, "SELECT superseded_by FROM data_entries WHERE entry_id = ?",
-               list(second$entry_id))
-  expect_identical(row2$superseded_by[1], first$entry_id)
-  row1 <- query(db, "SELECT superseded_by FROM data_entries WHERE entry_id = ?",
-               list(first$entry_id))
-  expect_true(is.na(row1$superseded_by[1]), info = "the canonical first entry is never superseded")
+  # Not yet resolved -- close_dde_group_if_resolved() must not
+  # supersede a group with a real open discrepancy.
+  expect_false(close_dde_group_if_resolved(conn, gid))
+  row2 <- query(db, "SELECT superseded_by FROM data_entries WHERE entry_id = ?", list(second$entry_id))
+  expect_true(is.na(row2$superseded_by[1]))
+})
+
+# --- "keep_second"/"revert_first" actually resolve the field, not just
+# record a choice: update_first_entry_for_dde_resolution() brings the
+# canonical (first) entry's value into agreement, so the live diff
+# list_dde_discrepancies() reads goes to zero and the field never
+# shows up in the queue. ---
+local({
+  db <- setup_db()
+  on.exit(cleanup_db(db), add = TRUE)
+  setup_vitals_form(db)
+  conn <- connect_encrypted_db(db_path = db)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  gid <- generate_dde_group_id()
+  first <- db_insert_data_entry(conn, "S001", "vitals", list(sbp = 120),
+                                created_by = "alice", dde_group_id = gid)
+  chk <- dde_check_discrepancies(conn, first$entry_id, list(sbp = 130), "sbp")
+  applied <- apply_dde_resolutions(list(sbp = 130), chk$first_values, chk$discrepancies,
+                                   resolutions = list(sbp = "keep_second"))
+  updated <- update_first_entry_for_dde_resolution(conn, first$entry_id,
+                                                   applied$resolution_detail, "bob")
+  expect_true(updated)
+  first_row <- query(db, "SELECT data_json FROM data_entries WHERE entry_id = ?", list(first$entry_id))
+  expect_equal(jsonlite::fromJSON(first_row$data_json[1])$sbp, 130,
+              info = "the canonical entry now reflects the kept (second-entry) value")
+
+  second <- db_insert_data_entry(conn, "S001", "vitals", applied$field_data,
+                                 created_by = "bob", dde_group_id = gid,
+                                 audit_extra = list(dde_resolution = applied$resolution_detail))
+  expect_equal(nrow(list_dde_discrepancies(conn, dde_group_id = gid)), 0,
+              info = "a 'keep_second' field is fully resolved, not stuck in the queue forever")
+
+  audit_row <- query(db, "SELECT details FROM audit_log
+                          WHERE record_id = ? AND event_type = 'UPDATE'
+                            AND operation LIKE 'Double-data-entry%'", list(first$entry_id))
+  expect_equal(nrow(audit_row), 1, info = "the in-save resolution to the first entry is itself audited")
+
+  # "revert_first" on a fresh pair: the canonical value is unchanged
+  # (it already held the kept value), but the second entry's own
+  # stored value is overwritten to match -- also zero live diff.
+  gid2 <- generate_dde_group_id()
+  first2 <- db_insert_data_entry(conn, "S002", "vitals", list(sbp = 115),
+                                 created_by = "alice", dde_group_id = gid2)
+  chk2 <- dde_check_discrepancies(conn, first2$entry_id, list(sbp = 140), "sbp")
+  applied2 <- apply_dde_resolutions(list(sbp = 140), chk2$first_values, chk2$discrepancies,
+                                    resolutions = list(sbp = "revert_first"))
+  expect_equal(applied2$field_data$sbp, 115, info = "revert_first already overwrites the second entry's own value")
+  second2 <- db_insert_data_entry(conn, "S002", "vitals", applied2$field_data,
+                                  created_by = "bob", dde_group_id = gid2,
+                                  audit_extra = list(dde_resolution = applied2$resolution_detail))
+  expect_equal(nrow(list_dde_discrepancies(conn, dde_group_id = gid2)), 0)
+})
+
+# --- A third submission for an already-fully-paired subject/form is refused ---
+local({
+  db <- setup_db()
+  on.exit(cleanup_db(db), add = TRUE)
+  conn <- connect_encrypted_db(db_path = db)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  gid <- generate_dde_group_id()
+  db_insert_data_entry(conn, "S001", "vitals", list(sbp = 120), created_by = "alice", dde_group_id = gid)
+  db_insert_data_entry(conn, "S001", "vitals", list(sbp = 130), created_by = "bob", dde_group_id = gid)
+
+  decision3 <- dde_decide_role(conn, "S001", "vitals", "carol")
+  expect_true(decision3$already_paired,
+             info = "a third submission against a complete pair is refused, not silently accepted")
+})
+
+# --- approve_correction()/apply_correction() enforce reviewer separation
+# themselves (fail closed), not only through the Corrections module's UI ---
+local({
+  db <- setup_db()
+  on.exit(cleanup_db(db), add = TRUE)
+  conn <- connect_encrypted_db(db_path = db)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  gid <- generate_dde_group_id()
+  first <- db_insert_data_entry(conn, "S001", "vitals", list(sbp = 120),
+                                created_by = "alice", dde_group_id = gid)
+  db_insert_data_entry(conn, "S001", "vitals", list(sbp = 130),
+                       created_by = "bob", dde_group_id = gid)
+  DBI::dbDisconnect(conn)
+
+  req <- create_correction_request(
+    "data_entries", first$entry_id, "sbp", "120", "130", "DDE_DISCREPANCY",
+    requested_by = "carol", db_path = db
+  )
+  expect_true(req$success, info = req$error %||% "")
+
+  denied_alice <- approve_correction(req$request_id, reviewed_by = "alice", db_path = db)
+  expect_false(denied_alice$success, info = "alice made one of the two entries")
+  denied_bob <- approve_correction(req$request_id, reviewed_by = "bob", db_path = db)
+  expect_false(denied_bob$success, info = "bob made one of the two entries")
+
+  ok <- approve_correction(req$request_id, reviewed_by = "dave", db_path = db)
+  expect_true(ok$success, info = ok$error %||% "")
+
+  denied_apply_alice <- apply_correction(req$request_id, applied_by = "alice", db_path = db)
+  expect_false(denied_apply_alice$success)
+  denied_apply_bob <- apply_correction(req$request_id, applied_by = "bob", db_path = db)
+  expect_false(denied_apply_bob$success)
+
+  applied_ok <- apply_correction(req$request_id, applied_by = "dave", db_path = db)
+  expect_true(applied_ok$success, info = applied_ok$error %||% "")
+
+  # An ordinary (non-DDE) correction's existing self-approval rule is
+  # unaffected by any of this -- carol (the requester here) still just
+  # can't approve her own ordinary request, same as always.
+  conn2 <- connect_encrypted_db(db_path = db)
+  db_insert_data_entry(conn2, "S999", "vitals", list(sbp = 100), created_by = "carol")
+  DBI::dbDisconnect(conn2)
+  ordinary <- create_correction_request(
+    "data_entries", "S999", "sbp", "100", "105", "TYPO",
+    requested_by = "carol", db_path = db
+  )
+  self_denied <- approve_correction(ordinary$request_id, reviewed_by = "carol", db_path = db)
+  expect_false(self_denied$success, info = "the pre-existing self-approval rule still applies")
+  other_ok <- approve_correction(ordinary$request_id, reviewed_by = "alice", db_path = db)
+  expect_true(other_ok$success,
+             info = "an ordinary correction is unaffected by the DDE-specific guard")
 })
 
 # --- diff_field_lists() is the one engine compare_versions() also uses ---

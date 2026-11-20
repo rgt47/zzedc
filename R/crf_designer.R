@@ -423,24 +423,61 @@ add_form_field <- function(design_id, field_code, field_label, field_type,
     con <- connect_encrypted_db()
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    field_id <- DBI::dbGetQuery(con, "
-      INSERT INTO designer_fields (
-        design_id, section_id, field_code, field_label, field_type,
-        field_row, field_column, field_width, is_required,
-        placeholder, help_text, default_value, widget_file, help_detail,
-        require_double_entry
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING field_id AS id
-    ", params = list(
-      design_id,
-      if (is.null(section_id)) NA_integer_ else as.integer(section_id),
-      field_code, field_label, field_type,
-      as.integer(field_row), as.integer(field_column),
-      as.integer(field_width), as.integer(is_required),
-      safe_scalar_cd(placeholder), safe_scalar_cd(help_text),
-      safe_scalar_cd(default_value), safe_scalar_cd(widget_file),
-      safe_scalar_cd(help_detail), as.integer(require_double_entry)
-    ))$id[1]
+    # require_double_entry (2026-11-19) is added to designer_fields by
+    # init_crf_designer()'s idempotent ALTER, but that migration only
+    # runs when init_crf_designer() itself is called -- a database
+    # that has never re-run it since this column was introduced would
+    # otherwise reject every add_form_field() call outright (an
+    # unconditional INSERT naming a column that does not exist yet),
+    # not just silently drop require_double_entry. Checked the same
+    # way get_crf_field_metadata()'s SELECT guards itself.
+    has_dde_col <- "require_double_entry" %in% DBI::dbListFields(con, "designer_fields")
+
+    field_id <- if (has_dde_col) {
+      DBI::dbGetQuery(con, "
+        INSERT INTO designer_fields (
+          design_id, section_id, field_code, field_label, field_type,
+          field_row, field_column, field_width, is_required,
+          placeholder, help_text, default_value, widget_file, help_detail,
+          require_double_entry
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING field_id AS id
+      ", params = list(
+        design_id,
+        if (is.null(section_id)) NA_integer_ else as.integer(section_id),
+        field_code, field_label, field_type,
+        as.integer(field_row), as.integer(field_column),
+        as.integer(field_width), as.integer(is_required),
+        safe_scalar_cd(placeholder), safe_scalar_cd(help_text),
+        safe_scalar_cd(default_value), safe_scalar_cd(widget_file),
+        safe_scalar_cd(help_detail), as.integer(require_double_entry)
+      ))$id[1]
+    } else {
+      if (isTRUE(require_double_entry)) {
+        return(list(success = FALSE, error = paste(
+          "This database's designer_fields table predates",
+          "require_double_entry; run init_crf_designer() to migrate it",
+          "before flagging a field for double data entry."
+        )))
+      }
+      DBI::dbGetQuery(con, "
+        INSERT INTO designer_fields (
+          design_id, section_id, field_code, field_label, field_type,
+          field_row, field_column, field_width, is_required,
+          placeholder, help_text, default_value, widget_file, help_detail
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING field_id AS id
+      ", params = list(
+        design_id,
+        if (is.null(section_id)) NA_integer_ else as.integer(section_id),
+        field_code, field_label, field_type,
+        as.integer(field_row), as.integer(field_column),
+        as.integer(field_width), as.integer(is_required),
+        safe_scalar_cd(placeholder), safe_scalar_cd(help_text),
+        safe_scalar_cd(default_value), safe_scalar_cd(widget_file),
+        safe_scalar_cd(help_detail)
+      ))$id[1]
+    }
 
     audit_cd_event(
       event_type = "INSERT", table_name = "designer_fields",

@@ -79,19 +79,28 @@ generate_dde_group_id <- function() {
 #'     matches the first entry's `created_by` -- REDCap's default
 #'     "different user" enforcement. The caller must refuse the
 #'     submission in this case, not save it.
+#'   * `already_paired`: `TRUE` when this subject/form's group already
+#'     has both of its entries -- a third submission would not be "the
+#'     second entry" of anything; the pairing is already complete. The
+#'     caller must refuse the submission in this case too.
 #' @keywords internal
 dde_decide_role <- function(conn, subject_id, form_name, created_by) {
   first <- db_get_dde_first_entry(conn, subject_id, form_name)
   if (nrow(first) == 0) {
     return(list(role = "first", group_id = generate_dde_group_id(),
-                first_entry_id = NULL, blocked_same_user = FALSE))
+                first_entry_id = NULL, blocked_same_user = FALSE,
+                already_paired = FALSE))
   }
+  group_id <- first$dde_group_id[1] %||% generate_dde_group_id()
+  already_paired <- !is.na(group_id) &&
+    db_count_dde_group_entries(conn, group_id) >= 2
   list(
     role = "second",
-    group_id = first$dde_group_id[1] %||% generate_dde_group_id(),
+    group_id = group_id,
     first_entry_id = first$entry_id[1],
     blocked_same_user = identical(as.character(first$created_by[1]),
-                                  as.character(created_by))
+                                  as.character(created_by)),
+    already_paired = already_paired
   )
 }
 
@@ -227,6 +236,84 @@ apply_dde_resolutions <- function(field_data, first_values, discrepancies,
   }
   list(field_data = field_data, resolution_detail = resolution_detail,
        pending_fields = pending_fields)
+}
+
+
+#' Apply an In-Save DDE Resolution to the First (Canonical) Entry
+#'
+#' [apply_dde_resolutions()] decides the *second* entry's own saved
+#' values; this is what keeps the *first* (canonical) entry in
+#' agreement with that decision for every field resolved
+#' `"keep_second"` or `"revert_first"` -- without this, the canonical
+#' record a report/export reads would still show the first enterer's
+#' original value for a field the second enterer's value was
+#' deliberately kept for, and [list_dde_discrepancies()]'s queue would
+#' keep surfacing that same field forever (its live diff would never
+#' go to zero, since nothing had ever made the two rows agree).
+#' `"flag_for_review"` fields are left alone here -- that is exactly
+#' the case meant to stay open for the reconciliation queue.
+#'
+#' Writes a single `"UPDATE"` audit record of its own (not folded into
+#' the second entry's own audit record, since this is a write to a
+#' *different* row) -- an ordinary save-time adjustment to an
+#' in-moment-resolved discrepancy, not a correction to a settled
+#' record after the fact, so (like [db_update_incomplete_data_entry()]
+#' for an ordinary draft save) it writes directly rather than going
+#' through [create_correction_request()]/[approve_correction()]/
+#' [apply_correction()] -- that workflow is reserved for a discrepancy
+#' nobody resolved at entry time at all (`"flag_for_review"`, the
+#' reconciliation queue).
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param first_entry_id The first (canonical) entry's `entry_id`.
+#' @param resolution_detail The `resolution_detail` list from
+#'   [apply_dde_resolutions()].
+#' @param modified_by The second enterer (the one who made this
+#'   resolution choice).
+#' @param ip_address,session_id Recorded in the audit record when
+#'   known.
+#' @return Invisible `TRUE` if any field was updated, invisible `FALSE`
+#'   if there was nothing to change (every discrepancy was
+#'   `"flag_for_review"`, or the resolved values already matched).
+#' @keywords internal
+update_first_entry_for_dde_resolution <- function(conn, first_entry_id, resolution_detail,
+                                                  modified_by, ip_address = NULL,
+                                                  session_id = NULL) {
+  resolved <- Filter(function(d) d$choice %in% c("keep_second", "revert_first"),
+                     resolution_detail)
+  if (length(resolved) == 0) return(invisible(FALSE))
+
+  row <- DBI::dbGetQuery(conn, "SELECT data_json FROM data_entries WHERE entry_id = ?",
+                        list(first_entry_id))
+  if (nrow(row) == 0) return(invisible(FALSE))
+  values <- jsonlite::fromJSON(row$data_json[1] %||% "{}", simplifyVector = FALSE)
+
+  changed <- list()
+  for (field in names(resolved)) {
+    new_value <- resolved[[field]]$second_value
+    if (!identical(as.character(values[[field]] %||% NA), as.character(new_value %||% NA))) {
+      changed[[field]] <- list(old_value = values[[field]], new_value = new_value)
+      values[[field]] <- new_value
+    }
+  }
+  if (length(changed) == 0) return(invisible(FALSE))
+
+  new_json <- as.character(jsonlite::toJSON(values, auto_unbox = TRUE, null = "null"))
+  .with_db_transaction(conn, function(c) {
+    DBI::dbExecute(
+      c, "UPDATE data_entries SET data_json = ?, modified_date = CURRENT_TIMESTAMP, modified_by = ? WHERE entry_id = ?",
+      params = list(new_json, modified_by, first_entry_id)
+    )
+    .append_audit_record(
+      c, event_type = "UPDATE", table_name = "data_entries", record_id = first_entry_id,
+      operation = "Double-data-entry in-save resolution applied to the canonical entry",
+      details = as.character(jsonlite::toJSON(
+        list(dde_resolution_applied = changed), auto_unbox = TRUE, null = "null"
+      )),
+      user_id = modified_by, ip_address = ip_address, session_id = session_id
+    )
+  })
+  invisible(TRUE)
 }
 
 

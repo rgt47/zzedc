@@ -126,6 +126,27 @@ db_get_dde_first_entry <- function(conn, subject_id, form_name) {
 }
 
 
+#' Count a DDE Group's Member Entries (internal)
+#'
+#' A blind probe like [db_get_dde_first_entry()] (no `data_json`): used
+#' only to tell whether a group already has both its entries, so a
+#' third submission for the same subject/form can be refused rather
+#' than silently accepted and mistaken for "the second entry" of a
+#' *new* pairing against the existing (and now superseded-feeling, but
+#' not actually marked `superseded_by`) pair.
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param dde_group_id The group to count.
+#' @return A single integer.
+#' @keywords internal
+db_count_dde_group_entries <- function(conn, dde_group_id) {
+  DBI::dbGetQuery(
+    conn, "SELECT COUNT(*) AS n FROM data_entries WHERE dde_group_id = ?",
+    params = list(dde_group_id)
+  )$n[1]
+}
+
+
 #' Fetch a Known First Entry's Saved Values (internal)
 #'
 #' The one place a double-data-entry second-entry save reads the first
