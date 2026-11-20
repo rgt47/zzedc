@@ -1,5 +1,129 @@
 # zzedc (development version)
 
+## A CRF form that takes more than one sitting can now be saved as "Incomplete" and resumed
+
+* Previously every CRF submission was all-or-nothing: `save_crf_entry()`
+  always called `db_insert_data_entry()` with `is_complete = TRUE`
+  hard-coded, even though the `data_entries` schema already carried an
+  `is_complete` column (default `0`) that nothing ever set to `FALSE`.
+  A form that could not be finished in one sitting had no good option:
+  submit partial data as if final and "correct" the rest in later
+  (misusing a workflow for changing an existing settled value, not
+  giving a field its first value), or keep a browser session open
+  indefinitely, which Shiny does not support across a real gap and
+  loses every keystroke on disconnect.
+* The EDC tab's CRF form now has a second action, "Save and Finish
+  Later", alongside "Submit entry". It accepts whatever subset of
+  fields is currently filled in -- it still runs
+  `validate_crf_submission()`'s type/choice/format checks on whatever
+  IS present, just not the required-field check -- and saves with
+  `is_complete = FALSE`. Tracking-ID uniqueness and this form's
+  cross-field DSL rules are record-*completeness* checks and
+  deliberately do not run on a draft save; they still run, as before,
+  at full "Submit" time.
+* New `db_update_incomplete_data_entry()` (`R/db_data_entries.R`) is
+  the update path a second save of the same draft needs:
+  `db_insert_data_entry()` is insert-only by design (one row per
+  `entry_id`, audited as a single `INSERT`), so a second "Save and
+  Finish Later" on the same entry now updates that one row's
+  `data_json`/`is_complete`/`modified_date`/`modified_by` in place
+  (its own `"UPDATE"` audit record, distinct from the original
+  `INSERT`) instead of creating a second row. It refuses -- returns
+  `success = FALSE`, does not silently no-op -- an attempt to update a
+  row that is already `is_complete = 1`; that path belongs to the
+  correction workflow (`create_correction_request()`/
+  `approve_correction()`/`apply_correction()`), not this function,
+  and nothing about this change alters that workflow's own behavior
+  on a settled record.
+* **Resume key: `entry_id`, via a "Continue" row action, not
+  `tracking_id`.** `save_crf_entry()`'s existing timestamp-based
+  `subject_id` fallback (for a form with no `tracking_id` field, or a
+  blank one) makes `tracking_id` an unreliable key to resume a draft
+  by, and reusing it would also have required teaching
+  `tracking_id_already_used()` to exclude a draft's own row from its
+  duplicate check. `crf_entries_table` (the EDC tab's own entries
+  list, already scoped to the currently selected form) instead gets a
+  "Continue" button on any row still `is_complete = 0`, in place of
+  that row's "Request Correction" button -- a draft has no settled
+  value yet to correct, so `create_correction_request()` now refuses
+  one directly (and the Corrections tab's CRF-aware field picker shows
+  a message instead of letting one through) regardless of how it is
+  reached. Because "Continue" only ever appears for the form already
+  on screen, resuming fills the existing inputs directly via new
+  `fill_crf_field_inputs()` (`R/edc_dynamic_forms.R`, the mirror image
+  of the existing `reset_crf_field_inputs()`) rather than re-rendering
+  the form -- the same length-aware blank-value coercion already used
+  by the report/export flattening functions, applied in the opposite
+  direction. A resumed draft's `tracking_id` input is disabled for the
+  rest of that resume (`shinyjs::disable()`): the row's real key
+  (`subject_id`) is fixed at its original insert and never changed by
+  `db_update_incomplete_data_entry()`, so letting the visible
+  `tracking_id` field drift out of sync with it would be silently
+  misleading, not merely cosmetic.
+* **Cross-user resume is allowed, matching REDCap/Medidata Rave
+  precedent** (per the design plan this follows; see its own note
+  below on that citation's verification status) -- any user with
+  access to the form may continue a draft someone else started,
+  consistent with those tools treating "Incomplete" as a real, shared
+  record state, not a personal scratch pad.
+* **Visibility of a draft elsewhere in the app**, decided per
+  call site rather than uniformly:
+  - `flatten_crf_entries_for_export()` (the Export tab) now excludes
+    any `is_complete = 0` row by default (`get_data_entries()`'s new
+    `include_incomplete` argument) -- an export is a record of
+    finished data, and an unlabeled draft mixed in would be
+    indistinguishable from a finished entry with blank optional
+    fields.
+  - `summarize_entries_by_form()` (the Reports tab's per-form stat
+    cards) now counts only `is_complete = 1` rows, for the same
+    reason: an aggregate count that includes an unfinished record
+    overstates how much real data exists.
+  - `flatten_all_entries_for_explorer()` (the Data Explorer tab, an
+    admin-level raw listing) still includes a draft -- deliberately,
+    not an oversight -- but now adds a `status` column
+    (`"Incomplete"`/`"Complete"`) so one is never mistaken for a
+    finished record there.
+  - `crf_entries_table` (the EDC tab's own entries list) gained the
+    same `Status` column.
+  - `generate_personal_statement_draft()` and the Subject Case Report
+    (`generate_subject_case_report()`) were deliberately left
+    unchanged for this pass -- both still count/include every row
+    regardless of `is_complete`. Revisit if a draft's appearance in
+    either turns out to matter in practice.
+* **No staleness policy for an abandoned draft** -- matching
+  REDCap/Rave precedent, intentionally: an incomplete row nobody ever
+  returns to finish just sits there, with no expiry or cleanup job.
+* **No schema migration.** `is_complete`, `modified_date`, and
+  `modified_by` already existed on `data_entries` in every
+  schema-creation path (`ensure_data_entries_table()`,
+  `create_core_tables()`/`setup_wizard_utils.R`, and the ClickHouse
+  branch of each) before this change; nothing here adds a column.
+  `db_insert_data_entry()` remains the only writer of `data_entries`
+  in the package (confirmed by grep), so every existing row's
+  `is_complete` already reflects its caller's own explicit intent --
+  there is nothing to backfill on an existing study database either.
+* A note on this feature's design citation: the plan this follows
+  states that REDCap's and Medidata Rave's "Incomplete" form-status
+  behavior was "checked directly" via web search -- that claim was
+  not actually true of the search that had already run as of the
+  plan's own writing. A web search run during this implementation
+  pass (not REDCap's own official documentation, but several
+  institutional user guides -- University of Utah, UNMC, University
+  of Alberta -- that agree with each other) confirms the core
+  behavior this design follows for REDCap specifically: "Incomplete"
+  is a real saved status a form can be left in, the record stays
+  open and can be reopened from the Record Status Dashboard (or the
+  Classic-project record dropdown) to add or change data, and nothing
+  about leaving a form Incomplete discards what was already entered.
+  Medidata Rave's behavior was not checked at all in this pass, by
+  web search or otherwise, and remains unverified; the design treats
+  it as following the same pattern on the strength of general EDC
+  domain knowledge, not a checked source. The design built here is
+  sound on its own technical merits regardless of either citation's
+  status. The plan file's "checked directly" wording should still be
+  corrected to reflect this -- confirmed for REDCap now, still
+  unverified for Rave.
+
 ## The Compliance tab errored on every study, old or new
 
 * `init_electronic_signatures()` existed but nothing in

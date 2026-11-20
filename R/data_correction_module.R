@@ -343,7 +343,13 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
     # already consume) and its current field values. NULL for any
     # other table, or a `data_entries` record_id/entry_id that does
     # not exist -- both fall back to the plain free-text inputs this
-    # module always had.
+    # module always had. `list(draft = TRUE, entry_id =)` when the
+    # entry_id resolves but is still an open "Save and Finish Later"
+    # draft (`is_complete = 0`, see `db_update_incomplete_data_entry()`):
+    # there is no settled original value yet to correct, so the field
+    # picker below shows a message instead of either the typed picker
+    # or the free-text fallback, and submission is refused (belt and
+    # suspenders alongside `create_correction_request()`'s own check).
     crf_context <- shiny::reactive({
       guard$require()
       tbl <- trimws(input$table_name %||% "")
@@ -355,9 +361,12 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
         on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
         row <- DBI::dbGetQuery(conn,
-          "SELECT entry_id, form_name, data_json FROM data_entries WHERE entry_id = ?",
+          "SELECT entry_id, form_name, data_json, is_complete FROM data_entries WHERE entry_id = ?",
           list(rid))
         if (nrow(row) == 0) return(NULL)
+        if (!isTRUE(as.logical(as.integer(row$is_complete[1])))) {
+          return(list(draft = TRUE, entry_id = rid))
+        }
 
         forms <- get_active_crf_forms(conn)
         match_idx <- which(tolower(forms$crf_code) == row$form_name[1])
@@ -374,6 +383,17 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
     output$field_picker <- shiny::renderUI({
       guard$require()
       ctx <- crf_context()
+      if (!is.null(ctx) && isTRUE(ctx$draft)) {
+        return(shiny::div(
+          class = "alert alert-warning py-2 px-3",
+          sprintf(
+            paste("Entry %s is still an open draft (not yet submitted as",
+                  "complete). There is no settled value yet to correct --",
+                  "finish and submit it, or resume it, instead."),
+            ctx$entry_id
+          )
+        ))
+      }
       if (is.null(ctx)) {
         return(shiny::textInput(session$ns("field_name"), "Field Name",
                                  placeholder = "e.g., age"))
@@ -393,7 +413,8 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
       if (!guard$authorized()) return()
       ctx <- crf_context()
       field <- input$field_name %||% ""
-      if (!is.null(ctx) && nzchar(field) && field %in% names(ctx$metadata)) {
+      if (!is.null(ctx) && !isTRUE(ctx$draft) &&
+            nzchar(field) && field %in% names(ctx$metadata)) {
         current <- ctx$values[[field]]
         shiny::updateTextInput(session, "original_value",
           value = if (is.null(current)) "" else paste(current, collapse = "; "))
@@ -406,6 +427,7 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
       field <- input$field_name %||% ""
       widget_id <- session$ns("corrected_value_widget")
 
+      if (!is.null(ctx) && isTRUE(ctx$draft)) return(NULL)
       if (is.null(ctx) || !nzchar(field) || !(field %in% names(ctx$metadata))) {
         return(shiny::textInput(widget_id, "Corrected Value"))
       }
@@ -426,6 +448,14 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
       field <- input$field_name %||% ""
       corrected_raw <- input$corrected_value_widget
 
+      if (!is.null(ctx) && isTRUE(ctx$draft)) {
+        output$submit_message <- shiny::renderText(sprintf(
+          "Error: Entry %s is still an open draft; there is no settled value yet to correct.",
+          ctx$entry_id
+        ))
+        return()
+      }
+
       if (input$table_name == "" || input$record_id == "" ||
           !nzchar(field) || input$correction_reason == "") {
         output$submit_message <- shiny::renderText(
@@ -433,7 +463,7 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
         return()
       }
 
-      if (!is.null(ctx) && field %in% names(ctx$metadata)) {
+      if (!is.null(ctx) && !isTRUE(ctx$draft) && field %in% names(ctx$metadata)) {
         val_result <- validate_crf_submission(
           stats::setNames(list(corrected_raw), field),
           ctx$metadata[field]

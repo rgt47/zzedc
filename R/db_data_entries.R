@@ -143,3 +143,132 @@ db_insert_data_entry <- function(conn,
 
   result
 }
+
+
+#' Update an incomplete (`is_complete = 0`) `data_entries` row in place
+#'
+#' [db_insert_data_entry()] is insert-only: one row per `entry_id`,
+#' audited as a single `INSERT`. A "Save and Finish Later" draft that
+#' is reopened and saved again needs a true update of that same row
+#' instead of a second row -- this is that update path. It is
+#' deliberately narrow: it only ever touches `data_json`,
+#' `is_complete`, `modified_date`, and `modified_by`, never
+#' `subject_id`, `form_name`, or `entry_id`, so a field value the
+#' draft's own form happens to carry (e.g. `tracking_id`) can never
+#' drift the row's real key out from under it.
+#'
+#' This is an ordinary save of a still-unsettled record, not a
+#' correction to a settled one: it writes its own `"UPDATE"` audit
+#' record directly, rather than going through
+#' [create_correction_request()]/[approve_correction()]/
+#' [apply_correction()]. Once a row's `is_complete` is `1`, it is
+#' immutable except through that correction workflow -- enforced here,
+#' not just by UI convention, by refusing (not silently no-oping) an
+#' update to a row that is not currently `is_complete = 0`.
+#'
+#' The `UPDATE` targets `data_entries` by its primary key (`entry_id`)
+#' alone, with the `is_complete = 0` guard folded into the same
+#' statement's `WHERE` clause (`UPDATE ... WHERE entry_id = ? AND
+#' is_complete = 0`) so the check and the write happen atomically, not
+#' as a read-then-write race between two sessions resuming the same
+#' draft. `data_entries` carries no index on any column another
+#' table's `FOREIGN KEY` references (confirmed: `grep -rn "REFERENCES
+#' data_entries"` across `R/`/`inst/` finds nothing), so this UPDATE
+#' does not hit DuckDB's "Over-Eager Constraint Checking in Foreign
+#' Keys" DELETE+INSERT rewrite that `apply_correction()`'s
+#' `correction_requests(status)` index did (see commit `bf125aa`) --
+#' there is nothing here for DuckDB to rewrite the UPDATE around.
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param entry_id The `data_entries.entry_id` to update. Must
+#'   currently have `is_complete = 0`.
+#' @param data Named list of the field values to save, replacing the
+#'   row's `data_json` in full (not merged with the previous values --
+#'   the caller is expected to pass the form's complete current
+#'   state, as [save_crf_entry()]'s insert path already does).
+#' @param is_complete `TRUE` / `FALSE`; coerced to `1L` / `0L`. `TRUE`
+#'   is how an incomplete draft becomes a settled, immutable record
+#'   (the ordinary "Submit" action on a resumed draft); `FALSE` keeps
+#'   it open for a further "Save and Finish Later".
+#' @param modified_by String identifying who made this save
+#'   (typically the logged-in username). Required -- unlike
+#'   `created_by` on the original insert, a resumed draft's editor is
+#'   not assumed to be the original saver (cross-user resume is
+#'   allowed by design, matching REDCap/Rave).
+#' @param ip_address,session_id Client address and Shiny session
+#'   token, recorded in the audit record when known.
+#' @return Named list with `success` (logical) and either `entry_id`
+#'   (on success) or `error` -- `"Entry <id> not found or is already
+#'   complete (only an incomplete draft can be updated this way; use
+#'   the correction workflow to change a completed entry)."` when the
+#'   row does not exist, or exists but is already `is_complete = 1`.
+#' @keywords internal
+db_update_incomplete_data_entry <- function(conn,
+                                             entry_id,
+                                             data = list(),
+                                             is_complete = FALSE,
+                                             modified_by,
+                                             ip_address = NULL,
+                                             session_id = NULL) {
+  data_json <- as.character(jsonlite::toJSON(data, auto_unbox = TRUE, null = "null"))
+
+  result <- tryCatch({
+    .with_db_transaction(conn, function(c) {
+      before <- DBI::dbGetQuery(
+        c, "SELECT data_json, is_complete FROM data_entries WHERE entry_id = ?",
+        params = list(entry_id)
+      )
+      if (nrow(before) == 0) {
+        stop("Entry ", entry_id, " not found.")
+      }
+      if (isTRUE(as.logical(as.integer(before$is_complete[1])))) {
+        stop("Entry ", entry_id, " is already complete; use the correction ",
+             "workflow (create_correction_request()) to change it, not this ",
+             "function.")
+      }
+
+      n <- DBI::dbExecute(
+        c,
+        paste(
+          "UPDATE data_entries SET",
+          " data_json = ?, is_complete = ?,",
+          " modified_date = CURRENT_TIMESTAMP, modified_by = ?",
+          "WHERE entry_id = ? AND is_complete = 0"
+        ),
+        params = list(
+          data_json,
+          if (isTRUE(is_complete)) 1L else 0L,
+          modified_by,
+          entry_id
+        )
+      )
+      if (n != 1) {
+        # Lost the race: another session completed or updated this
+        # same draft between the SELECT above and this UPDATE.
+        stop("Entry ", entry_id, " is no longer an open draft; ",
+             "nothing was saved.")
+      }
+
+      .append_audit_record(
+        c, event_type = "UPDATE", table_name = "data_entries",
+        record_id = entry_id,
+        operation = paste0(
+          "Case report form entry ",
+          if (isTRUE(is_complete)) "completed" else "updated while incomplete",
+          " (entry ", entry_id, ")"
+        ),
+        details = as.character(jsonlite::toJSON(list(
+          is_complete = isTRUE(is_complete),
+          old_values = jsonlite::fromJSON(before$data_json[1] %||% "{}", simplifyVector = FALSE),
+          new_values = jsonlite::fromJSON(data_json, simplifyVector = FALSE)
+        ), auto_unbox = TRUE, null = "null")),
+        user_id = modified_by, ip_address = ip_address, session_id = session_id
+      )
+    })
+    list(success = TRUE, entry_id = entry_id)
+  }, error = function(e) {
+    list(success = FALSE, error = conditionMessage(e))
+  })
+
+  result
+}

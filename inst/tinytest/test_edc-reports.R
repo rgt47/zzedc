@@ -107,7 +107,13 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     summary <- zzedc:::summarize_entries_by_form(conn)
-    expect_equal(summary$n_entries[summary$crf_code == "MANUSCRIPTS"], 3)
+    expect_equal(summary$n_entries[summary$crf_code == "MANUSCRIPTS"], 2,
+                 info = paste(
+                   "PUB-3 is an open is_complete=0 draft; the Reports tab's",
+                   "per-form counts are an aggregate report and exclude it",
+                   "(see get_data_entries()'s include_incomplete and",
+                   "db_update_incomplete_data_entry())"
+                 ))
   })
 
   local({
@@ -168,9 +174,16 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
     flat <- zzedc:::flatten_crf_entries_for_export(conn, "manuscripts")
-    expect_equal(nrow(flat), 3)
+    expect_equal(nrow(flat), 2,
+                 info = paste(
+                   "PUB-3 is an open is_complete=0 draft;",
+                   "flatten_crf_entries_for_export() excludes drafts by",
+                   "default (include_incomplete = FALSE) so an export",
+                   "never mixes an unfinished record in with finished ones"
+                 ))
     expect_true(all(c("subject_id", "tracking_id", "status") %in% names(flat)))
     expect_equal(flat$status[flat$subject_id == "PUB-1"], "ideation")
+    expect_false("PUB-3" %in% flat$subject_id)
 
     expect_error(zzedc:::flatten_crf_entries_for_export(conn, "nope"))
   })
@@ -190,14 +203,20 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     conn <- .make_reports_fixture()
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
+    # is_complete = TRUE here (unlike the fixture's PUB-3): this row
+    # exercises the blank-field coercion below, which only matters for
+    # a row flatten_crf_entries_for_export() actually includes -- an
+    # is_complete = 0 draft is excluded before the coercion ever runs
+    # (see the test above).
     zzedc:::db_insert_data_entry(
       conn, subject_id = "PUB-4", form_name = "manuscripts",
       data = list(tracking_id = "PUB-4", status = character(0)),
-      is_complete = FALSE, created_by = "rgt"
+      is_complete = TRUE, created_by = "rgt"
     )
 
     flat <- zzedc:::flatten_crf_entries_for_export(conn, "manuscripts")
-    expect_equal(nrow(flat), 4)
+    expect_equal(nrow(flat), 3,
+                 info = "PUB-1, PUB-2, PUB-4 are complete; PUB-3's draft stays excluded")
     row <- flat[flat$subject_id == "PUB-4", ]
     expect_true(is.na(row$status),
                 info = "a cleared field reads as NA, not a crash")

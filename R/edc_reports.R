@@ -80,10 +80,21 @@ NULL
 #'   single subject rather than filtering the whole table in R.
 #' @param start_date,end_date Optional `Date`/character bounds
 #'   (inclusive) on `created_date`.
+#' @param include_incomplete When `FALSE`, excludes rows with
+#'   `is_complete = 0` (an unfinished "Save and Finish Later" draft,
+#'   see `db_update_incomplete_data_entry()`). Defaults to `TRUE` --
+#'   every caller of this function before drafts existed assumed
+#'   every row was a finished entry, and most still should see every
+#'   row (tracking-ID allocation most of all: a draft's tracking_id
+#'   is already claimed and must not be handed to a second entry).
+#'   The two caller-facing flatten functions below set this
+#'   explicitly, one each way; pass `FALSE` at any other call site
+#'   that is user-facing reporting rather than ID bookkeeping.
 #' @return A data frame with columns `entry_id`, `subject_id`,
 #'   `form_name`, `visit_label`, `visit_date`, `created_date`,
-#'   `created_by`, plus a list-column `fields` (one named list per
-#'   row, the parsed `data_json`). Zero rows (with the right columns)
+#'   `created_by`, `is_complete`, plus a list-column `fields` (one
+#'   named list per row, the parsed `data_json`). Zero rows (with the
+#'   right columns)
 #'   when nothing matches, including when `data_entries` doesn't
 #'   exist yet (it is only created lazily, on first submission via
 #'   [ensure_data_entries_table()] -- a freshly initialized or
@@ -97,12 +108,14 @@ NULL
 #'   is the one fix point that protects all of them at once.
 #' @keywords internal
 get_data_entries <- function(conn, crf_code = NULL, subject_id = NULL,
-                              start_date = NULL, end_date = NULL) {
+                              start_date = NULL, end_date = NULL,
+                              include_incomplete = TRUE) {
   empty <- data.frame(
     entry_id = character(0), subject_id = character(0),
     form_name = character(0), visit_label = character(0),
     visit_date = character(0), created_date = character(0),
-    created_by = character(0), stringsAsFactors = FALSE
+    created_by = character(0), is_complete = integer(0),
+    stringsAsFactors = FALSE
   )
   empty$fields <- list()
   if (!DBI::dbExistsTable(conn, "data_entries")) {
@@ -127,6 +140,9 @@ get_data_entries <- function(conn, crf_code = NULL, subject_id = NULL,
     clauses <- c(clauses, "DATE(created_date) <= DATE(?)")
     params <- c(params, list(as.character(end_date)))
   }
+  if (!isTRUE(include_incomplete)) {
+    clauses <- c(clauses, "is_complete = 1")
+  }
   where <- if (length(clauses) > 0) {
     paste("WHERE", paste(clauses, collapse = " AND "))
   } else {
@@ -135,7 +151,7 @@ get_data_entries <- function(conn, crf_code = NULL, subject_id = NULL,
 
   sql <- paste(
     "SELECT entry_id, subject_id, form_name, visit_label, visit_date,",
-    "       created_date, created_by, data_json",
+    "       created_date, created_by, is_complete, data_json",
     "FROM data_entries", where,
     "ORDER BY created_date DESC"
   )
@@ -224,7 +240,11 @@ tracking_id_already_used <- function(conn, crf_code, value) {
 #' @return A data frame with one row per form that has at least one
 #'   `crf_definitions` entry: `crf_code`, `crf_name`, `n_entries`,
 #'   `first_entry`, `last_entry` (the last two `NA` when
-#'   `n_entries` is 0).
+#'   `n_entries` is 0). `n_entries` and the date range count only
+#'   `is_complete = 1` rows -- this is an aggregate report (Reports
+#'   tab), and an open "Save and Finish Later" draft is not yet a
+#'   real entry for that purpose (see
+#'   `db_update_incomplete_data_entry()`).
 #' @keywords internal
 summarize_entries_by_form <- function(conn) {
   forms <- get_active_crf_forms(conn)
@@ -234,7 +254,7 @@ summarize_entries_by_form <- function(conn) {
       "SELECT LOWER(form_name) AS form_code, COUNT(*) AS n_entries,",
       "       MIN(created_date) AS first_entry,",
       "       MAX(created_date) AS last_entry",
-      "FROM data_entries GROUP BY LOWER(form_name)"
+      "FROM data_entries WHERE is_complete = 1 GROUP BY LOWER(form_name)"
     )
   )
   forms$.form_code <- tolower(forms$crf_code)
@@ -405,7 +425,12 @@ summarize_choice_field_values <- function(conn) {
 #'   the form's own field order), each row one entry. Field columns
 #'   are character; a field never entered for a given row is `NA`.
 #'   Zero rows (with only the fixed columns) if the form has no
-#'   entries in range.
+#'   entries in range. Excludes any entry still `is_complete = 0`
+#'   (an open "Save and Finish Later" draft, see
+#'   `db_update_incomplete_data_entry()`) -- an export is meant to be
+#'   a record of finished data, and a partially-filled draft mixed in
+#'   unlabeled would be indistinguishable from a finished entry with
+#'   blank optional fields.
 #' @keywords internal
 flatten_crf_entries_for_export <- function(conn, crf_code,
                                             start_date = NULL,
@@ -417,7 +442,8 @@ flatten_crf_entries_for_export <- function(conn, crf_code,
   }
   meta <- get_crf_field_metadata(conn, crf_row$crf_id[1])
   entries <- get_data_entries(conn, crf_code = crf_code,
-                               start_date = start_date, end_date = end_date)
+                               start_date = start_date, end_date = end_date,
+                               include_incomplete = FALSE)
 
   field_codes <- names(meta)
   base <- data.frame(
@@ -476,10 +502,18 @@ flatten_crf_entries_for_export <- function(conn, crf_code,
 #'
 #' @param conn A DBI connection (or pool object).
 #' @return A data frame with `entry_id`, `subject_id`, `form_name`,
-#'   `created_date`, `created_by`, `fields`.
+#'   `created_date`, `created_by`, `status`, `fields`. `status` is
+#'   `"Incomplete"` for an open "Save and Finish Later" draft
+#'   (`is_complete = 0`) and `"Complete"` otherwise -- unlike
+#'   [flatten_crf_entries_for_export()], this is the raw, admin-level
+#'   Data Explorer view, where a draft is included (deliberately
+#'   visible, not silently dropped) but clearly labeled so it is
+#'   never mistaken for a finished record.
 #' @keywords internal
 flatten_all_entries_for_explorer <- function(conn) {
-  entries <- get_data_entries(conn)
+  entries <- get_data_entries(conn, include_incomplete = TRUE)
+  entries$status <- ifelse(entries$is_complete == 1, "Complete", "Incomplete")
+  entries$is_complete <- NULL
   entries$fields <- vapply(entries$fields, function(f) {
     if (length(f) == 0) return("")
     values <- vapply(f, function(v) {

@@ -541,6 +541,100 @@ reset_crf_field_inputs <- function(session, metadata) {
 }
 
 
+#' Pre-fill a dynamic CRF form's inputs from a resumed draft's values
+#'
+#' The "Continue" action on an open ("Save and Finish Later",
+#' `is_complete = 0`) `data_entries` row only ever appears next to a
+#' row already filtered to the form currently rendered on screen
+#' (`inst/app/edc.R`'s `crf_entries_table` lists only the selected
+#' form's entries), so unlike a brand-new form render, the inputs
+#' this needs to fill already exist in the DOM -- this uses
+#' `shiny::update*Input()` directly, the mirror image of
+#' [reset_crf_field_inputs()], rather than re-rendering through
+#' `renderUI()`'s `field_config$value`.
+#'
+#' `values` is a parsed `data_json` (`jsonlite::fromJSON(...,
+#' simplifyVector = FALSE)`), so a given field's value can be `NULL`
+#' (stored JSON `null`), a zero-length `list()` (a cleared
+#' `dateInput()`), a length-1 value, or a longer vector (a
+#' `checkbox_group`'s multiple selections) -- the same three shapes
+#' [flatten_crf_entries_for_export()]'s blank-field coercion already
+#' handles, applied here in the opposite direction (into a form
+#' input, not out to a flattened string).
+#'
+#' A "date" field's blank case reuses
+#' [reset_crf_field_inputs()]'s `"zzedc-clear-date-input"` message
+#' rather than `shiny::updateDateInput(value = NA)`, for the same
+#' reason documented there: the bundled datepicker widget's own
+#' `update()` can silently re-populate from today's date instead of
+#' staying blank.
+#'
+#' A "file" field is never touched here at all -- there is no
+#' `updateFileInput()`, and a previously uploaded file cannot be
+#' placed back into the browser's own file-picker control. The
+#' caller is responsible for carrying the stored upload path forward
+#' into the next save's `field_data` itself when the user does not
+#' choose a new file (see `inst/app/edc.R`'s submit/draft-save
+#' handlers).
+#'
+#' @param session The current Shiny session.
+#' @param metadata Field metadata as returned by
+#'   [get_crf_field_metadata()].
+#' @param values The draft's parsed field values (named list, keyed
+#'   by `field_code`, in the same shape `metadata` is).
+#' @return `NULL`, invisibly. Called for its side effect.
+#' @keywords internal
+fill_crf_field_inputs <- function(session, metadata, values) {
+  for (field_name in names(metadata)) {
+    field_config <- metadata[[field_name]] %||% list(type = "text")
+    v <- values[[field_name]]
+    is_blank <- is.null(v) || length(v) == 0
+    scalar <- function() as.character(unlist(v))[1]
+    vec <- function() as.character(unlist(v))
+    switch(
+      field_config$type,
+      "numeric" = shiny::updateNumericInput(
+        session, field_name,
+        value = if (is_blank) NA else suppressWarnings(as.numeric(scalar()))
+      ),
+      "date" = if (is_blank) {
+        session$sendCustomMessage("zzedc-clear-date-input", field_name)
+      } else {
+        parsed <- tryCatch(as.Date(scalar()), error = function(e) NA)
+        if (!is.na(parsed)) {
+          shiny::updateDateInput(session, field_name, value = parsed)
+        }
+      },
+      "select" = shiny::updateSelectInput(
+        session, field_name,
+        selected = if (is_blank) field_config$choices[1] else scalar()
+      ),
+      "radio" = shiny::updateRadioButtons(
+        session, field_name,
+        selected = if (is_blank) character(0) else scalar()
+      ),
+      "checkbox_group" = shiny::updateCheckboxGroupInput(
+        session, field_name,
+        selected = if (is_blank) character(0) else vec()
+      ),
+      "textarea" = shiny::updateTextAreaInput(
+        session, field_name,
+        value = if (is_blank) "" else paste(vec(), collapse = ", ")
+      ),
+      # No updateFileInput(); see this function's @details.
+      "file" = NULL,
+      # readonly_display has no Shiny input binding to update.
+      "readonly_display" = NULL,
+      shiny::updateTextInput(
+        session, field_name,
+        value = if (is_blank) "" else paste(vec(), collapse = ", ")
+      )
+    )
+  }
+  invisible(NULL)
+}
+
+
 #' Client-side handlers for `reset_crf_field_inputs()`'s "date" and
 #' "file" custom messages
 #'
@@ -594,12 +688,20 @@ reset_crf_field_inputs <- function(session, metadata) {
 #' @param field_data Named list of submitted field values, keyed by
 #'   `field_code`.
 #' @param created_by String identifying who submitted the entry.
+#' @param is_complete `TRUE` (the default, preserving every existing
+#'   caller's behavior unchanged) for an ordinary full "Submit";
+#'   `FALSE` for a first "Save and Finish Later" draft save of a
+#'   *new* entry (one with no `entry_id` yet to resume) --
+#'   subsequent saves of that same draft go through
+#'   [db_update_incomplete_data_entry()] instead, not back through
+#'   this insert-only path.
 #' @param ip_address,session_id Recorded in the entry's audit record
 #'   (see `session_audit_context()`).
 #' @return The `list(success=, entry_id=)` / `list(success=FALSE,
 #'   error=)` result from [db_insert_data_entry()].
 #' @keywords internal
 save_crf_entry <- function(conn, crf_code, field_data, created_by,
+                           is_complete = TRUE,
                            ip_address = NULL, session_id = NULL) {
   ensure_data_entries_table(conn)
 
@@ -616,7 +718,7 @@ save_crf_entry <- function(conn, crf_code, field_data, created_by,
     subject_id  = as.character(subject_id),
     form_name   = tolower(crf_code),
     data        = field_data,
-    is_complete = TRUE,
+    is_complete = is_complete,
     created_by  = created_by,
     ip_address  = ip_address,
     session_id  = session_id
