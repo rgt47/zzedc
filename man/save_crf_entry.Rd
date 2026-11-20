@@ -9,6 +9,7 @@ save_crf_entry(
   crf_code,
   field_data,
   created_by,
+  is_complete = TRUE,
   ip_address = NULL,
   session_id = NULL
 )
@@ -25,6 +26,14 @@ lower-case \code{form_code} convention already used by
 \code{field_code}.}
 
 \item{created_by}{String identifying who submitted the entry.}
+
+\item{is_complete}{\code{TRUE} (the default, preserving every existing
+caller's behavior unchanged) for an ordinary full "Submit";
+\code{FALSE} for a first "Save and Finish Later" draft save of a
+\emph{new} entry (one with no \code{entry_id} yet to resume) --
+subsequent saves of that same draft go through
+\code{\link[=db_update_incomplete_data_entry]{db_update_incomplete_data_entry()}} instead, not back through
+this insert-only path.}
 
 \item{ip_address, session_id}{Recorded in the entry's audit record
 (see \code{session_audit_context()}).}

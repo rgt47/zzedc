@@ -29,6 +29,7 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
         field_type TEXT NOT NULL,
         field_row INTEGER DEFAULT 1,
         field_column INTEGER DEFAULT 1,
+        field_width INTEGER DEFAULT 100,
         is_required INTEGER DEFAULT 0,
         placeholder TEXT,
         help_text TEXT,

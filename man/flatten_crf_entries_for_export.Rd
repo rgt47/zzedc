@@ -25,7 +25,12 @@ A data frame with \code{subject_id}, \code{created_date},
 the form's own field order), each row one entry. Field columns
 are character; a field never entered for a given row is \code{NA}.
 Zero rows (with only the fixed columns) if the form has no
-entries in range.
+entries in range. Excludes any entry still \code{is_complete = 0}
+(an open "Save and Finish Later" draft, see
+\code{db_update_incomplete_data_entry()}) -- an export is meant to be
+a record of finished data, and a partially-filled draft mixed in
+unlabeled would be indistinguishable from a finished entry with
+blank optional fields.
 }
 \description{
 Flatten one form's entries into an export-ready data frame

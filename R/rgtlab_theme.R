@@ -126,3 +126,109 @@
     .card-header{ font-family:var(--rgt-serif); color:var(--rgt-navy); }
   "))
 }
+
+#' CSS overrides so `bslib::input_dark_mode()` actually looks dark
+#'
+#' `bs_theme()` (both `inst/app/ui.R` and
+#' `inst/app/gsheets_ui_integration.R`) sets explicit light-mode
+#' colors (`bg = "#FBFAF6"`, `card-bg = "#ffffff"`, ...); bslib
+#' recomputes a dark counterpart for those *theme* colors
+#' automatically once `[data-bs-theme="dark"]` is set on `<html>|
+#' <body>` by the dark-mode switch, but several things on this page
+#' are hardcoded light-mode CSS, not theme variables, and so do not
+#' flip on their own: the `--rgt-*` custom properties
+#' [.rgtlab_tile_styles()]/[.rgtlab_chrome_styles()] define (only
+#' under `:root`, i.e. only the light values), and each UI file's own
+#' inline `tags$style()` block for `.card-header`/`.well`/
+#' `table.dataTable thead th`/`.bslib-value-box`, which use literal
+#' `#ffffff`/light hex colors rather than Bootstrap variables. Without
+#' this, toggling dark mode leaves those elements rendering light text
+#' on a light background (or vice versa) -- confirmed by toggling
+#' without this override present before adding it.
+#'
+#' Included once, alongside [.rgtlab_chrome_styles()], by both UI
+#' files so a dark-mode toggle added to either page looks the same.
+#'
+#' @return A `shiny::tags$style()` object.
+#' @keywords internal
+.zzedc_dark_mode_overrides <- function() {
+  shiny::tags$style(shiny::HTML("
+    [data-bs-theme='dark']{
+      --rgt-navy:#8fb3e8; --rgt-navy-2:#aecbf2;
+      --rgt-gold:#FFCD00; --rgt-gold-text:#e8c15a;
+      --rgt-paper:#15191f; --rgt-ink:#e7e9ec; --rgt-muted:#9aa3ad; --rgt-line:#30363d;
+    }
+    [data-bs-theme='dark'] body{ background:var(--rgt-paper); color:var(--rgt-ink); }
+    [data-bs-theme='dark'] .navbar{
+      background-color:rgba(21,25,31,.92) !important;
+      border-bottom-color:var(--rgt-line) !important;
+    }
+    [data-bs-theme='dark'] .card,
+    [data-bs-theme='dark'] .well,
+    [data-bs-theme='dark'] .bslib-value-box,
+    [data-bs-theme='dark'] .card-header,
+    [data-bs-theme='dark'] .card-bg{
+      background:#1c2128 !important; color:var(--rgt-ink) !important;
+      border-color:var(--rgt-line) !important;
+    }
+    [data-bs-theme='dark'] table.dataTable thead th{
+      background:#1c2128 !important; color:var(--rgt-ink) !important;
+      border-bottom-color:var(--rgt-line) !important;
+    }
+    [data-bs-theme='dark'] table.dataTable tbody td{
+      border-top-color:var(--rgt-line) !important; color:var(--rgt-ink);
+    }
+    [data-bs-theme='dark'] .form-control-plaintext{ color:var(--rgt-ink); }
+    [data-bs-theme='dark'] .field-help-expanded{ color:var(--rgt-muted) !important; }
+  "))
+}
+
+#' Per-session \"Display\" control (gear icon, every tab, no role gate)
+#'
+#' A `bslib::popover()` reachable from the navbar on every tab (Part
+#' C): light/dark mode, the EDC form's column count (1/2/3), and
+#' tooltip verbosity (minimal/expanded). Deliberately a display
+#' preference, not an Admin/Compliance-gated control -- it is mounted
+#' as a plain `bslib::nav_item()`, with no role check, the same way
+#' the existing logout slot (`uiOutput("logout_nav_slot")`) is always
+#' reachable regardless of role.
+#'
+#' The three inputs this creates (`display_dark_mode`,
+#' `display_columns`, `display_tooltip_mode`) are read by the
+#' `observeEvent()`s in `gsheets_server_integration.R`'s
+#' `create_enhanced_server()`, which mirror them into the session's
+#' `display_settings` reactiveValues (`inst/app/server.R`) -- the
+#' object [renderPanel()] call sites (`inst/app/edc.R`) actually read
+#' `columns`/`tooltip_mode` from.
+#'
+#' @return A `bslib::nav_item()`.
+#' @keywords internal
+.zzedc_display_settings_control <- function() {
+  bslib::nav_item(
+    bslib::popover(
+      trigger = shiny::tags$span(
+        bsicons::bs_icon("gear-fill"),
+        class = "nav-link", style = "cursor: pointer;",
+        title = "Display settings"
+      ),
+      title = "Display",
+      shiny::div(
+        class = "mb-2",
+        bslib::input_dark_mode(id = "display_dark_mode", mode = "light")
+      ),
+      shiny::hr(),
+      shiny::radioButtons(
+        "display_columns", "Form layout (columns)",
+        choices = c("1" = "1", "2" = "2", "3" = "3"),
+        selected = "1", inline = TRUE
+      ),
+      shiny::radioButtons(
+        "display_tooltip_mode", "Field help text",
+        choices = c("Minimal (hover icon only)" = "minimal",
+                    "Expanded (always visible)" = "expanded"),
+        selected = "minimal"
+      ),
+      placement = "bottom"
+    )
+  )
+}

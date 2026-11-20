@@ -44,13 +44,14 @@ setup_case_report_db <- function() {
     field_id INTEGER PRIMARY KEY, design_id INTEGER, field_code TEXT,
     field_label TEXT, field_type TEXT, is_required INTEGER,
     placeholder TEXT, help_text TEXT, default_value TEXT, widget_file TEXT,
-    help_detail TEXT, field_row INTEGER, field_column INTEGER)")
+    help_detail TEXT, field_row INTEGER, field_column INTEGER,
+    field_width INTEGER)")
   DBI::dbExecute(conn, "INSERT INTO designer_fields
     (field_id, design_id, field_code, field_label, field_type, is_required,
      placeholder, help_text, default_value, widget_file, help_detail,
-     field_row, field_column)
+     field_row, field_column, field_width)
     VALUES (1, 1, 'temp_c', 'Temperature (C)', 'NUMBER', 1,
-            NULL, NULL, NULL, NULL, NULL, 1, 1)")
+            NULL, NULL, NULL, NULL, NULL, 1, 1, 100)")
   DBI::dbExecute(conn, "CREATE TABLE IF NOT EXISTS designer_field_options (
     option_id INTEGER PRIMARY KEY, field_id INTEGER, option_value TEXT,
     option_label TEXT, option_order INTEGER)")

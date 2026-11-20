@@ -346,6 +346,18 @@ widget_triggers <- local({
   triggers
 })
 
+# Tracks which crf_id output$edc_crf_fields last actually rendered,
+# so that reactive can tell a same-form re-render (a Display
+# preference change below, or the post-Randomize randomize_refresh()
+# bump above) apart from a real form switch or the very first
+# render. Only the former should have its on-screen values snapshotted
+# and restored (see output$edc_crf_fields below) -- restoring onto a
+# genuine form switch would carry one form's leftover input values
+# onto an unrelated form's fields, and restoring on first render
+# would overwrite this function's own tracking_id/randomization_group
+# prefills with nothing.
+last_rendered_crf_id <- shiny::reactiveVal(NULL)
+
 output$edc_crf_fields <- renderUI({
   shiny::req(input$edc_crf_form)
   metadata <- zzedc:::get_crf_field_metadata(db_pool, as.integer(input$edc_crf_form))
@@ -399,16 +411,64 @@ output$edc_crf_fields <- renderUI({
     }
   }
 
-  field_tags <- renderPanel(names(metadata), metadata)
+  # Part C Display preferences: a session-local setting, read live
+  # (not isolate()d) so this renderUI does re-run when the viewer
+  # changes either one in the Display popover. See the snapshot/
+  # restore block below for why that re-run does not lose whatever
+  # the viewer had already typed into this same form.
+  display_cols <- display_settings$columns %||% 1L
+  display_tmode <- display_settings$tooltip_mode %||% "minimal"
 
-  # Splice each attached field's trigger UI (built once, above) in
-  # right after that field's own rendered block -- working from the
-  # end of the field list backwards so each splice's position isn't
-  # thrown off by an earlier one.
-  widget_fields <- intersect(names(metadata), names(widget_triggers))
-  for (fc in rev(widget_fields)) {
-    idx <- which(names(metadata) == fc)
-    field_tags <- append(field_tags, list(widget_triggers[[fc]]), after = idx)
+  # This renderUI also re-runs for a Display-preference change or a
+  # post-Randomize randomize_refresh() bump, both of which keep the
+  # same form on screen -- not just for an actual form switch. A
+  # same-form re-run would otherwise silently wipe every value the
+  # viewer had already entered (and, for a resumed "Save and Finish
+  # Later" draft, risk saving blanks over it on the next save -- see
+  # crf_draft() below). Snapshot every field's current value here,
+  # before this function's own return value replaces the on-screen
+  # inputs, and restore it once the new DOM exists (session$onFlushed,
+  # same ordering fill_crf_field_inputs() already needs for the
+  # "Continue" draft-resume handler below).
+  this_crf_id <- as.integer(input$edc_crf_form)
+  prev_crf_id <- shiny::isolate(last_rendered_crf_id())
+  same_form_rerender <- !is.null(prev_crf_id) && identical(prev_crf_id, this_crf_id)
+  restore_values <- if (same_form_rerender) {
+    stats::setNames(
+      lapply(names(metadata), function(f) shiny::isolate(input[[f]])),
+      names(metadata)
+    )
+  } else {
+    NULL
+  }
+  resuming_draft <- same_form_rerender && !is.null(shiny::isolate(crf_draft()))
+
+  # Extra per-field UI (custom widgets attached in the Setup
+  # designer, `widget_triggers` built once above) is now placed by
+  # renderPanel() itself, keyed by field name, rather than spliced in
+  # afterwards by position: a positional splice into renderPanel()'s
+  # return value is only correct when that list is still one element
+  # per field, which `columns > 1` no longer guarantees (it returns
+  # one fluidRow() per visual row instead).
+  field_tags <- renderPanel(
+    names(metadata), metadata,
+    columns = display_cols, tooltip_mode = display_tmode,
+    extra_tags = widget_triggers
+  )
+
+  last_rendered_crf_id(this_crf_id)
+
+  if (!is.null(restore_values)) {
+    session$onFlushed(function() {
+      zzedc:::fill_crf_field_inputs(session, metadata, restore_values)
+      # Re-apply the resumed-draft lock the "Continue" handler below
+      # set on the old (now replaced) tracking_id input -- restoring
+      # its stored value is not enough on its own, since this is a
+      # fresh DOM element that starts enabled again.
+      if (resuming_draft && "tracking_id" %in% names(metadata)) {
+        shinyjs::disable("tracking_id")
+      }
+    }, once = TRUE)
   }
 
   shiny::tagList(field_tags)

@@ -7,8 +7,45 @@
 #'
 #' @param fields Character vector of field names OR list of field configurations
 #' @param field_metadata List containing field definitions with type, required, choices, etc.
+#' @param columns Maximum number of fields placed side by side in one
+#'   visual row. Defaults to `1`, which returns the original flat,
+#'   one-field-per-line stack (byte-identical to calling
+#'   `renderPanel()` without this argument at all). For `columns > 1`
+#'   and a `field_metadata` that carries `field_row`/`field_width`
+#'   (as [get_crf_field_metadata()] now does), fields are first
+#'   grouped into the already-ordered field list's contiguous runs of
+#'   equal `field_row` (a design-time grouping), and any such group
+#'   longer than `columns` is further split into consecutive chunks
+#'   of at most `columns` fields, in order. A form whose fields each
+#'   have a distinct `field_row` (one field per design row, which is
+#'   how some imports annotate every field) therefore still renders
+#'   one field per visual row regardless of `columns` -- `columns`
+#'   only ever reduces how many fields share a row, it never combines
+#'   fields the form's own author put on separate rows. Each chunk
+#'   becomes one `shiny::fluidRow()`; within it, a field's
+#'   `shiny::column()` width (out of 12) is `field_width` (a
+#'   percentage, default `100`) scaled against the chunk's total:
+#'   `max(1, floor(12 * field_width / max(100, sum(field_width))))`.
+#'   Ignored entirely when `field_metadata` is `NULL` (the
+#'   plain-`textInput()` fallback below has no row/width data to act
+#'   on).
+#' @param tooltip_mode `"minimal"` (default) leaves the existing
+#'   always-present hover icon (`<field>__hint_icon`) as the only
+#'   help-text affordance, exactly as before. `"expanded"` additionally
+#'   renders the field's help text as a permanently visible
+#'   `shiny::tags$small()` beneath the input -- strictly additive, the
+#'   hover icon is never removed.
+#' @param extra_tags An optional named list, keyed by field name, of
+#'   extra UI (e.g. a custom field widget's trigger control) to place
+#'   immediately after that field's own rendered block. Replaces the
+#'   previous pattern of splicing extra UI into `renderPanel()`'s
+#'   returned list by position, which breaks once `columns > 1` means
+#'   that list is no longer one element per field.
 #'
-#' @return List of Shiny input controls matching field types
+#' @return List of Shiny input controls matching field types. One
+#'   element per field when `columns <= 1` (or `field_metadata` is
+#'   `NULL`); one `shiny::fluidRow()` per visual row when
+#'   `columns > 1`.
 #'
 #' @details
 #' Field metadata format:
@@ -45,17 +82,21 @@
 #'
 #' @keywords internal
 #' @export
-renderPanel <- function(fields, field_metadata = NULL) {
+renderPanel <- function(fields, field_metadata = NULL, columns = 1,
+                         tooltip_mode = "minimal", extra_tags = NULL) {
   # Support both simple field names and complex metadata
   if (is.null(field_metadata)) {
-    # Fallback: simple textInput for all fields
+    # Fallback: simple textInput for all fields. `columns`/
+    # `tooltip_mode` have nothing to act on here (no per-field type,
+    # help text, or row/width data), so this path is unaffected by
+    # either argument, same as before they existed.
     return(lapply(fields, function(field) {
       textInput(field, field)
     }))
   }
 
   # Render based on field metadata
-  lapply(fields, function(field_name) {
+  field_units <- lapply(fields, function(field_name) {
     # Get field configuration (default to text if not specified)
     field_config <- field_metadata[[field_name]] %||% list(type = "text")
 
@@ -325,13 +366,76 @@ renderPanel <- function(fields, field_metadata = NULL) {
       tags$span(class = "field-hint-icon__error", bsicons::bs_icon("exclamation-triangle-fill"))
     )
 
-    tags$div(
+    # "expanded" tooltip mode: a permanently visible help-text line,
+    # in addition to (never instead of) hint_icon above. NULL (and so
+    # dropped by tags$div() below) in "minimal" mode, which is what
+    # keeps "minimal" output byte-identical to the pre-Part-C markup.
+    expanded_help <- if (identical(tooltip_mode, "expanded") &&
+                            !is.null(help_text) && nzchar(trimws(help_text))) {
+      tags$small(class = "text-muted d-block mt-1 field-help-expanded", help_text)
+    } else {
+      NULL
+    }
+
+    field_div <- tags$div(
       id = field_name,
       `data-field` = field_name,
       style = wrapper_style,
       class = "form-field-wrapper mb-3",
       field_input,
-      hint_icon
+      hint_icon,
+      expanded_help
     )
+
+    # Extra per-field UI (e.g. a custom widget's trigger control,
+    # inst/app/edc.R's widget_triggers) is attached to this exact
+    # field via a tagList rather than returned as its own separate
+    # top-level list element -- see extra_tags's roxygen above for
+    # why: a positional splice into renderPanel()'s return value
+    # breaks once columns > 1 regroups that list into fluidRow()s.
+    extra <- extra_tags[[field_name]] %||% NULL
+    if (is.null(extra)) field_div else shiny::tagList(field_div, extra)
   })
+
+  if (columns <= 1) {
+    return(field_units)
+  }
+
+  # Multi-column layout: group the already-ordered field list into
+  # visual rows (see the `columns` argument's roxygen for the exact
+  # grouping/splitting rule), then wrap each row in fluidRow() with
+  # one column() per field, its width (out of 12) scaled from that
+  # field's field_width percentage against the row's total.
+  field_rows <- vapply(fields, function(f) {
+    as.integer((field_metadata[[f]]$field_row %||% 1L)[1])
+  }, integer(1))
+  row_breaks <- cumsum(c(TRUE, diff(field_rows) != 0))
+  design_groups <- split(seq_along(fields), row_breaks)
+
+  visual_rows <- list()
+  for (g in design_groups) {
+    n <- length(g)
+    if (n <= columns) {
+      visual_rows[[length(visual_rows) + 1]] <- g
+    } else {
+      for (s in seq(1L, n, by = columns)) {
+        visual_rows[[length(visual_rows) + 1]] <- g[s:min(s + columns - 1L, n)]
+      }
+    }
+  }
+
+  row_tags <- lapply(visual_rows, function(idx) {
+    widths_pct <- vapply(idx, function(i) {
+      as.numeric((field_metadata[[fields[i]]]$field_width %||% 100)[1])
+    }, numeric(1))
+    denom <- max(100, sum(widths_pct))
+    col_widths <- pmax(1L, as.integer(floor(12 * widths_pct / denom)))
+
+    cols <- lapply(seq_along(idx), function(k) {
+      shiny::column(width = col_widths[k], field_units[[idx[k]]])
+    })
+    do.call(shiny::fluidRow, cols)
+  })
+
+  row_tags
 }

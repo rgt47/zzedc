@@ -248,7 +248,8 @@ create_enhanced_ui <- function() {
       zzedc:::.rgtlab_tile_styles(),
       zzedc:::.rgtlab_chrome_styles(),
       zzedc:::.zzedc_crf_reset_message_handlers(),
-      zzedc:::.zzedc_login_modal_scripts()
+      zzedc:::.zzedc_login_modal_scripts(),
+      zzedc:::.zzedc_dark_mode_overrides()
     ),
 
     # Add all navigation tabs. nav_tabs is keyed by id (nav_tabs[["home"]],
@@ -260,6 +261,11 @@ create_enhanced_ui <- function() {
 
     bslib::nav_spacer(),
     bslib::nav_item(uiOutput("logout_nav_slot", inline = TRUE)),
+    # Per-session Display control (dark mode / form columns /
+    # tooltip verbosity, Part C) -- see ui.R's identical addition
+    # and R/rgtlab_theme.R's .zzedc_display_settings_control() for
+    # why this is a plain nav_item, not role-gated.
+    zzedc:::.zzedc_display_settings_control(),
 
     # Google Sheets integration data (hidden)
     if (!is.null(gsheets_integration)) {

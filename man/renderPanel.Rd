@@ -4,15 +4,61 @@
 \alias{renderPanel}
 \title{Render form panel with typed input fields}
 \usage{
-renderPanel(fields, field_metadata = NULL)
+renderPanel(
+  fields,
+  field_metadata = NULL,
+  columns = 1,
+  tooltip_mode = "minimal",
+  extra_tags = NULL
+)
 }
 \arguments{
 \item{fields}{Character vector of field names OR list of field configurations}
 
 \item{field_metadata}{List containing field definitions with type, required, choices, etc.}
+
+\item{columns}{Maximum number of fields placed side by side in one
+visual row. Defaults to \code{1}, which returns the original flat,
+one-field-per-line stack (byte-identical to calling
+\code{renderPanel()} without this argument at all). For \code{columns > 1}
+and a \code{field_metadata} that carries \code{field_row}/\code{field_width}
+(as \code{\link[=get_crf_field_metadata]{get_crf_field_metadata()}} now does), fields are first
+grouped into the already-ordered field list's contiguous runs of
+equal \code{field_row} (a design-time grouping), and any such group
+longer than \code{columns} is further split into consecutive chunks
+of at most \code{columns} fields, in order. A form whose fields each
+have a distinct \code{field_row} (one field per design row, which is
+how some imports annotate every field) therefore still renders
+one field per visual row regardless of \code{columns} -- \code{columns}
+only ever reduces how many fields share a row, it never combines
+fields the form's own author put on separate rows. Each chunk
+becomes one \code{shiny::fluidRow()}; within it, a field's
+\code{shiny::column()} width (out of 12) is \code{field_width} (a
+percentage, default \code{100}) scaled against the chunk's total:
+\code{max(1, floor(12 * field_width / max(100, sum(field_width))))}.
+Ignored entirely when \code{field_metadata} is \code{NULL} (the
+plain-\code{textInput()} fallback below has no row/width data to act
+on).}
+
+\item{tooltip_mode}{\code{"minimal"} (default) leaves the existing
+always-present hover icon (\verb{<field>__hint_icon}) as the only
+help-text affordance, exactly as before. \code{"expanded"} additionally
+renders the field's help text as a permanently visible
+\code{shiny::tags$small()} beneath the input -- strictly additive, the
+hover icon is never removed.}
+
+\item{extra_tags}{An optional named list, keyed by field name, of
+extra UI (e.g. a custom field widget's trigger control) to place
+immediately after that field's own rendered block. Replaces the
+previous pattern of splicing extra UI into \code{renderPanel()}'s
+returned list by position, which breaks once \code{columns > 1} means
+that list is no longer one element per field.}
 }
 \value{
-List of Shiny input controls matching field types
+List of Shiny input controls matching field types. One
+element per field when \code{columns <= 1} (or \code{field_metadata} is
+\code{NULL}); one \code{shiny::fluidRow()} per visual row when
+\code{columns > 1}.
 }
 \description{
 Generates appropriate input controls based on field metadata.

@@ -13,7 +13,11 @@ summarize_entries_by_form(conn)
 A data frame with one row per form that has at least one
 \code{crf_definitions} entry: \code{crf_code}, \code{crf_name}, \code{n_entries},
 \code{first_entry}, \code{last_entry} (the last two \code{NA} when
-\code{n_entries} is 0).
+\code{n_entries} is 0). \code{n_entries} and the date range count only
+\code{is_complete = 1} rows -- this is an aggregate report (Reports
+tab), and an open "Save and Finish Later" draft is not yet a
+real entry for that purpose (see
+\code{db_update_incomplete_data_entry()}).
 }
 \description{
 Entry counts per form, joined to the form's display name
