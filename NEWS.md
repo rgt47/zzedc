@@ -8,9 +8,7 @@
   were), settable via `add_form_field()`/`add_form_field_by_code()`
   alongside `is_required`. Finer-grained than either reference tool
   this design was checked against: REDCap's DDE module is
-  project-wide, OpenClinica's is per-form; see
-  `~/.claude/plans/soft-orbiting-acorn.md` (Part B) for the full
-  comparison and rationale.
+  project-wide, OpenClinica's is per-form.
 * **Capture.** A form with any flagged field requires two independent,
   full submissions of the same Subject ID (`inst/app/edc.R`'s
   `submitcrf` handler), linked by a new, nullable
@@ -38,7 +36,18 @@
   flag for reconciliation review. The first two are recorded directly
   in the second entry's own audit record (`db_insert_data_entry()`'s
   new `audit_extra` parameter) -- no separate correction request for a
-  discrepancy resolved in the moment.
+  discrepancy resolved in the moment. The first entry is kept in
+  agreement for every `"keep_second"`/`"revert_first"` field too
+  (`update_first_entry_for_dde_resolution()`), with its own `"UPDATE"`
+  audit record -- an earlier draft of this change recorded the
+  resolution choice only in the second entry's audit trail and left
+  the canonical first entry's stored value untouched, which both gave
+  a reporting/export read of the canonical record the wrong value for
+  a `"keep_second"` field and left that field surfacing in the
+  reconciliation queue forever (its live diff against the first entry
+  never went to zero); caught before merge by re-reading the design
+  against the implementation, not by the manual walkthrough, which had
+  only exercised `"flag_for_review"`.
 * **Reconciliation queue**: a new "DDE Reconciliation" view in the
   Corrections tab (`R/data_correction_module.R`), listing every open
   `dde_group_id`/field left "flag for review"
@@ -50,11 +59,26 @@
   entry's users from approving or applying a `DDE_DISCREPANCY`
   request specifically (REDCap's "reviewer is neither entry person"
   rule) without changing `approve_correction()`/`apply_correction()`'s
-  existing self-approval behavior for any other correction. Once a
-  group's last open discrepancy is applied, the non-canonical entry is
-  marked `superseded_by` the canonical one (a new, nullable
+  existing self-approval behavior for any other correction. Enforced
+  inside `approve_correction()`/`apply_correction()` themselves
+  (`.require_dde_reviewer_separation_for_request()`), failing closed
+  on a lookup error, so a scripted caller going directly to either
+  function is covered the same as the Shiny module -- an earlier
+  draft of this guard lived only in the Corrections module's own
+  closure and both failed open (`tryCatch(..., error = function(e)
+  NULL)`, i.e. "allow") and never applied outside that one UI path.
+  Once a group's last open discrepancy is applied, the non-canonical
+  entry is marked `superseded_by` the canonical one (a new, nullable
   `data_entries` column) -- kept for audit, never deleted, per this
   package's insert-only design.
+* A flagged form refuses a submission with a blank Subject ID (it
+  would otherwise fall back to `save_crf_entry()`'s own
+  auto-generated, always-unique subject ID, silently defeating DDE
+  pairing -- each such submission would be "the first entry" of its
+  own group that can never be completed) and refuses a third
+  submission once a subject/form's pair is already complete
+  (`dde_decide_role()`'s new `already_paired`, backed by
+  `db_count_dde_group_entries()`).
 * `correction_requests.correction_reason` carries its own hardcoded
   `CHECK(correction_reason IN (...))` list, independent of
   `get_correction_reasons()`; adding `DDE_DISCREPANCY` to the latter
@@ -70,7 +94,33 @@
   PostgreSQL/MySQL's direct `ALTER TABLE` (the latter inspected, not
   verified against a live server, same disclosure
   `migrate_audit_event_types()` makes). Runs automatically,
-  idempotently, at the top of `init_data_correction()`.
+  idempotently, at the top of `init_data_correction()`, which is
+  itself already called at every app session start
+  (`inst/app/gsheets_server_integration.R:380`) -- confirmed by
+  reading that call site, not assumed. An initial version of this
+  migration's DuckDB path reused the SQLite rebuild's rename-based
+  strategy directly; tested against a hand-built old-schema DuckDB
+  database with real `correction_history`/`correction_overrides` rows
+  and failed with DuckDB's documented "Dependency Error: Cannot alter
+  entry ... because there are entries that depend on it" (the same
+  limitation `migrate_audit_event_types()`'s own comment warns against
+  repeating). Replaced with that function's actual DuckDB strategy --
+  copy all three tables to unconstrained staging tables, drop the
+  three originals, recreate them with the updated `CHECK`, copy the
+  data back in -- and re-verified against the same hand-built database
+  (data preserved, a new `DDE_DISCREPANCY` request accepted
+  afterward, a second migration run a no-op).
+* `add_form_field()` previously always included `require_double_entry`
+  in its `INSERT`, which would fail outright (not just silently drop
+  the flag) on any database where `init_crf_designer()`'s own
+  migration had not re-run since this column was introduced; it now
+  checks for the column first, the same way `get_crf_field_metadata()`
+  already guards its own `SELECT`. `setup_wizard_utils.R`'s two
+  `data_entries` `CREATE TABLE` statements (the other schema-creation
+  path besides `R/db_data_entries.R`'s `ensure_data_entries_table()`,
+  found the same way the equivalent check for `designer_fields` was
+  done) now also declare `dde_group_id`/`superseded_by` for a
+  brand-new database.
 * **Known cosmetic gap, not blocking, found and still open**: the
   Corrections tab's DDE-Reconciliation-queue "File Correction Request"
   hand-off pre-fills Table Name/Record ID/Reason correctly, but the
@@ -94,6 +144,28 @@
   entry on every field" toggle (REDCap-style convenience) was
   considered and deliberately not built -- a thin helper over the same
   per-field flag would be a reasonable later addition.
+* **Known gaps, disclosed rather than fixed this pass**:
+  - If the discrepancy-resolution modal is dismissed by reloading the
+    browser (rather than clicking a resolution and "Confirm and
+    Save") instead of resolving it, the second entry is never saved
+    and no audit record exists of the first entry's value having been
+    shown on screen -- a would-be-audited event with no audit trail.
+    A real fix needs the pending second-entry state to survive outside
+    the Shiny session (or the comparison moved server-side before the
+    modal renders at all); not attempted here.
+  - Readers downstream of `data_entries` written before this pass
+    (report/export code, `edc_reports.R`'s
+    `flatten_crf_entries_for_export()` among them) were not audited
+    for whether they now double-count a `superseded_by` row rather
+    than treating it as retired. Not confirmed either way.
+  - `tracking_id_already_used()`'s duplicate-tracking-ID check (today
+    only enforced for the `manuscripts` form's `PUB-YYYY-N`
+    convention) would reject a DDE second entry on any future form
+    that both flags a field for double entry and carries a tracking-ID
+    convention, since the second entry deliberately reuses the first
+    entry's Subject ID. No current form combines the two, so this has
+    not been reachable in practice, but the interaction was not
+    resolved.
 
 ## A per-session "Display" control: dark mode, multi-column CRF layout, expanded tooltips
 

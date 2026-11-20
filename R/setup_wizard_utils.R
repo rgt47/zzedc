@@ -1056,7 +1056,11 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
   # without re-running every other CREATE TABLE in this function.
   .create_randomization_tables(conn, dialect, backend, adapter)
 
-  # Data entries table
+  # Data entries table. dde_group_id/superseded_by (2026-11-19,
+  # double data entry -- see R/double_data_entry.R) are included here
+  # for a brand-new database; ensure_data_entries_table()
+  # (R/db_data_entries.R) separately migrates them onto one this
+  # orchestrator already provisioned before they existed.
   if (backend == "clickhouse") {
     DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS data_entries (
@@ -1071,11 +1075,14 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
         created_by %s,
         modified_date %s,
         modified_by %s,
-        locked %s DEFAULT %s
+        locked %s DEFAULT %s,
+        dde_group_id %s,
+        superseded_by %s
       ) ENGINE = MergeTree() ORDER BY (subject_id, entry_id)
     ", text_type, text_type, text_type, text_type, ts_type,
        text_type, bool_type, bool_default_false, ts_type, text_type,
-       ts_type, text_type, bool_type, bool_default_false))
+       ts_type, text_type, bool_type, bool_default_false,
+       text_type, text_type))
   } else {
     DBI::dbExecute(conn, sprintf("
       CREATE TABLE IF NOT EXISTS data_entries (
@@ -1090,11 +1097,14 @@ create_core_tables <- function(conn, dialect, backend, adapter) {
         created_by %s NOT NULL,
         modified_date %s,
         modified_by %s,
-        locked %s DEFAULT %s
+        locked %s DEFAULT %s,
+        dde_group_id %s,
+        superseded_by %s
       )
     ", text_type, text_type, text_type, text_type, ts_type,
        text_type, bool_type, bool_default_false, ts_type, text_type,
-       ts_type, text_type, bool_type, bool_default_false))
+       ts_type, text_type, bool_type, bool_default_false,
+       text_type, text_type))
   }
 
   # Validation results table

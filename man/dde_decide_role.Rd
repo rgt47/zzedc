@@ -27,6 +27,10 @@ freshly generated one for \code{"first"}, the existing group's for
 matches the first entry's \code{created_by} -- REDCap's default
 "different user" enforcement. The caller must refuse the
 submission in this case, not save it.
+\item \code{already_paired}: \code{TRUE} when this subject/form's group already
+has both of its entries -- a third submission would not be "the
+second entry" of anything; the pairing is already complete. The
+caller must refuse the submission in this case too.
 }
 }
 \description{

@@ -651,20 +651,26 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
     # DDE_DISCREPANCY-specific reviewer-separation guard
     # (require_dde_reviewer_separation(), R/double_data_entry.R):
     # neither of the two users who made the two entries may approve
-    # or apply the reconciliation of their own discrepancy. A new,
-    # narrower rule than approve_correction()'s existing "requester
-    # can't approve their own request" check -- that check only ever
-    # blocks the *requester*, and never applies to apply_correction()
-    # at all -- so it is enforced here, as an additional guard, rather
-    # than by changing either function's own behavior for ordinary
-    # corrections. NULL (no error) for any request whose
-    # correction_reason is not DDE_DISCREPANCY, or whose record_id
-    # does not resolve to a dde_group_id.
+    # or apply the reconciliation of their own discrepancy. The real
+    # enforcement point is inside approve_correction()/
+    # apply_correction() themselves
+    # (.require_dde_reviewer_separation_for_request(),
+    # R/data_correction.R), so a scripted caller is covered too, not
+    # just this module; this is a fast, redundant UI-layer check that
+    # shows the error without a round trip to those functions when it
+    # can, and is harmless if it ever disagrees with them (their
+    # answer always wins). Unlike the earlier version of this guard,
+    # a lookup failure here is NOT treated as "allow" -- fails closed,
+    # the same as the enforcement point does, so this layer can never
+    # be the one that waves through a request the core functions would
+    # have refused.
     .dde_reviewer_guard <- function(request_id, actor) {
       req <- tryCatch(get_correction_request(request_id, db_path = db_path),
                       error = function(e) list(success = FALSE))
-      if (!isTRUE(req$success) ||
-            !identical(req$request$correction_reason[1], "DDE_DISCREPANCY")) {
+      if (!isTRUE(req$success)) {
+        return(list(success = FALSE, error = "Could not load the request to check."))
+      }
+      if (!identical(req$request$correction_reason[1], "DDE_DISCREPANCY")) {
         return(NULL)
       }
       tryCatch({
@@ -673,9 +679,14 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
         gid <- DBI::dbGetQuery(conn,
           "SELECT dde_group_id FROM data_entries WHERE entry_id = ?",
           list(req$request$record_id[1]))$dde_group_id[1]
-        if (is.null(gid) || is.na(gid)) return(NULL)
+        if (is.null(gid) || length(gid) == 0 || is.na(gid)) {
+          return(list(success = FALSE,
+                      error = "Could not resolve the double-data-entry group for this request."))
+        }
         require_dde_reviewer_separation(conn, gid, actor)
-      }, error = function(e) NULL)
+      }, error = function(e) {
+        list(success = FALSE, error = paste("Reviewer-separation check failed:", conditionMessage(e)))
+      })
     }
 
     shiny::observeEvent(input$approve_btn, {

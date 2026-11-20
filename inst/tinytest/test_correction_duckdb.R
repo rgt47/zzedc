@@ -23,7 +23,7 @@ if (!requireNamespace("duckdb", quietly = TRUE)) {
 }
 if (!exists("apply_correction")) exit_file("data correction functions not available")
 for (fn in c("ensure_data_entries_table", "db_insert_data_entry",
-             "db_update_incomplete_data_entry")) {
+             "db_update_incomplete_data_entry", "migrate_correction_reasons")) {
   assign(fn, get(fn, envir = asNamespace("zzedc")))
 }
 
@@ -150,6 +150,83 @@ local({
   expect_false(blocked$success,
                 info = "a completed entry is refused on DuckDB just as on SQLite")
   DBI::dbDisconnect(conn)
+})
+
+# migrate_correction_reasons() (2026-11-19, DDE_DISCREPANCY):
+# DuckDB-only bug found in this pass's own manual walkthrough --
+# renaming correction_requests out of the way (the SQLite rebuild
+# strategy) fails on DuckDB with "Dependency Error: Cannot alter entry
+# ... because there are entries that depend on it", since
+# correction_history/correction_overrides hold a REFERENCES
+# correction_requests(request_id). Simulates an old (pre-
+# DDE_DISCREPANCY) database by hand, with dependent rows in all three
+# tables, then confirms the migration preserves them, a new
+# DDE_DISCREPANCY request is accepted afterward, and a second run is a
+# no-op.
+local({
+  db <- tempfile(fileext = ".duckdb")
+  config <- test_backend_config("duckdb")
+  config$duckdb$path <- db
+  get_db_adapter(config = config, force_new = TRUE)
+  conn <- connect_encrypted_db(db_path = db)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  DBI::dbExecute(conn, "
+    CREATE TABLE correction_requests (
+      request_id INTEGER PRIMARY KEY,
+      table_name TEXT NOT NULL, record_id TEXT NOT NULL, field_name TEXT NOT NULL,
+      original_value TEXT, corrected_value TEXT NOT NULL,
+      correction_reason TEXT NOT NULL CHECK(correction_reason IN
+        ('TYPO', 'SOURCE_DOC_ERROR', 'CALCULATION_ERROR',
+         'TRANSCRIPTION_ERROR', 'UNIT_ERROR', 'DATE_ERROR',
+         'PROTOCOL_CLARIFICATION', 'QUERY_RESPONSE', 'OTHER')),
+      reason_details TEXT, original_source_doc TEXT, corrected_source_doc TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN
+        ('PENDING', 'APPROVED', 'REJECTED', 'APPLIED', 'CANCELLED')),
+      requested_by TEXT NOT NULL, requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      reviewed_by TEXT, reviewed_at TIMESTAMP, review_comments TEXT,
+      applied_by TEXT, applied_at TIMESTAMP, request_hash TEXT NOT NULL,
+      previous_request_hash TEXT, site_id TEXT, study_id TEXT, subject_id TEXT,
+      visit_id TEXT, form_id TEXT
+    )
+  ")
+  DBI::dbExecute(conn, "
+    CREATE TABLE correction_history (
+      history_id INTEGER PRIMARY KEY,
+      request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
+      action TEXT NOT NULL, action_by TEXT NOT NULL,
+      action_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, action_details TEXT,
+      action_hash TEXT NOT NULL, previous_hash TEXT
+    )
+  ")
+  DBI::dbExecute(conn, "
+    CREATE TABLE correction_overrides (
+      override_id INTEGER PRIMARY KEY,
+      request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
+      override_type TEXT NOT NULL, override_reason TEXT NOT NULL,
+      override_by TEXT NOT NULL, override_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      approved_by TEXT, approved_at TIMESTAMP, override_hash TEXT NOT NULL
+    )
+  ")
+  DBI::dbExecute(conn, "INSERT INTO correction_requests (request_id, table_name, record_id, field_name, corrected_value, correction_reason, requested_by, request_hash) VALUES (1, 'vitals', '1', 'sbp', '120', 'TYPO', 'alice', 'h1')")
+  DBI::dbExecute(conn, "INSERT INTO correction_history (history_id, request_id, action, action_by, action_hash) VALUES (1, 1, 'CREATED', 'alice', 'hh1')")
+  DBI::dbExecute(conn, "INSERT INTO correction_overrides (override_id, request_id, override_type, override_reason, override_by, override_hash) VALUES (1, 1, 'LOCKED_RECORD', 'test', 'alice', 'ho1')")
+
+  expect_true(isTRUE(as.logical(migrate_correction_reasons(conn))),
+             info = "migration runs without the DuckDB Dependency Error")
+
+  preserved <- DBI::dbGetQuery(conn, "SELECT request_id, correction_reason, requested_by FROM correction_requests")
+  expect_equal(preserved$correction_reason, "TYPO")
+  expect_equal(nrow(DBI::dbGetQuery(conn, "SELECT * FROM correction_history")), 1)
+  expect_equal(nrow(DBI::dbGetQuery(conn, "SELECT * FROM correction_overrides")), 1)
+
+  inserted <- DBI::dbExecute(conn, "INSERT INTO correction_requests (request_id, table_name, record_id, field_name, corrected_value, correction_reason, requested_by, request_hash) VALUES (2, 'data_entries', 'E1', 'sbp', '150', 'DDE_DISCREPANCY', 'bob', 'h2')")
+  expect_equal(inserted, 1, info = "DDE_DISCREPANCY is now accepted by the migrated CHECK constraint")
+
+  expect_true(isTRUE(as.logical(migrate_correction_reasons(conn))),
+             info = "re-running the migration on an already-migrated table is a no-op")
+  expect_equal(DBI::dbGetQuery(conn, "SELECT COUNT(*) AS n FROM correction_requests")$n, 2,
+              info = "the second run did not duplicate or lose rows")
 })
 
 # Reset the adapter cache so later test files in the same session

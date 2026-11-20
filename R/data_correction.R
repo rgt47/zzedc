@@ -335,12 +335,7 @@ migrate_correction_reasons <- function(conn) {
       "previous_request_hash, site_id, study_id, subject_id, visit_id, form_id"
     )
 
-    rebuild <- function(c) {
-      DBI::dbExecute(c, "ALTER TABLE correction_history RENAME TO zzedc_correction_history_old")
-      DBI::dbExecute(c, "ALTER TABLE correction_overrides RENAME TO zzedc_correction_overrides_old")
-      DBI::dbExecute(c, "ALTER TABLE correction_requests RENAME TO zzedc_correction_requests_old")
-
-      DBI::dbExecute(c, sprintf("
+    create_requests_sql <- sprintf("
         CREATE TABLE correction_requests (
           request_id INTEGER PRIMARY KEY,
           table_name TEXT NOT NULL,
@@ -369,13 +364,9 @@ migrate_correction_reasons <- function(conn) {
           visit_id TEXT,
           form_id TEXT
         )
-      ", expected_list))
-      DBI::dbExecute(c, sprintf(
-        "INSERT INTO correction_requests (%s) SELECT %s FROM zzedc_correction_requests_old",
-        requests_cols, requests_cols
-      ))
+      ", expected_list)
 
-      DBI::dbExecute(c, "
+    create_history_sql <- "
         CREATE TABLE correction_history (
           history_id INTEGER PRIMARY KEY,
           request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
@@ -388,13 +379,9 @@ migrate_correction_reasons <- function(conn) {
           action_hash TEXT NOT NULL,
           previous_hash TEXT
         )
-      ")
-      DBI::dbExecute(c, sprintf(
-        "INSERT INTO correction_history (%s) SELECT %s FROM zzedc_correction_history_old",
-        history_cols, history_cols
-      ))
+      "
 
-      DBI::dbExecute(c, "
+    create_overrides_sql <- "
         CREATE TABLE correction_overrides (
           override_id INTEGER PRIMARY KEY,
           request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
@@ -407,16 +394,9 @@ migrate_correction_reasons <- function(conn) {
           approved_at TIMESTAMP,
           override_hash TEXT NOT NULL
         )
-      ")
-      DBI::dbExecute(c, sprintf(
-        "INSERT INTO correction_overrides (%s) SELECT %s FROM zzedc_correction_overrides_old",
-        overrides_cols, overrides_cols
-      ))
+      "
 
-      DBI::dbExecute(c, "DROP TABLE zzedc_correction_overrides_old")
-      DBI::dbExecute(c, "DROP TABLE zzedc_correction_history_old")
-      DBI::dbExecute(c, "DROP TABLE zzedc_correction_requests_old")
-
+    recreate_indexes <- function(c) {
       DBI::dbExecute(c, "
         CREATE INDEX IF NOT EXISTS idx_corrections_table_record
         ON correction_requests(table_name, record_id)
@@ -432,25 +412,95 @@ migrate_correction_reasons <- function(conn) {
     }
 
     if (backend == "sqlite") {
-      # DROP/rename below touches three FK-linked tables at once;
-      # SQLite enforces FKs on every statement when PRAGMA foreign_keys
-      # is ON (set at connect time), so it must be off for this
-      # sequence and restored after, exactly as
-      # migrate_audit_event_types() does for audit_log.
+      # SQLite can rename a table something else still references (the
+      # FK is resolved by name at lookup time, not by catalog
+      # dependency), so the old tables are simply renamed out of the
+      # way, replaced, and dropped. DROP/rename below touches three
+      # FK-linked tables at once; SQLite enforces FKs on every
+      # statement when PRAGMA foreign_keys is ON (set at connect
+      # time), so it must be off for this sequence and restored after,
+      # exactly as migrate_audit_event_types() does for audit_log.
       prior_fk <- DBI::dbGetQuery(work_conn, "PRAGMA foreign_keys")[[1]][1]
       DBI::dbExecute(work_conn, "PRAGMA foreign_keys = OFF")
       on.exit(DBI::dbExecute(work_conn, sprintf("PRAGMA foreign_keys = %d", prior_fk)),
               add = TRUE, after = FALSE)
-      .with_db_transaction(work_conn, rebuild)
+
+      .with_db_transaction(work_conn, function(c) {
+        DBI::dbExecute(c, "ALTER TABLE correction_history RENAME TO zzedc_correction_history_old")
+        DBI::dbExecute(c, "ALTER TABLE correction_overrides RENAME TO zzedc_correction_overrides_old")
+        DBI::dbExecute(c, "ALTER TABLE correction_requests RENAME TO zzedc_correction_requests_old")
+
+        DBI::dbExecute(c, create_requests_sql)
+        DBI::dbExecute(c, sprintf(
+          "INSERT INTO correction_requests (%s) SELECT %s FROM zzedc_correction_requests_old",
+          requests_cols, requests_cols
+        ))
+
+        DBI::dbExecute(c, create_history_sql)
+        DBI::dbExecute(c, sprintf(
+          "INSERT INTO correction_history (%s) SELECT %s FROM zzedc_correction_history_old",
+          history_cols, history_cols
+        ))
+
+        DBI::dbExecute(c, create_overrides_sql)
+        DBI::dbExecute(c, sprintf(
+          "INSERT INTO correction_overrides (%s) SELECT %s FROM zzedc_correction_overrides_old",
+          overrides_cols, overrides_cols
+        ))
+
+        DBI::dbExecute(c, "DROP TABLE zzedc_correction_overrides_old")
+        DBI::dbExecute(c, "DROP TABLE zzedc_correction_history_old")
+        DBI::dbExecute(c, "DROP TABLE zzedc_correction_requests_old")
+        recreate_indexes(c)
+      })
     } else {
-      # DuckDB refuses to DROP/rename a table anything still
-      # references (same "Dependency Error"/"is main key table of"
-      # limitation migrate_audit_event_types() documents) -- all three
-      # tables are rebuilt together in one transaction instead of one
-      # at a time, same ordering (history/overrides before requests on
-      # the way out, after on the way in) so no intermediate state
-      # ever has a dangling reference.
-      .with_db_transaction(work_conn, rebuild)
+      # DuckDB refuses to even RENAME a table anything still
+      # references ("Dependency Error: Cannot alter entry ... because
+      # there are entries that depend on it", confirmed directly --
+      # the same limitation migrate_audit_event_types() documents for
+      # audit_log, and this is the same mistake that function's own
+      # comment warns against repeating: a rename-based rebuild that
+      # works on SQLite is not portable to DuckDB). Instead, all three
+      # tables' data is copied out to plain staging tables with no
+      # constraints and no foreign keys between them -- nothing ever
+      # depends on a staging table, so neither dropping nor leaving
+      # one behind is blocked -- the three originals are then dropped
+      # (in dependency order: overrides and history before requests),
+      # the three real tables are created fresh directly under their
+      # final names with the updated CHECK, and the data is copied
+      # back in from staging.
+      .with_db_transaction(work_conn, function(c) {
+        DBI::dbExecute(c, "CREATE TABLE zzedc_correction_requests_staging AS SELECT * FROM correction_requests")
+        DBI::dbExecute(c, "CREATE TABLE zzedc_correction_history_staging AS SELECT * FROM correction_history")
+        DBI::dbExecute(c, "CREATE TABLE zzedc_correction_overrides_staging AS SELECT * FROM correction_overrides")
+
+        DBI::dbExecute(c, "DROP TABLE correction_overrides")
+        DBI::dbExecute(c, "DROP TABLE correction_history")
+        DBI::dbExecute(c, "DROP TABLE correction_requests")
+
+        DBI::dbExecute(c, create_requests_sql)
+        DBI::dbExecute(c, sprintf(
+          "INSERT INTO correction_requests (%s) SELECT %s FROM zzedc_correction_requests_staging",
+          requests_cols, requests_cols
+        ))
+
+        DBI::dbExecute(c, create_history_sql)
+        DBI::dbExecute(c, sprintf(
+          "INSERT INTO correction_history (%s) SELECT %s FROM zzedc_correction_history_staging",
+          history_cols, history_cols
+        ))
+
+        DBI::dbExecute(c, create_overrides_sql)
+        DBI::dbExecute(c, sprintf(
+          "INSERT INTO correction_overrides (%s) SELECT %s FROM zzedc_correction_overrides_staging",
+          overrides_cols, overrides_cols
+        ))
+
+        DBI::dbExecute(c, "DROP TABLE zzedc_correction_overrides_staging")
+        DBI::dbExecute(c, "DROP TABLE zzedc_correction_history_staging")
+        DBI::dbExecute(c, "DROP TABLE zzedc_correction_requests_staging")
+        recreate_indexes(c)
+      })
     }
   } else if (backend %in% c("postgresql", "mysql")) {
     constraint_name <- tryCatch(
@@ -922,6 +972,9 @@ approve_correction <- function(request_id,
       ))
     }
 
+    dde_denied <- .require_dde_reviewer_separation_for_request(conn, request, reviewed_by)
+    if (!is.null(dde_denied)) return(dde_denied)
+
     timestamp <- as.character(Sys.time())
 
     DBI::dbExecute(conn, "
@@ -1186,6 +1239,11 @@ apply_correction <- function(request_id, applied_by, db_path = NULL,
       ))
     }
 
+    dde_denied <- .require_dde_reviewer_separation_for_request(conn, request, applied_by)
+    if (!is.null(dde_denied)) {
+      return(dde_denied)
+    }
+
     tbl <- request$table_name
     field <- request$field_name
     if (tbl %in% .correction_protected_tables ||
@@ -1367,6 +1425,52 @@ apply_correction <- function(request_id, applied_by, db_path = NULL,
   "audit_log", "audit_chain", "audit_events", "record_versions",
   "version_locks", "edc_users", "electronic_signatures", "data_entries_audit"
 )
+
+
+#' DDE Reviewer-Separation Guard, Keyed on a Fetched Request Row (internal)
+#'
+#' The actual enforcement point for [require_dde_reviewer_separation()]
+#' (`R/double_data_entry.R`): called from inside
+#' [approve_correction()]/[apply_correction()] themselves, not only
+#' from the Corrections module's UI layer, so a scripted caller going
+#' straight to either function is covered the same as the Shiny
+#' module -- the module's own equivalent check was UI-only and so
+#' failed open for any other caller. Fails closed: if the group cannot
+#' be resolved (the record_id does not exist, or the lookup errors),
+#' this refuses the action rather than treating that as "not a DDE
+#' request, so nothing to check" -- a `DDE_DISCREPANCY` request whose
+#' group cannot be verified is never silently waved through.
+#'
+#' @param conn A DBI connection (or pool object), already open.
+#' @param request The already-fetched `correction_requests` row (a
+#'   one-row data frame, as `approve_correction()`/`apply_correction()`
+#'   already have in hand before this is called).
+#' @param actor The user attempting to approve/apply.
+#' @return `NULL` if `actor` may proceed (including every non-
+#'   `DDE_DISCREPANCY` request, unaffected by this check); otherwise
+#'   `list(success = FALSE, error = <message>)`.
+#' @keywords internal
+.require_dde_reviewer_separation_for_request <- function(conn, request, actor) {
+  if (!identical(request$correction_reason[1], "DDE_DISCREPANCY")) {
+    return(NULL)
+  }
+  gid <- tryCatch(
+    DBI::dbGetQuery(conn, "SELECT dde_group_id FROM data_entries WHERE entry_id = ?",
+                    list(request$record_id[1]))$dde_group_id[1],
+    error = function(e) NA_character_
+  )
+  if (is.null(gid) || length(gid) == 0 || is.na(gid)) {
+    return(list(
+      success = FALSE,
+      error = paste(
+        "Could not resolve the double-data-entry group for request",
+        request$request_id[1], "-- refusing to approve/apply a",
+        "DDE_DISCREPANCY request without being able to verify reviewer separation."
+      )
+    ))
+  }
+  require_dde_reviewer_separation(conn, gid, actor)
+}
 
 
 #' Display Form of a Stored Value (internal)

@@ -1026,20 +1026,44 @@ observeEvent(input$submitcrf, {
     return(invisible(NULL))
   }
 
-  # Double-data-entry path: decide, via the blind probe
-  # (dde_decide_role() -> db_get_dde_first_entry(), which never
-  # selects data_json), whether this submission is the first or
-  # second entry for this subject_id/form_name.
-  subject_id <- as.character(
-    field_data$tracking_id %||%
-      paste0(toupper(crf_code), "-", format(Sys.time(), "%Y%m%d%H%M%OS3", tz = "UTC"))
-  )
+  # Double-data-entry path. A blank/missing Subject ID would otherwise
+  # fall back to save_crf_entry()'s own auto-generated, always-unique
+  # subject_id (a timestamp) -- which would mean the two entries could
+  # never actually pair at all, since each submission gets its own
+  # subject_id and is silently treated as "the first entry" of its own
+  # never-to-be-completed group. A flagged form depends on subject_id
+  # being the one thing the two enterers key identically, so this is
+  # refused outright rather than silently skipping DDE.
+  if (is.null(field_data$tracking_id) || !nzchar(trimws(as.character(field_data$tracking_id)))) {
+    shiny::showNotification(
+      "This form requires double data entry, which pairs the two entries by Subject ID; enter a Subject ID before submitting.",
+      type = "error", duration = 10
+    )
+    crf_submit_attempted(TRUE)
+    crf_submit_attempt(crf_submit_attempt() + 1)
+    return(invisible(NULL))
+  }
+
+  # Decide, via the blind probe (dde_decide_role() ->
+  # db_get_dde_first_entry(), which never selects data_json), whether
+  # this submission is the first or second entry for this
+  # subject_id/form_name.
+  subject_id <- as.character(field_data$tracking_id)
   decision <- zzedc:::dde_decide_role(db_pool, subject_id, tolower(crf_code), created_by)
 
   if (isTRUE(decision$blocked_same_user)) {
     shiny::showNotification(
       paste("The second entry of a double-data-entry form must be made",
             "by a different user than the first entry."),
+      type = "error", duration = 10
+    )
+    return(invisible(NULL))
+  }
+
+  if (isTRUE(decision$already_paired)) {
+    shiny::showNotification(
+      paste("Subject", subject_id, "already has both double-data-entry",
+            "submissions for this form; a third submission is not accepted."),
       type = "error", duration = 10
     )
     return(invisible(NULL))
@@ -1097,6 +1121,34 @@ observeEvent(input$dde_confirm_resolution, {
   applied <- zzedc:::apply_dde_resolutions(
     pending$field_data, pending$first_values, pending$discrepancies, resolutions
   )
+
+  # Keeps the first (canonical) entry in agreement with every
+  # "keep_second"/"revert_first" field decided just now -- without
+  # this, the canonical record would still show the first enterer's
+  # value for a field the second enterer's was deliberately kept for,
+  # and it would never stop showing up in the reconciliation queue
+  # (see update_first_entry_for_dde_resolution()'s own docs). Done
+  # before inserting the second entry so a failure here is visible as
+  # a save error rather than a silently half-applied resolution.
+  first_entry_update_failed <- FALSE
+  tryCatch(
+    zzedc:::update_first_entry_for_dde_resolution(
+      db_pool, pending$first_entry_id, applied$resolution_detail,
+      modified_by = pending$created_by,
+      ip_address = pending$ip_address, session_id = pending$session_id
+    ),
+    error = function(e) {
+      shiny::showNotification(
+        paste("Could not update the first entry for the resolved discrepancy:",
+              conditionMessage(e)),
+        type = "error", duration = 10
+      )
+      first_entry_update_failed <<- TRUE
+    }
+  )
+  if (first_entry_update_failed) {
+    return(invisible(NULL))
+  }
 
   result <- zzedc:::save_crf_entry(
     db_pool, pending$crf_code, applied$field_data, created_by = pending$created_by,
