@@ -158,22 +158,30 @@ local({
 # strategy) fails on DuckDB with "Dependency Error: Cannot alter entry
 # ... because there are entries that depend on it", since
 # correction_history/correction_overrides hold a REFERENCES
-# correction_requests(request_id). Simulates an old (pre-
-# DDE_DISCREPANCY) database by hand, with dependent rows in all three
-# tables, then confirms the migration preserves them, a new
-# DDE_DISCREPANCY request is accepted afterward, and a second run is a
-# no-op.
+# correction_requests(request_id). Builds the old (pre-DDE_DISCREPANCY)
+# schema with auto_increment_ddl() -- a real sequence-backed DEFAULT,
+# exactly what init_data_correction() itself would have created,
+# rather than a hand-picked INTEGER PRIMARY KEY -- and inserts through
+# the real create_correction_request()/approve_correction() API, not
+# hand-built SQL with explicit ids: an earlier version of both this
+# test and migrate_correction_reasons() itself used a hardcoded
+# INTEGER PRIMARY KEY in the rebuilt tables, which has no DEFAULT
+# nextval() on DuckDB (unlike SQLite's ROWID-aliasing magic) -- any
+# insert omitting the id column, exactly what
+# create_correction_request() does, would have failed outright after
+# migration. Inserting explicit ids by hand, as this test originally
+# did, cannot see that regression at all.
 local({
   db <- tempfile(fileext = ".duckdb")
   config <- test_backend_config("duckdb")
   config$duckdb$path <- db
   get_db_adapter(config = config, force_new = TRUE)
   conn <- connect_encrypted_db(db_path = db)
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-  DBI::dbExecute(conn, "
+  prepare_auto_increment(conn, "correction_requests", "request_id")
+  DBI::dbExecute(conn, sprintf("
     CREATE TABLE correction_requests (
-      request_id INTEGER PRIMARY KEY,
+      request_id %s,
       table_name TEXT NOT NULL, record_id TEXT NOT NULL, field_name TEXT NOT NULL,
       original_value TEXT, corrected_value TEXT NOT NULL,
       correction_reason TEXT NOT NULL CHECK(correction_reason IN
@@ -189,44 +197,64 @@ local({
       previous_request_hash TEXT, site_id TEXT, study_id TEXT, subject_id TEXT,
       visit_id TEXT, form_id TEXT
     )
-  ")
-  DBI::dbExecute(conn, "
+  ", auto_increment_ddl("correction_requests", "request_id")))
+
+  prepare_auto_increment(conn, "correction_history", "history_id")
+  DBI::dbExecute(conn, sprintf("
     CREATE TABLE correction_history (
-      history_id INTEGER PRIMARY KEY,
+      history_id %s,
       request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
       action TEXT NOT NULL, action_by TEXT NOT NULL,
       action_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, action_details TEXT,
       action_hash TEXT NOT NULL, previous_hash TEXT
     )
-  ")
-  DBI::dbExecute(conn, "
+  ", auto_increment_ddl("correction_history", "history_id")))
+
+  prepare_auto_increment(conn, "correction_overrides", "override_id")
+  DBI::dbExecute(conn, sprintf("
     CREATE TABLE correction_overrides (
-      override_id INTEGER PRIMARY KEY,
+      override_id %s,
       request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
       override_type TEXT NOT NULL, override_reason TEXT NOT NULL,
       override_by TEXT NOT NULL, override_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       approved_by TEXT, approved_at TIMESTAMP, override_hash TEXT NOT NULL
     )
-  ")
-  DBI::dbExecute(conn, "INSERT INTO correction_requests (request_id, table_name, record_id, field_name, corrected_value, correction_reason, requested_by, request_hash) VALUES (1, 'vitals', '1', 'sbp', '120', 'TYPO', 'alice', 'h1')")
-  DBI::dbExecute(conn, "INSERT INTO correction_history (history_id, request_id, action, action_by, action_hash) VALUES (1, 1, 'CREATED', 'alice', 'hh1')")
-  DBI::dbExecute(conn, "INSERT INTO correction_overrides (override_id, request_id, override_type, override_reason, override_by, override_hash) VALUES (1, 1, 'LOCKED_RECORD', 'test', 'alice', 'ho1')")
+  ", auto_increment_ddl("correction_overrides", "override_id")))
 
+  DBI::dbExecute(conn, "CREATE TABLE vitals (id INTEGER PRIMARY KEY, sbp INTEGER)")
+  DBI::dbExecute(conn, "INSERT INTO vitals VALUES (1, 220)")
+  DBI::dbDisconnect(conn)
+
+  before <- create_correction_request("vitals", "1", "sbp", "220", "120", "TYPO",
+                                      requested_by = "alice", db_path = db)
+  expect_true(before$success, info = before$error %||% "")
+  expect_true(approve_correction(before$request_id, reviewed_by = "bob", db_path = db)$success)
+
+  conn <- connect_encrypted_db(db_path = db)
   expect_true(isTRUE(as.logical(migrate_correction_reasons(conn))),
              info = "migration runs without the DuckDB Dependency Error")
-
-  preserved <- DBI::dbGetQuery(conn, "SELECT request_id, correction_reason, requested_by FROM correction_requests")
+  preserved <- DBI::dbGetQuery(conn, "SELECT request_id, correction_reason, status FROM correction_requests")
   expect_equal(preserved$correction_reason, "TYPO")
-  expect_equal(nrow(DBI::dbGetQuery(conn, "SELECT * FROM correction_history")), 1)
-  expect_equal(nrow(DBI::dbGetQuery(conn, "SELECT * FROM correction_overrides")), 1)
+  expect_equal(preserved$status, "APPROVED")
+  expect_equal(nrow(DBI::dbGetQuery(conn, "SELECT * FROM correction_history")), 2,
+              info = "one CREATED row (create_correction_request()) and one APPROVED row (approve_correction())")
+  DBI::dbDisconnect(conn)
 
-  inserted <- DBI::dbExecute(conn, "INSERT INTO correction_requests (request_id, table_name, record_id, field_name, corrected_value, correction_reason, requested_by, request_hash) VALUES (2, 'data_entries', 'E1', 'sbp', '150', 'DDE_DISCREPANCY', 'bob', 'h2')")
-  expect_equal(inserted, 1, info = "DDE_DISCREPANCY is now accepted by the migrated CHECK constraint")
+  # The real regression test: a new request, inserted the ordinary way
+  # (no explicit request_id) through the real API, after migration.
+  after <- create_correction_request("vitals", "1", "sbp", "120", "150", "TYPO",
+                                     requested_by = "carol", db_path = db)
+  expect_true(after$success,
+             info = paste("a hardcoded INTEGER PRIMARY KEY with no DuckDB sequence",
+                          "default would fail here:", after$error %||% ""))
+  expect_true(approve_correction(after$request_id, reviewed_by = "dave", db_path = db)$success)
 
+  conn <- connect_encrypted_db(db_path = db)
   expect_true(isTRUE(as.logical(migrate_correction_reasons(conn))),
              info = "re-running the migration on an already-migrated table is a no-op")
   expect_equal(DBI::dbGetQuery(conn, "SELECT COUNT(*) AS n FROM correction_requests")$n, 2,
               info = "the second run did not duplicate or lose rows")
+  DBI::dbDisconnect(conn)
 })
 
 # Reset the adapter cache so later test files in the same session

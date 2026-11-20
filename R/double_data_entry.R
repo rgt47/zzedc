@@ -7,8 +7,7 @@
 #' Combines REDCap's "different user by default, reviewer is neither
 #' entry person" rules with OpenClinica's "check item-by-item at
 #' second-entry save time, three immediate resolution choices"
-#' design, at field granularity (see `~/.claude/plans/
-#' soft-orbiting-acorn.md`, Part B, for the full design rationale).
+#' design, at field granularity.
 #'
 #' A form with no flagged field is entirely unaffected: every function
 #' here is a no-op (or simply not called) when
@@ -279,8 +278,19 @@ apply_dde_resolutions <- function(field_data, first_values, discrepancies,
 update_first_entry_for_dde_resolution <- function(conn, first_entry_id, resolution_detail,
                                                   modified_by, ip_address = NULL,
                                                   session_id = NULL) {
-  resolved <- Filter(function(d) d$choice %in% c("keep_second", "revert_first"),
-                     resolution_detail)
+  # Only "keep_second" ever needs entry #1 touched: its resolved final
+  # value (the second enterer's, kept as keyed) differs from what
+  # entry #1 already holds. "revert_first" needs nothing here at all
+  # -- apply_dde_resolutions() already overwrote entry #2's own
+  # field_data to match entry #1's existing value, so entry #1's
+  # stored value was never wrong in the first place. (An earlier
+  # version of this function wrote resolution_detail's recorded
+  # second_value -- the pre-resolution, *rejected* value -- for both
+  # choices, which for "revert_first" overwrote the settled entry #1
+  # with the value that was just rejected. Caught by a second
+  # review, not the first pass's own browser walkthrough, which only
+  # exercised "keep_second".)
+  resolved <- Filter(function(d) identical(d$choice, "keep_second"), resolution_detail)
   if (length(resolved) == 0) return(invisible(FALSE))
 
   row <- DBI::dbGetQuery(conn, "SELECT data_json FROM data_entries WHERE entry_id = ?",
@@ -384,12 +394,20 @@ list_dde_discrepancies <- function(conn, dde_group_id = NULL) {
     first_values <- jsonlite::fromJSON(first$data_json[1] %||% "{}", simplifyVector = FALSE)
     second_values <- jsonlite::fromJSON(second$data_json[1] %||% "{}", simplifyVector = FALSE)
 
-    crf_form <- tryCatch({
-      DBI::dbGetQuery(conn,
-        "SELECT form_name FROM data_entries WHERE entry_id = ?",
-        list(first$entry_id[1]))$form_name[1]
-    }, error = function(e) NA_character_)
-    flagged <- tryCatch(.dde_flagged_fields_for_form(conn, crf_form), error = function(e) character(0))
+    # Deliberately NOT wrapped in tryCatch(): .dde_flagged_fields_for_form()
+    # already returns character(0) itself, with no error, for the
+    # ordinary "this form resolves to nothing" cases (NA/blank
+    # form_name, no matching crf_definitions row). Swallowing a real,
+    # unexpected error here into the same character(0) would be
+    # indistinguishable from "this form has no flagged fields" to the
+    # caller -- which close_dde_group_if_resolved() treats as "nothing
+    # open, safe to supersede" -- so a transient failure here must
+    # surface as an error, not silently close out a group that may
+    # still have a real, undetected discrepancy.
+    crf_form <- DBI::dbGetQuery(conn,
+      "SELECT form_name FROM data_entries WHERE entry_id = ?",
+      list(first$entry_id[1]))$form_name[1]
+    flagged <- .dde_flagged_fields_for_form(conn, crf_form)
 
     diff <- diff_field_lists(first_values, second_values, fields = flagged)
     for (field in names(diff)) {

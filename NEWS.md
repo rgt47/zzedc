@@ -1,5 +1,57 @@
 # zzedc (development version)
 
+## Third-pass fixes to double data entry, found by a second round of review
+
+* `update_first_entry_for_dde_resolution()` wrote the recorded
+  `second_value` to the canonical entry for **both** `"keep_second"`
+  *and* `"revert_first"` resolutions. For `"revert_first"` that
+  `second_value` is the pre-resolution, *rejected* value, so a
+  settled, already-correct canonical entry was overwritten with the
+  value the reconciliation just rejected -- the opposite of the
+  previous ("second-pass") fix's own intent. `"revert_first"` needs no
+  change to the canonical entry at all (it was never wrong); only
+  `"keep_second"` does. Reproduced live in the browser (entry #1 held
+  "100", a conflicting "222" was submitted and reverted, entry #1 was
+  confirmed unchanged at "100" afterward, not corrupted to "222") and
+  covered by a new test that calls the function directly with a
+  `"revert_first"` resolution and checks the canonical entry.
+* The reconciliation queue's `superseded_by` marker was previously
+  only ever set after a queued `DDE_DISCREPANCY` correction was
+  applied; a pair fully resolved at save time (no field left
+  `"flag_for_review"`) was never superseded at all. The confirm-
+  resolution handler (`inst/app/edc.R`) now calls
+  `close_dde_group_if_resolved()` itself right after a fully-resolved
+  save. Also reordered that handler to insert the second entry
+  *before* updating the canonical entry, so a late failure leaves the
+  second entry safely saved and the field visible in the
+  reconciliation queue, rather than risking losing the second entry
+  entirely.
+* `nzchar(NA)` is `TRUE` in R (confirmed directly) -- the blank-
+  Subject-ID guard's `!nzchar(trimws(as.character(...)))` alone let a
+  genuinely missing (`NA`, not just `""`) tracking ID straight
+  through; `is.na()` is now checked explicitly first.
+* `list_dde_discrepancies()` swallowed any error resolving a form's
+  flagged fields (not just the ordinary "no such form" case, which
+  needs no error handling at all) into `character(0)`, which
+  `close_dde_group_if_resolved()` would read as "nothing open, safe to
+  supersede" -- a transient failure could have silently closed a group
+  that still had a real, undetected discrepancy. The error now
+  propagates.
+* `migrate_correction_reasons()`'s rebuilt tables used a hardcoded
+  `INTEGER PRIMARY KEY` instead of `auto_increment_ddl()`, which on
+  DuckDB has no `DEFAULT nextval(...)` (unlike SQLite's ROWID-aliasing
+  magic) -- an ordinary insert that omits the id column entirely,
+  exactly what `create_correction_request()` does, would fail outright
+  after migration. The DuckDB regression test previously inserted
+  explicit ids by hand and could not see this; rewritten to build the
+  old schema with the real `auto_increment_ddl()` (what
+  `init_data_correction()` itself would have created) and insert
+  through the real `create_correction_request()`/`approve_correction()`
+  API before and after migrating. Separately confirmed (not just
+  inspected) that `ensure_data_entries_table()`'s plain `ALTER TABLE
+  ADD COLUMN` migration for `dde_group_id`/`superseded_by` succeeds on
+  DuckDB with existing rows and the `subject_id` index in place.
+
 ## Double data entry (DDE), per field, with immediate discrepancy detection and a reconciliation queue
 
 * Per-*field* opt-in: a new `designer_fields.require_double_entry`

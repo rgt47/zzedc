@@ -1034,7 +1034,12 @@ observeEvent(input$submitcrf, {
   # never-to-be-completed group. A flagged form depends on subject_id
   # being the one thing the two enterers key identically, so this is
   # refused outright rather than silently skipping DDE.
-  if (is.null(field_data$tracking_id) || !nzchar(trimws(as.character(field_data$tracking_id)))) {
+  # nzchar(NA) is TRUE (confirmed directly), so is.na() must be
+  # checked explicitly here -- !nzchar(trimws(as.character(NA))) alone
+  # evaluates to FALSE and would let a genuinely missing (NA, not just
+  # "") tracking_id straight through this guard.
+  if (is.null(field_data$tracking_id) || is.na(field_data$tracking_id) ||
+        !nzchar(trimws(as.character(field_data$tracking_id)))) {
     shiny::showNotification(
       "This form requires double data entry, which pairs the two entries by Subject ID; enter a Subject ID before submitting.",
       type = "error", duration = 10
@@ -1122,34 +1127,15 @@ observeEvent(input$dde_confirm_resolution, {
     pending$field_data, pending$first_values, pending$discrepancies, resolutions
   )
 
-  # Keeps the first (canonical) entry in agreement with every
-  # "keep_second"/"revert_first" field decided just now -- without
-  # this, the canonical record would still show the first enterer's
-  # value for a field the second enterer's was deliberately kept for,
-  # and it would never stop showing up in the reconciliation queue
-  # (see update_first_entry_for_dde_resolution()'s own docs). Done
-  # before inserting the second entry so a failure here is visible as
-  # a save error rather than a silently half-applied resolution.
-  first_entry_update_failed <- FALSE
-  tryCatch(
-    zzedc:::update_first_entry_for_dde_resolution(
-      db_pool, pending$first_entry_id, applied$resolution_detail,
-      modified_by = pending$created_by,
-      ip_address = pending$ip_address, session_id = pending$session_id
-    ),
-    error = function(e) {
-      shiny::showNotification(
-        paste("Could not update the first entry for the resolved discrepancy:",
-              conditionMessage(e)),
-        type = "error", duration = 10
-      )
-      first_entry_update_failed <<- TRUE
-    }
-  )
-  if (first_entry_update_failed) {
-    return(invisible(NULL))
-  }
-
+  # The second entry is inserted FIRST, before touching entry #1 at
+  # all: if the entry #1 update below then fails, the second entry is
+  # still safely saved, and any "keep_second" field left un-updated on
+  # entry #1 simply still differs from it -- which list_dde_discrepancies()'s
+  # live diff will correctly surface in the reconciliation queue rather
+  # than silently losing the resolution. The reverse order (update
+  # entry #1 first) would instead risk losing the second entry
+  # entirely on a late failure, with no record of the discrepancy
+  # anywhere.
   result <- zzedc:::save_crf_entry(
     db_pool, pending$crf_code, applied$field_data, created_by = pending$created_by,
     is_complete = TRUE, dde_group_id = pending$group_id,
@@ -1158,6 +1144,45 @@ observeEvent(input$dde_confirm_resolution, {
                        dde_pending_review_fields = applied$pending_fields),
     ip_address = pending$ip_address, session_id = pending$session_id
   )
+
+  if (isTRUE(result$success)) {
+    # Keeps the first (canonical) entry in agreement with every
+    # "keep_second" field decided just now -- without this, the
+    # canonical record would still show the first enterer's value for
+    # a field the second enterer's was deliberately kept for, and it
+    # would never stop showing up in the reconciliation queue (see
+    # update_first_entry_for_dde_resolution()'s own docs).
+    tryCatch(
+      zzedc:::update_first_entry_for_dde_resolution(
+        db_pool, pending$first_entry_id, applied$resolution_detail,
+        modified_by = pending$created_by,
+        ip_address = pending$ip_address, session_id = pending$session_id
+      ),
+      error = function(e) {
+        shiny::showNotification(
+          paste("The second entry was saved, but the first entry could not be",
+                "updated for the resolved discrepancy; it will appear in the",
+                "reconciliation queue:", conditionMessage(e)),
+          type = "error", duration = 12
+        )
+      }
+    )
+
+    # If nothing is left open (no "flag_for_review" field, and the
+    # "keep_second" update above succeeded), this group is fully
+    # resolved right now -- mark the non-canonical (second) entry
+    # superseded immediately, the same bookkeeping
+    # close_dde_group_if_resolved() otherwise only runs after a queued
+    # DDE_DISCREPANCY correction is applied. A group with a "flag_for_review"
+    # field is deliberately left unresolved here (close_dde_group_if_resolved()
+    # itself re-checks list_dde_discrepancies(), so this is a safe,
+    # redundant call either way).
+    tryCatch(
+      zzedc:::close_dde_group_if_resolved(db_pool, pending$group_id),
+      error = function(e) NULL
+    )
+  }
+
   shiny::removeModal()
   dde_pending(NULL)
   .zzedc_finish_submit(result, pending$crf_row, pending$metadata, pending$crf_code)
