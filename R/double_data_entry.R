@@ -327,6 +327,92 @@ update_first_entry_for_dde_resolution <- function(conn, first_entry_id, resoluti
 }
 
 
+#' Apply a Resolution Choice to an Already-Saved Second DDE Entry
+#'
+#' The second entry is saved immediately when a discrepancy is first
+#' detected -- every flagged, mismatched field defaulted to
+#' `"flag_for_review"` via [apply_dde_resolutions()] with no
+#' resolutions supplied -- *before* the resolution modal is shown (see
+#' `inst/app/edc.R`'s `submitcrf` handler). This closes a gap found on
+#' review: saving only happened when the modal was actually confirmed,
+#' so dismissing it (a browser reload, say) lost the second entry and
+#' its audit trail entirely, with no record that entry #1's value had
+#' been shown on screen -- and because nothing had been saved yet, the
+#' same user could reload and re-key a value that now matched entry
+#' #1, with no trace that the two had ever disagreed or that
+#' `dde_decide_role()`'s blinding had already been shown entry #1's
+#' true value once. Saving right away means a reload-then-resubmit now
+#' hits [dde_decide_role()]'s `already_paired` guard like any genuine
+#' third submission, and an abandoned modal simply leaves every
+#' discrepant field in its safe `"flag_for_review"` default, visible in
+#' [list_dde_discrepancies()]'s queue -- never silently lost.
+#'
+#' This function is what the modal's "Confirm and Save" action calls
+#' to *upgrade* that already-saved row from its all-`"flag_for_review"`
+#' default to the enterer's actual per-field choices: it updates the
+#' second entry's own `data_json` for any field whose resolved value
+#' differs from what was saved (a `"revert_first"` choice), and writes
+#' one `"UPDATE"` audit record recording the resolution detail. The
+#' caller is still responsible for calling
+#' [update_first_entry_for_dde_resolution()] (for `"keep_second"`
+#' fields) and [close_dde_group_if_resolved()] afterward, exactly as
+#' before.
+#'
+#' @param conn A DBI connection (or pool object).
+#' @param second_entry_id The second entry's own `entry_id` (already
+#'   saved).
+#' @param applied The return value of [apply_dde_resolutions()], called
+#'   with the enterer's actual resolution choices.
+#' @param modified_by The second enterer (the one making this
+#'   resolution choice).
+#' @param ip_address,session_id Recorded in the audit record when
+#'   known.
+#' @return Invisible `TRUE` if the row's stored value changed,
+#'   invisible `FALSE` if every field's resolved value already matched
+#'   what was saved (e.g. every discrepancy was left
+#'   `"flag_for_review"`, which never changes the second entry's own
+#'   value).
+#' @keywords internal
+update_second_entry_for_dde_resolution <- function(conn, second_entry_id, applied,
+                                                    modified_by, ip_address = NULL,
+                                                    session_id = NULL) {
+  row <- DBI::dbGetQuery(conn, "SELECT data_json FROM data_entries WHERE entry_id = ?",
+                        list(second_entry_id))
+  if (nrow(row) == 0) return(invisible(FALSE))
+  values <- jsonlite::fromJSON(row$data_json[1] %||% "{}", simplifyVector = FALSE)
+
+  changed <- list()
+  for (field in names(applied$resolution_detail)) {
+    new_value <- applied$field_data[[field]]
+    if (!identical(as.character(values[[field]] %||% NA), as.character(new_value %||% NA))) {
+      changed[[field]] <- list(old_value = values[[field]], new_value = new_value)
+      values[[field]] <- new_value
+    }
+  }
+  if (length(changed) == 0) return(invisible(FALSE))
+
+  new_json <- as.character(jsonlite::toJSON(values, auto_unbox = TRUE, null = "null"))
+  .with_db_transaction(conn, function(c) {
+    DBI::dbExecute(
+      c, "UPDATE data_entries SET data_json = ?, modified_date = CURRENT_TIMESTAMP, modified_by = ? WHERE entry_id = ?",
+      params = list(new_json, modified_by, second_entry_id)
+    )
+    .append_audit_record(
+      c, event_type = "UPDATE", table_name = "data_entries", record_id = second_entry_id,
+      operation = "Double-data-entry discrepancy resolution recorded on the second entry",
+      details = as.character(jsonlite::toJSON(
+        list(dde_resolution = applied$resolution_detail,
+             dde_pending_review_fields = applied$pending_fields,
+             dde_values_changed = changed),
+        auto_unbox = TRUE, null = "null"
+      )),
+      user_id = modified_by, ip_address = ip_address, session_id = session_id
+    )
+  })
+  invisible(TRUE)
+}
+
+
 #' List Open Double-Data-Entry Discrepancies (Reconciliation Queue)
 #'
 #' Enumerates every `dde_group_id` with a flagged field that still

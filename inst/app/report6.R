@@ -36,7 +36,11 @@ output$rep6_table <- DT::renderDT({
   # does not carry entry_id (it also backs the CSV export, which
   # should not gain an internal id column), so it is read here
   # separately, in the same form/order, for this column alone.
-  entries <- zzedc:::get_data_entries(db_pool, crf_code = "manuscripts")
+  # canonical_dde_only = TRUE: flatten_crf_entries_for_export() above
+  # excludes the non-canonical DDE row; this row-count-aligned lookup
+  # (for entry_id alone) must filter identically or the two would
+  # disagree in length and the Review buttons would never render.
+  entries <- zzedc:::get_data_entries(db_pool, crf_code = "manuscripts", canonical_dde_only = TRUE)
   if (nrow(entries) == nrow(display)) {
     display$Review <- vapply(entries$entry_id, function(eid) {
       paste0(
