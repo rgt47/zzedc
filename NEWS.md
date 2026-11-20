@@ -1,5 +1,59 @@
 # zzedc (development version)
 
+## `initialize_encrypted_database()`'s `$success` no longer hides a silently unencrypted SQLite database (F1)
+
+* **`success = TRUE` for an unencrypted SQLite database, closed.**
+  Under the `standard` security profile with
+  `security.accept_unencrypted_sqlite: true` (an explicit deployer
+  opt-in), or under the `development` profile, `initialize_encrypted_
+  database()`'s SQLite path (`init_encrypted_sqlite_database()`)
+  created a genuinely plaintext database and returned `success =
+  TRUE, encrypted = FALSE`. A caller that checked only `$success` --
+  the natural thing to check -- had no way to learn that encryption
+  had silently not happened; it had to separately inspect
+  `$encrypted`. `regulated`, and `standard` without the opt-in, were
+  already correct (`.enforce_sqlite_at_rest()` throws, and
+  `success = FALSE` was already returned there).
+* **The fix.** On SQLite, `$success` now mirrors `$encrypted`:
+  `TRUE` only when the database was both created and actually
+  encrypted at rest. For the "created but left unencrypted" case
+  (`standard` + opt-in, or `development`), `$success` is now
+  `FALSE`, but `$path`, `$key`, and `$encrypted` remain populated and
+  usable -- the file genuinely was created, and `$success = FALSE`
+  here means only "not encrypted," not "nothing was created."
+  `$message` now says plainly that `success` is `FALSE` for that
+  reason, not because creation failed. `$error` continues to be set
+  only on an actual creation failure, so `is.null(result$error)` (or
+  checking that `$key`/`$path` are non-NULL) is the right way for a
+  caller to ask "did this call produce something I can use," leaving
+  `$success`/`$encrypted` for "is it actually encrypted." DuckDB and
+  the server backends are unchanged: `$success` there continues to
+  mean only that creation did not fail.
+* **Callers updated.** Three production call sites that gated on
+  `$success` to decide whether creation itself failed now check
+  `$error` instead, so they keep working under the opt-in/development
+  cases exactly as before while still surfacing the true encryption
+  state via the nested result they already return
+  (`migrate_to_encrypted()` in `R/db_migration.R`, the REDCap importer
+  in `R/redcap_import.R`, the Google Sheets setup path in
+  `R/validation_gsheets_integration.R`), plus the IQ-004 "Database
+  Initialization" installation-qualification check in
+  `R/validation_framework.R`, which qualifies that creation succeeds,
+  not that encryption is active (a security-profile/OQ concern
+  checked elsewhere). Roughly 45 tinytest files construct a
+  throwaway SQLite database via this function as pure test setup
+  under the suite's default `development` profile; of those, 18 had
+  an incidental `$success` assertion on that setup call and were
+  updated to check `$error` (or, in `test_encryption.R`, to assert
+  the new success/encrypted contract directly where the test's
+  actual subject is `initialize_encrypted_database()` itself). The
+  authoritative security-profile tests
+  (`test_security_profile.R`, `test_encryption_default_backend.R`,
+  `test_db-adapter-phase-c.R`) were rewritten to the new contract and
+  extended with an explicit `standard` + opt-in regression case. The
+  `regulated` and no-opt-in refusal paths, and the genuinely encrypted
+  case, were already correct and are unchanged.
+
 ## Fourth-pass fixes to double data entry and reporting, found by a fourth round of review
 
 * **The discrepancy-resolution modal's reload/data-loss gap, closed.**

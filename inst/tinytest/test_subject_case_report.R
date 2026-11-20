@@ -27,7 +27,7 @@ setup_case_report_db <- function() {
 
   test_db <- tempfile(fileext = ".db")
   init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
-  if (!init_result$success) stop("Failed to initialize database: ", init_result$error)
+  if (!is.null(init_result$error)) stop("Failed to initialize database: ", init_result$error)
   Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
 
   init_audit_logging(db_path = test_db)

@@ -1655,7 +1655,13 @@ setup_zzedc_from_csv <- function(
         key       = if (backend == "duckdb") adapter_config$duckdb$encryption_key
       )
       result$database <- init_res
-      if (!isTRUE(init_res$success)) {
+      # init_res$success now mirrors init_res$encrypted on SQLite (see
+      # initialize_encrypted_database()'s @return): a database that
+      # was created but permitted to stay unencrypted (standard +
+      # opt-in, or development) is not a creation failure, so check
+      # $error, not $success. The true encryption state remains
+      # available to callers via result$database$encrypted.
+      if (!is.null(init_res$error)) {
         result$success <- FALSE
         result$errors$database <- init_res$error
         return(result)

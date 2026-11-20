@@ -22,7 +22,7 @@ setup_test_db <- function() {
 
   init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
   Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
-  if (!init_result$success) {
+  if (!is.null(init_result$error)) {
     stop("Failed to initialize encrypted database: ", init_result$error)
   }
 

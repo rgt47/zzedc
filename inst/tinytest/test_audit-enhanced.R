@@ -66,7 +66,7 @@ local({
 
     init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
     Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
-    expect_true(init_result$success)
+    expect_true(is.null(init_result$error), info = "test database created")
 
     audit_result <- init_audit_logging(db_path = test_db)
     expect_true(audit_result$success)

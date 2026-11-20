@@ -607,35 +607,55 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
 #'   or recreating a database with a known key.
 #'
 #' @return List with initialization results:
-#'   - success: Logical TRUE if successful
-#'   - path: Absolute path to created database
+#'   - success: Logical. On SQLite this mirrors `encrypted`: `TRUE`
+#'     only when the database was both created and actually encrypted
+#'     at rest. It is `FALSE` both when creation itself failed (an
+#'     `error` field is then present) and when creation succeeded but
+#'     encryption was not applied (no `error` field; `path`/`key` are
+#'     still populated and usable -- see `encrypted` and `message`).
+#'     Callers that only need "did this call do something I can use"
+#'     should check `is.null(result$error)` (or that `key`/`path` are
+#'     non-NULL), not `success`, to distinguish those two `FALSE`
+#'     cases. On DuckDB and the server backends, where encryption is
+#'     either always applied or not this function's concern, `success`
+#'     continues to mean only "creation did not fail".
+#'   - path: Absolute path to created database. Present even when
+#'     `success` is `FALSE` for the "created but not encrypted" case.
 #'   - key: The encryption key used (either `key` if supplied or the
-#'     newly generated one). The function does not persist
-#'     this key beyond the current function call; the caller must store
-#'     it (for example via `Sys.setenv(DB_ENCRYPTION_KEY = result$key)`
-#'     or AWS Secrets Manager). Losing the key makes the database
-#'     unrecoverable.
+#'     newly generated one). Present even when `success` is `FALSE`
+#'     for the "created but not encrypted" case. The function does not
+#'     persist this key beyond the current function call; the caller
+#'     must store it (for example via
+#'     `Sys.setenv(DB_ENCRYPTION_KEY = result$key)` or AWS Secrets
+#'     Manager). Losing the key makes the database unrecoverable.
 #'   - encrypted: Logical. Whether the created file was verified to be
 #'     encrypted at rest. On SQLite with a stock CRAN RSQLite build this
 #'     is `FALSE`: the key is accepted but not applied. `NA` on
 #'     server-hosted backends, where encryption at rest is a server
 #'     setting this function cannot observe.
 #'   - message: Status message, which states plainly when the database
-#'     is not encrypted
+#'     is not encrypted, and, on SQLite, that `success` is `FALSE`
+#'     because of that -- not because creation failed -- with a note
+#'     that `path`/`key` remain valid for a caller that wants to
+#'     proceed anyway.
 #'
 #' On SQLite, when the installed RSQLite cannot encrypt
 #' (`sqlite_cipher_available()` is `FALSE`), the security profile (see
 #' `resolve_security_profile()`) decides before any file is created:
-#' under `regulated` the function returns `success = FALSE`; under
-#' `standard` it also returns `success = FALSE`, with an error naming
-#' DuckDB and the opt-in, unless `security.accept_unencrypted_sqlite` is
-#' true (see `resolve_accept_unencrypted_sqlite()`), in which case it
-#' creates the plaintext database with a notice and returns
-#' `success = TRUE, encrypted = FALSE`; under `development` it creates
-#' it silently. `success = TRUE` is therefore never returned for an
-#' encryption request that was not honored, except under `development`
-#' or with the opt-in. In all profiles `encrypted` reports the true
-#' state.
+#' under `regulated` the function returns `success = FALSE` and no
+#' file is created; under `standard` it also returns `success = FALSE`
+#' with no file created, with an error naming DuckDB and the opt-in,
+#' unless `security.accept_unencrypted_sqlite` is true (see
+#' `resolve_accept_unencrypted_sqlite()`), in which case it creates the
+#' plaintext database with a notice and returns `success = FALSE,
+#' encrypted = FALSE` (the file exists and `path`/`key` are usable;
+#' `success` is `FALSE` solely to flag that encryption was not
+#' applied); under `development` it creates the file silently and
+#' likewise returns `success = FALSE, encrypted = FALSE`. `success`
+#' is therefore `TRUE` on SQLite only when the file both exists and is
+#' actually encrypted. In all profiles `encrypted` reports the true
+#' state, and `path`/`key` are populated whenever a file was created,
+#' regardless of `success`.
 #'
 #' @details
 #' This function:
@@ -652,10 +672,13 @@ connect_encrypted_db <- function(db_path = NULL, aws_kms_key_id = NULL,
 #'     db_path = "./data/new_study.db",
 #'     overwrite = FALSE
 #'   )
-#'   if (result$success) {
-#'     # Store the key for subsequent operations in this session
+#'   if (is.null(result$error)) {
+#'     # Creation did not fail; result$success tells you whether it is
+#'     # actually encrypted (see @return), so check that separately if
+#'     # your deployment requires encryption at rest.
 #'     Sys.setenv(DB_ENCRYPTION_KEY = result$key)
-#'     cat("Database created at:", result$path, "\n")
+#'     cat("Database created at:", result$path,
+#'         "- encrypted:", isTRUE(result$encrypted), "\n")
 #'   }
 #' }
 #'
@@ -793,7 +816,7 @@ init_encrypted_sqlite_database <- function(db_path = NULL, overwrite = FALSE,
     )
 
     return(list(
-      success = TRUE,
+      success = encrypted,
       path = normalizePath(db_path, winslash = "/"),
       key = key,
       encrypted = encrypted,
@@ -802,13 +825,20 @@ init_encrypted_sqlite_database <- function(db_path = NULL, overwrite = FALSE,
       } else if (resolve_security_profile()$profile == "standard") {
         paste(
           "Database created at:", db_path,
-          "-- NOT encrypted at rest (stock RSQLite ignores the key);",
-          "plaintext accepted by security.accept_unencrypted_sqlite"
+          "-- success is FALSE because the database is NOT encrypted at",
+          "rest (stock RSQLite ignores the key); this is not a creation",
+          "failure -- plaintext storage is accepted by",
+          "security.accept_unencrypted_sqlite, and $path/$key are valid",
+          "for a caller that wants to proceed anyway"
         )
       } else {
         paste(
           "Database created at:", db_path,
-          "-- NOT encrypted at rest (stock RSQLite ignores the key)"
+          "-- success is FALSE because the database is NOT encrypted at",
+          "rest (stock RSQLite ignores the key); this is not a creation",
+          "failure -- the 'development' profile permits plaintext",
+          "storage, and $path/$key are valid for a caller that wants to",
+          "proceed anyway"
         )
       }
     ))

@@ -132,9 +132,35 @@ if (stock_rsqlite) {
   with_profile("development", {
     db <- tempfile(fileext = ".db")
     res <- initialize_encrypted_database(db_path = db)
-    expect_true(res$success)
+    expect_false(res$success,
+                 info = "F1: success now mirrors encrypted, not mere file creation")
     expect_false(res$encrypted, info = "stock RSQLite result says not encrypted")
+    expect_true(file.exists(db), info = "the file is still created and usable")
+    expect_true(!is.null(res$key), info = "a usable key is still returned")
     expect_true(grepl("NOT encrypted", res$message), info = "message says so plainly")
+    unlink(db)
+  })
+
+  # F1 regression test: initialize_encrypted_database()'s $success no
+  # longer reports TRUE for a SQLite database that was created but
+  # left unencrypted under the standard + opt-in profile. This block
+  # fails on the pre-fix source (where $success was hardcoded TRUE)
+  # and passes after the fix (where $success mirrors $encrypted).
+  with_profile("standard", {
+    old_optin <- options(zzedc.accept_unencrypted_sqlite = TRUE)
+    on.exit(options(old_optin), add = TRUE)
+    db <- tempfile(fileext = ".db")
+    res <- suppressMessages(initialize_encrypted_database(db_path = db))
+    expect_false(res$success,
+                 info = "F1: standard + opt-in creates the file but success reports it is NOT encrypted")
+    expect_false(res$encrypted, info = "F1: encrypted = FALSE is reported")
+    expect_true(is.null(res$error), info = "F1: this is not a creation failure")
+    expect_true(file.exists(res$path), info = "F1: the file is still created")
+    expect_true(!is.null(res$key), info = "F1: a usable key is still returned")
+    con <- DBI::dbConnect(RSQLite::SQLite(), res$path)
+    expect_true("study_info" %in% DBI::dbListTables(con),
+                info = "F1: the created database has its schema and is usable")
+    DBI::dbDisconnect(con)
     unlink(db)
   })
 
