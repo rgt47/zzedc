@@ -220,21 +220,20 @@
   found the same way the equivalent check for `designer_fields` was
   done) now also declare `dde_group_id`/`superseded_by` for a
   brand-new database.
-* **Known cosmetic gap, not blocking, found and still open**: the
-  Corrections tab's DDE-Reconciliation-queue "File Correction Request"
-  hand-off pre-fills Table Name/Record ID/Reason correctly, but the
-  Field dropdown's own pre-selection is lost -- it comes up still
-  showing "Select field...", requiring one manual click to pick the
-  flagged field. Tried deferring the `updateSelectInput()` call via
-  `session$onFlushed()` (the pattern `inst/app/edc.R` uses to restore
-  field values after a same-form re-render), on the theory that it was
-  racing `output$field_picker`'s `renderUI()` (both depend on the same
-  `crf_context()` recompute); re-tested in the browser afterward and
-  the field is still not pre-selected, so that was not the actual
-  cause -- the `session$onFlushed()` change is kept (harmless) but
-  this is reported as still open, not fixed. Does not affect the
-  Create Request view's own validation or submission once the field is
-  picked.
+* **Cosmetic gap, since fixed**: the Corrections tab's
+  DDE-Reconciliation-queue "File Correction Request" hand-off used to
+  lose the Field dropdown's pre-selection (it came up showing "Select
+  field...", needing one manual click). The actual cause was exactly
+  the suspected race -- `output$field_picker`'s `renderUI()` rebuilds
+  the `<select>` from scratch on the same `crf_context()` recompute a
+  separate `updateSelectInput()` was targeting, even when deferred via
+  `session$onFlushed()`. Fixed by having `field_picker`'s own
+  `renderUI()` read the pending field and bake it into the
+  `selectInput()`'s `selected` argument directly, so the choices and
+  the selection are set together in one render rather than two
+  competing writers. Covered by a new regression test driving the
+  module's pending reactiveVal directly and checking the rendered
+  `<select>` HTML for the pre-selected `<option>`.
 * **Documented, not built this pass** (open decisions from the design,
   made explicit rather than left as implementation accidents): an
   unreconciled discrepancy is intended to block a future "Lock Visit"

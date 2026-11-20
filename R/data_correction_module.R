@@ -408,6 +408,17 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
     output$field_picker <- shiny::renderUI({
       guard$require()
       ctx <- crf_context()
+      # Read here, in the same renderUI() that builds the <select>'s
+      # choices, rather than updating it afterward in a separate
+      # observer: both approaches depend on crf_context(), and an
+      # update issued once that recompute finally lands (e.g. via
+      # session$onFlushed()) can still be overwritten by this renderUI
+      # rebuilding the DOM node from scratch on a later invalidation of
+      # the same dependency -- confirmed directly, the prior
+      # onFlushed()-based fix did not survive that race. Baking
+      # `selected` into the one render that already knows the choices
+      # has no such race.
+      prefill_field <- rv$dde_prefill_field
       if (!is.null(ctx) && isTRUE(ctx$draft)) {
         return(shiny::div(
           class = "alert alert-warning py-2 px-3",
@@ -427,8 +438,14 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
         names(ctx$metadata),
         vapply(ctx$metadata, function(m) m$label %||% "", character(1))
       )
+      selected <- if (!is.null(prefill_field) && prefill_field %in% names(ctx$metadata)) {
+        prefill_field
+      } else {
+        ""
+      }
       shiny::selectInput(session$ns("field_name"), "Field",
-                          choices = c("Select field..." = "", choices))
+                          choices = c("Select field..." = "", choices),
+                          selected = selected)
     })
 
     # Auto-fill "Original Value" from the record's own current value
@@ -834,24 +851,26 @@ data_correction_server <- function(id, current_user = NULL, user_role = NULL,
       rv$dde_prefill_field <- row$field_code[1]
     })
 
+    # output$field_picker's own renderUI() (above) now reads
+    # rv$dde_prefill_field directly and bakes it into the
+    # selectInput()'s `selected` argument at the same time it builds
+    # the choices -- no separate update call racing a later rebuild of
+    # the same DOM node. This observer only clears the one-shot value
+    # once it has had a chance to be applied, so a later, unrelated
+    # crf_context() recompute does not keep re-selecting a stale
+    # field. Deferred via session$onFlushed(): clearing it within the
+    # same flush that field_picker reads it would invalidate and
+    # re-render field_picker a second time with field = NULL in that
+    # same flush, losing the very selection just baked in.
     shiny::observeEvent(list(crf_context(), rv$dde_prefill_field), {
       if (!guard$authorized()) return()
       field <- rv$dde_prefill_field
       ctx <- crf_context()
       if (is.null(field) || is.null(ctx) || isTRUE(ctx$draft)) return()
       if (!field %in% names(ctx$metadata)) return()
-      # output$field_picker's renderUI() depends on this same
-      # crf_context() recompute and rebuilds the selectInput's DOM
-      # node from scratch -- an updateSelectInput() call made in the
-      # same reactive flush can be overwritten by that rebuild
-      # depending on flush ordering (confirmed directly: the
-      # selection was lost without this). session$onFlushed() defers
-      # the update to just after the current flush completes, once
-      # the rebuilt <select> actually exists in the DOM.
       session$onFlushed(function() {
-        shiny::updateSelectInput(session, "field_name", selected = field)
+        rv$dde_prefill_field <- NULL
       }, once = TRUE)
-      rv$dde_prefill_field <- NULL
     }, ignoreInit = TRUE)
 
     my_requests_data <- shiny::reactive({
