@@ -350,13 +350,13 @@ local({
 # approve_correction()'s "someone else must approve" rule otherwise
 # makes every request a dead end. Added 2026-11-18.
 local({
-  expect_identical(resolve_allow_self_approval()$allow, FALSE,
+  expect_identical(zzedc:::resolve_allow_self_approval()$allow, FALSE,
                     info = "default is FALSE: Part 11's two-person rule stays on")
-  expect_identical(resolve_allow_self_approval()$source, "default")
+  expect_identical(zzedc:::resolve_allow_self_approval()$source, "default")
 
   old <- options(zzedc.allow_self_approval = TRUE)
   on.exit(options(old), add = TRUE)
-  resolved <- resolve_allow_self_approval()
+  resolved <- zzedc:::resolve_allow_self_approval()
   expect_identical(resolved$allow, TRUE)
   expect_identical(resolved$source, "option")
 })
@@ -368,12 +368,12 @@ local({
     if (is.na(old)) Sys.unsetenv("ZZEDC_ALLOW_SELF_APPROVAL")
     else Sys.setenv(ZZEDC_ALLOW_SELF_APPROVAL = old)
   }, add = TRUE)
-  expect_identical(resolve_allow_self_approval()$allow, TRUE)
-  expect_identical(resolve_allow_self_approval()$source, "environment")
+  expect_identical(zzedc:::resolve_allow_self_approval()$allow, TRUE)
+  expect_identical(zzedc:::resolve_allow_self_approval()$source, "environment")
 })
 
 local({
-  expect_error(resolve_allow_self_approval(config_value = "not-a-boolean"),
+  expect_error(zzedc:::resolve_allow_self_approval(config_value = "not-a-boolean"),
                info = "an unrecognized value is refused, not silently treated as FALSE")
 })
 
