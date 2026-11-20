@@ -94,6 +94,44 @@ local({
   )
 })
 
+# Regression test, found on review (2026-11-20): the DDE
+# Reconciliation queue's "File Correction Request" hand-off sets
+# rv$dde_prefill_field, then a separate observer used to call
+# shiny::updateSelectInput() once crf_context() resolved -- but
+# output$field_picker's own renderUI() depends on that same
+# crf_context() recompute and rebuilds the <select> from scratch,
+# which could still lose the update depending on flush ordering
+# (confirmed live in a browser). The fix bakes `selected` into
+# field_picker's own renderUI() instead, so there is one render that
+# knows the choices and the desired selection together, not two
+# racing writers. This drives rv$dde_prefill_field directly (the same
+# reactiveVal the queue's "File Correction Request" button sets) and
+# checks the rendered <select>'s HTML for the field actually
+# pre-selected, not just that no error was thrown.
+local({
+  s <- setup_crf_db()
+  on.exit(cleanup_crf_db(s$db), add = TRUE)
+
+  shiny::testServer(
+    zzedc:::data_correction_server,
+    args = list(
+      current_user = shiny::reactive("coordinator1"),
+      user_role    = shiny::reactive("Data Manager"),
+      db_path      = s$db
+    ),
+    {
+      session$setInputs(table_name = "data_entries", record_id = s$entry_id)
+      rv$dde_prefill_field <- "recommendation"
+      session$flushReact()
+
+      picker_html <- paste(as.character(output$field_picker), collapse = " ")
+      expect_true(grepl('value="recommendation"[^>]*selected', picker_html) ||
+                    grepl('selected[^>]*value="recommendation"', picker_html),
+                  info = "field_picker pre-selects the flagged field, not 'Select field...'")
+    }
+  )
+})
+
 # An invalid choice for a RADIO field is rejected before
 # create_correction_request() is ever called -- no request is
 # created, and the error names the field.
