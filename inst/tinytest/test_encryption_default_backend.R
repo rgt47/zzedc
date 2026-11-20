@@ -386,6 +386,19 @@ if (file.exists(loader)) {
     unlink(work, recursive = TRUE)
   })
 
+  # F-NEW8, 0-byte-file side effect (2026-11-16 reconciliation note,
+  # distinct from the plaintext-bypass checks above, which were
+  # already fixed and already covered here): an explicit db_path that
+  # does not exist must error before anything is created at that
+  # path, not leave a stray empty file behind.
+  missing_path <- tempfile(fileext = ".db")
+  expect_false(file.exists(missing_path))
+  expect_error(suppressMessages(env$load_gsheets_forms(forms_dir, db_path = missing_path)),
+               "not found",
+               info = "F-NEW8: a nonexistent explicit db_path is refused")
+  expect_false(file.exists(missing_path),
+               info = "F-NEW8: no 0-byte file is left behind at the nonexistent path")
+
   if (duck_ok) {
     # 'standard', not 'regulated': regulated also requires pre-installed
     # DuckDB extensions, which this test does not set up.

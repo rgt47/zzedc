@@ -10,7 +10,8 @@ get_data_entries(
   subject_id = NULL,
   start_date = NULL,
   end_date = NULL,
-  include_incomplete = TRUE
+  include_incomplete = TRUE,
+  canonical_dde_only = FALSE
 )
 }
 \arguments{
@@ -37,6 +38,23 @@ is already claimed and must not be handed to a second entry).
 The two caller-facing flatten functions below set this
 explicitly, one each way; pass \code{FALSE} at any other call site
 that is user-facing reporting rather than ID bookkeeping.}
+
+\item{canonical_dde_only}{When \code{TRUE}, excludes the non-canonical
+(second) entry of every double-data-entry pair
+(\code{dde_group_id} non-\code{NULL}) -- only the chronologically first
+entry of each pair is kept. Found on review: no reader of
+\code{data_entries} excluded either row of a DDE pair, so every
+count, export row, and Data Explorer listing included both the
+canonical entry and its non-canonical duplicate, double-counting
+every double-entered subject/form. Filtering on \code{superseded_by}
+alone cannot substitute for this: an unresolved pair has it
+\code{NULL} on \emph{both} rows, so the canonical row has to be identified
+by \code{dde_group_id} and entry order, not by resolution status.
+Defaults to \code{FALSE} -- a reader that needs every row regardless
+(tracking-ID allocation, a subject's complete-copy case report)
+must keep seeing both. A row whose form predates the
+\code{dde_group_id} column (or whose \code{dde_group_id} is \code{NULL},
+i.e. an ordinary single-keyed entry) is never excluded by this.}
 }
 \value{
 A data frame with columns \code{entry_id}, \code{subject_id},

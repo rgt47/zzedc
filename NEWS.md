@@ -1,5 +1,26 @@
 # zzedc (development version)
 
+## Portfolio review follow-up: F-NEW8 and F-NEW1 confirmed already fixed; documentation regenerated
+
+* **F-NEW8** (Google Sheets form loader bypassing encryption) and
+  **F-NEW1** (Admin/Compliance/Corrections module access surviving
+  logout) were both flagged in the 2026-11-16 portfolio reconciliation
+  as needing an owner design decision before being fixed. Re-checked by
+  direct reproduction (not just inspection) on 2026-11-20: both were
+  already fixed the next day, 2026-11-17, before this review ever
+  happened -- the reconciliation note was simply stale. F-NEW8 gained
+  one additional regression assertion here (the 0-byte-file side
+  effect on a nonexistent explicit `db_path`, a narrower leftover not
+  covered by the existing F-NEW8 test block). F-NEW1 needed no new
+  test: `test_module_auth_guard.R` already exercises exactly this
+  scenario (mounts every affected module, flips `authenticated` from
+  `TRUE` to `FALSE` mid-session the way a real logout does, asserts
+  writes/renders are blocked) and already passes.
+* `man/get_data_entries.Rd` regenerated (a codoc mismatch for
+  `canonical_dde_only`, added earlier without re-running `roxygen2`)
+  and `man/update_second_entry_for_dde_resolution.Rd` added (the same
+  gap, for a function added in the same earlier pass).
+
 ## `initialize_encrypted_database()`'s `$success` no longer hides a silently unencrypted SQLite database (F1)
 
 * **`success = TRUE` for an unencrypted SQLite database, closed.**
