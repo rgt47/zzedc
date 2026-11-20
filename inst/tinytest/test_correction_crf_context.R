@@ -159,6 +159,97 @@ local({
   )
 })
 
+# A data_entries row still is_complete = 0 (an open "Save and Finish
+# Later" draft) has no settled value yet to correct: crf_context()
+# flags it as a draft rather than resolving CRF metadata, the field
+# picker shows a message instead of either the typed picker or the
+# free-text fallback, and no correction request is created even if a
+# submit is attempted with stale/leftover field values.
+local({
+  s <- setup_crf_db()
+  on.exit(cleanup_crf_db(s$db), add = TRUE)
+
+  conn <- connect_encrypted_db(db_path = s$db)
+  draft <- db_insert_data_entry(
+    conn, "REV-DRAFT", "journal_reviews",
+    data = list(recommendation = ""), is_complete = FALSE,
+    created_by = "coordinator1"
+  )
+  DBI::dbDisconnect(conn)
+
+  shiny::testServer(
+    zzedc:::data_correction_server,
+    args = list(
+      current_user = shiny::reactive("coordinator1"),
+      user_role    = shiny::reactive("Data Manager"),
+      db_path      = s$db
+    ),
+    {
+      session$setInputs(table_name = "data_entries", record_id = draft$entry_id)
+      ctx <- crf_context()
+      expect_true(isTRUE(ctx$draft),
+                  info = "an is_complete=0 entry is flagged as a draft, not resolved to metadata")
+      expect_identical(ctx$entry_id, draft$entry_id)
+
+      picker_html <- paste(as.character(output$field_picker), collapse = " ")
+      expect_true(grepl("open draft", picker_html, fixed = TRUE))
+
+      session$setInputs(
+        field_name = "recommendation",
+        corrected_value_widget = "approved",
+        correction_reason = "SOURCE_DOC_ERROR",
+        reason_details = "testing"
+      )
+      session$setInputs(submit_request = 1)
+
+      pending <- tryCatch(
+        get_pending_corrections(db_path = s$db),
+        error = function(e) data.frame()
+      )
+      expect_true(nrow(pending) == 0,
+                  info = "a draft entry never creates a correction request")
+    }
+  )
+})
+
+# create_correction_request() itself refuses a draft data_entries row
+# directly (not only via the Shiny module above), so a scripted
+# caller gets the same protection.
+local({
+  s <- setup_crf_db()
+  on.exit(cleanup_crf_db(s$db), add = TRUE)
+
+  conn <- connect_encrypted_db(db_path = s$db)
+  draft <- db_insert_data_entry(
+    conn, "REV-DRAFT2", "journal_reviews",
+    data = list(recommendation = ""), is_complete = FALSE,
+    created_by = "coordinator1"
+  )
+  DBI::dbDisconnect(conn)
+
+  res <- create_correction_request(
+    table_name = "data_entries", record_id = draft$entry_id,
+    field_name = "recommendation", original_value = "",
+    corrected_value = "approved", correction_reason = "SOURCE_DOC_ERROR",
+    reason_details = "testing", requested_by = "coordinator1",
+    db_path = s$db
+  )
+  expect_false(res$success)
+  expect_true(grepl("open draft", res$error, fixed = TRUE))
+
+  # The existing, already-complete entry from setup_crf_db() is
+  # unaffected -- this is a draft-specific refusal, not a general
+  # regression in create_correction_request().
+  res_ok <- create_correction_request(
+    table_name = "data_entries", record_id = s$entry_id,
+    field_name = "recommendation", original_value = "not_reviewed",
+    corrected_value = "approved", correction_reason = "SOURCE_DOC_ERROR",
+    reason_details = "testing", requested_by = "coordinator1",
+    db_path = s$db
+  )
+  expect_true(res_ok$success)
+})
+
 # A table other than data_entries keeps the original free-text
 # behavior (no CRF context, no crash).
 local({

@@ -22,7 +22,8 @@ if (!requireNamespace("duckdb", quietly = TRUE)) {
   exit_file("duckdb package not installed")
 }
 if (!exists("apply_correction")) exit_file("data correction functions not available")
-for (fn in c("ensure_data_entries_table", "db_insert_data_entry")) {
+for (fn in c("ensure_data_entries_table", "db_insert_data_entry",
+             "db_update_incomplete_data_entry")) {
   assign(fn, get(fn, envir = asNamespace("zzedc")))
 }
 
@@ -96,6 +97,59 @@ local({
   expect_identical(query(db, "SELECT status FROM correction_requests")$status, "REJECTED")
   expect_identical(query(db, "SELECT sbp FROM vitals WHERE id = 1")$sbp, 220L,
                    info = "a rejected correction never touches the stored value")
+})
+
+# db_update_incomplete_data_entry() (Part D, incomplete-form-resume)
+# is also an UPDATE against an indexed column (data_entries.entry_id,
+# its PRIMARY KEY), the same shape of statement that tripped the bug
+# above -- but unlike correction_requests(request_id),
+# data_entries(entry_id) has no other table's FOREIGN KEY pointing at
+# it (confirmed: grep -rn "REFERENCES data_entries" across R/ and
+# inst/ finds nothing), so DuckDB has nothing to rewrite the UPDATE
+# around. Verified directly here rather than assumed.
+if (!exists("db_update_incomplete_data_entry", envir = asNamespace("zzedc"))) {
+  exit_file("db_update_incomplete_data_entry not available")
+}
+local({
+  db <- setup_duckdb()
+  on.exit(cleanup_duckdb(db), add = TRUE)
+
+  conn <- connect_encrypted_db(db_path = db)
+  ensure_data_entries_table(conn)
+  draft <- db_insert_data_entry(
+    conn, subject_id = "PUB-1", form_name = "manuscripts",
+    data = list(tracking_id = "PUB-1", status = "ideation"),
+    is_complete = FALSE, created_by = "rgt"
+  )
+  expect_true(draft$success, info = draft$error %||% "")
+
+  upd <- db_update_incomplete_data_entry(
+    conn, entry_id = draft$entry_id,
+    data = list(tracking_id = "PUB-1", status = "submitted"),
+    is_complete = FALSE, modified_by = "coordinator2"
+  )
+  expect_true(upd$success,
+              info = paste("db_update_incomplete_data_entry() on DuckDB:", upd$error %||% ""))
+
+  rows <- DBI::dbGetQuery(conn, "SELECT * FROM data_entries")
+  expect_equal(nrow(rows), 1, info = "an update on DuckDB, not a second row")
+  expect_equal(as.integer(rows$is_complete), 0L)
+
+  done <- db_update_incomplete_data_entry(
+    conn, entry_id = draft$entry_id,
+    data = list(tracking_id = "PUB-1", status = "accepted"),
+    is_complete = TRUE, modified_by = "coordinator2"
+  )
+  expect_true(done$success, info = done$error %||% "")
+
+  blocked <- db_update_incomplete_data_entry(
+    conn, entry_id = draft$entry_id,
+    data = list(tracking_id = "PUB-1", status = "should-not-apply"),
+    is_complete = FALSE, modified_by = "someone_else"
+  )
+  expect_false(blocked$success,
+                info = "a completed entry is refused on DuckDB just as on SQLite")
+  DBI::dbDisconnect(conn)
 })
 
 # Reset the adapter cache so later test files in the same session

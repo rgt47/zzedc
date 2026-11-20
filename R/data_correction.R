@@ -348,6 +348,34 @@ create_correction_request <- function(table_name,
     ))
   }
 
+  # A data_entries row with is_complete = 0 is an open "Save and
+  # Finish Later" draft (see db_update_incomplete_data_entry()) --
+  # there is no settled "original value" yet for a correction to
+  # correct. Reached directly here (not only via the Corrections
+  # module's own UI check, R/data_correction_module.R's crf_context())
+  # so a scripted caller gets the same refusal.
+  if (identical(table_name, "data_entries")) {
+    draft_check <- tryCatch({
+      conn <- connect_encrypted_db(db_path = db_path)
+      on.exit(DBI::dbDisconnect(conn), add = TRUE)
+      DBI::dbGetQuery(
+        conn, "SELECT is_complete FROM data_entries WHERE entry_id = ?",
+        list(record_id)
+      )
+    }, error = function(e) NULL)
+    if (!is.null(draft_check) && nrow(draft_check) > 0 &&
+          !isTRUE(as.logical(as.integer(draft_check$is_complete[1])))) {
+      return(list(
+        success = FALSE,
+        error = paste(
+          "Entry", record_id, "is still an open draft (is_complete = 0);",
+          "there is no settled value yet to correct. Finish and submit",
+          "the entry first, or resume it directly."
+        )
+      ))
+    }
+  }
+
   if (correction_reason == "OTHER" && (is.null(reason_details) ||
                                         nchar(reason_details) < 10)) {
     return(list(

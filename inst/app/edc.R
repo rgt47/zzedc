@@ -233,8 +233,11 @@ viscode_rv <- shiny::reactiveVal(1L)
         # there, instead of on every form with a "this doesn't apply
         # here" toast as its only gate.
         uiOutput("randomize_subject_btn_ui", inline = TRUE),
+        uiOutput("crf_draft_banner"),
         actionButton("submitcrf", "Submit entry",
                      class = "btn btn-primary mt-3"),
+        actionButton("savedraftcrf", "Save and Finish Later",
+                     class = "btn btn-outline-secondary mt-3"),
         shinyjs::hidden(div(id = "crf_results",
                             class = "alert alert-success mt-3",
                             "Entry saved."))
@@ -519,11 +522,36 @@ crf_submit_attempt <- shiny::reactiveVal(0)
 # of only ever seeing that one via the submit-time toast.
 crf_submit_attempted <- shiny::reactiveVal(FALSE)
 
+# NULL when the form currently on screen is a fresh, unsaved entry;
+# otherwise list(entry_id=, data=) for an open ("Save and Finish
+# Later", is_complete = 0) draft the "Continue" action
+# (input$edc_continue_draft below) has loaded for editing. Both
+# submitcrf and savedraftcrf below route to
+# db_update_incomplete_data_entry() against this entry_id, instead
+# of save_crf_entry()'s insert path, whenever this is set -- a second
+# save of the same draft is a true update of its one row, never a
+# second data_entries row.
+crf_draft <- shiny::reactiveVal(NULL)
+
+output$crf_draft_banner <- renderUI({
+  draft <- crf_draft()
+  if (is.null(draft)) return(NULL)
+  div(class = "alert alert-info py-2 px-3 mt-2",
+      sprintf("Resuming incomplete entry %s. Submitting will mark it complete.",
+              draft$entry_id))
+})
+
 # Switching forms starts a fresh entry on a different CRF; a rejected
 # submit on the previous form shouldn't carry over and flag that
 # form's blank required fields before anyone has tried to submit it.
+# A loaded draft is form-specific too (Continue only ever appears for
+# the currently selected form's own entries, see crf_entries_table
+# below) -- switching forms always abandons it rather than carrying
+# a stale entry_id onto an unrelated form's fields.
 observeEvent(input$edc_crf_form, {
   crf_submit_attempted(FALSE)
+  crf_draft(NULL)
+  shinyjs::enable("tracking_id")
 }, ignoreInit = TRUE)
 
 crf_live_field_data <- reactive({
@@ -672,6 +700,33 @@ output$edc_crf_field_flags <- renderUI({
 # form selector, not to data_entries changing underneath it.
 crf_entries_refresh <- reactiveVal(0)
 
+# Shared by both the full-submit and "Save and Finish Later" handlers
+# below: persists a newly chosen upload exactly as the submit handler
+# always has, but when no new file was chosen this save and a draft
+# is being resumed, carries that draft's already-stored path forward
+# instead of overwriting it with NA. crf_live_field_data() has no way
+# to tell "no new upload this time" apart from "clear the existing
+# upload" on its own (a fileInput() has no way to express the latter
+# at all), so without this a resumed draft's file field would be
+# silently wiped out by any save that didn't re-attach the file.
+.zzedc_resolve_file_fields <- function(field_data, metadata, input, draft,
+                                       db_path, crf_code) {
+  for (f in names(metadata)) {
+    if (metadata[[f]]$type != "file") next
+    upload <- input[[f]]
+    if (is.data.frame(upload) && nrow(upload) > 0) {
+      field_data[[f]] <- zzedc:::persist_crf_upload(
+        tmp_path = upload$datapath[1], original_name = upload$name[1],
+        db_path = db_path, crf_code = crf_code,
+        tracking_id = field_data$tracking_id %||% "unknown", field_code = f
+      )
+    } else if (!is.null(draft) && length(draft$data[[f]]) > 0) {
+      field_data[[f]] <- as.character(unlist(draft$data[[f]]))[1]
+    }
+  }
+  field_data
+}
+
 observeEvent(input$submitcrf, {
   # Defect 3 (zzedc-modernization-whitepaper-2026-11-13.md, Section
   # 2.2): output$ui's authenticated switch only decides what renders;
@@ -690,6 +745,7 @@ observeEvent(input$submitcrf, {
   metadata <- shiny::isolate(crf_field_metadata())
   field_data <- shiny::isolate(crf_live_field_data())
   crf_code <- crf_row$crf_code[1]
+  draft <- shiny::isolate(crf_draft())
 
   check <- zzedc:::validate_crf_submission(field_data, metadata, crf_code = crf_code)
   if (isTRUE(zzedc:::tracking_id_already_used(db_pool, crf_code, field_data$tracking_id))) {
@@ -722,18 +778,12 @@ observeEvent(input$submitcrf, {
   # field_data's "file"-type values are just the uploaded filename
   # (see crf_live_field_data() above) -- not a path save_crf_entry()
   # could do anything with later, since fileInput()'s real datapath
-  # is a temp file this session will delete. Copy each upload to
-  # permanent storage now, and store that path instead.
-  for (f in names(metadata)) {
-    if (metadata[[f]]$type != "file") next
-    upload <- input[[f]]
-    if (!is.data.frame(upload) || nrow(upload) == 0) next
-    field_data[[f]] <- zzedc:::persist_crf_upload(
-      tmp_path = upload$datapath[1], original_name = upload$name[1],
-      db_path = db_path, crf_code = crf_code,
-      tracking_id = field_data$tracking_id %||% "unknown", field_code = f
-    )
-  }
+  # is a temp file this session will delete. Copies any newly chosen
+  # upload to permanent storage, and carries a resumed draft's
+  # already-stored path forward when nothing new was chosen this
+  # time (see .zzedc_resolve_file_fields() above).
+  field_data <- .zzedc_resolve_file_fields(field_data, metadata, input, draft,
+                                           db_path, crf_code)
 
   # input$username is only the login form's own text box; the real
   # logged-in identity is set on the user_input reactiveValues by
@@ -747,10 +797,22 @@ observeEvent(input$submitcrf, {
   }
 
   audit_ctx <- zzedc::session_audit_context(session)
-  result <- zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
-                                    created_by = created_by,
-                                    ip_address = audit_ctx$ip_address,
-                                    session_id = audit_ctx$session_id)
+  # A resumed draft (crf_draft() set, via the "Continue" action on
+  # crf_entries_table) is a true update of that same data_entries
+  # row, marking it complete -- never a second INSERT. A fresh entry
+  # (no draft loaded) keeps the original insert-only path.
+  result <- if (!is.null(draft)) {
+    zzedc:::db_update_incomplete_data_entry(
+      db_pool, entry_id = draft$entry_id, data = field_data,
+      is_complete = TRUE, modified_by = created_by,
+      ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
+    )
+  } else {
+    zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
+                            created_by = created_by, is_complete = TRUE,
+                            ip_address = audit_ctx$ip_address,
+                            session_id = audit_ctx$session_id)
+  }
   if (isTRUE(result$success)) {
     shiny::showNotification(
       sprintf("Entry saved (%s, %s).", crf_row$crf_name[1], result$entry_id),
@@ -760,8 +822,11 @@ observeEvent(input$submitcrf, {
     crf_entries_refresh(crf_entries_refresh() + 1)
     # Next entry on this form starts from a clean slate: a blank
     # required field on the now-reset form is an unfilled-in field
-    # again, not a still-rejected one.
+    # again, not a still-rejected one. A just-completed draft is also
+    # done -- this form is free to start a brand-new entry again.
     crf_submit_attempted(FALSE)
+    crf_draft(NULL)
+    shinyjs::enable("tracking_id")
     # The just-saved tracking_id is now taken, so a plain blank
     # reset would invite the next entry to collide with it; recompute
     # the next free id (same convention used to prefill the form
@@ -779,6 +844,95 @@ observeEvent(input$submitcrf, {
   }
 })
 
+observeEvent(input$savedraftcrf, {
+  # Same unauthenticated-click defense as submitcrf above (Defect 3) --
+  # this is a second action that writes to the study database and
+  # needs the same guard.
+  zzedc::require_authenticated_action(user_input, session, db_path, "save a draft CRF entry")
+  shiny::req(input$edc_crf_form)
+  crf_id <- as.integer(input$edc_crf_form)
+  forms <- zzedc:::get_active_crf_forms(db_pool)
+  crf_row <- forms[forms$crf_id == crf_id, , drop = FALSE]
+  if (nrow(crf_row) == 0) return(invisible(NULL))
+
+  metadata <- shiny::isolate(crf_field_metadata())
+  field_data <- shiny::isolate(crf_live_field_data())
+  crf_code <- crf_row$crf_code[1]
+  draft <- shiny::isolate(crf_draft())
+
+  # "Save and Finish Later" accepts whatever subset of fields is
+  # filled in -- required-ness is deliberately not checked here (that
+  # is the whole point of an incomplete-save path); a value that IS
+  # present still has to be the right type/format/choice, so those
+  # non-"required" errors are kept. Tracking-ID uniqueness and this
+  # form's cross-field DSL rules (both checked at full Submit time,
+  # above) are record-completeness checks that do not apply to a
+  # deliberately incomplete record, so neither runs here at all --
+  # documented as a deliberate scope limit in NEWS.md, not an
+  # oversight.
+  check <- zzedc:::validate_crf_submission(field_data, metadata, crf_code = crf_code)
+  check$errors <- Filter(function(e) e$kind != "required", check$errors)
+  if (length(check$errors) > 0) {
+    messages <- vapply(check$errors, function(e) e$message, character(1))
+    shiny::showNotification(
+      paste(messages, collapse = "; "),
+      type = "error", duration = 8
+    )
+    # Deliberately does NOT set crf_submit_attempted(TRUE): that flag
+    # turns on live flagging of blank *required* fields, which a
+    # draft rejected only for a format/choice error on some other
+    # field must not start doing.
+    return(invisible(NULL))
+  }
+
+  field_data <- .zzedc_resolve_file_fields(field_data, metadata, input, draft,
+                                           db_path, crf_code)
+
+  username <- shiny::isolate(user_input$username)
+  created_by <- if (!is.null(username) && nzchar(username)) {
+    as.character(username)
+  } else {
+    "unknown"
+  }
+
+  audit_ctx <- zzedc::session_audit_context(session)
+  result <- if (!is.null(draft)) {
+    zzedc:::db_update_incomplete_data_entry(
+      db_pool, entry_id = draft$entry_id, data = field_data,
+      is_complete = FALSE, modified_by = created_by,
+      ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
+    )
+  } else {
+    zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
+                            created_by = created_by, is_complete = FALSE,
+                            ip_address = audit_ctx$ip_address,
+                            session_id = audit_ctx$session_id)
+  }
+
+  if (isTRUE(result$success)) {
+    shiny::showNotification(
+      sprintf("Draft saved (%s, %s). Resume it later from the entries list.",
+              crf_row$crf_name[1], result$entry_id),
+      type = "message", duration = 6
+    )
+    crf_entries_refresh(crf_entries_refresh() + 1)
+    # Keeps editing the same row on any further save (another draft
+    # save, or the eventual Submit) instead of starting a second row --
+    # matters just as much for a brand-new draft's first save (which
+    # had no entry_id to resume until just now) as for a second save
+    # of an already-resumed one.
+    crf_draft(list(entry_id = result$entry_id, data = field_data))
+    if ("tracking_id" %in% names(metadata)) {
+      shinyjs::disable("tracking_id")
+    }
+  } else {
+    shiny::showNotification(
+      paste("Database error saving draft:", result$error),
+      type = "error", duration = 10
+    )
+  }
+})
+
 output$crf_entries_table <- DT::renderDataTable({
   shiny::req(input$edc_crf_form)
   crf_entries_refresh()
@@ -787,7 +941,7 @@ output$crf_entries_table <- DT::renderDataTable({
   if (nrow(crf_row) == 0) return(NULL)
   rows <- DBI::dbGetQuery(
     db_pool,
-    "SELECT entry_id, subject_id, created_date FROM data_entries WHERE form_name = ? ORDER BY created_date DESC",
+    "SELECT entry_id, subject_id, created_date, is_complete FROM data_entries WHERE form_name = ? ORDER BY created_date DESC",
     params = list(tolower(crf_row$crf_code[1]))
   )
   audit_ctx <- zzedc::session_audit_context(session)
@@ -797,25 +951,46 @@ output$crf_entries_table <- DT::renderDataTable({
                          ip_address = audit_ctx$ip_address,
                          session_id = audit_ctx$session_id)
 
-  # One "Request Correction" button per row, carrying that row's
-  # entry_id -- the entry point into the Corrections tab's CRF-aware
-  # field picker, so fixing an already-submitted value never requires
-  # typing an entry_id by hand. Same onclick/Shiny.setInputValue
-  # convention as the row actions in R/user_management_module.R.
+  # Status column: an open ("Save and Finish Later", is_complete = 0)
+  # draft is shown here, clearly labeled, rather than left looking
+  # like every other finished row.
   display_rows <- rows[, c("subject_id", "created_date")]
-  display_rows$Actions <- vapply(rows$entry_id, function(eid) {
-    paste0(
-      '<button class="btn btn-outline-secondary btn-sm" ',
-      'onclick="Shiny.setInputValue(\'edc_request_correction\', \'', eid,
-      '\', {priority: \'event\'})">Request Correction</button>'
-    )
+  display_rows$Status <- ifelse(rows$is_complete == 1, "Complete", "Incomplete")
+
+  # One action button per row: a settled (is_complete = 1) row gets
+  # "Request Correction" -- the entry point into the Corrections
+  # tab's CRF-aware field picker, so fixing an already-submitted
+  # value never requires typing an entry_id by hand. An open draft
+  # has no settled value yet to correct (create_correction_request()
+  # refuses it, R/data_correction.R), so it instead gets "Continue",
+  # which resumes it right here on this same form rather than
+  # switching tabs. Same onclick/Shiny.setInputValue convention as
+  # the row actions in R/user_management_module.R.
+  display_rows$Actions <- vapply(seq_len(nrow(rows)), function(i) {
+    eid <- rows$entry_id[i]
+    if (rows$is_complete[i] == 1) {
+      paste0(
+        '<button class="btn btn-outline-secondary btn-sm" ',
+        'onclick="Shiny.setInputValue(\'edc_request_correction\', \'', eid,
+        '\', {priority: \'event\'})">Request Correction</button>'
+      )
+    } else {
+      paste0(
+        '<button class="btn btn-outline-primary btn-sm" ',
+        'onclick="Shiny.setInputValue(\'edc_continue_draft\', \'', eid,
+        '\', {priority: \'event\'})">Continue</button>'
+      )
+    }
   }, character(1))
 
   DT::datatable(display_rows, escape = FALSE, rownames = FALSE,
                  options = list(
                    pageLength = 5,
+                   # Column indices are 0-based and count the new
+                   # Status column added above: 0 subject_id,
+                   # 1 created_date, 2 Status, 3 Actions.
                    columnDefs = list(
-                     list(targets = 2, searchable = FALSE, orderable = FALSE)
+                     list(targets = 3, searchable = FALSE, orderable = FALSE)
                    )
                  ))
 })
@@ -827,6 +1002,59 @@ output$crf_entries_table <- DT::renderDataTable({
 shiny::observeEvent(input$edc_request_correction, {
   rv_pending_correction_entry(input$edc_request_correction)
   bslib::nav_select("main_nav", selected = "corrections", session = session)
+})
+
+# Resumes an open ("Save and Finish Later") draft right here on the
+# EDC tab, rather than switching tabs: crf_entries_table (above) only
+# ever shows a "Continue" button for a row belonging to the
+# currently selected form, so this form's own inputs (not a
+# different form's) are already on screen -- fill_crf_field_inputs()
+# can use shiny::update*Input() directly instead of re-rendering.
+# input$edc_continue_draft is client-settable like any Shiny input,
+# so this re-checks everything the button's own visibility already
+# implied (authenticated, the entry exists, is still is_complete =
+# 0, and belongs to the form currently on screen) rather than
+# trusting the click alone.
+shiny::observeEvent(input$edc_continue_draft, {
+  zzedc::require_authenticated_action(user_input, session, db_path, "resume a draft CRF entry")
+  shiny::req(input$edc_crf_form)
+  entry_id <- input$edc_continue_draft
+
+  crf_id <- as.integer(input$edc_crf_form)
+  forms <- zzedc:::get_active_crf_forms(db_pool)
+  crf_row <- forms[forms$crf_id == crf_id, , drop = FALSE]
+  if (nrow(crf_row) == 0) return(invisible(NULL))
+
+  row <- DBI::dbGetQuery(
+    db_pool,
+    "SELECT entry_id, form_name, data_json, is_complete FROM data_entries WHERE entry_id = ?",
+    params = list(entry_id)
+  )
+  if (nrow(row) == 0 || isTRUE(as.logical(as.integer(row$is_complete[1]))) ||
+        !identical(tolower(row$form_name[1]), tolower(crf_row$crf_code[1]))) {
+    shiny::showNotification(
+      "That draft is no longer available to resume (it may have since been completed, or belongs to a different form).",
+      type = "warning"
+    )
+    return(invisible(NULL))
+  }
+
+  values <- jsonlite::fromJSON(row$data_json[1] %||% "{}", simplifyVector = FALSE)
+  metadata <- shiny::isolate(crf_field_metadata())
+  zzedc:::fill_crf_field_inputs(session, metadata, values)
+
+  # The draft's subject_id/tracking_id is fixed at the entry_id it
+  # was originally saved under (db_update_incomplete_data_entry()
+  # never touches that column); disabling the input here prevents a
+  # resumed draft's data_json from recording a different tracking_id
+  # than the row's own subject_id actually is.
+  if ("tracking_id" %in% names(metadata)) {
+    shinyjs::disable("tracking_id")
+  }
+
+  crf_submit_attempted(FALSE)
+  crf_draft(list(entry_id = entry_id, data = values))
+  shiny::showNotification(sprintf("Resuming draft entry %s.", entry_id), type = "message")
 })
 
 # Source the form helpers only when they exist; otherwise the
