@@ -584,7 +584,12 @@ migrate_to_encrypted <- function(old_db_path, new_db_path = NULL,
     init_result <- initialize_encrypted_database(
       db_path = new_db_path, overwrite = FALSE, key = new_key
     )
-    if (!init_result$success) {
+    # init_result$success now mirrors init_result$encrypted on SQLite
+    # (see initialize_encrypted_database()'s @return), so creation
+    # failure is detected via $error, not $success; this function's
+    # own return already carries $encrypted separately below so
+    # callers can still see the true encryption state.
+    if (!is.null(init_result$error)) {
       return(list(success = FALSE,
                    error = paste("Failed to initialize encrypted database:",
                                  init_result$error %||% "unknown error")))

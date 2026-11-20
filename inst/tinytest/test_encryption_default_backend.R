@@ -159,8 +159,11 @@ if (stock_rsqlite) {
     expect_message(res <- initialize_encrypted_database(db_path = p),
                    "deployer's responsibility",
                    info = "opt-in: a notice names the deployer's responsibility")
-    expect_true(isTRUE(res$success), info = "opt-in: the database is created")
+    expect_false(isTRUE(res$success),
+                 info = "F1 fix: opt-in creates the file, but success reports it is NOT encrypted")
     expect_identical(res$encrypted, FALSE, info = "opt-in: encrypted = FALSE is reported")
+    expect_true(file.exists(res$path), info = "opt-in: the file is still created and usable")
+    expect_true(!is.null(res$key), info = "opt-in: a usable key is still returned")
     expect_silent(con <- connect_encrypted(p, res$key))
     DBI::dbDisconnect(con)
     unlink(p)
@@ -192,8 +195,10 @@ if (stock_rsqlite) {
     p <- tempfile(fileext = ".db")
     use_sqlite_adapter(p)
     res <- initialize_encrypted_database(db_path = p)
-    expect_true(isTRUE(res$success), info = "development: plaintext SQLite allowed")
+    expect_false(isTRUE(res$success),
+                 info = "F1 fix: development allows plaintext SQLite, but success mirrors encrypted")
     expect_identical(res$encrypted, FALSE, info = "development: true state reported")
+    expect_true(file.exists(res$path), info = "development: file still created and usable")
     unlink(p)
   })
 

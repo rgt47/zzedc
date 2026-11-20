@@ -33,7 +33,7 @@ with_phase_c_backend <- function(backend, desc, test_fn) {
     # file, unlike the other backends which connect_encrypted_db()
     # routes straight to adapter$connect().
     init_res <- initialize_encrypted_database(db_path = db_path)
-    stopifnot(isTRUE(init_res$success))
+    stopifnot(is.null(init_res$error))
     old_key <- Sys.getenv("DB_ENCRYPTION_KEY", unset = NA)
     Sys.setenv(DB_ENCRYPTION_KEY = init_res$key)
     on.exit({
@@ -222,8 +222,14 @@ message("[SQLITE] initialize_encrypted_database() creates base tables")
   get_db_adapter(config = list(db_backend = "sqlite", sqlite = list(path = db_path)), force_new = TRUE)
 
   result <- initialize_encrypted_database(db_path = db_path)
-  expect_true(isTRUE(result$success), info = paste("sqlite init:", result$error %||% ""))
+  expect_true(is.null(result$error), info = paste("sqlite init:", result$error %||% ""))
   expect_true(!is.na(result$key), info = "sqlite returns a real encryption key")
+  # Under the suite's default 'development' profile and stock
+  # RSQLite, creation succeeds but encryption is not applied, so
+  # success now mirrors that (F1 fix).
+  expect_false(isTRUE(result$success),
+               info = "stock RSQLite under development: success mirrors encrypted")
+  expect_identical(result$encrypted, FALSE)
 
   retry <- initialize_encrypted_database(db_path = db_path)
   expect_false(isTRUE(retry$success), info = "sqlite init refuses to overwrite without overwrite=TRUE")

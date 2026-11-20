@@ -18,36 +18,55 @@ or recreating a database with a known key.}
 \value{
 List with initialization results:
 \itemize{
-\item success: Logical TRUE if successful
-\item path: Absolute path to created database
+\item success: Logical. On SQLite this mirrors \code{encrypted}: \code{TRUE}
+only when the database was both created and actually encrypted
+at rest. It is \code{FALSE} both when creation itself failed (an
+\code{error} field is then present) and when creation succeeded but
+encryption was not applied (no \code{error} field; \code{path}/\code{key} are
+still populated and usable -- see \code{encrypted} and \code{message}).
+Callers that only need "did this call do something I can use"
+should check \code{is.null(result$error)} (or that \code{key}/\code{path} are
+non-NULL), not \code{success}, to distinguish those two \code{FALSE}
+cases. On DuckDB and the server backends, where encryption is
+either always applied or not this function's concern, \code{success}
+continues to mean only "creation did not fail".
+\item path: Absolute path to created database. Present even when
+\code{success} is \code{FALSE} for the "created but not encrypted" case.
 \item key: The encryption key used (either \code{key} if supplied or the
-newly generated one). The function does not persist
-this key beyond the current function call; the caller must store
-it (for example via \code{Sys.setenv(DB_ENCRYPTION_KEY = result$key)}
-or AWS Secrets Manager). Losing the key makes the database
-unrecoverable.
+newly generated one). Present even when \code{success} is \code{FALSE}
+for the "created but not encrypted" case. The function does not
+persist this key beyond the current function call; the caller
+must store it (for example via
+\code{Sys.setenv(DB_ENCRYPTION_KEY = result$key)} or AWS Secrets
+Manager). Losing the key makes the database unrecoverable.
 \item encrypted: Logical. Whether the created file was verified to be
 encrypted at rest. On SQLite with a stock CRAN RSQLite build this
 is \code{FALSE}: the key is accepted but not applied. \code{NA} on
 server-hosted backends, where encryption at rest is a server
 setting this function cannot observe.
 \item message: Status message, which states plainly when the database
-is not encrypted
+is not encrypted, and, on SQLite, that \code{success} is \code{FALSE}
+because of that -- not because creation failed -- with a note
+that \code{path}/\code{key} remain valid for a caller that wants to
+proceed anyway.
 }
 
 On SQLite, when the installed RSQLite cannot encrypt
 (\code{sqlite_cipher_available()} is \code{FALSE}), the security profile (see
 \code{resolve_security_profile()}) decides before any file is created:
-under \code{regulated} the function returns \code{success = FALSE}; under
-\code{standard} it also returns \code{success = FALSE}, with an error naming
-DuckDB and the opt-in, unless \code{security.accept_unencrypted_sqlite} is
-true (see \code{resolve_accept_unencrypted_sqlite()}), in which case it
-creates the plaintext database with a notice and returns
-\verb{success = TRUE, encrypted = FALSE}; under \code{development} it creates
-it silently. \code{success = TRUE} is therefore never returned for an
-encryption request that was not honored, except under \code{development}
-or with the opt-in. In all profiles \code{encrypted} reports the true
-state.
+under \code{regulated} the function returns \code{success = FALSE} and no
+file is created; under \code{standard} it also returns \code{success = FALSE}
+with no file created, with an error naming DuckDB and the opt-in,
+unless \code{security.accept_unencrypted_sqlite} is true (see
+\code{resolve_accept_unencrypted_sqlite()}), in which case it creates the
+plaintext database with a notice and returns \verb{success = FALSE, encrypted = FALSE} (the file exists and \code{path}/\code{key} are usable;
+\code{success} is \code{FALSE} solely to flag that encryption was not
+applied); under \code{development} it creates the file silently and
+likewise returns \verb{success = FALSE, encrypted = FALSE}. \code{success}
+is therefore \code{TRUE} on SQLite only when the file both exists and is
+actually encrypted. In all profiles \code{encrypted} reports the true
+state, and \code{path}/\code{key} are populated whenever a file was created,
+regardless of \code{success}.
 }
 \description{
 Creates a new encrypted database with complete schema.
@@ -94,10 +113,13 @@ something this function manages (see
     db_path = "./data/new_study.db",
     overwrite = FALSE
   )
-  if (result$success) {
-    # Store the key for subsequent operations in this session
+  if (is.null(result$error)) {
+    # Creation did not fail; result$success tells you whether it is
+    # actually encrypted (see @return), so check that separately if
+    # your deployment requires encryption at rest.
     Sys.setenv(DB_ENCRYPTION_KEY = result$key)
-    cat("Database created at:", result$path, "\n")
+    cat("Database created at:", result$path,
+        "- encrypted:", isTRUE(result$encrypted), "\n")
   }
 }
 

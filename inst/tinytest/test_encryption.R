@@ -227,7 +227,9 @@ local({
 
     result <- initialize_encrypted_database(db_path = test_db, overwrite = FALSE)
 
-    expect_true(result$success)
+    expect_true(is.null(result$error), info = "database created without error")
+    expect_identical(result$success, result$encrypted,
+                      info = "F1: success now mirrors whether encryption was actually applied")
     expect_true(file.exists(test_db))
     expect_true(is.character(result$key) && nchar(result$key) > 0)
 
@@ -261,7 +263,7 @@ local({
 
     result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
 
-    expect_true(result$success)
+    expect_true(is.null(result$error), info = "overwrite created without error")
     expect_true(file.exists(test_db))
 
     unlink(test_db)
@@ -278,7 +280,7 @@ local({
     old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
 
     init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
-    expect_true(init_result$success)
+    expect_true(is.null(init_result$error), info = "test database created")
     Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
 
     conn <- connect_encrypted_db(db_path = test_db)
@@ -389,7 +391,7 @@ local({
     old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
 
     init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
-    expect_true(init_result$success)
+    expect_true(is.null(init_result$error), info = "test database created")
     Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
 
     verification <- verify_database_encryption(db_path = test_db)
@@ -542,7 +544,7 @@ local({
     old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
 
     init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
-    expect_true(init_result$success)
+    expect_true(is.null(init_result$error), info = "test database created")
     Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
 
     conn <- connect_encrypted_db(db_path = test_db)
@@ -581,7 +583,7 @@ local({
     old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
 
     init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
-    expect_true(init_result$success)
+    expect_true(is.null(init_result$error), info = "test database created")
     Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
 
     conn <- connect_encrypted_db(db_path = test_db)
@@ -663,7 +665,7 @@ local({
     old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
 
     init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
-    expect_true(init_result$success)
+    expect_true(is.null(init_result$error), info = "test database created")
     Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
 
     audit_result <- init_audit_logging(db_path = test_db)
@@ -693,7 +695,7 @@ local({
     old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
 
     init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
-    expect_true(init_result$success)
+    expect_true(is.null(init_result$error), info = "test database created")
     Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
 
     audit_init <- init_audit_logging(db_path = test_db)
@@ -764,7 +766,7 @@ local({
     old_key <- Sys.getenv("DB_ENCRYPTION_KEY")
 
     init_result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
-    expect_true(init_result$success)
+    expect_true(is.null(init_result$error), info = "test database created")
     Sys.setenv(DB_ENCRYPTION_KEY = init_result$key)
 
     audit_result <- init_audit_logging(db_path = test_db)

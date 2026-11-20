@@ -1253,7 +1253,14 @@ import_redcap_to_zzedc_db <- function(conn = NULL, pid = NA,
   init_res <- initialize_encrypted_database(db_path = db_path,
                                               overwrite = overwrite)
   result$database <- init_res
-  if (!isTRUE(init_res$success)) {
+  # init_res$success now mirrors init_res$encrypted on SQLite (see
+  # initialize_encrypted_database()'s @return): a database that was
+  # created but permitted to stay unencrypted (standard + opt-in, or
+  # development) is not a creation failure, so check $error, not
+  # $success. The true encryption state is still available to callers
+  # via result$database$encrypted (result$database is the full init
+  # result above).
+  if (!is.null(init_res$error)) {
     result$success <- FALSE
     result$errors$database <- init_res$error
     return(result)

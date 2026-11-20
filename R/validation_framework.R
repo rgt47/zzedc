@@ -344,7 +344,15 @@ run_iq_tests <- function(config = NULL, db_path = NULL, verbose = TRUE) {
     test_db <- tempfile(fileext = ".db")
     result <- initialize_encrypted_database(db_path = test_db, overwrite = TRUE)
     unlink(test_db)
-    list(success = result$success, message = result$message)
+    # result$success now mirrors result$encrypted on SQLite (see
+    # initialize_encrypted_database()'s @return): a database that was
+    # created but permitted to stay unencrypted (the normal case under
+    # this suite's 'development' profile, or under 'standard' with the
+    # opt-in) is not an installation failure for this IQ check, which
+    # qualifies that database creation works, not that encryption at
+    # rest is active (that is a security-profile/OQ concern, checked
+    # elsewhere). So check $error, not $success.
+    list(success = is.null(result$error), message = result$message)
   }, error = function(e) {
     list(success = FALSE, message = e$message)
   })
