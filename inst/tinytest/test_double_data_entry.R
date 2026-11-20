@@ -350,6 +350,15 @@ local({
                             AND operation LIKE 'Double-data-entry%'", list(first$entry_id))
   expect_equal(nrow(audit_row), 1, info = "the in-save resolution to the first entry is itself audited")
 
+  # A pair fully resolved at save time (no "flag_for_review" field
+  # left) is superseded right away, not only after a queued
+  # DDE_DISCREPANCY correction is applied (which never happens for a
+  # pair with nothing left to queue).
+  expect_true(close_dde_group_if_resolved(conn, gid))
+  superseded_row <- query(db, "SELECT superseded_by FROM data_entries WHERE entry_id = ?",
+                          list(second$entry_id))
+  expect_identical(superseded_row$superseded_by[1], first$entry_id)
+
   # "revert_first" on a fresh pair: the canonical value is unchanged
   # (it already held the kept value), but the second entry's own
   # stored value is overwritten to match -- also zero live diff.
@@ -360,6 +369,19 @@ local({
   applied2 <- apply_dde_resolutions(list(sbp = 140), chk2$first_values, chk2$discrepancies,
                                     resolutions = list(sbp = "revert_first"))
   expect_equal(applied2$field_data$sbp, 115, info = "revert_first already overwrites the second entry's own value")
+
+  # Explicitly exercises update_first_entry_for_dde_resolution() with a
+  # "revert_first" resolution: it must leave entry #1 completely
+  # untouched (not overwrite it with the rejected 140, which an
+  # earlier, buggy version of this function did by always writing
+  # resolution_detail's recorded second_value regardless of choice).
+  updated2 <- update_first_entry_for_dde_resolution(conn, first2$entry_id,
+                                                     applied2$resolution_detail, "bob")
+  expect_false(updated2, info = "revert_first needs no change to the already-correct first entry")
+  first2_row <- query(db, "SELECT data_json FROM data_entries WHERE entry_id = ?", list(first2$entry_id))
+  expect_equal(jsonlite::fromJSON(first2_row$data_json[1])$sbp, 115,
+              info = "entry #1 still holds its own original value, not the rejected 140")
+
   second2 <- db_insert_data_entry(conn, "S002", "vitals", applied2$field_data,
                                   created_by = "bob", dde_group_id = gid2,
                                   audit_extra = list(dde_resolution = applied2$resolution_detail))

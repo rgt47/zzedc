@@ -11,7 +11,7 @@ form, linked by \code{data_entries.dde_group_id}) before it is settled.
 Combines REDCap's "different user by default, reviewer is neither
 entry person" rules with OpenClinica's "check item-by-item at
 second-entry save time, three immediate resolution choices"
-design, at field granularity (see \verb{~/.claude/plans/ soft-orbiting-acorn.md}, Part B, for the full design rationale).
+design, at field granularity.
 }
 \details{
 A form with no flagged field is entirely unaffected: every function

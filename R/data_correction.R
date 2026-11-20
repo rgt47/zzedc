@@ -335,9 +335,27 @@ migrate_correction_reasons <- function(conn) {
       "previous_request_hash, site_id, study_id, subject_id, visit_id, form_id"
     )
 
+    # auto_increment_ddl() (not a hardcoded INTEGER PRIMARY KEY): on
+    # DuckDB that is "INTEGER PRIMARY KEY DEFAULT nextval('<seq>')" --
+    # a plain INTEGER PRIMARY KEY has no such default there (unlike
+    # SQLite's ROWID-aliasing magic), so an INSERT that omits the
+    # id column entirely (create_correction_request()'s own, relying
+    # on the column to self-populate) would insert NULL into a NOT
+    # NULL primary key and fail outright. Caught by testing an insert
+    # through the real create_correction_request() path after
+    # migration, not only by inserting explicit ids by hand (which an
+    # earlier version of this test, and this function, both did).
+    # prepare_auto_increment() is idempotent (CREATE SEQUENCE IF NOT
+    # EXISTS) and the sequence these three tables already use is
+    # unaffected by the rebuild (it is not part of either table's own
+    # schema), so re-asserting it here is always safe.
+    prepare_auto_increment(work_conn, "correction_requests", "request_id")
+    prepare_auto_increment(work_conn, "correction_history", "history_id")
+    prepare_auto_increment(work_conn, "correction_overrides", "override_id")
+
     create_requests_sql <- sprintf("
         CREATE TABLE correction_requests (
-          request_id INTEGER PRIMARY KEY,
+          request_id %s,
           table_name TEXT NOT NULL,
           record_id TEXT NOT NULL,
           field_name TEXT NOT NULL,
@@ -364,11 +382,11 @@ migrate_correction_reasons <- function(conn) {
           visit_id TEXT,
           form_id TEXT
         )
-      ", expected_list)
+      ", auto_increment_ddl("correction_requests", "request_id"), expected_list)
 
-    create_history_sql <- "
+    create_history_sql <- sprintf("
         CREATE TABLE correction_history (
-          history_id INTEGER PRIMARY KEY,
+          history_id %s,
           request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
           action TEXT NOT NULL CHECK(action IN
             ('CREATED', 'SUBMITTED', 'APPROVED', 'REJECTED',
@@ -379,11 +397,11 @@ migrate_correction_reasons <- function(conn) {
           action_hash TEXT NOT NULL,
           previous_hash TEXT
         )
-      "
+      ", auto_increment_ddl("correction_history", "history_id"))
 
-    create_overrides_sql <- "
+    create_overrides_sql <- sprintf("
         CREATE TABLE correction_overrides (
-          override_id INTEGER PRIMARY KEY,
+          override_id %s,
           request_id INTEGER NOT NULL REFERENCES correction_requests(request_id),
           override_type TEXT NOT NULL CHECK(override_type IN
             ('LOCKED_RECORD', 'FINALIZED_DATA', 'SIGNATURE_PRESENT')),
@@ -394,7 +412,7 @@ migrate_correction_reasons <- function(conn) {
           approved_at TIMESTAMP,
           override_hash TEXT NOT NULL
         )
-      "
+      ", auto_increment_ddl("correction_overrides", "override_id"))
 
     recreate_indexes <- function(c) {
       DBI::dbExecute(c, "
