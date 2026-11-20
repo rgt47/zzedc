@@ -683,8 +683,10 @@ dde_pending <- shiny::reactiveVal(NULL)
     title = "Double-data-entry discrepancy",
     tags$p(paste(
       "The following field(s) flagged for double data entry differ",
-      "between the first and second (this) submission. Choose how to",
-      "resolve each one before this entry can be saved."
+      "between the first and second (this) submission. Your entry has",
+      "already been saved, flagged for reconciliation review by",
+      "default; choose how to resolve each one now, or close this",
+      "dialog to leave it flagged for later."
     )),
     shiny::tagList(rows),
     footer = shiny::actionButton("dde_confirm_resolution", "Confirm and Save",
@@ -1100,11 +1102,41 @@ observeEvent(input$submitcrf, {
     return(invisible(NULL))
   }
 
-  # A flagged field actually disagrees: hold the submission (no insert
-  # yet) and show the three-way resolution prompt. input$dde_confirm_resolution
-  # below performs the real insert once the user has chosen.
+  # A flagged field actually disagrees. Save the second entry right
+  # now -- every discrepant field defaulted to "flag_for_review" via
+  # apply_dde_resolutions() with no resolutions supplied -- *before*
+  # showing the three-way resolution prompt, rather than holding it in
+  # a reactiveVal until the modal is confirmed. Found on review:
+  # holding it unsaved meant dismissing the modal (e.g. a browser
+  # reload) lost the second entry and its audit trail with no record
+  # entry #1's value was ever shown, and because nothing had been
+  # saved yet, dde_decide_role()'s already_paired guard could never
+  # fire on a reload-then-resubmit -- defeating the blind-entry design
+  # with no trace. input$dde_confirm_resolution below only *upgrades*
+  # this already-saved row via update_second_entry_for_dde_resolution();
+  # it never inserts a second time.
+  defaulted <- zzedc:::apply_dde_resolutions(
+    field_data, chk$first_values, chk$discrepancies, resolutions = list()
+  )
+  result <- zzedc:::save_crf_entry(
+    db_pool, crf_row$crf_code[1], defaulted$field_data, created_by = created_by,
+    is_complete = TRUE, dde_group_id = decision$group_id,
+    audit_extra = list(dde_resolution = defaulted$resolution_detail,
+                       dde_first_entry_id = decision$first_entry_id,
+                       dde_pending_review_fields = defaulted$pending_fields),
+    ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
+  )
+  if (!isTRUE(result$success)) {
+    shiny::showNotification(
+      paste("Database error saving entry:", result$error),
+      type = "error", duration = 10
+    )
+    return(invisible(NULL))
+  }
+  .zzedc_finish_submit(result, crf_row, metadata, crf_code)
   dde_pending(list(
     group_id = decision$group_id, first_entry_id = decision$first_entry_id,
+    second_entry_id = result$entry_id,
     field_data = field_data, first_values = chk$first_values,
     discrepancies = chk$discrepancies, metadata = metadata,
     crf_row = crf_row, crf_code = crf_code, created_by = created_by,
@@ -1127,23 +1159,23 @@ observeEvent(input$dde_confirm_resolution, {
     pending$field_data, pending$first_values, pending$discrepancies, resolutions
   )
 
-  # The second entry is inserted FIRST, before touching entry #1 at
-  # all: if the entry #1 update below then fails, the second entry is
-  # still safely saved, and any "keep_second" field left un-updated on
-  # entry #1 simply still differs from it -- which list_dde_discrepancies()'s
-  # live diff will correctly surface in the reconciliation queue rather
-  # than silently losing the resolution. The reverse order (update
-  # entry #1 first) would instead risk losing the second entry
-  # entirely on a late failure, with no record of the discrepancy
-  # anywhere.
-  result <- zzedc:::save_crf_entry(
-    db_pool, pending$crf_code, applied$field_data, created_by = pending$created_by,
-    is_complete = TRUE, dde_group_id = pending$group_id,
-    audit_extra = list(dde_resolution = applied$resolution_detail,
-                       dde_first_entry_id = pending$first_entry_id,
-                       dde_pending_review_fields = applied$pending_fields),
-    ip_address = pending$ip_address, session_id = pending$session_id
-  )
+  # The second entry was already saved (with every discrepant field
+  # defaulted to "flag_for_review") when the modal was first shown --
+  # see the submitcrf handler. This only *upgrades* that row to the
+  # enterer's actual choices; it never inserts a second row.
+  update_err <- tryCatch({
+    zzedc:::update_second_entry_for_dde_resolution(
+      db_pool, pending$second_entry_id, applied,
+      modified_by = pending$created_by,
+      ip_address = pending$ip_address, session_id = pending$session_id
+    )
+    NULL
+  }, error = function(e) e)
+  result <- if (is.null(update_err)) {
+    list(success = TRUE, entry_id = pending$second_entry_id)
+  } else {
+    list(success = FALSE, error = conditionMessage(update_err))
+  }
 
   if (isTRUE(result$success)) {
     # Keeps the first (canonical) entry in agreement with every
@@ -1185,12 +1217,26 @@ observeEvent(input$dde_confirm_resolution, {
 
   shiny::removeModal()
   dde_pending(NULL)
-  .zzedc_finish_submit(result, pending$crf_row, pending$metadata, pending$crf_code)
-  if (isTRUE(result$success) && length(applied$pending_fields) > 0) {
+  # The entry itself was already saved (and the form already reset,
+  # via .zzedc_finish_submit()) when the modal was first shown; this
+  # only reports whether the chosen resolution could be recorded.
+  if (isTRUE(result$success)) {
+    if (length(applied$pending_fields) > 0) {
+      shiny::showNotification(
+        paste("Flagged for reconciliation review:",
+              paste(applied$pending_fields, collapse = ", ")),
+        type = "warning", duration = 8
+      )
+    } else {
+      shiny::showNotification("Discrepancy resolution recorded.",
+                               type = "message", duration = 5)
+    }
+  } else {
     shiny::showNotification(
-      paste("Flagged for reconciliation review:",
-            paste(applied$pending_fields, collapse = ", ")),
-      type = "warning", duration = 8
+      paste("The entry itself was saved, but its discrepancy resolution could",
+            "not be recorded; it will remain flagged in the reconciliation",
+            "queue:", result$error),
+      type = "error", duration = 12
     )
   }
 })

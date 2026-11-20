@@ -378,6 +378,75 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
     expect_equal(zzedc:::.existing_tracking_ids(conn, "manuscripts"), character(0))
   })
 
+  # Regression test, found on review (2026-11-20): no reader of
+  # data_entries excluded the non-canonical (second) row of a
+  # double-data-entry pair, so every aggregate count, export, and
+  # Data Explorer listing double-counted every double-entered
+  # subject/form. get_data_entries(canonical_dde_only = TRUE) and its
+  # callers must each see only the chronologically first row of a
+  # dde_group_id pair; the default (FALSE) and the tracking-ID/
+  # case-report call sites that never pass TRUE must still see both.
+  local({
+    conn <- .make_reports_fixture()
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    group_id <- "DDE-TEST-GROUP-1"
+    first <- zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-DDE", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-DDE", status = "ideation"),
+      is_complete = TRUE, created_by = "alice", dde_group_id = group_id
+    )
+    Sys.sleep(0.01)
+    second <- zzedc:::db_insert_data_entry(
+      conn, subject_id = "PUB-DDE", form_name = "manuscripts",
+      data = list(tracking_id = "PUB-DDE", status = "submitted"),
+      is_complete = TRUE, created_by = "bob", dde_group_id = group_id
+    )
+    expect_true(first$success)
+    expect_true(second$success)
+
+    # Default behavior (canonical_dde_only = FALSE) is unchanged:
+    # both rows of the pair still come back, alongside the three
+    # ordinary single-keyed entries the fixture already has.
+    all_entries <- zzedc:::get_data_entries(conn)
+    expect_equal(nrow(all_entries), 5)
+
+    canonical <- zzedc:::get_data_entries(conn, canonical_dde_only = TRUE)
+    expect_equal(nrow(canonical), 4,
+                 info = "the pair's second (non-canonical) row is excluded")
+    expect_true(first$entry_id %in% canonical$entry_id)
+    expect_false(second$entry_id %in% canonical$entry_id)
+
+    # The three aggregate/export readers that must not double-count.
+    summary <- zzedc:::summarize_entries_by_form(conn)
+    expect_equal(
+      summary$n_entries[summary$crf_code == "MANUSCRIPTS"], 3,
+      info = "PUB-1, PUB-2, and the DDE pair's one canonical row -- not 4"
+    )
+
+    q <- zzedc:::compute_data_quality_summary(conn)
+    expect_equal(q$total, 4,
+                 info = "3 originals + 1 canonical DDE row, not 5")
+
+    flat <- zzedc:::flatten_crf_entries_for_export(conn, "manuscripts")
+    expect_equal(nrow(flat), 3,
+                 info = "PUB-1, PUB-2, and one PUB-DDE row -- not two PUB-DDE rows")
+    expect_equal(sum(flat$subject_id == "PUB-DDE"), 1)
+    expect_equal(flat$status[flat$subject_id == "PUB-DDE"], "ideation",
+                 info = "the canonical (first) entry's value, not the second entry's")
+
+    # Readers that must keep seeing both rows regardless: tracking-ID
+    # bookkeeping (the second entry's tracking_id is still claimed)
+    # and generate_subject_case_report()'s own get_data_entries(subject_id = )
+    # call (Part 11 requires a subject's complete-copy report to show
+    # the full history, superseded or not -- it never passes
+    # canonical_dde_only = TRUE).
+    expect_true(zzedc:::tracking_id_already_used(conn, "manuscripts", "PUB-DDE"))
+    case_entries <- zzedc:::get_data_entries(conn, subject_id = "PUB-DDE")
+    expect_equal(nrow(case_entries), 2,
+                 info = "a subject's full history must include both DDE rows, not just the canonical one")
+  })
+
   local({
     # .zzedc_tab_or_login(): every Reports/Data Explorer/Export tab's
     # top-level renderUI() previously showed its real content

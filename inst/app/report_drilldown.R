@@ -21,7 +21,11 @@
 # query -- the same helper every other report in this file already
 # reads from.
 .report_drill_entries <- function(form_name, filter_field = NULL, filter_value = NULL) {
-  rows <- zzedc:::get_data_entries(db_pool, crf_code = form_name)
+  # canonical_dde_only = TRUE to match the summary counts this modal
+  # drills into (compute_data_quality_summary(), summarize_choice_field_values()):
+  # a drill-through listing more rows than the count it was opened
+  # from would be its own, separate bug.
+  rows <- zzedc:::get_data_entries(db_pool, crf_code = form_name, canonical_dde_only = TRUE)
   if (!is.null(filter_field) && nzchar(filter_field %||% "") && nrow(rows) > 0) {
     keep <- vapply(rows$fields, function(f) {
       v <- f[[filter_field]]

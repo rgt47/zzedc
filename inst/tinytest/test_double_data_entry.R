@@ -19,6 +19,7 @@ for (fn in c("ensure_data_entries_table", "db_insert_data_entry", "db_get_dde_fi
              "db_count_dde_group_entries",
              "flagged_dde_fields", "dde_decide_role", "dde_check_discrepancies",
              "apply_dde_resolutions", "update_first_entry_for_dde_resolution",
+             "update_second_entry_for_dde_resolution",
              "list_dde_discrepancies",
              "require_dde_reviewer_separation", "close_dde_group_if_resolved",
              "diff_field_lists", "generate_dde_group_id")) {
@@ -386,6 +387,108 @@ local({
                                   created_by = "bob", dde_group_id = gid2,
                                   audit_extra = list(dde_resolution = applied2$resolution_detail))
   expect_equal(nrow(list_dde_discrepancies(conn, dde_group_id = gid2)), 0)
+})
+
+# --- Regression test, found on review (2026-11-20): the second entry
+# used to be held unsaved (in a reactiveVal) until the resolution
+# modal was confirmed, so dismissing the modal (e.g. a browser
+# reload) lost it entirely with no audit trace of entry #1's value
+# having been shown on screen, and -- since nothing had been saved --
+# a reload-then-resubmit with a matching value was never caught by
+# dde_decide_role()'s already_paired guard, defeating the blind-entry
+# design. The fix: save the second entry immediately, every
+# discrepant field defaulted to "flag_for_review" via
+# apply_dde_resolutions() with no resolutions, *before* the modal is
+# shown; update_second_entry_for_dde_resolution() then only upgrades
+# that already-saved row if the enterer actually picks a different
+# resolution. ---
+local({
+  db <- setup_db()
+  on.exit(cleanup_db(db), add = TRUE)
+  setup_vitals_form(db)
+  conn <- connect_encrypted_db(db_path = db)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  gid <- generate_dde_group_id()
+  first <- db_insert_data_entry(conn, "S001", "vitals", list(sbp = 100),
+                                created_by = "alice", dde_group_id = gid)
+  chk <- dde_check_discrepancies(conn, first$entry_id, list(sbp = 222), "sbp")
+  expect_equal(length(chk$discrepancies), 1,
+              info = "the mismatch is detected before anything is saved")
+
+  # Save immediately with the safe default (no resolutions supplied):
+  # this is what the submitcrf handler does before ever showing the
+  # modal.
+  defaulted <- apply_dde_resolutions(list(sbp = 222), chk$first_values, chk$discrepancies,
+                                     resolutions = list())
+  expect_equal(defaulted$pending_fields, "sbp",
+              info = "with no resolution chosen yet, the field defaults to flag_for_review")
+  second <- db_insert_data_entry(conn, "S001", "vitals", defaulted$field_data,
+                                 created_by = "bob", dde_group_id = gid,
+                                 audit_extra = list(dde_resolution = defaulted$resolution_detail,
+                                                    dde_pending_review_fields = defaulted$pending_fields))
+  expect_true(second$success)
+
+  # "Reload" scenario: the modal is never confirmed. Nothing is lost
+  # -- the field is simply open in the reconciliation queue, exactly
+  # like any other real, unresolved discrepancy.
+  open <- list_dde_discrepancies(conn, dde_group_id = gid)
+  expect_equal(nrow(open), 1)
+  expect_equal(open$field_code[1], "sbp")
+  second_row <- query(db, "SELECT data_json FROM data_entries WHERE entry_id = ?",
+                      list(second$entry_id))
+  expect_equal(jsonlite::fromJSON(second_row$data_json[1])$sbp, 222,
+              info = "the second entry's own keyed value was saved, not discarded")
+
+  # The blinding bypass this closes: a resubmission for this
+  # subject/form (by anyone, including the same second enterer) is
+  # now refused as a third submission, not silently treated as a
+  # fresh "second entry" that could be re-keyed to match entry #1
+  # after having already seen its value.
+  resubmit <- dde_decide_role(conn, "S001", "vitals", "bob")
+  expect_true(resubmit$already_paired,
+             info = "a reload-then-resubmit no longer bypasses blinding -- entry #2 already exists")
+
+  # Now the enterer actually opens the modal and resolves it:
+  # update_second_entry_for_dde_resolution() upgrades the already-saved
+  # row -- it never inserts a second time.
+  applied <- apply_dde_resolutions(list(sbp = 222), chk$first_values, chk$discrepancies,
+                                   resolutions = list(sbp = "revert_first"))
+  changed <- update_second_entry_for_dde_resolution(conn, second$entry_id, applied,
+                                                    modified_by = "bob")
+  expect_true(changed, info = "revert_first changes the second entry's own saved value")
+  second_row2 <- query(db, "SELECT data_json FROM data_entries WHERE entry_id = ?",
+                       list(second$entry_id))
+  expect_equal(jsonlite::fromJSON(second_row2$data_json[1])$sbp, 100,
+              info = "the second entry now agrees with entry #1 after revert_first")
+  expect_equal(nrow(list_dde_discrepancies(conn, dde_group_id = gid)), 0,
+              info = "resolving the field clears it from the reconciliation queue")
+
+  audit_row <- query(db, "SELECT details FROM audit_log
+                          WHERE record_id = ? AND event_type = 'UPDATE'
+                            AND operation LIKE 'Double-data-entry%'", list(second$entry_id))
+  expect_equal(nrow(audit_row), 1,
+              info = "the resolution upgrade on the second entry is itself audited")
+
+  # update_second_entry_for_dde_resolution() is a no-op when the
+  # resolved value already matches what was saved (e.g. "keep_second",
+  # which never differs from the second entry's own already-saved
+  # default).
+  gid2 <- generate_dde_group_id()
+  first3 <- db_insert_data_entry(conn, "S003", "vitals", list(sbp = 90),
+                                 created_by = "alice", dde_group_id = gid2)
+  chk3 <- dde_check_discrepancies(conn, first3$entry_id, list(sbp = 95), "sbp")
+  defaulted3 <- apply_dde_resolutions(list(sbp = 95), chk3$first_values, chk3$discrepancies,
+                                      resolutions = list())
+  second3 <- db_insert_data_entry(conn, "S003", "vitals", defaulted3$field_data,
+                                  created_by = "bob", dde_group_id = gid2,
+                                  audit_extra = list(dde_resolution = defaulted3$resolution_detail))
+  applied3 <- apply_dde_resolutions(list(sbp = 95), chk3$first_values, chk3$discrepancies,
+                                    resolutions = list(sbp = "keep_second"))
+  changed3 <- update_second_entry_for_dde_resolution(conn, second3$entry_id, applied3,
+                                                     modified_by = "bob")
+  expect_false(changed3,
+              info = "keep_second never differs from what was already saved as the default")
 })
 
 # --- A third submission for an already-fully-paired subject/form is refused ---

@@ -90,6 +90,22 @@ NULL
 #'   The two caller-facing flatten functions below set this
 #'   explicitly, one each way; pass `FALSE` at any other call site
 #'   that is user-facing reporting rather than ID bookkeeping.
+#' @param canonical_dde_only When `TRUE`, excludes the non-canonical
+#'   (second) entry of every double-data-entry pair
+#'   (`dde_group_id` non-`NULL`) -- only the chronologically first
+#'   entry of each pair is kept. Found on review: no reader of
+#'   `data_entries` excluded either row of a DDE pair, so every
+#'   count, export row, and Data Explorer listing included both the
+#'   canonical entry and its non-canonical duplicate, double-counting
+#'   every double-entered subject/form. Filtering on `superseded_by`
+#'   alone cannot substitute for this: an unresolved pair has it
+#'   `NULL` on *both* rows, so the canonical row has to be identified
+#'   by `dde_group_id` and entry order, not by resolution status.
+#'   Defaults to `FALSE` -- a reader that needs every row regardless
+#'   (tracking-ID allocation, a subject's complete-copy case report)
+#'   must keep seeing both. A row whose form predates the
+#'   `dde_group_id` column (or whose `dde_group_id` is `NULL`,
+#'   i.e. an ordinary single-keyed entry) is never excluded by this.
 #' @return A data frame with columns `entry_id`, `subject_id`,
 #'   `form_name`, `visit_label`, `visit_date`, `created_date`,
 #'   `created_by`, `is_complete`, plus a list-column `fields` (one
@@ -109,7 +125,8 @@ NULL
 #' @keywords internal
 get_data_entries <- function(conn, crf_code = NULL, subject_id = NULL,
                               start_date = NULL, end_date = NULL,
-                              include_incomplete = TRUE) {
+                              include_incomplete = TRUE,
+                              canonical_dde_only = FALSE) {
   empty <- data.frame(
     entry_id = character(0), subject_id = character(0),
     form_name = character(0), visit_label = character(0),
@@ -143,6 +160,16 @@ get_data_entries <- function(conn, crf_code = NULL, subject_id = NULL,
   if (!isTRUE(include_incomplete)) {
     clauses <- c(clauses, "is_complete = 1")
   }
+  if (isTRUE(canonical_dde_only) &&
+        "dde_group_id" %in% DBI::dbListFields(conn, "data_entries")) {
+    clauses <- c(clauses, paste(
+      "(de.dde_group_id IS NULL OR de.entry_id = (",
+      "  SELECT d2.entry_id FROM data_entries d2",
+      "  WHERE d2.dde_group_id = de.dde_group_id",
+      "  ORDER BY d2.created_date ASC, d2.entry_id ASC LIMIT 1",
+      "))"
+    ))
+  }
   where <- if (length(clauses) > 0) {
     paste("WHERE", paste(clauses, collapse = " AND "))
   } else {
@@ -152,7 +179,7 @@ get_data_entries <- function(conn, crf_code = NULL, subject_id = NULL,
   sql <- paste(
     "SELECT entry_id, subject_id, form_name, visit_label, visit_date,",
     "       created_date, created_by, is_complete, data_json",
-    "FROM data_entries", where,
+    "FROM data_entries de", where,
     "ORDER BY created_date DESC"
   )
   rows <- if (length(params) > 0) {
@@ -248,13 +275,29 @@ tracking_id_already_used <- function(conn, crf_code, value) {
 #' @keywords internal
 summarize_entries_by_form <- function(conn) {
   forms <- get_active_crf_forms(conn)
+  # Same canonical-row rule as get_data_entries(canonical_dde_only =
+  # TRUE): excludes the non-canonical (second) row of every
+  # double-data-entry pair, not reachable through get_data_entries()
+  # here since this is its own raw aggregate query.
+  dde_filter <- if ("dde_group_id" %in% DBI::dbListFields(conn, "data_entries")) {
+    paste(
+      "AND (de.dde_group_id IS NULL OR de.entry_id = (",
+      "  SELECT d2.entry_id FROM data_entries d2",
+      "  WHERE d2.dde_group_id = de.dde_group_id",
+      "  ORDER BY d2.created_date ASC, d2.entry_id ASC LIMIT 1",
+      "))"
+    )
+  } else {
+    ""
+  }
   counts <- DBI::dbGetQuery(
     conn,
     paste(
       "SELECT LOWER(form_name) AS form_code, COUNT(*) AS n_entries,",
       "       MIN(created_date) AS first_entry,",
       "       MAX(created_date) AS last_entry",
-      "FROM data_entries WHERE is_complete = 1 GROUP BY LOWER(form_name)"
+      "FROM data_entries de WHERE is_complete = 1", dde_filter,
+      "GROUP BY LOWER(form_name)"
     )
   )
   forms$.form_code <- tolower(forms$crf_code)
@@ -287,7 +330,7 @@ summarize_entries_by_form <- function(conn) {
 #'   row per flagged field, not per entry).
 #' @keywords internal
 compute_data_quality_summary <- function(conn) {
-  entries <- get_data_entries(conn)
+  entries <- get_data_entries(conn, canonical_dde_only = TRUE)
   forms <- get_active_crf_forms(conn)
 
   metadata_cache <- new.env(parent = emptyenv())
@@ -370,7 +413,7 @@ compute_data_quality_summary <- function(conn) {
 #'   no choice fields have both options and data.
 #' @keywords internal
 summarize_choice_field_values <- function(conn) {
-  entries <- get_data_entries(conn)
+  entries <- get_data_entries(conn, canonical_dde_only = TRUE)
   forms <- get_active_crf_forms(conn)
   out <- list()
 
@@ -443,7 +486,8 @@ flatten_crf_entries_for_export <- function(conn, crf_code,
   meta <- get_crf_field_metadata(conn, crf_row$crf_id[1])
   entries <- get_data_entries(conn, crf_code = crf_code,
                                start_date = start_date, end_date = end_date,
-                               include_incomplete = FALSE)
+                               include_incomplete = FALSE,
+                               canonical_dde_only = TRUE)
 
   field_codes <- names(meta)
   base <- data.frame(
@@ -511,7 +555,8 @@ flatten_crf_entries_for_export <- function(conn, crf_code,
 #'   never mistaken for a finished record.
 #' @keywords internal
 flatten_all_entries_for_explorer <- function(conn) {
-  entries <- get_data_entries(conn, include_incomplete = TRUE)
+  entries <- get_data_entries(conn, include_incomplete = TRUE,
+                               canonical_dde_only = TRUE)
   entries$status <- ifelse(entries$is_complete == 1, "Complete", "Incomplete")
   entries$is_complete <- NULL
   entries$fields <- vapply(entries$fields, function(f) {
@@ -545,7 +590,7 @@ flatten_all_entries_for_explorer <- function(conn) {
 #'   site, this function returns a plain character string of HTML).
 #' @keywords internal
 generate_personal_statement_draft <- function(conn) {
-  entries <- get_data_entries(conn)
+  entries <- get_data_entries(conn, canonical_dde_only = TRUE)
   by_form <- function(code) entries[tolower(entries$form_name) == code, ]
 
   esc <- function(x) {

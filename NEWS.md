@@ -1,5 +1,52 @@
 # zzedc (development version)
 
+## Fourth-pass fixes to double data entry and reporting, found by a fourth round of review
+
+* **The discrepancy-resolution modal's reload/data-loss gap, closed.**
+  The second entry used to be held only in a Shiny `reactiveVal` until
+  the modal was confirmed, so dismissing it (a browser reload, say)
+  lost the second entry and its audit trail entirely, with no record
+  that entry #1's value was ever shown on screen -- and because
+  nothing had been saved yet, the same user could reload and re-key a
+  value that now matched entry #1, with no trace the two had ever
+  disagreed, defeating the blind-entry design. The second entry is
+  now saved immediately when a discrepancy is first detected, every
+  flagged field defaulted to `"flag_for_review"`
+  (`apply_dde_resolutions()` with no resolutions supplied), *before*
+  the modal is shown; `update_second_entry_for_dde_resolution()` (new)
+  only *upgrades* that already-saved row once the enterer actually
+  picks a resolution, never inserting a second time. A reload now
+  simply leaves the field open in the reconciliation queue -- nothing
+  lost -- and a reload-then-resubmit is refused as a genuine third
+  submission (`dde_decide_role()`'s `already_paired` guard), closing
+  the blinding bypass. Covered by a new regression test exercising
+  both the "abandoned modal" state and a real resolution upgrade.
+* **`data_entries` readers double-counting a DDE pair, closed.** No
+  reader excluded the non-canonical (second) row of a double-data-entry
+  pair, so every aggregate count, export, and Data Explorer listing
+  double-counted every double-entered subject/form.
+  `get_data_entries()` gained `canonical_dde_only` (default `FALSE`,
+  unchanged for tracking-ID bookkeeping and the subject case report,
+  which both still need every row), excluding the non-canonical row
+  via `dde_group_id` and entry order -- filtering on `superseded_by`
+  alone cannot work, since an unresolved pair has it `NULL` on both
+  rows. Set to `TRUE` in `compute_data_quality_summary()`,
+  `summarize_choice_field_values()`, `flatten_crf_entries_for_export()`,
+  and `flatten_all_entries_for_explorer()`; `summarize_entries_by_form()`
+  (its own raw SQL query, not routed through `get_data_entries()`)
+  fixed the same way directly. The Manuscripts report's drill-through
+  and row-count-aligned `entry_id` lookup (`inst/app/report6.R`,
+  `inst/app/report_drilldown.R`) updated to match. Covered by a new
+  regression test inserting a DDE pair and checking every affected
+  reader's count.
+* Part C's one previously-unverified risk (draft-resume plus a
+  mid-edit display-setting toggle) was re-verified live against a
+  fresh scratch study: saved a draft, toggled to 2-column layout and
+  expanded tooltips mid-edit, confirmed the already-typed values
+  survived the re-render, finished and submitted, and confirmed via a
+  direct database query that `data_json` held every field correctly.
+  Not a bug.
+
 ## Third-pass fixes to double data entry, found by a second round of review
 
 * `update_first_entry_for_dde_resolution()` wrote the recorded
@@ -196,20 +243,14 @@
   entry on every field" toggle (REDCap-style convenience) was
   considered and deliberately not built -- a thin helper over the same
   per-field flag would be a reasonable later addition.
-* **Known gaps, disclosed rather than fixed this pass**:
-  - If the discrepancy-resolution modal is dismissed by reloading the
-    browser (rather than clicking a resolution and "Confirm and
-    Save") instead of resolving it, the second entry is never saved
-    and no audit record exists of the first entry's value having been
-    shown on screen -- a would-be-audited event with no audit trail.
-    A real fix needs the pending second-entry state to survive outside
-    the Shiny session (or the comparison moved server-side before the
-    modal renders at all); not attempted here.
-  - Readers downstream of `data_entries` written before this pass
-    (report/export code, `edc_reports.R`'s
-    `flatten_crf_entries_for_export()` among them) were not audited
-    for whether they now double-count a `superseded_by` row rather
-    than treating it as retired. Not confirmed either way.
+* **Known gaps, disclosed rather than fixed this pass; both since
+  fixed, see "Fourth-pass fixes" above**:
+  - ~~If the discrepancy-resolution modal is dismissed by reloading
+    the browser...~~ fixed: the second entry is now saved immediately
+    with a safe default, before the modal ever renders.
+  - ~~Readers downstream of `data_entries`... double-count a
+    `superseded_by` row...~~ fixed: `get_data_entries(canonical_dde_only
+    = TRUE)` and its callers.
   - `tracking_id_already_used()`'s duplicate-tracking-ID check (today
     only enforced for the `manuscripts` form's `PUB-YYYY-N`
     convention) would reject a DDE second entry on any future form
