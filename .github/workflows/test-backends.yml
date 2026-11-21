@@ -46,6 +46,8 @@ jobs:
           restore-keys: r-sqlite-
 
       - name: Install R dependencies
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
           Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'RSQLite', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
           Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
@@ -86,6 +88,8 @@ jobs:
           restore-keys: r-duckdb-
 
       - name: Install R dependencies
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
           Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'duckdb', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
           Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
@@ -145,6 +149,8 @@ jobs:
           restore-keys: r-postgresql-
 
       - name: Install R dependencies
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
           Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'RPostgres', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
           Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
@@ -244,6 +250,8 @@ jobs:
           restore-keys: r-clickhouse-
 
       - name: Install R dependencies
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
           Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
           Rscript -e "install.packages('RClickhouse', repos = 'https://cloud.r-project.org')"
