@@ -17,6 +17,7 @@ on:
 
 env:
   R_LIBS_USER: /usr/local/lib/R/site-library
+  P3M_REPO: https://p3m.dev/cran/__linux__/noble/latest
 
 jobs:
   # ===========================================
@@ -38,19 +39,28 @@ jobs:
             zlib1g-dev \
             libuv1-dev
 
-      - name: Cache R packages
-        uses: actions/cache@v3
+      # See test-duckdb for why restore/save are split and P3M is used.
+      - name: Restore R package cache
+        id: r-cache
+        uses: actions/cache/restore@v4
         with:
           path: /usr/local/lib/R/site-library
-          key: r-sqlite-${{ hashFiles('DESCRIPTION') }}
-          restore-keys: r-sqlite-
+          key: r-sqlite-bin-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: r-sqlite-bin-
 
       - name: Install R dependencies
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'RSQLite', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
-          Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
+          Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); install.packages(c('remotes', 'pkgload', 'tinytest', 'RSQLite', 'DBI', 'R6', 'digest'))"
+          Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
+
+      - name: Save R package cache
+        if: steps.r-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-sqlite-bin-${{ hashFiles('DESCRIPTION') }}
 
       - name: Run SQLite tests
         env:
@@ -97,7 +107,6 @@ jobs:
       - name: Install R dependencies
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-          P3M_REPO: https://p3m.dev/cran/__linux__/noble/latest
         run: |
           Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); install.packages(c('remotes', 'pkgload', 'tinytest', 'duckdb', 'DBI', 'R6', 'digest'))"
           Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
@@ -156,19 +165,27 @@ jobs:
             zlib1g-dev \
             libuv1-dev
 
-      - name: Cache R packages
-        uses: actions/cache@v3
+      - name: Restore R package cache
+        id: r-cache
+        uses: actions/cache/restore@v4
         with:
           path: /usr/local/lib/R/site-library
-          key: r-postgresql-${{ hashFiles('DESCRIPTION') }}
-          restore-keys: r-postgresql-
+          key: r-postgresql-bin-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: r-postgresql-bin-
 
       - name: Install R dependencies
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'RPostgres', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
-          Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
+          Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); install.packages(c('remotes', 'pkgload', 'tinytest', 'RPostgres', 'DBI', 'R6', 'digest'))"
+          Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
+
+      - name: Save R package cache
+        if: steps.r-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-postgresql-bin-${{ hashFiles('DESCRIPTION') }}
 
       - name: Run PostgreSQL tests
         env:
@@ -257,20 +274,27 @@ jobs:
             zlib1g-dev \
             libuv1-dev
 
-      - name: Cache R packages
-        uses: actions/cache@v3
+      - name: Restore R package cache
+        id: r-cache
+        uses: actions/cache/restore@v4
         with:
           path: /usr/local/lib/R/site-library
-          key: r-clickhouse-${{ hashFiles('DESCRIPTION') }}
-          restore-keys: r-clickhouse-
+          key: r-clickhouse-bin-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: r-clickhouse-bin-
 
       - name: Install R dependencies
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
-          Rscript -e "install.packages('RClickhouse', repos = 'https://cloud.r-project.org')"
-          Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
+          Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); install.packages(c('remotes', 'pkgload', 'tinytest', 'DBI', 'R6', 'digest', 'RClickhouse'))"
+          Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
+
+      - name: Save R package cache
+        if: steps.r-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-clickhouse-bin-${{ hashFiles('DESCRIPTION') }}
 
       - name: Create test database
         run: |
