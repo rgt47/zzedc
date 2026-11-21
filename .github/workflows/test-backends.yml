@@ -80,19 +80,34 @@ jobs:
             zlib1g-dev \
             libuv1-dev
 
-      - name: Cache R packages
-        uses: actions/cache@v3
+      # Restore and save are split, with the save placed before the tests,
+      # so a successful install is cached even when the tests fail; a
+      # combined actions/cache step saves only when the whole job passes.
+      - name: Restore R package cache
+        id: r-cache
+        uses: actions/cache/restore@v4
         with:
           path: /usr/local/lib/R/site-library
-          key: r-duckdb-${{ hashFiles('DESCRIPTION') }}
-          restore-keys: r-duckdb-
+          key: r-duckdb-bin-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: r-duckdb-bin-
 
+      # P3M serves prebuilt Linux binaries (rocker sets the HTTPUserAgent
+      # P3M needs); cloud.r-project.org is source-only on Linux and made
+      # duckdb compile for ~43 minutes.
       - name: Install R dependencies
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+          P3M_REPO: https://p3m.dev/cran/__linux__/noble/latest
         run: |
-          Rscript -e "install.packages(c('remotes', 'pkgload', 'tinytest', 'duckdb', 'DBI', 'R6', 'digest'), repos = 'https://cloud.r-project.org')"
-          Rscript -e "remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
+          Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); install.packages(c('remotes', 'pkgload', 'tinytest', 'duckdb', 'DBI', 'R6', 'digest'))"
+          Rscript -e "options(repos = c(CRAN = Sys.getenv('P3M_REPO'))); remotes::install_deps(dependencies = c('Depends', 'Imports', 'LinkingTo'))"
+
+      - name: Save R package cache
+        if: steps.r-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-duckdb-bin-${{ hashFiles('DESCRIPTION') }}
 
       - name: Run DuckDB tests
         env:
