@@ -250,12 +250,17 @@ jobs:
 
     services:
       clickhouse:
-        image: clickhouse/clickhouse-server:latest
+        # Recent images refuse network logins for a passwordless default
+        # user; CLICKHOUSE_DB has the entrypoint create the test database.
+        image: clickhouse/clickhouse-server:26.10
+        env:
+          CLICKHOUSE_DB: zzedc_test
+          CLICKHOUSE_PASSWORD: clickhouse
         ports:
           - 9000:9000
           - 8123:8123
         options: >-
-          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-cmd "clickhouse-client --password clickhouse --query 'SELECT 1'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -297,11 +302,6 @@ jobs:
           path: /usr/local/lib/R/site-library
           key: r-clickhouse-bin-${{ hashFiles('DESCRIPTION') }}
 
-      - name: Create test database
-        run: |
-          apt-get install -y clickhouse-client
-          clickhouse-client --host clickhouse --query "CREATE DATABASE IF NOT EXISTS zzedc_test"
-
       - name: Run ClickHouse tests
         env:
           ZZEDC_TEST_BACKENDS: clickhouse
@@ -309,7 +309,7 @@ jobs:
           ZZEDC_TEST_CH_PORT: 9000
           ZZEDC_TEST_CH_DB: zzedc_test
           ZZEDC_TEST_CH_USER: default
-          ZZEDC_TEST_CH_PASSWORD: ""
+          ZZEDC_TEST_CH_PASSWORD: clickhouse
         run: |
           Rscript -e "pkgload::load_all('.', quiet = TRUE)" \
                    -e "res <- tinytest::run_test_dir('inst/tinytest', pattern = '^test_db-')" \
