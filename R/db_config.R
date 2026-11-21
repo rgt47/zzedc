@@ -451,6 +451,10 @@ database:
     # Use HTTPS connection
     use_https: false
 
+    # Native-protocol compression for RClickhouse: none or lz4.
+    # lz4 fails against current servers; keep none unless verified.
+    compression: none
+
     # Connection pool settings (optional)
     pool_min: 1
     pool_max: 5
@@ -547,7 +551,7 @@ default_db_config <- function(backend = "duckdb", ...) {
   recognized <- c("path", "encryption_key", "threads", "memory_limit",
                   "host", "port", "name", "user", "password",
                   "sslmode", "ssl_mode", "pool_min", "pool_max",
-                  "database", "use_https")
+                  "database", "use_https", "compression")
   unrecognized <- setdiff(names(overrides), recognized)
   if (length(unrecognized) > 0) {
     warning(
@@ -645,6 +649,7 @@ default_db_config <- function(backend = "duckdb", ...) {
         user = overrides$user %||% "default",
         password = overrides$password %||% "",
         use_https = overrides$use_https %||% FALSE,
+        compression = overrides$compression %||% "none",
         pool_min = overrides$pool_min %||% 1L,
         pool_max = overrides$pool_max %||% 5L
       )

@@ -1,5 +1,27 @@
 # zzedc (development version)
 
+## ClickHouse adapter: compression is configurable and defaults to `"none"`
+
+* **The ClickHouse adapter could not run a query against a current
+  ClickHouse server.** `ClickHouseAdapter$connect()` and `$pool()`
+  never passed `compression` to `RClickhouse`, whose default, `"lz4"`,
+  fails against ClickHouse 26.10 with `unsupported compression method
+  144` on the first query. Reproduced locally against
+  `clickhouse/clickhouse-server:26.10` with RClickhouse 0.6.12; it had
+  gone unnoticed because the ClickHouse CI job never ran (it is
+  manual-only and failed earlier, at authentication).
+* New `clickhouse$compression` setting, `"none"` (default) or `"lz4"`,
+  passed by both `connect()` and `pool()` through one internal helper.
+  Any other value is an error. `default_db_config("clickhouse")` and
+  the generated ClickHouse config template set it to `"none"`, and
+  `compression` is a recognized `default_db_config()` override.
+* The adapter now passes the database as `dbname` instead of
+  RClickhouse's deprecated `db`, which warned on every connection.
+* Regression test: `inst/tinytest/test_db-clickhouse-args.R` (needs no
+  server). Known remaining gap, not fixed here: RClickhouse does not
+  bind `?` parameters, so `adapter$execute()`/`$query()` with `params`
+  still fail on ClickHouse.
+
 ## Portfolio review follow-up: F-NEW8 and F-NEW1 confirmed already fixed; documentation regenerated
 
 * **F-NEW8** (Google Sheets form loader bypassing encryption) and
