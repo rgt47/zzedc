@@ -28,7 +28,7 @@ jobs:
     container: rocker/r-ver:4.4
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
         run: |
@@ -42,7 +42,7 @@ jobs:
       # See test-duckdb for why restore/save are split and P3M is used.
       - name: Restore R package cache
         id: r-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: /usr/local/lib/R/site-library
           key: r-sqlite-bin-${{ hashFiles('DESCRIPTION') }}
@@ -57,7 +57,7 @@ jobs:
 
       - name: Save R package cache
         if: steps.r-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: /usr/local/lib/R/site-library
           key: r-sqlite-bin-${{ hashFiles('DESCRIPTION') }}
@@ -79,7 +79,7 @@ jobs:
     container: rocker/r-ver:4.4
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
         run: |
@@ -95,7 +95,7 @@ jobs:
       # combined actions/cache step saves only when the whole job passes.
       - name: Restore R package cache
         id: r-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: /usr/local/lib/R/site-library
           key: r-duckdb-bin-${{ hashFiles('DESCRIPTION') }}
@@ -113,7 +113,7 @@ jobs:
 
       - name: Save R package cache
         if: steps.r-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: /usr/local/lib/R/site-library
           key: r-duckdb-bin-${{ hashFiles('DESCRIPTION') }}
@@ -153,7 +153,7 @@ jobs:
       options: --network-alias test-runner
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
         run: |
@@ -167,7 +167,7 @@ jobs:
 
       - name: Restore R package cache
         id: r-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: /usr/local/lib/R/site-library
           key: r-postgresql-bin-${{ hashFiles('DESCRIPTION') }}
@@ -182,7 +182,7 @@ jobs:
 
       - name: Save R package cache
         if: steps.r-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: /usr/local/lib/R/site-library
           key: r-postgresql-bin-${{ hashFiles('DESCRIPTION') }}
@@ -263,7 +263,7 @@ jobs:
       image: rocker/r-ver:4.4
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
         run: |
@@ -276,7 +276,7 @@ jobs:
 
       - name: Restore R package cache
         id: r-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: /usr/local/lib/R/site-library
           key: r-clickhouse-bin-${{ hashFiles('DESCRIPTION') }}
@@ -291,7 +291,7 @@ jobs:
 
       - name: Save R package cache
         if: steps.r-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: /usr/local/lib/R/site-library
           key: r-clickhouse-bin-${{ hashFiles('DESCRIPTION') }}
