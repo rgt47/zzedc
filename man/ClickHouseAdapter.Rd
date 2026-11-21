@@ -23,6 +23,11 @@ Configuration options (in config$clickhouse):
 \item user: Username (default "default")
 \item password: Password (optional)
 \item use_https: Use HTTPS connection (default FALSE)
+\item compression: Native-protocol compression passed to RClickhouse,
+"none" (default) or "lz4". RClickhouse's own default, "lz4", fails
+against current ClickHouse servers (verified on 26.10) with
+"unsupported compression method 144"; use "lz4" only for a server
+known to accept it. Ignored by the HTTP \code{clickhouse} package.
 }
 
 Note: ClickHouse has different transaction semantics than traditional

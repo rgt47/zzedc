@@ -17,6 +17,11 @@
 #' - user: Username (default "default")
 #' - password: Password (optional)
 #' - use_https: Use HTTPS connection (default FALSE)
+#' - compression: Native-protocol compression passed to RClickhouse,
+#'   "none" (default) or "lz4". RClickhouse's own default, "lz4", fails
+#'   against current ClickHouse servers (verified on 26.10) with
+#'   "unsupported compression method 144"; use "lz4" only for a server
+#'   known to accept it. Ignored by the HTTP `clickhouse` package.
 #'
 #' Note: ClickHouse has different transaction semantics than traditional
 #' RDBMS. It uses eventual consistency and is optimized for batch inserts.
@@ -75,13 +80,9 @@ ClickHouseAdapter <- R6::R6Class(
 
       # Try RClickhouse first (DBI-compliant)
       if (requireNamespace("RClickhouse", quietly = TRUE)) {
-        conn <- DBI::dbConnect(
-          RClickhouse::clickhouse(),
-          host = ch$host,
-          port = ch$port %||% 9000L,
-          db = ch$database,
-          user = ch$user %||% "default",
-          password = ch$password %||% ""
+        conn <- do.call(
+          DBI::dbConnect,
+          c(list(RClickhouse::clickhouse()), rclickhouse_connect_args(ch))
         )
       } else {
         # Fall back to clickhouse package
@@ -111,15 +112,16 @@ ClickHouseAdapter <- R6::R6Class(
       ch <- self$config$clickhouse
 
       if (requireNamespace("RClickhouse", quietly = TRUE)) {
-        pool::dbPool(
-          RClickhouse::clickhouse(),
-          host = ch$host,
-          port = ch$port %||% 9000L,
-          db = ch$database,
-          user = ch$user %||% "default",
-          password = ch$password %||% "",
-          minSize = ch$pool_min %||% 1L,
-          maxSize = ch$pool_max %||% 5L
+        do.call(
+          pool::dbPool,
+          c(
+            list(RClickhouse::clickhouse()),
+            rclickhouse_connect_args(ch),
+            list(
+              minSize = ch$pool_min %||% 1L,
+              maxSize = ch$pool_max %||% 5L
+            )
+          )
         )
       } else {
         pool::dbPool(
@@ -318,6 +320,36 @@ ClickHouseAdapter <- R6::R6Class(
     }
   )
 )
+
+
+#' RClickhouse connection arguments from a clickhouse config section
+#'
+#' Shared by `ClickHouseAdapter$connect()` and `$pool()` so both pass
+#' the same arguments. `compression` defaults to "none" because
+#' RClickhouse's own default, "lz4", fails against current ClickHouse
+#' servers with "unsupported compression method 144".
+#'
+#' @param ch The `config$clickhouse` list.
+#' @return Named list of arguments for `DBI::dbConnect()` with an
+#'   `RClickhouse::clickhouse()` driver.
+#' @keywords internal
+#' @noRd
+rclickhouse_connect_args <- function(ch) {
+  compression <- ch$compression %||% "none"
+  if (!(is.character(compression) && length(compression) == 1L &&
+        compression %in% c("none", "lz4"))) {
+    stop("clickhouse$compression must be \"none\" or \"lz4\"",
+         call. = FALSE)
+  }
+  list(
+    host = ch$host,
+    port = ch$port %||% 9000L,
+    dbname = ch$database,
+    user = ch$user %||% "default",
+    password = ch$password %||% "",
+    compression = compression
+  )
+}
 
 
 # Null coalescing operator
