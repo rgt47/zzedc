@@ -228,6 +228,33 @@ ClickHouseAdapter <- R6::R6Class(
     },
 
     #' @description
+    #' Execute a SELECT query. RClickhouse does not bind parameters, so
+    #' `params` are interpolated into `sql` with `DBI::sqlInterpolate()`
+    #' using the driver's own quoting.
+    #' @param conn Database connection or pool
+    #' @param sql SQL query string with `?` placeholders
+    #' @param params Optional list or vector of parameters
+    #' @return Data frame with query results
+    query = function(conn, sql, params = NULL) {
+      with_clickhouse_conn(conn, function(con) {
+        DBI::dbGetQuery(con, clickhouse_interpolate(con, sql, params))
+      })
+    },
+
+    #' @description
+    #' Execute a non-SELECT statement, interpolating `params` as in
+    #' `query()`.
+    #' @param conn Database connection or pool
+    #' @param sql SQL statement with `?` placeholders
+    #' @param params Optional list or vector of parameters
+    #' @return Number of rows affected
+    execute = function(conn, sql, params = NULL) {
+      with_clickhouse_conn(conn, function(con) {
+        DBI::dbExecute(con, clickhouse_interpolate(con, sql, params))
+      })
+    },
+
+    #' @description
     #' ClickHouse-specific: Execute batch insert for better performance
     #' @param conn Database connection
     #' @param table_name Name of table
@@ -320,6 +347,49 @@ ClickHouseAdapter <- R6::R6Class(
     }
   )
 )
+
+
+#' Interpolate parameters into ClickHouse SQL
+#'
+#' RClickhouse implements no parameter binding: `DBI::dbExecute(conn,
+#' sql, params = ...)` sends the `?` placeholders to the server
+#' unchanged. This quotes each value with the connection's own
+#' `dbQuoteLiteral()` methods via `DBI::sqlInterpolate()`, which also
+#' leaves a `?` inside a quoted string literal alone and errors when
+#' the number of values does not match the placeholders.
+#'
+#' @param con A DBI connection (not a pool).
+#' @param sql SQL with positional `?` or named `?name` placeholders.
+#' @param params `NULL`, a list, or an atomic vector of values.
+#' @return The SQL string to send.
+#' @keywords internal
+#' @noRd
+clickhouse_interpolate <- function(con, sql, params) {
+  if (is.null(params) || length(params) == 0L) {
+    return(sql)
+  }
+  as.character(DBI::sqlInterpolate(con, sql, .dots = as.list(params)))
+}
+
+
+#' Run a function with a plain connection, checking one out of a pool
+#'
+#' `sqlInterpolate()` quotes through the connection's methods, so a
+#' pool is checked out for the duration of the call and returned.
+#'
+#' @param conn A DBI connection or a `pool::Pool`.
+#' @param fn Function of one argument, the connection.
+#' @return The value of `fn`.
+#' @keywords internal
+#' @noRd
+with_clickhouse_conn <- function(conn, fn) {
+  if (inherits(conn, "Pool")) {
+    con <- pool::poolCheckout(conn)
+    on.exit(pool::poolReturn(con), add = TRUE)
+    return(fn(con))
+  }
+  fn(conn)
+}
 
 
 #' RClickhouse connection arguments from a clickhouse config section

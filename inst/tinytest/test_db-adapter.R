@@ -71,9 +71,11 @@ with_test_backends("adapter provides dialect information", function(ctx, conn, a
 # ============================================================================
 
 with_test_backends("adapter supports transactions - commit", function(ctx, conn, adapter) {
-  # Skip for ClickHouse which has limited transaction support
+  # skip() is exit_file(), which does not stop a with_test_backends()
+  # callback; return() skips just this block for this backend.
   if (ctx$backend == "clickhouse") {
-    skip("ClickHouse has limited transaction support")
+    message("[SKIP CLICKHOUSE] limited transaction support")
+    return(invisible(NULL))
   }
 
   initial_count <- adapter$query(conn, "SELECT COUNT(*) as n FROM subjects")$n
@@ -91,7 +93,8 @@ with_test_backends("adapter supports transactions - commit", function(ctx, conn,
 
 with_test_backends("adapter supports transactions - rollback", function(ctx, conn, adapter) {
   if (ctx$backend == "clickhouse") {
-    skip("ClickHouse has limited transaction support")
+    message("[SKIP CLICKHOUSE] no rollback")
+    return(invisible(NULL))
   }
 
   initial_count <- adapter$query(conn, "SELECT COUNT(*) as n FROM subjects")$n
@@ -217,6 +220,13 @@ with_test_backends("adapter handles invalid SQL gracefully", function(ctx, conn,
 })
 
 with_test_backends("adapter handles constraint violations", function(ctx, conn, adapter) {
+  # ClickHouse does not enforce PRIMARY KEY or UNIQUE constraints, so a
+  # duplicate insert succeeds by design.
+  if (ctx$backend == "clickhouse") {
+    message("[SKIP CLICKHOUSE] no uniqueness constraints")
+    return(invisible(NULL))
+  }
+
   # Try to insert duplicate username (UNIQUE constraint)
   expect_error(
     adapter$execute(conn, "
