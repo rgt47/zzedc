@@ -18,9 +18,27 @@
 * The adapter now passes the database as `dbname` instead of
   RClickhouse's deprecated `db`, which warned on every connection.
 * Regression test: `inst/tinytest/test_db-clickhouse-args.R` (needs no
-  server). Known remaining gap, not fixed here: RClickhouse does not
-  bind `?` parameters, so `adapter$execute()`/`$query()` with `params`
-  still fail on ClickHouse.
+  server).
+
+## ClickHouse adapter: `query()` and `execute()` with `params` work
+
+* **Parameterized queries failed on ClickHouse.** RClickhouse
+  implements no parameter binding, and the base adapter passed
+  `params` straight to `DBI::dbGetQuery()`/`dbExecute()`, so the `?`
+  placeholders reached the server unchanged (`Cannot parse expression
+  of type String here: ?, ...`). `ClickHouseAdapter` now overrides
+  `query()` and `execute()` to interpolate `params` with
+  `DBI::sqlInterpolate()`, quoting each value through the
+  connection's own methods (verified against ClickHouse 26.10 for
+  embedded quotes, backslashes, `NA`, numbers, dates, and a `?` inside
+  a string literal). A pool is checked out for the call and returned.
+* The backend suite's three ClickHouse skips (transaction commit,
+  rollback, uniqueness constraints) used `skip()`, which is
+  `exit_file()` and does not stop a `with_test_backends()` callback;
+  the rollback and constraint assertions therefore ran and failed on
+  ClickHouse. They now `return()` from the callback.
+* With these and the compression fix, every `test_db-*` file passes
+  against a local ClickHouse 26.10 server (143 results, 0 failures).
 
 ## Portfolio review follow-up: F-NEW8 and F-NEW1 confirmed already fixed; documentation regenerated
 

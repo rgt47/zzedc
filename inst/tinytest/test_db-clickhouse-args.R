@@ -48,3 +48,44 @@ if (requireNamespace('yaml', quietly = TRUE)) {
   expect_identical(tmpl$database$clickhouse$compression, 'none',
     info = 'generated config template sets compression none')
 }
+
+# ----------------------------------------------------------------------
+# Parameter interpolation. RClickhouse binds no parameters, so the
+# adapter interpolates them; DBI::ANSI() stands in for a connection.
+# ----------------------------------------------------------------------
+
+interp <- zzedc:::clickhouse_interpolate
+ansi <- DBI::ANSI()
+
+expect_identical(interp(ansi, 'SELECT 1', NULL), 'SELECT 1',
+  info = 'NULL params leave SQL unchanged')
+expect_identical(interp(ansi, 'SELECT 1', list()), 'SELECT 1',
+  info = 'empty params leave SQL unchanged')
+expect_identical(
+  interp(ansi, 'INSERT INTO t VALUES (?, ?)', list('a', 2L)),
+  "INSERT INTO t VALUES ('a', 2)",
+  info = 'positional ? placeholders are filled in order'
+)
+expect_identical(
+  interp(ansi, 'SELECT * FROM t WHERE u = ?', c('x')),
+  "SELECT * FROM t WHERE u = 'x'",
+  info = 'atomic vector params accepted'
+)
+expect_identical(
+  interp(ansi, "SELECT '?' AS q, ? AS a", list('v')),
+  "SELECT '?' AS q, 'v' AS a",
+  info = '? inside a string literal is not a placeholder'
+)
+expect_identical(
+  interp(ansi, 'SELECT ?', list("O'Brien")),
+  "SELECT 'O''Brien'",
+  info = 'values are quoted by the connection, not pasted raw'
+)
+expect_error(interp(ansi, 'SELECT ?, ?', list('only one')),
+  info = 'placeholder/value count mismatch is an error')
+
+expect_identical(
+  zzedc:::with_clickhouse_conn('plain-conn', function(con) con),
+  'plain-conn',
+  info = 'a non-pool connection is passed through unchanged'
+)

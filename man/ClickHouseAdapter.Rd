@@ -61,6 +61,8 @@ RDBMS. It uses eventual consistency and is optimized for batch inserts.
     \item \href{#method-ClickHouseAdapter-dialect}{\code{ClickHouseAdapter$dialect()}}
     \item \href{#method-ClickHouseAdapter-encryption_capabilities}{\code{ClickHouseAdapter$encryption_capabilities()}}
     \item \href{#method-ClickHouseAdapter-backend_name}{\code{ClickHouseAdapter$backend_name()}}
+    \item \href{#method-ClickHouseAdapter-query}{\code{ClickHouseAdapter$query()}}
+    \item \href{#method-ClickHouseAdapter-execute}{\code{ClickHouseAdapter$execute()}}
     \item \href{#method-ClickHouseAdapter-insert_batch}{\code{ClickHouseAdapter$insert_batch()}}
     \item \href{#method-ClickHouseAdapter-create_table}{\code{ClickHouseAdapter$create_table()}}
     \item \href{#method-ClickHouseAdapter-optimize}{\code{ClickHouseAdapter$optimize()}}
@@ -76,11 +78,9 @@ RDBMS. It uses eventual consistency and is optimized for batch inserts.
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="auto_increment_column"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-auto_increment_column'><code>DatabaseAdapter$auto_increment_column()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="describe_table"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-describe_table'><code>DatabaseAdapter$describe_table()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="disconnect"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-disconnect'><code>DatabaseAdapter$disconnect()</code></a></span></li>
-  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="execute"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-execute'><code>DatabaseAdapter$execute()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="list_tables"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-list_tables'><code>DatabaseAdapter$list_tables()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="pool_close"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-pool_close'><code>DatabaseAdapter$pool_close()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="prepare_auto_increment"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-prepare_auto_increment'><code>DatabaseAdapter$prepare_auto_increment()</code></a></span></li>
-  <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="query"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-query'><code>DatabaseAdapter$query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="shutdown"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-shutdown'><code>DatabaseAdapter$shutdown()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="supports_encryption"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-supports_encryption'><code>DatabaseAdapter$supports_encryption()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="zzedc" data-topic="DatabaseAdapter" data-id="table_exists"><a href='../../zzedc/html/DatabaseAdapter.html#method-DatabaseAdapter-table_exists'><code>DatabaseAdapter$table_exists()</code></a></span></li>
@@ -181,6 +181,57 @@ depends on the connection settings. Earlier versions reported
   }
   \subsection{Returns}{
     Character "clickhouse"
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ClickHouseAdapter-query"></a>}}
+\if{latex}{\out{\hypertarget{method-ClickHouseAdapter-query}{}}}
+\subsection{\code{ClickHouseAdapter$query()}}{
+  Execute a SELECT query. RClickhouse does not bind parameters, so
+\code{params} are interpolated into \code{sql} with \code{DBI::sqlInterpolate()}
+using the driver's own quoting.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$query(conn, sql, params = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection or pool}
+      \item{\code{sql}}{SQL query string with \verb{?} placeholders}
+      \item{\code{params}}{Optional list or vector of parameters}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with query results
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ClickHouseAdapter-execute"></a>}}
+\if{latex}{\out{\hypertarget{method-ClickHouseAdapter-execute}{}}}
+\subsection{\code{ClickHouseAdapter$execute()}}{
+  Execute a non-SELECT statement, interpolating \code{params} as in
+\code{query()}.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ClickHouseAdapter$execute(conn, sql, params = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{conn}}{Database connection or pool}
+      \item{\code{sql}}{SQL statement with \verb{?} placeholders}
+      \item{\code{params}}{Optional list or vector of parameters}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Number of rows affected
   }
 }
 
