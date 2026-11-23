@@ -12,7 +12,9 @@
 #' @details
 #' Configuration options (in config$clickhouse):
 #' - host: ClickHouse server hostname (required)
-#' - port: HTTP port (default 8123) or native port (default 9000)
+#' - port: Native TCP port (default 9000), used by RClickhouse. The
+#'   HTTP port (8123) does not work with RClickhouse; the HTTP
+#'   `clickhouse` fallback uses 8123 only when `port` is unset.
 #' - database: Database name (required)
 #' - user: Username (default "default")
 #' - password: Password (optional)
@@ -32,7 +34,7 @@
 #'     db_backend = "clickhouse",
 #'     clickhouse = list(
 #'       host = "localhost",
-#'       port = 8123,
+#'       port = 9000,
 #'       database = "zzedc",
 #'       user = "default"
 #'     )

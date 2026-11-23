@@ -438,8 +438,9 @@ database:
     # ClickHouse server hostname
     host: ${ZZEDC_CH_HOST}
 
-    # HTTP port (default 8123) or native port (default 9000)
-    port: 8123
+    # Native TCP port (default 9000), used by RClickhouse; the HTTP
+    # port (8123) does not work with it
+    port: 9000
 
     # Database name
     database: zzedc
@@ -644,7 +645,7 @@ default_db_config <- function(backend = "duckdb", ...) {
       db_backend = "clickhouse",
       clickhouse = list(
         host = overrides$host %||% "localhost",
-        port = overrides$port %||% 8123L,
+        port = overrides$port %||% 9000L,
         database = overrides$database %||% "zzedc",
         user = overrides$user %||% "default",
         password = overrides$password %||% "",

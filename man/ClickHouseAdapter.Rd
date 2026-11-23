@@ -18,7 +18,9 @@ Database adapter implementation for ClickHouse backend.
 Configuration options (in config$clickhouse):
 \itemize{
 \item host: ClickHouse server hostname (required)
-\item port: HTTP port (default 8123) or native port (default 9000)
+\item port: Native TCP port (default 9000), used by RClickhouse. The
+HTTP port (8123) does not work with RClickhouse; the HTTP
+\code{clickhouse} fallback uses 8123 only when \code{port} is unset.
 \item database: Database name (required)
 \item user: Username (default "default")
 \item password: Password (optional)
@@ -39,7 +41,7 @@ RDBMS. It uses eventual consistency and is optimized for batch inserts.
     db_backend = "clickhouse",
     clickhouse = list(
       host = "localhost",
-      port = 8123,
+      port = 9000,
       database = "zzedc",
       user = "default"
     )

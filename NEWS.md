@@ -1,5 +1,23 @@
 # zzedc (development version)
 
+## ClickHouse adapter: the default port is the native port, 9000
+
+* **A default ClickHouse configuration could not connect.**
+  `default_db_config("clickhouse")`, the setup wizard's
+  `build_adapter_config("clickhouse", ...)`, and the generated
+  ClickHouse config template all defaulted `port` to 8123, ClickHouse's
+  HTTP port. The adapter connects through `RClickhouse`, which speaks
+  the native TCP protocol on port 9000, so every default configuration
+  failed with `fail to connect` (reproduced against ClickHouse 26.10
+  with both ports open). All three now default to 9000; an explicit
+  `port` is still honored. The adapter's roxygen and the
+  `create_db_adapter()` example now show 9000.
+* The fallback to the HTTP `clickhouse` package, used only when
+  `RClickhouse` is not installed, still defaults to 8123 when `port` is
+  unset. A configuration built by `default_db_config()` now sets 9000,
+  so that fallback needs an explicit `port = 8123`.
+* Regression tests in `inst/tinytest/test_db-clickhouse-args.R`.
+
 ## ClickHouse adapter: compression is configurable and defaults to `"none"`
 
 * **The ClickHouse adapter could not run a query against a current

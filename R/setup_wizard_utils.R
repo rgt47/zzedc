@@ -828,7 +828,7 @@ build_adapter_config <- function(backend, db_path = NULL, server_config = NULL) 
         db_backend = "clickhouse",
         clickhouse = list(
           host = server_config$host %||% "localhost",
-          port = server_config$port %||% 8123L,
+          port = server_config$port %||% 9000L,
           database = server_config$database %||% server_config$name,
           user = server_config$user %||% "default",
           password = server_config$password %||% ""
