@@ -195,12 +195,6 @@ local({
 
 # Group: save_user_to_db
 local({
-    # Test: creates new user with hashed password
-    local({
-            skip("Module functions tested via module servers")
-
-    })
-
     # Test: save_user_to_db enforces the §11.10(g) actor_role gate
     # when supplied, and skips it (existing behavior) when omitted.
     # Added 2026-11-09 -- previously the only "gate" on who could
@@ -262,39 +256,12 @@ local({
 
     })
 })
-# Phase 1: Backup and Restore Functions
-
-# Group: perform_automatic_backup
-local({
-    # Test: creates compressed database backup
-    local({
-            skip("Backup module tested via module servers")
-    
-    })
-    # Test: cleans up old backups beyond retention period
-    local({
-            skip("Backup module tested via module servers")
-    
-    })
-})
-# Phase 1: Audit Logging Functions
-
-# Group: log_audit_action
-local({
-    # Test: requires valid parameters
-    local({
-            skip("Audit module tested via module servers")
-    
-    })
-})
 # Phase 1: Integration Tests
 
 # Group: Complete wizard setup end-to-end
 local({
     # Test: creates fully functional ZZedc instance
     local({
-            skip("Integration test - requires full setup")
-
             temp_install <- file.path(tempdir(), "zzedc_test_install")
 
             config <- list(
@@ -384,11 +351,6 @@ local({
             expect_match(result$message, "Error")
     
     })
-    # Test: handles missing database files in backups
-    local({
-            skip("Tested via backup module server")
-    
-    })
 })
 # Phase 1: Module Instantiation
 
@@ -407,24 +369,19 @@ local({
       expect_false(inherits(result, "error"),
                    info = if (inherits(result, "error")) conditionMessage(result) else "")
     })
-    # Test: user_management_ui creates valid UI
-    local({
-            skip("Module UI tests require Shiny environment")
-    
-    })
-    # Test: backup_restore_ui creates valid UI
-    local({
-            skip("Module UI tests require Shiny environment")
-    
-    })
-    # Test: audit_log_viewer_ui creates valid UI
-    local({
-            skip("Module UI tests require Shiny environment")
-    
-    })
-    # Test: admin_dashboard_ui creates valid UI
-    local({
-            skip("Module UI tests require Shiny environment")
-    
-    })
+    # Test: the remaining module UIs build. These were empty blocks
+    # calling a skip() helper that was a silent no-op; they now call
+    # each UI function, as the setup_wizard_ui block above does.
+    for (ui_fn in c("user_management_ui", "backup_restore_ui",
+                    "audit_log_viewer_ui", "admin_dashboard_ui")) {
+      result <- tryCatch(
+        get(ui_fn, envir = asNamespace("zzedc"))("test"),
+        error = function(e) e
+      )
+      expect_false(inherits(result, "error"),
+        info = sprintf("%s builds: %s", ui_fn,
+          if (inherits(result, "error")) conditionMessage(result) else "ok"))
+      expect_inherits(result, "shiny.tag",
+        info = sprintf("%s returns a shiny tag", ui_fn))
+    }
 })

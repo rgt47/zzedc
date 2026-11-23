@@ -1,5 +1,35 @@
 # zzedc (development version)
 
+## Test suite: the `skip()` helpers never skipped
+
+* **Every `skip()` in the test suite was a silent no-op.**
+  `inst/tinytest/_setup.R` defined `skip()` and four `skip_if_*()`
+  helpers as calls to `exit_file()`. Test files `source()` that file
+  into the global environment, where `exit_file` resolves to
+  tinytest's exported stub, which only returns its message, so the
+  helpers neither ended the file nor the block, and code written after
+  a `skip()` ran. The helpers are removed (the `skip_if_*()` ones had
+  no callers), and `_setup.R` documents the alternatives.
+* Call sites: the 15 empty blocks in `test_quality-dashboard.R` are
+  now structural checks of `quality_dashboard_ui()` (namespaced ids,
+  each server output present with an output binding, card headers);
+  the four empty module-UI stubs in `test_phase1-modules.R` now build
+  `user_management_ui()`, `backup_restore_ui()`,
+  `audit_log_viewer_ui()`, and `admin_dashboard_ui()`; empty backup
+  and audit stubs are removed; the `skip()` in the wizard end-to-end
+  test, whose assertions always ran and pass, is removed; and the
+  unreachable DuckDB guard in `test_db-adapter.R` is an assertion.
+* **The quality dashboard's QC flags panel was never filled.** The
+  new output-binding check found `qc_flags_container` rendered as a
+  plain `div` while `quality_dashboard_server()` assigns it with
+  `renderUI()`; Shiny binds outputs only to output elements, so the
+  panel stayed at "Loading QC status...". It is now a `uiOutput()`
+  with the same placeholder. (Verified structurally, in the rendered
+  HTML; not exercised in a browser.)
+* Regression test: `inst/tinytest/test_setup-helpers.R` fails if a
+  `_setup.R` helper calls `exit_file()` or the removed helpers are
+  defined.
+
 ## ClickHouse adapter: the default port is the native port, 9000
 
 * **A default ClickHouse configuration could not connect.**
@@ -51,9 +81,9 @@
   embedded quotes, backslashes, `NA`, numbers, dates, and a `?` inside
   a string literal). A pool is checked out for the call and returned.
 * The backend suite's three ClickHouse skips (transaction commit,
-  rollback, uniqueness constraints) used `skip()`, which is
-  `exit_file()` and does not stop a `with_test_backends()` callback;
-  the rollback and constraint assertions therefore ran and failed on
+  rollback, uniqueness constraints) used `skip()`, which was a no-op
+  (see "Test suite: the `skip()` helpers never skipped" above); the
+  rollback and constraint assertions therefore ran and failed on
   ClickHouse. They now `return()` from the callback.
 * With these and the compression fix, every `test_db-*` file passes
   against a local ClickHouse 26.10 server (143 results, 0 failures).

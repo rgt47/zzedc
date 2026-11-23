@@ -71,8 +71,7 @@ with_test_backends("adapter provides dialect information", function(ctx, conn, a
 # ============================================================================
 
 with_test_backends("adapter supports transactions - commit", function(ctx, conn, adapter) {
-  # skip() is exit_file(), which does not stop a with_test_backends()
-  # callback; return() skips just this block for this backend.
+  # return() skips just this block for this backend.
   if (ctx$backend == "clickhouse") {
     message("[SKIP CLICKHOUSE] limited transaction support")
     return(invisible(NULL))
@@ -135,10 +134,7 @@ with_test_backends("test data was inserted", function(ctx, conn, adapter) {
 # ============================================================================
 
 with_backend("duckdb", "DuckDB exports to Parquet", function(ctx, conn, adapter) {
-  # This tests DuckDB-specific functionality
-  if (!inherits(adapter, "DuckDBAdapter")) {
-    skip("Not a DuckDB adapter")
-  }
+  expect_inherits(adapter, "DuckDBAdapter")
 
   parquet_path <- tempfile(fileext = ".parquet")
   on.exit(unlink(parquet_path))
