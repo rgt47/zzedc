@@ -66,7 +66,7 @@ clickhouse$database
     db_backend = "clickhouse",
     clickhouse = list(
       host = "localhost",
-      port = 8123,
+      port = 9000,
       database = "zzedc",
       user = "default"
     )

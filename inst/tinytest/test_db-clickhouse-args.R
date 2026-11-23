@@ -42,11 +42,31 @@ expect_silent(
 expect_identical(cfg_lz4$clickhouse$compression, 'lz4',
   info = 'default_db_config() compression override honored')
 
+# RClickhouse speaks the native TCP protocol (port 9000); a default of
+# the HTTP port (8123) made every default config fail to connect.
+expect_identical(cfg$clickhouse$port, 9000L,
+  info = 'default_db_config() defaults to the native port')
+expect_identical(args_fn(cfg$clickhouse)$port, 9000L,
+  info = 'default config reaches RClickhouse with the native port')
+expect_identical(
+  zzedc:::build_adapter_config('clickhouse',
+    server_config = list(database = 'zzedc'))$clickhouse$port,
+  9000L,
+  info = 'setup wizard config defaults to the native port'
+)
+expect_identical(
+  zzedc::default_db_config('clickhouse', port = 9440L)$clickhouse$port,
+  9440L,
+  info = 'explicit port override honored'
+)
+
 # yaml is in Suggests and absent from the backend CI jobs.
 if (requireNamespace('yaml', quietly = TRUE)) {
   tmpl <- yaml::yaml.load(zzedc:::clickhouse_config_template())
   expect_identical(tmpl$database$clickhouse$compression, 'none',
     info = 'generated config template sets compression none')
+  expect_identical(tmpl$database$clickhouse$port, 9000L,
+    info = 'generated config template uses the native port')
 }
 
 # ----------------------------------------------------------------------
