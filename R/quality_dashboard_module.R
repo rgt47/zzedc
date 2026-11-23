@@ -97,8 +97,10 @@ quality_dashboard_ui <- function(id) {
         bslib::card(
           bslib::card_header("Quality Control Flags"),
           bslib::card_body(
-            div(
-              id = ns("qc_flags_container"),
+            # uiOutput, not a plain div: the server fills this with
+            # renderUI(), which only binds to an output element.
+            tagAppendChild(
+              uiOutput(ns("qc_flags_container")),
               p("Loading QC status...", class = "text-muted")
             )
           )

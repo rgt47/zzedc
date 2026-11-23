@@ -7,7 +7,7 @@
 # Each `inst/tinytest/test_*.R` sources this file at the top.
 #
 # Replaces testthat-specific machinery as follows:
-#   testthat::skip(msg)  -> exit_file(msg)   (note: file-level, not block-level)
+#   testthat::skip(msg)  -> no helper; see the note below
 #   testthat::expect_*   -> tinytest expect_*
 #   test_that(...)       -> direct execution (no wrapper)
 
@@ -28,14 +28,14 @@ suppressPackageStartupMessages({
 # tests them.
 options(zzedc.security_profile = "development")
 
-# Tinytest-friendly skip: in testthat, `skip("msg")` aborts the
-# current `test_that()` block. In tinytest, the closest analogue is
-# `exit_file("msg")` (aborts the current test file). For block-
-# level skip semantics, prefer `if (!cond) local({...})` at the
-# call site.
-skip <- function(msg = "skipped") {
-  exit_file(msg)
-}
+# There is deliberately no skip() helper. The one this file used to
+# define called exit_file(), but this file is source()d into the
+# global environment, where exit_file resolves to tinytest's exported
+# stub, which only returns its message: every skip() was a silent
+# no-op, and code after it ran. To skip, guard the block at the call
+# site (`if (cond) local({...})`), return() from a with_backend() or
+# with_test_backends() callback, or call exit_file() at the top level
+# of a test file to end that file.
 
 # ----------------------------------------------------------------
 # Database fixtures (from helper-test-setup.R)
@@ -107,24 +107,12 @@ setup_test_env()
 # Skip/source helpers (from helper-skip.R)
 # ----------------------------------------------------------------
 
-skip_if_not_installed <- function(pkg) {
-  if (!requireNamespace(pkg, quietly = TRUE)) {
-    exit_file(paste("Package", pkg, "not available"))
-  }
-}
-
 source_files_available <- function() {
   pkg_root <- tryCatch(
     normalizePath(file.path(getwd(), "..", "..")),
     error = function(e) NULL
   )
   !is.null(pkg_root) && file.exists(file.path(pkg_root, "R"))
-}
-
-skip_if_source_not_available <- function() {
-  if (!source_files_available()) {
-    exit_file("Source files not available (running via R CMD check)")
-  }
 }
 
 safe_source <- function(path) {
@@ -392,16 +380,6 @@ with_backend <- function(backend, desc, test_fn) {
     insert_test_data(ctx, conn)
     test_fn(ctx, conn, adapter)
   }, finally = cleanup_test_db(ctx, conn))
-}
-
-skip_if_no_backend <- function(backend) {
-  if (!is_backend_available(backend)) {
-    exit_file(paste("Backend not available:", backend))
-  }
-}
-
-skip_if_not_ci <- function() {
-  if (Sys.getenv("CI", "") == "") exit_file("Not running on CI")
 }
 
 # Custom expectations originally defined in helper-db-backends.R.
