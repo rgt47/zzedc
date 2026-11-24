@@ -32,11 +32,22 @@
   `RISK_THRESHOLD_BREACH` are added; `migrate_add_dsm_tables()` runs
   `migrate_audit_event_types()` for existing databases. A new test
   block verifies the migration on DuckDB with a real hash chain.
-* Not yet: the workbook used by plan authors, amendments, the
-  optional activity gate, risk indicators, and reports. Not supported
+* Plan authors work in a spreadsheet: `dsm_generate_workbook()` writes
+  an Excel workbook (sheets Plan, Risks, Indicators, Stopping rules,
+  with drop-down lists for categories, levels, yes/no, grains,
+  threshold units, and roles), optionally filled from an existing plan
+  version for an amendment; `dsm_import_workbook()` reads it, or a
+  directory of CSV files with the same names, into a new draft
+  version, storing the file's SHA-256, and reports every problem by
+  sheet, row, and column. Thresholds on `percent` rows are entered in
+  percent (15 means 15%) and stored as proportions; a value strictly
+  between 0 and 1 is refused as ambiguous.
+* Not yet: amendments, the optional activity gate, Google Sheets as a
+  source, risk indicators, and reports. Not supported
   on ClickHouse. The inserts use `RETURNING`, which MySQL/MariaDB does
   not support, as elsewhere in the package's newer modules.
-* Tests: `inst/tinytest/test_dsm_plan.R` (60 assertions), plus 8 in
+* Tests: `inst/tinytest/test_dsm_plan.R` (60 assertions),
+  `inst/tinytest/test_dsm_workbook.R` (23), plus 8 in
   `test_migrate-audit-event-types.R`.
 
 ## Electronic signatures: correct passwords were rejected
