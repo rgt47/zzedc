@@ -10,7 +10,8 @@ schedule_subject_visit(
   visit_id,
   scheduled_date,
   baseline_date = NULL,
-  db_path = NULL
+  db_path = NULL,
+  scheduled_by = NULL
 )
 }
 \arguments{
@@ -25,6 +26,9 @@ schedule_subject_visit(
 \item{baseline_date}{Date: Baseline date for window calculation}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{scheduled_by}{Character: User scheduling the visit, recorded in
+the audit trail (optional)}
 }
 \value{
 List with scheduling result

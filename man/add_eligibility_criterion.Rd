@@ -12,7 +12,8 @@ add_eligibility_criterion(
   field_name = NULL,
   operator = NULL,
   value = NULL,
-  db_path = NULL
+  db_path = NULL,
+  created_by = NULL
 )
 }
 \arguments{
@@ -31,6 +32,9 @@ add_eligibility_criterion(
 \item{value}{Character: Comparison value (optional)}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{created_by}{Character: User adding the criterion, recorded in
+the audit trail (optional)}
 }
 \value{
 List with creation result

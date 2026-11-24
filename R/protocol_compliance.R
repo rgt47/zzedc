@@ -23,6 +23,32 @@ safe_scalar_proto <- function(x, default = NA_character_) {
   }
 }
 
+
+#' Append a Protocol Compliance Audit Record (internal)
+#'
+#' Must run inside the caller's transaction, so that the record
+#' commits or rolls back with the change it describes.
+#'
+#' @param conn A DBI connection, inside a transaction.
+#' @param event_type Audit event type, e.g. `"INSERT"`.
+#' @param table_name Table changed.
+#' @param record_id Identifier of the row changed.
+#' @param operation Short description.
+#' @param details Named list, stored as JSON.
+#' @param user_id User responsible, or `NULL`.
+#' @return The new `audit_id`.
+#' @keywords internal
+.proto_audit <- function(conn, event_type, table_name, record_id,
+                         operation, details, user_id) {
+  .append_audit_record(
+    conn, event_type = event_type, table_name = table_name,
+    record_id = record_id, operation = operation,
+    details = as.character(jsonlite::toJSON(details, auto_unbox = TRUE,
+                                            null = "null")),
+    user_id = user_id
+  )
+}
+
 # =============================================================================
 # Database Schema
 # =============================================================================
@@ -275,23 +301,31 @@ create_protocol <- function(protocol_code,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    protocol_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO protocol_definitions (
-        protocol_code, protocol_title, protocol_version,
-        effective_date, sponsor, principal_investigator,
-        description, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING protocol_id AS id
-    ", list(
-      safe_scalar_proto(protocol_code),
-      safe_scalar_proto(protocol_title),
-      safe_scalar_proto(protocol_version),
-      safe_scalar_proto(as.character(effective_date)),
-      safe_scalar_proto(sponsor),
-      safe_scalar_proto(principal_investigator),
-      safe_scalar_proto(description),
-      safe_scalar_proto(created_by)
-    ))$id
+    protocol_id <- .with_db_transaction(conn, function(c) {
+      id <- DBI::dbGetQuery(c, "
+        INSERT INTO protocol_definitions (
+          protocol_code, protocol_title, protocol_version,
+          effective_date, sponsor, principal_investigator,
+          description, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING protocol_id AS id
+      ", list(
+        safe_scalar_proto(protocol_code),
+        safe_scalar_proto(protocol_title),
+        safe_scalar_proto(protocol_version),
+        safe_scalar_proto(as.character(effective_date)),
+        safe_scalar_proto(sponsor),
+        safe_scalar_proto(principal_investigator),
+        safe_scalar_proto(description),
+        safe_scalar_proto(created_by)
+      ))$id
+      .proto_audit(c, "INSERT", "protocol_definitions", id,
+                   paste("Protocol created:", protocol_code),
+                   list(protocol_code = protocol_code,
+                        protocol_version = protocol_version),
+                   created_by)
+      id
+    })
 
     list(
       success = TRUE,
@@ -363,6 +397,8 @@ get_protocol <- function(protocol_id = NULL,
 #' @param visit_type Character: Visit type
 #' @param description Character: Description (optional)
 #' @param db_path Character: Database path (optional)
+#' @param created_by Character: User adding the visit, recorded in the
+#'   audit trail (optional)
 #'
 #' @return List with creation result
 #'
@@ -390,30 +426,41 @@ add_protocol_visit <- function(protocol_id,
                                 is_required = TRUE,
                                 visit_type = "SCHEDULED",
                                 description = NULL,
-                                db_path = NULL) {
+                                db_path = NULL,
+                                created_by = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    visit_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO protocol_visits (
-        protocol_id, visit_code, visit_name, visit_order,
-        target_day, window_before, window_after,
-        is_required, visit_type, description
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING visit_id AS id
-    ", list(
-      protocol_id,
-      safe_scalar_proto(visit_code),
-      safe_scalar_proto(visit_name),
-      visit_order,
-      target_day,
-      window_before,
-      window_after,
-      as.integer(is_required),
-      safe_scalar_proto(visit_type),
-      safe_scalar_proto(description)
-    ))$id
+    visit_id <- .with_db_transaction(conn, function(c) {
+      id <- DBI::dbGetQuery(c, "
+        INSERT INTO protocol_visits (
+          protocol_id, visit_code, visit_name, visit_order,
+          target_day, window_before, window_after,
+          is_required, visit_type, description
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING visit_id AS id
+      ", list(
+        protocol_id,
+        safe_scalar_proto(visit_code),
+        safe_scalar_proto(visit_name),
+        visit_order,
+        target_day,
+        window_before,
+        window_after,
+        as.integer(is_required),
+        safe_scalar_proto(visit_type),
+        safe_scalar_proto(description)
+      ))$id
+      .proto_audit(c, "INSERT", "protocol_visits", id,
+                   paste("Protocol visit added:", visit_code),
+                   list(protocol_id = protocol_id, visit_code = visit_code,
+                        target_day = target_day,
+                        window_before = window_before,
+                        window_after = window_after),
+                   created_by)
+      id
+    })
 
     list(
       success = TRUE,
@@ -467,6 +514,8 @@ get_protocol_visits <- function(protocol_id, db_path = NULL) {
 #' @param scheduled_date Date: Scheduled date
 #' @param baseline_date Date: Baseline date for window calculation
 #' @param db_path Character: Database path (optional)
+#' @param scheduled_by Character: User scheduling the visit, recorded in
+#'   the audit trail (optional)
 #'
 #' @return List with scheduling result
 #'
@@ -477,7 +526,8 @@ schedule_subject_visit <- function(subject_id,
                                     visit_id,
                                     scheduled_date,
                                     baseline_date = NULL,
-                                    db_path = NULL) {
+                                    db_path = NULL,
+                                    scheduled_by = NULL) {
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
@@ -488,19 +538,28 @@ schedule_subject_visit <- function(subject_id,
       NA_integer_
     }
 
-    subject_visit_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO subject_visits (
-        subject_id, protocol_id, visit_id,
-        scheduled_date, days_from_baseline, status
-      ) VALUES (?, ?, ?, ?, ?, 'SCHEDULED')
-      RETURNING subject_visit_id AS id
-    ", list(
-      safe_scalar_proto(subject_id),
-      protocol_id,
-      visit_id,
-      safe_scalar_proto(as.character(scheduled_date)),
-      days_from_baseline
-    ))$id
+    subject_visit_id <- .with_db_transaction(conn, function(c) {
+      id <- DBI::dbGetQuery(c, "
+        INSERT INTO subject_visits (
+          subject_id, protocol_id, visit_id,
+          scheduled_date, days_from_baseline, status
+        ) VALUES (?, ?, ?, ?, ?, 'SCHEDULED')
+        RETURNING subject_visit_id AS id
+      ", list(
+        safe_scalar_proto(subject_id),
+        protocol_id,
+        visit_id,
+        safe_scalar_proto(as.character(scheduled_date)),
+        days_from_baseline
+      ))$id
+      .proto_audit(c, "INSERT", "subject_visits", id,
+                   "Subject visit scheduled",
+                   list(subject_id = subject_id, protocol_id = protocol_id,
+                        visit_id = visit_id,
+                        scheduled_date = as.character(scheduled_date)),
+                   scheduled_by)
+      id
+    })
 
     list(
       success = TRUE,
@@ -570,84 +629,103 @@ complete_subject_visit <- function(subject_id,
 
     timestamp <- as.character(Sys.time())
 
-    existing <- DBI::dbGetQuery(conn, "
-      SELECT subject_visit_id FROM subject_visits
-      WHERE subject_id = ? AND protocol_id = ? AND visit_id = ?
-    ", list(safe_scalar_proto(subject_id), protocol_id, visit_id))
-
-    if (nrow(existing) > 0) {
-      DBI::dbExecute(conn, "
-        UPDATE subject_visits
-        SET actual_date = ?,
-            status = 'COMPLETED',
-            days_from_baseline = ?,
-            window_status = ?,
-            completed_by = ?,
-            completed_at = ?,
-            notes = ?
+    # The visit, any timing deviation it implies, the link between them,
+    # and their audit records commit together. Previously a failed
+    # deviation was dropped silently while the result still reported
+    # `deviation_created = TRUE`.
+    written <- .with_db_transaction(conn, function(c) {
+      existing <- DBI::dbGetQuery(c, "
+        SELECT subject_visit_id FROM subject_visits
         WHERE subject_id = ? AND protocol_id = ? AND visit_id = ?
-      ", list(
-        safe_scalar_proto(as.character(actual_date)),
-        days_from_baseline,
-        window_status,
-        safe_scalar_proto(completed_by),
-        timestamp,
-        safe_scalar_proto(notes),
-        safe_scalar_proto(subject_id),
-        protocol_id,
-        visit_id
-      ))
-      subject_visit_id <- existing$subject_visit_id
-    } else {
-      subject_visit_id <- DBI::dbGetQuery(conn, "
-        INSERT INTO subject_visits (
-          subject_id, protocol_id, visit_id,
-          actual_date, status, days_from_baseline, window_status,
-          completed_by, completed_at, notes
-        ) VALUES (?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)
-        RETURNING subject_visit_id AS id
-      ", list(
-        safe_scalar_proto(subject_id),
-        protocol_id,
-        visit_id,
-        safe_scalar_proto(as.character(actual_date)),
-        days_from_baseline,
-        window_status,
-        safe_scalar_proto(completed_by),
-        timestamp,
-        safe_scalar_proto(notes)
-      ))$id
-    }
+      ", list(safe_scalar_proto(subject_id), protocol_id, visit_id))
 
-    deviation_id <- NULL
-    if (outside_window) {
-      deviation_result <- create_protocol_deviation(
-        protocol_id = protocol_id,
-        subject_id = subject_id,
-        deviation_type = "VISIT_TIMING",
-        severity = if (abs(days_from_baseline - target_day) > visit$window_after * 2) "MAJOR" else "MINOR",
-        deviation_date = actual_date,
-        description = sprintf(
-          "Visit %s completed %s window. Target: Day %d, Actual: Day %d. %s by %d days.",
-          visit$visit_name,
-          if (window_status == "EARLY") "before" else "after",
-          target_day,
+      if (nrow(existing) > 0) {
+        DBI::dbExecute(c, "
+          UPDATE subject_visits
+          SET actual_date = ?,
+              status = 'COMPLETED',
+              days_from_baseline = ?,
+              window_status = ?,
+              completed_by = ?,
+              completed_at = ?,
+              notes = ?
+          WHERE subject_id = ? AND protocol_id = ? AND visit_id = ?
+        ", list(
+          safe_scalar_proto(as.character(actual_date)),
           days_from_baseline,
-          if (window_status == "EARLY") "Early" else "Late",
-          abs(days_from_baseline - target_day) - if (window_status == "EARLY") visit$window_before else visit$window_after
-        ),
-        reported_by = completed_by,
-        db_path = db_path
-      )
-
-      if (deviation_result$success) {
-        deviation_id <- deviation_result$deviation_id
-
-        DBI::dbExecute(conn, "
-          UPDATE subject_visits SET deviation_id = ? WHERE subject_visit_id = ?
-        ", list(deviation_id, subject_visit_id))
+          window_status,
+          safe_scalar_proto(completed_by),
+          timestamp,
+          safe_scalar_proto(notes),
+          safe_scalar_proto(subject_id),
+          protocol_id,
+          visit_id
+        ))
+        sv_id <- existing$subject_visit_id[1]
+        event <- "UPDATE"
+      } else {
+        sv_id <- DBI::dbGetQuery(c, "
+          INSERT INTO subject_visits (
+            subject_id, protocol_id, visit_id,
+            actual_date, status, days_from_baseline, window_status,
+            completed_by, completed_at, notes
+          ) VALUES (?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)
+          RETURNING subject_visit_id AS id
+        ", list(
+          safe_scalar_proto(subject_id),
+          protocol_id,
+          visit_id,
+          safe_scalar_proto(as.character(actual_date)),
+          days_from_baseline,
+          window_status,
+          safe_scalar_proto(completed_by),
+          timestamp,
+          safe_scalar_proto(notes)
+        ))$id
+        event <- "INSERT"
       }
-    }
+      .proto_audit(c, event, "subject_visits", sv_id,
+                   "Subject visit completed",
+                   list(subject_id = subject_id, protocol_id = protocol_id,
+                        visit_id = visit_id,
+                        actual_date = as.character(actual_date),
+                        window_status = window_status,
+                        days_from_baseline = days_from_baseline),
+                   completed_by)
+
+      dev_id <- NULL
+      if (outside_window) {
+        dev <- .insert_protocol_deviation(
+          c,
+          protocol_id = protocol_id,
+          subject_id = subject_id,
+          deviation_type = "VISIT_TIMING",
+          severity = if (abs(days_from_baseline - target_day) > visit$window_after * 2) "MAJOR" else "MINOR",
+          deviation_date = actual_date,
+          description = sprintf(
+            "Visit %s completed %s window. Target: Day %d, Actual: Day %d. %s by %d days.",
+            visit$visit_name,
+            if (window_status == "EARLY") "before" else "after",
+            target_day,
+            days_from_baseline,
+            if (window_status == "EARLY") "Early" else "Late",
+            abs(days_from_baseline - target_day) - if (window_status == "EARLY") visit$window_before else visit$window_after
+          ),
+          reported_by = completed_by
+        )
+        dev_id <- dev$deviation_id
+        DBI::dbExecute(c, "
+          UPDATE subject_visits SET deviation_id = ? WHERE subject_visit_id = ?
+        ", list(dev_id, sv_id))
+        .proto_audit(c, "UPDATE", "subject_visits", sv_id,
+                     "Subject visit linked to timing deviation",
+                     list(field = "deviation_id", new_value = dev_id),
+                     completed_by)
+      }
+      list(subject_visit_id = sv_id, deviation_id = dev_id)
+    })
+    subject_visit_id <- written$subject_visit_id
+    deviation_id <- written$deviation_id
 
     list(
       success = TRUE,
@@ -795,70 +873,100 @@ create_protocol_deviation <- function(protocol_id,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    last_hash <- DBI::dbGetQuery(conn, "
-      SELECT deviation_hash FROM protocol_deviations
-      ORDER BY deviation_id DESC LIMIT 1
-    ")
-
-    previous_hash <- if (nrow(last_hash) == 0) "GENESIS" else last_hash$deviation_hash[1]
-
-    timestamp <- as.character(Sys.time())
-    hash_content <- paste(
-      protocol_id, subject_id, deviation_type, severity,
-      deviation_date, description, reported_by, timestamp, previous_hash,
-      sep = "|"
-    )
-    deviation_hash <- digest::digest(hash_content, algo = "sha256")
-
-    deviation_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO protocol_deviations (
-        protocol_id, subject_id, deviation_type, severity,
-        deviation_date, description, root_cause, corrective_action,
-        preventive_action, reported_by, irb_reportable, sponsor_reportable,
-        deviation_hash, previous_hash
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING deviation_id AS id
-    ", list(
-      protocol_id,
-      safe_scalar_proto(subject_id),
-      safe_scalar_proto(deviation_type),
-      safe_scalar_proto(severity),
-      safe_scalar_proto(as.character(deviation_date)),
-      safe_scalar_proto(description),
-      safe_scalar_proto(root_cause),
-      safe_scalar_proto(corrective_action),
-      safe_scalar_proto(preventive_action),
-      safe_scalar_proto(reported_by),
-      as.integer(irb_reportable),
-      as.integer(sponsor_reportable),
-      deviation_hash,
-      previous_hash
-    ))$id
-
-    tryCatch({
-      log_audit_event(
-        event_type = "INSERT",
-        user_id = reported_by,
-        table_name = "protocol_deviations",
-        record_id = as.character(deviation_id),
-        operation = paste("Protocol deviation created:", deviation_type),
-        details = paste("Protocol deviation created:", deviation_type,
-                        "| Severity:", severity,
-                        "| Subject:", subject_id),
-        db_path = db_path
+    dev <- .with_db_transaction(conn, function(c) {
+      .insert_protocol_deviation(
+        c, protocol_id = protocol_id, subject_id = subject_id,
+        deviation_type = deviation_type, severity = severity,
+        deviation_date = deviation_date, description = description,
+        root_cause = root_cause, corrective_action = corrective_action,
+        preventive_action = preventive_action, reported_by = reported_by,
+        irb_reportable = irb_reportable,
+        sponsor_reportable = sponsor_reportable
       )
-    }, error = function(e) NULL)
+    })
 
     list(
       success = TRUE,
-      deviation_id = deviation_id,
-      deviation_hash = deviation_hash,
+      deviation_id = dev$deviation_id,
+      deviation_hash = dev$deviation_hash,
       message = "Protocol deviation recorded successfully"
     )
 
   }, error = function(e) {
     list(success = FALSE, error = e$message)
   })
+}
+
+
+#' Insert One Protocol Deviation (internal)
+#'
+#' Writes the deviation row and its audit record on `conn`, which must
+#' already be inside a transaction.
+#'
+#' @param conn A DBI connection, inside a transaction.
+#' @inheritParams create_protocol_deviation
+#' @return List with `deviation_id` and `deviation_hash`.
+#' @keywords internal
+.insert_protocol_deviation <- function(conn, protocol_id, subject_id,
+                                       deviation_type, severity,
+                                       deviation_date, description,
+                                       root_cause = NULL,
+                                       corrective_action = NULL,
+                                       preventive_action = NULL,
+                                       reported_by,
+                                       irb_reportable = FALSE,
+                                       sponsor_reportable = FALSE) {
+  last_hash <- DBI::dbGetQuery(conn, "
+    SELECT deviation_hash FROM protocol_deviations
+    ORDER BY deviation_id DESC LIMIT 1
+  ")
+  previous_hash <- if (nrow(last_hash) == 0) {
+    "GENESIS"
+  } else {
+    last_hash$deviation_hash[1]
+  }
+
+  timestamp <- as.character(Sys.time())
+  deviation_hash <- digest::digest(
+    paste(protocol_id, subject_id, deviation_type, severity,
+          deviation_date, description, reported_by, timestamp,
+          previous_hash, sep = "|"),
+    algo = "sha256"
+  )
+
+  deviation_id <- DBI::dbGetQuery(conn, "
+    INSERT INTO protocol_deviations (
+      protocol_id, subject_id, deviation_type, severity,
+      deviation_date, description, root_cause, corrective_action,
+      preventive_action, reported_by, irb_reportable, sponsor_reportable,
+      deviation_hash, previous_hash
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING deviation_id AS id
+  ", list(
+    protocol_id,
+    safe_scalar_proto(subject_id),
+    safe_scalar_proto(deviation_type),
+    safe_scalar_proto(severity),
+    safe_scalar_proto(as.character(deviation_date)),
+    safe_scalar_proto(description),
+    safe_scalar_proto(root_cause),
+    safe_scalar_proto(corrective_action),
+    safe_scalar_proto(preventive_action),
+    safe_scalar_proto(reported_by),
+    as.integer(irb_reportable),
+    as.integer(sponsor_reportable),
+    deviation_hash,
+    previous_hash
+  ))$id
+
+  .proto_audit(conn, "INSERT", "protocol_deviations", deviation_id,
+               paste("Protocol deviation created:", deviation_type),
+               list(protocol_id = protocol_id, subject_id = subject_id,
+                    deviation_type = deviation_type, severity = severity,
+                    deviation_date = as.character(deviation_date)),
+               reported_by)
+
+  list(deviation_id = deviation_id, deviation_hash = deviation_hash)
 }
 
 
@@ -897,22 +1005,40 @@ review_protocol_deviation <- function(deviation_id,
 
     timestamp <- as.character(Sys.time())
 
-    DBI::dbExecute(conn, "
-      UPDATE protocol_deviations
-      SET reviewed_by = ?,
-          reviewed_at = ?,
-          review_status = ?,
-          resolution_notes = ?,
-          resolution_date = ?
-      WHERE deviation_id = ?
-    ", list(
-      safe_scalar_proto(reviewed_by),
-      timestamp,
-      safe_scalar_proto(review_status),
-      safe_scalar_proto(resolution_notes),
-      safe_scalar_proto(as.character(resolution_date)),
-      deviation_id
-    ))
+    prior <- DBI::dbGetQuery(conn, "
+      SELECT review_status FROM protocol_deviations WHERE deviation_id = ?
+    ", list(deviation_id))
+    if (nrow(prior) == 0) {
+      return(list(success = FALSE, error = "Protocol deviation not found"))
+    }
+
+    .with_db_transaction(conn, function(c) {
+      n <- DBI::dbExecute(c, "
+        UPDATE protocol_deviations
+        SET reviewed_by = ?,
+            reviewed_at = ?,
+            review_status = ?,
+            resolution_notes = ?,
+            resolution_date = ?
+        WHERE deviation_id = ?
+      ", list(
+        safe_scalar_proto(reviewed_by),
+        timestamp,
+        safe_scalar_proto(review_status),
+        safe_scalar_proto(resolution_notes),
+        safe_scalar_proto(as.character(resolution_date)),
+        deviation_id
+      ))
+      if (n != 1) stop("Expected to update one deviation, updated ", n)
+      .proto_audit(c, "UPDATE", "protocol_deviations", deviation_id,
+                   paste("Protocol deviation reviewed:", review_status),
+                   list(field = "review_status",
+                        old_value = prior$review_status[1],
+                        new_value = review_status,
+                        resolution_date = if (is.null(resolution_date)) NULL
+                                          else as.character(resolution_date)),
+                   reviewed_by)
+    })
 
     list(
       success = TRUE,
@@ -1001,6 +1127,8 @@ get_protocol_deviations <- function(protocol_id = NULL,
 #' @param operator Character: Comparison operator (optional)
 #' @param value Character: Comparison value (optional)
 #' @param db_path Character: Database path (optional)
+#' @param created_by Character: User adding the criterion, recorded in
+#'   the audit trail (optional)
 #'
 #' @return List with creation result
 #'
@@ -1013,7 +1141,8 @@ add_eligibility_criterion <- function(protocol_id,
                                        field_name = NULL,
                                        operator = NULL,
                                        value = NULL,
-                                       db_path = NULL) {
+                                       db_path = NULL,
+                                       created_by = NULL) {
 
   if (!criterion_type %in% c("INCLUSION", "EXCLUSION")) {
     return(list(
@@ -1026,21 +1155,32 @@ add_eligibility_criterion <- function(protocol_id,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    criterion_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO eligibility_criteria (
-        protocol_id, criterion_type, criterion_code,
-        criterion_text, field_name, operator, value
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      RETURNING criterion_id AS id
-    ", list(
-      protocol_id,
-      safe_scalar_proto(criterion_type),
-      safe_scalar_proto(criterion_code),
-      safe_scalar_proto(criterion_text),
-      safe_scalar_proto(field_name),
-      safe_scalar_proto(operator),
-      safe_scalar_proto(value)
-    ))$id
+    criterion_id <- .with_db_transaction(conn, function(c) {
+      id <- DBI::dbGetQuery(c, "
+        INSERT INTO eligibility_criteria (
+          protocol_id, criterion_type, criterion_code,
+          criterion_text, field_name, operator, value
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        RETURNING criterion_id AS id
+      ", list(
+        protocol_id,
+        safe_scalar_proto(criterion_type),
+        safe_scalar_proto(criterion_code),
+        safe_scalar_proto(criterion_text),
+        safe_scalar_proto(field_name),
+        safe_scalar_proto(operator),
+        safe_scalar_proto(value)
+      ))$id
+      .proto_audit(c, "INSERT", "eligibility_criteria", id,
+                   paste("Eligibility criterion added:", criterion_code),
+                   list(protocol_id = protocol_id,
+                        criterion_type = criterion_type,
+                        criterion_code = criterion_code,
+                        field_name = field_name, operator = operator,
+                        value = value),
+                   created_by)
+      id
+    })
 
     list(
       success = TRUE,
@@ -1128,19 +1268,27 @@ check_subject_eligibility <- function(subject_id,
 
     overall_eligible <- all_inclusion_met && !any_exclusion_met
 
-    check_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO eligibility_checks (
-        subject_id, protocol_id, overall_eligible,
-        criteria_results, checked_by
-      ) VALUES (?, ?, ?, ?, ?)
-      RETURNING check_id AS id
-    ", list(
-      safe_scalar_proto(subject_id),
-      protocol_id,
-      as.integer(overall_eligible),
-      jsonlite::toJSON(results, auto_unbox = TRUE),
-      safe_scalar_proto(checked_by)
-    ))$id
+    check_id <- .with_db_transaction(conn, function(c) {
+      id <- DBI::dbGetQuery(c, "
+        INSERT INTO eligibility_checks (
+          subject_id, protocol_id, overall_eligible,
+          criteria_results, checked_by
+        ) VALUES (?, ?, ?, ?, ?)
+        RETURNING check_id AS id
+      ", list(
+        safe_scalar_proto(subject_id),
+        protocol_id,
+        as.integer(overall_eligible),
+        jsonlite::toJSON(results, auto_unbox = TRUE),
+        safe_scalar_proto(checked_by)
+      ))$id
+      .proto_audit(c, "INSERT", "eligibility_checks", id,
+                   "Subject eligibility checked",
+                   list(subject_id = subject_id, protocol_id = protocol_id,
+                        overall_eligible = overall_eligible),
+                   checked_by)
+      id
+    })
 
     list(
       success = TRUE,

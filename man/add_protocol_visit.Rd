@@ -15,7 +15,8 @@ add_protocol_visit(
   is_required = TRUE,
   visit_type = "SCHEDULED",
   description = NULL,
-  db_path = NULL
+  db_path = NULL,
+  created_by = NULL
 )
 }
 \arguments{
@@ -40,6 +41,9 @@ add_protocol_visit(
 \item{description}{Character: Description (optional)}
 
 \item{db_path}{Character: Database path (optional)}
+
+\item{created_by}{Character: User adding the visit, recorded in the
+audit trail (optional)}
 }
 \value{
 List with creation result
