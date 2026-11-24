@@ -23,6 +23,39 @@ safe_scalar_ae <- function(x, default = NA_character_) {
   }
 }
 
+#' Index a Column That Is Updated on Foreign-Key-Referenced Rows (internal)
+#'
+#' DuckDB can update an indexed column in place only when no foreign
+#' key references the row; otherwise it rewrites the UPDATE as a DELETE
+#' followed by an INSERT, and its 'Over-Eager Constraint Checking in
+#' Foreign Keys' limitation raises a violation for the DELETE half
+#' ("Violates foreign key constraint because key ... is still
+#' referenced by a foreign key in a different table") even though the
+#' key never changes. The same workaround as `correction_requests`
+#' (`R/data_correction.R`): on DuckDB the index is not created, and is
+#' dropped if an earlier initialization created it. SQLite, PostgreSQL,
+#' and MySQL update in place and keep the index.
+#'
+#' @param conn A DBI connection.
+#' @param index_name Index name.
+#' @param target Table and column list, e.g. `"adverse_events(status)"`.
+#' @return `invisible(NULL)`.
+#' @keywords internal
+.index_updated_fk_column <- function(conn, index_name, target) {
+  adapter <- tryCatch(.adapter_or_legacy_sqlite(), error = function(e) NULL)
+  backend <- if (!is.null(adapter)) adapter$backend_name() else "sqlite"
+  if (backend != "duckdb") {
+    DBI::dbExecute(conn, sprintf("CREATE INDEX IF NOT EXISTS %s ON %s",
+                                 index_name, target))
+  } else {
+    tryCatch(
+      DBI::dbExecute(conn, sprintf("DROP INDEX IF EXISTS %s", index_name)),
+      error = function(e) NULL
+    )
+  }
+  invisible(NULL)
+}
+
 # =============================================================================
 # Database Schema
 # =============================================================================
@@ -189,15 +222,14 @@ init_adverse_events <- function(db_path = NULL) {
       ON adverse_events(study_id)
     ")
 
-    DBI::dbExecute(conn, "
-      CREATE INDEX IF NOT EXISTS idx_ae_serious
-      ON adverse_events(is_serious)
-    ")
-
-    DBI::dbExecute(conn, "
-      CREATE INDEX IF NOT EXISTS idx_ae_status
-      ON adverse_events(status)
-    ")
+    # is_serious and status are updated by upgrade_to_sae() and
+    # resolve_adverse_event() on rows that sae_details and ae_followups
+    # reference, so they are not indexed on DuckDB (see
+    # .index_updated_fk_column()).
+    .index_updated_fk_column(conn, "idx_ae_serious",
+                             "adverse_events(is_serious)")
+    .index_updated_fk_column(conn, "idx_ae_status",
+                             "adverse_events(status)")
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_sae_deadline
