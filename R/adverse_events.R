@@ -343,6 +343,80 @@ generate_ae_number <- function(study_id, is_serious = FALSE) {
 }
 
 
+#' Serialize AE Audit Details (internal)
+#'
+#' @param x Named list of values.
+#' @return A JSON string.
+#' @keywords internal
+.ae_audit_details <- function(x) {
+  as.character(jsonlite::toJSON(x, auto_unbox = TRUE, null = "null"))
+}
+
+
+#' Insert One AE Follow-up Row (internal)
+#'
+#' Writes the follow-up row and its audit record on `conn`, which must
+#' already be inside a transaction (see `.with_db_transaction()`), so
+#' that the follow-up commits or rolls back with the change it records.
+#'
+#' @param conn A DBI connection, inside a transaction.
+#' @inheritParams add_ae_followup
+#' @return The new `followup_id`.
+#' @keywords internal
+.insert_ae_followup <- function(conn, ae_id, followup_type, notes,
+                                recorded_by, previous_value = NULL,
+                                new_value = NULL,
+                                followup_date = Sys.Date()) {
+  last_hash <- DBI::dbGetQuery(conn, "
+    SELECT followup_hash FROM ae_followups
+    WHERE ae_id = ?
+    ORDER BY followup_id DESC LIMIT 1
+  ", list(ae_id))
+  previous_followup_hash <- if (nrow(last_hash) == 0) {
+    "GENESIS"
+  } else {
+    last_hash$followup_hash[1]
+  }
+
+  timestamp <- as.character(Sys.time())
+  followup_hash <- digest::digest(
+    paste(ae_id, followup_type, notes, recorded_by, timestamp,
+          previous_followup_hash, sep = "|"),
+    algo = "sha256"
+  )
+
+  followup_id <- DBI::dbGetQuery(conn, "
+    INSERT INTO ae_followups (
+      ae_id, followup_date, followup_type, previous_value, new_value,
+      notes, recorded_by, followup_hash, previous_followup_hash
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING followup_id AS id
+  ", list(
+    ae_id,
+    safe_scalar_ae(as.character(followup_date)),
+    safe_scalar_ae(followup_type),
+    safe_scalar_ae(previous_value),
+    safe_scalar_ae(new_value),
+    safe_scalar_ae(notes),
+    safe_scalar_ae(recorded_by),
+    followup_hash,
+    previous_followup_hash
+  ))$id
+
+  .append_audit_record(
+    conn, event_type = "INSERT", table_name = "ae_followups",
+    record_id = followup_id,
+    operation = paste("AE follow-up recorded:", followup_type),
+    details = .ae_audit_details(list(
+      ae_id = ae_id, followup_type = followup_type,
+      previous_value = previous_value, new_value = new_value
+    )),
+    user_id = recorded_by
+  )
+  followup_id
+}
+
+
 #' Create Adverse Event
 #'
 #' Records a new adverse event with full clinical details.
@@ -433,66 +507,71 @@ create_adverse_event <- function(study_id,
 
     ae_number <- generate_ae_number(study_id, is_serious = FALSE)
 
-    last_hash <- DBI::dbGetQuery(conn, "
-      SELECT ae_hash FROM adverse_events
-      ORDER BY ae_id DESC LIMIT 1
-    ")
-    previous_hash <- if (nrow(last_hash) == 0) "GENESIS" else last_hash$ae_hash[1]
+    # The row and its audit record commit together or not at all; an
+    # audit failure rolls the event back rather than leaving an
+    # unaudited safety record.
+    ae_id <- .with_db_transaction(conn, function(c) {
+      last_hash <- DBI::dbGetQuery(c, "
+        SELECT ae_hash FROM adverse_events
+        ORDER BY ae_id DESC LIMIT 1
+      ")
+      previous_hash <- if (nrow(last_hash) == 0) "GENESIS" else last_hash$ae_hash[1]
 
-    timestamp <- as.character(Sys.time())
-    hash_content <- paste(
-      ae_number, study_id, subject_id, onset_date, ae_term,
-      severity, causality, outcome, reported_by, timestamp, previous_hash,
-      sep = "|"
-    )
-    ae_hash <- digest::digest(hash_content, algo = "sha256")
-
-    ae_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO adverse_events (
-        ae_number, study_id, site_id, subject_id, onset_date, onset_time,
-        ae_term, ae_description, meddra_pt_code, meddra_pt_term,
-        severity, is_serious, causality, causality_rationale,
-        expectedness, outcome, action_taken, treatment_given,
-        treatment_description, reported_by, ae_hash, previous_hash
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING ae_id AS id
-    ", list(
-      ae_number,
-      safe_scalar_ae(study_id),
-      safe_scalar_ae(site_id),
-      safe_scalar_ae(subject_id),
-      safe_scalar_ae(as.character(onset_date)),
-      safe_scalar_ae(onset_time),
-      safe_scalar_ae(ae_term),
-      safe_scalar_ae(ae_description),
-      safe_scalar_ae(meddra_pt_code),
-      safe_scalar_ae(meddra_pt_term),
-      safe_scalar_ae(severity),
-      0L,
-      safe_scalar_ae(causality),
-      safe_scalar_ae(causality_rationale),
-      safe_scalar_ae(expectedness),
-      safe_scalar_ae(outcome),
-      safe_scalar_ae(action_taken),
-      as.integer(treatment_given),
-      safe_scalar_ae(treatment_description),
-      safe_scalar_ae(reported_by),
-      ae_hash,
-      previous_hash
-    ))$id
-
-    tryCatch({
-      log_audit_event(
-        event_type = "INSERT",
-        user_id = reported_by,
-        table_name = "adverse_events",
-        record_id = as.character(ae_id),
-        operation = paste("Adverse event created:", ae_term),
-        details = paste("AE created:", ae_term, "| Severity:", severity,
-                        "| Subject:", subject_id),
-        db_path = db_path
+      timestamp <- as.character(Sys.time())
+      hash_content <- paste(
+        ae_number, study_id, subject_id, onset_date, ae_term,
+        severity, causality, outcome, reported_by, timestamp, previous_hash,
+        sep = "|"
       )
-    }, error = function(e) NULL)
+      ae_hash <- digest::digest(hash_content, algo = "sha256")
+
+      id <- DBI::dbGetQuery(c, "
+        INSERT INTO adverse_events (
+          ae_number, study_id, site_id, subject_id, onset_date, onset_time,
+          ae_term, ae_description, meddra_pt_code, meddra_pt_term,
+          severity, is_serious, causality, causality_rationale,
+          expectedness, outcome, action_taken, treatment_given,
+          treatment_description, reported_by, ae_hash, previous_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING ae_id AS id
+      ", list(
+        ae_number,
+        safe_scalar_ae(study_id),
+        safe_scalar_ae(site_id),
+        safe_scalar_ae(subject_id),
+        safe_scalar_ae(as.character(onset_date)),
+        safe_scalar_ae(onset_time),
+        safe_scalar_ae(ae_term),
+        safe_scalar_ae(ae_description),
+        safe_scalar_ae(meddra_pt_code),
+        safe_scalar_ae(meddra_pt_term),
+        safe_scalar_ae(severity),
+        0L,
+        safe_scalar_ae(causality),
+        safe_scalar_ae(causality_rationale),
+        safe_scalar_ae(expectedness),
+        safe_scalar_ae(outcome),
+        safe_scalar_ae(action_taken),
+        as.integer(treatment_given),
+        safe_scalar_ae(treatment_description),
+        safe_scalar_ae(reported_by),
+        ae_hash,
+        previous_hash
+      ))$id
+
+      .append_audit_record(
+        c, event_type = "INSERT", table_name = "adverse_events",
+        record_id = id,
+        operation = paste("Adverse event created:", ae_term),
+        details = .ae_audit_details(list(
+          ae_number = ae_number, subject_id = subject_id,
+          ae_term = ae_term, severity = severity,
+          causality = causality, outcome = outcome
+        )),
+        user_id = reported_by
+      )
+      id
+    })
 
     list(
       success = TRUE,
@@ -592,59 +671,91 @@ upgrade_to_sae <- function(ae_id,
       as.Date(awareness_date) + 15
     }
 
-    DBI::dbExecute(conn, "
-      UPDATE adverse_events
-      SET is_serious = 1,
-          sae_criteria = ?,
-          updated_by = ?,
-          updated_at = ?
-      WHERE ae_id = ?
-    ", list(
-      paste(sae_criteria, collapse = ";"),
-      safe_scalar_ae(upgraded_by),
-      as.character(Sys.time()),
-      ae_id
-    ))
+    # The AE update, the SAE record, the follow-up, and their audit
+    # records form one transaction, so a failure part-way cannot leave
+    # an AE marked serious without its SAE details or audit trail.
+    sae_id <- .with_db_transaction(conn, function(c) {
+      n <- DBI::dbExecute(c, "
+        UPDATE adverse_events
+        SET is_serious = 1,
+            sae_criteria = ?,
+            updated_by = ?,
+            updated_at = ?
+        WHERE ae_id = ? AND is_serious = 0
+      ", list(
+        paste(sae_criteria, collapse = ";"),
+        safe_scalar_ae(upgraded_by),
+        as.character(Sys.time()),
+        ae_id
+      ))
+      if (n != 1) stop("Event is already classified as serious")
 
-    sae_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO sae_details (
-        ae_id, sae_number, death, death_date, life_threatening,
-        hospitalization, hospitalization_admission_date, hospitalization_discharge_date,
-        disability, congenital_anomaly, other_medically_important,
-        other_medically_important_desc, initial_report_date, awareness_date,
-        report_type, expedited_report_required, expedited_report_deadline, narrative
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING sae_id AS id
-    ", list(
-      ae_id,
-      sae_number,
-      as.integer(death),
-      safe_scalar_ae(as.character(death_date)),
-      as.integer(life_threatening),
-      as.integer(hospitalization),
-      safe_scalar_ae(as.character(hospitalization_admission_date)),
-      safe_scalar_ae(as.character(hospitalization_discharge_date)),
-      as.integer(disability),
-      as.integer(congenital_anomaly),
-      as.integer(other_medically_important),
-      safe_scalar_ae(other_medically_important_desc),
-      as.character(initial_report_date),
-      safe_scalar_ae(as.character(awareness_date)),
-      "INITIAL",
-      1L,
-      as.character(expedited_deadline),
-      safe_scalar_ae(narrative)
-    ))$id
+      .append_audit_record(
+        c, event_type = "UPDATE", table_name = "adverse_events",
+        record_id = ae_id,
+        operation = "Adverse event upgraded to SAE",
+        details = .ae_audit_details(list(
+          field = "is_serious", old_value = 0L, new_value = 1L,
+          sae_number = sae_number,
+          sae_criteria = paste(sae_criteria, collapse = ";")
+        )),
+        user_id = upgraded_by
+      )
 
-    add_ae_followup(
-      ae_id = ae_id,
-      followup_type = "STATUS_UPDATE",
-      previous_value = "Non-serious AE",
-      new_value = paste("Upgraded to SAE:", sae_number),
-      notes = paste("Event upgraded to SAE. Criteria:", paste(sae_criteria, collapse = ", ")),
-      recorded_by = upgraded_by,
-      db_path = db_path
-    )
+      id <- DBI::dbGetQuery(c, "
+        INSERT INTO sae_details (
+          ae_id, sae_number, death, death_date, life_threatening,
+          hospitalization, hospitalization_admission_date, hospitalization_discharge_date,
+          disability, congenital_anomaly, other_medically_important,
+          other_medically_important_desc, initial_report_date, awareness_date,
+          report_type, expedited_report_required, expedited_report_deadline, narrative
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING sae_id AS id
+      ", list(
+        ae_id,
+        sae_number,
+        as.integer(death),
+        safe_scalar_ae(as.character(death_date)),
+        as.integer(life_threatening),
+        as.integer(hospitalization),
+        safe_scalar_ae(as.character(hospitalization_admission_date)),
+        safe_scalar_ae(as.character(hospitalization_discharge_date)),
+        as.integer(disability),
+        as.integer(congenital_anomaly),
+        as.integer(other_medically_important),
+        safe_scalar_ae(other_medically_important_desc),
+        as.character(initial_report_date),
+        safe_scalar_ae(as.character(awareness_date)),
+        "INITIAL",
+        1L,
+        as.character(expedited_deadline),
+        safe_scalar_ae(narrative)
+      ))$id
+
+      .append_audit_record(
+        c, event_type = "INSERT", table_name = "sae_details",
+        record_id = id,
+        operation = paste("SAE details created:", sae_number),
+        details = .ae_audit_details(list(
+          ae_id = ae_id, sae_number = sae_number,
+          awareness_date = as.character(awareness_date),
+          expedited_report_deadline = as.character(expedited_deadline)
+        )),
+        user_id = upgraded_by
+      )
+
+      .insert_ae_followup(
+        c,
+        ae_id = ae_id,
+        followup_type = "STATUS_UPDATE",
+        previous_value = "Non-serious AE",
+        new_value = paste("Upgraded to SAE:", sae_number),
+        notes = paste("Event upgraded to SAE. Criteria:",
+                      paste(sae_criteria, collapse = ", ")),
+        recorded_by = upgraded_by
+      )
+      id
+    })
 
     list(
       success = TRUE,
@@ -814,38 +925,13 @@ add_ae_followup <- function(ae_id,
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-    last_hash <- DBI::dbGetQuery(conn, "
-      SELECT followup_hash FROM ae_followups
-      WHERE ae_id = ?
-      ORDER BY followup_id DESC LIMIT 1
-    ", list(ae_id))
-
-    previous_followup_hash <- if (nrow(last_hash) == 0) "GENESIS" else last_hash$followup_hash[1]
-
-    timestamp <- as.character(Sys.time())
-    hash_content <- paste(
-      ae_id, followup_type, notes, recorded_by, timestamp, previous_followup_hash,
-      sep = "|"
-    )
-    followup_hash <- digest::digest(hash_content, algo = "sha256")
-
-    followup_id <- DBI::dbGetQuery(conn, "
-      INSERT INTO ae_followups (
-        ae_id, followup_date, followup_type, previous_value, new_value,
-        notes, recorded_by, followup_hash, previous_followup_hash
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING followup_id AS id
-    ", list(
-      ae_id,
-      safe_scalar_ae(as.character(followup_date)),
-      safe_scalar_ae(followup_type),
-      safe_scalar_ae(previous_value),
-      safe_scalar_ae(new_value),
-      safe_scalar_ae(notes),
-      safe_scalar_ae(recorded_by),
-      followup_hash,
-      previous_followup_hash
-    ))$id
+    followup_id <- .with_db_transaction(conn, function(c) {
+      .insert_ae_followup(
+        c, ae_id = ae_id, followup_type = followup_type, notes = notes,
+        recorded_by = recorded_by, previous_value = previous_value,
+        new_value = new_value, followup_date = followup_date
+      )
+    })
 
     list(
       success = TRUE,
@@ -902,35 +988,50 @@ resolve_adverse_event <- function(ae_id,
       return(list(success = FALSE, error = "Adverse event not found"))
     }
 
-    DBI::dbExecute(conn, "
-      UPDATE adverse_events
-      SET resolution_date = ?,
-          resolution_time = ?,
-          outcome = ?,
-          sequelae_description = ?,
-          status = 'CLOSED',
-          updated_by = ?,
-          updated_at = ?
-      WHERE ae_id = ?
-    ", list(
-      safe_scalar_ae(as.character(resolution_date)),
-      safe_scalar_ae(resolution_time),
-      safe_scalar_ae(outcome),
-      safe_scalar_ae(sequelae_description),
-      safe_scalar_ae(resolved_by),
-      as.character(Sys.time()),
-      ae_id
-    ))
+    .with_db_transaction(conn, function(c) {
+      n <- DBI::dbExecute(c, "
+        UPDATE adverse_events
+        SET resolution_date = ?,
+            resolution_time = ?,
+            outcome = ?,
+            sequelae_description = ?,
+            status = 'CLOSED',
+            updated_by = ?,
+            updated_at = ?
+        WHERE ae_id = ?
+      ", list(
+        safe_scalar_ae(as.character(resolution_date)),
+        safe_scalar_ae(resolution_time),
+        safe_scalar_ae(outcome),
+        safe_scalar_ae(sequelae_description),
+        safe_scalar_ae(resolved_by),
+        as.character(Sys.time()),
+        ae_id
+      ))
+      if (n != 1) stop("Expected to update one adverse event, updated ", n)
 
-    add_ae_followup(
-      ae_id = ae_id,
-      followup_type = "RESOLUTION",
-      previous_value = ae$outcome,
-      new_value = outcome,
-      notes = paste("AE resolved on", resolution_date, "with outcome:", outcome),
-      recorded_by = resolved_by,
-      db_path = db_path
-    )
+      .append_audit_record(
+        c, event_type = "UPDATE", table_name = "adverse_events",
+        record_id = ae_id,
+        operation = "Adverse event resolved",
+        details = .ae_audit_details(list(
+          field = "outcome", old_value = ae$outcome, new_value = outcome,
+          resolution_date = as.character(resolution_date),
+          status = "CLOSED"
+        )),
+        user_id = resolved_by
+      )
+
+      .insert_ae_followup(
+        c,
+        ae_id = ae_id,
+        followup_type = "RESOLUTION",
+        previous_value = ae$outcome,
+        new_value = outcome,
+        notes = paste("AE resolved on", resolution_date, "with outcome:", outcome),
+        recorded_by = resolved_by
+      )
+    })
 
     list(
       success = TRUE,
@@ -986,30 +1087,44 @@ update_ae_causality <- function(ae_id,
 
     previous_causality <- ae$causality
 
-    DBI::dbExecute(conn, "
-      UPDATE adverse_events
-      SET causality = ?,
-          causality_rationale = ?,
-          updated_by = ?,
-          updated_at = ?
-      WHERE ae_id = ?
-    ", list(
-      safe_scalar_ae(causality),
-      safe_scalar_ae(rationale),
-      safe_scalar_ae(updated_by),
-      as.character(Sys.time()),
-      ae_id
-    ))
+    .with_db_transaction(conn, function(c) {
+      n <- DBI::dbExecute(c, "
+        UPDATE adverse_events
+        SET causality = ?,
+            causality_rationale = ?,
+            updated_by = ?,
+            updated_at = ?
+        WHERE ae_id = ?
+      ", list(
+        safe_scalar_ae(causality),
+        safe_scalar_ae(rationale),
+        safe_scalar_ae(updated_by),
+        as.character(Sys.time()),
+        ae_id
+      ))
+      if (n != 1) stop("Expected to update one adverse event, updated ", n)
 
-    add_ae_followup(
-      ae_id = ae_id,
-      followup_type = "CAUSALITY_UPDATE",
-      previous_value = previous_causality,
-      new_value = causality,
-      notes = paste("Causality updated. Rationale:", rationale),
-      recorded_by = updated_by,
-      db_path = db_path
-    )
+      .append_audit_record(
+        c, event_type = "UPDATE", table_name = "adverse_events",
+        record_id = ae_id,
+        operation = "Adverse event causality updated",
+        details = .ae_audit_details(list(
+          field = "causality", old_value = previous_causality,
+          new_value = causality, rationale = rationale
+        )),
+        user_id = updated_by
+      )
+
+      .insert_ae_followup(
+        c,
+        ae_id = ae_id,
+        followup_type = "CAUSALITY_UPDATE",
+        previous_value = previous_causality,
+        new_value = causality,
+        notes = paste("Causality updated. Rationale:", rationale),
+        recorded_by = updated_by
+      )
+    })
 
     list(
       success = TRUE,
@@ -1069,25 +1184,41 @@ record_sae_notification <- function(sae_id,
 
     query <- paste0("UPDATE sae_details SET ", update_field, " WHERE sae_id = ?")
 
-    DBI::dbExecute(conn, query, list(
-      safe_scalar_ae(as.character(notification_date)),
-      sae_id
-    ))
-
     sae <- DBI::dbGetQuery(conn, "
       SELECT ae_id FROM sae_details WHERE sae_id = ?
     ", list(sae_id))
 
-    if (nrow(sae) > 0) {
-      add_ae_followup(
-        ae_id = sae$ae_id,
+    if (nrow(sae) == 0) {
+      return(list(success = FALSE, error = "SAE not found"))
+    }
+
+    .with_db_transaction(conn, function(c) {
+      n <- DBI::dbExecute(c, query, list(
+        safe_scalar_ae(as.character(notification_date)),
+        sae_id
+      ))
+      if (n != 1) stop("Expected to update one SAE, updated ", n)
+
+      .append_audit_record(
+        c, event_type = "UPDATE", table_name = "sae_details",
+        record_id = sae_id,
+        operation = paste("SAE notification recorded:", notification_type),
+        details = .ae_audit_details(list(
+          ae_id = sae$ae_id[1], notification_type = notification_type,
+          notification_date = as.character(notification_date)
+        )),
+        user_id = recorded_by
+      )
+
+      .insert_ae_followup(
+        c,
+        ae_id = sae$ae_id[1],
         followup_type = "STATUS_UPDATE",
         new_value = paste(notification_type, "notification sent"),
         notes = paste(notification_type, "notification sent on", notification_date),
-        recorded_by = recorded_by,
-        db_path = db_path
+        recorded_by = recorded_by
       )
-    }
+    })
 
     list(
       success = TRUE,
