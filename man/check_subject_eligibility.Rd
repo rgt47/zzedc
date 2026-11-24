@@ -29,4 +29,14 @@ List with eligibility result
 \description{
 Checks a subject against protocol eligibility criteria.
 }
+\details{
+A criterion that names a field is evaluated against
+\code{subject_data}. If the field is absent, \code{NULL}, \code{NA}, or empty, or
+the comparison cannot be evaluated, the criterion is indeterminate,
+and so is the check: \code{eligible} is \code{FALSE} and \code{indeterminate} is
+\code{TRUE}, with the criteria concerned in \code{indeterminate_criteria}.
+Missing data never makes a subject eligible. Criteria without a
+field are not evaluated automatically and are listed in
+\code{manual_criteria}.
+}
 \keyword{internal}
