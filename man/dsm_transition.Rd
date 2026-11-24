@@ -54,6 +54,11 @@ was sent to the funding institute, as the user states it.
 approval), only once the version is eligible as of \code{as_of}, and
 with a \code{CERTIFIED_BY} signature by the user making the move,
 attesting that no response was received.
+\item \code{signed} -> \code{in_effect} directly, only for a version registered as
+an amendment of class \code{"report_at_interval"}
+(\code{\link[=dsm_register_amendment]{dsm_register_amendment()}}). A \code{"prior_approval"} amendment takes
+effect only from \code{approved}; the deemed-approval path is refused
+for it.
 }
 
 Putting a version into effect supersedes the study's version then

@@ -35,7 +35,9 @@ NULL
 .dsm_transitions <- list(
   draft = c("internal_review"),
   internal_review = c("draft", "signed"),
-  signed = c("submitted"),
+  # signed -> in_effect only for an amendment of class
+  # report_at_interval (checked in dsm_transition()).
+  signed = c("submitted", "in_effect"),
   submitted = c("in_effect"),
   approved = c("in_effect"),
   revise = character(0),
@@ -148,6 +150,23 @@ migrate_add_dsm_tables <- function(conn, adapter = NULL) {
     CREATE INDEX IF NOT EXISTS idx_dsm_events_plan
     ON dsm_plan_events(plan_id)
   ")
+
+  # Append-only, like the events: one row per amended version.
+  adapter$prepare_auto_increment(conn, "dsm_amendments", "amendment_id")
+  DBI::dbExecute(conn, sprintf("
+    CREATE TABLE IF NOT EXISTS dsm_amendments (
+      amendment_id %s,
+      plan_id %s NOT NULL UNIQUE REFERENCES dsm_plan_versions(plan_id),
+      from_plan_id %s NOT NULL REFERENCES dsm_plan_versions(plan_id),
+      amendment_class %s NOT NULL,
+      summary %s NOT NULL,
+      rationale %s NOT NULL,
+      created_by %s NOT NULL,
+      created_at %s NOT NULL
+    )
+  ", adapter$auto_increment_column("dsm_amendments", "amendment_id"),
+     int_type, int_type, text_type, text_type, text_type, text_type,
+     ts_type))
 
   migrate_audit_event_types(conn, adapter = adapter)
   invisible(TRUE)
@@ -732,6 +751,12 @@ dsm_plan_status <- function(conn, plan_id, as_of = Sys.Date()) {
 #'   with a `CERTIFIED_BY` signature by the user making the move,
 #'   attesting that no response was received.
 #'
+#' * `signed` -> `in_effect` directly, only for a version registered as
+#'   an amendment of class `"report_at_interval"`
+#'   ([dsm_register_amendment()]). A `"prior_approval"` amendment takes
+#'   effect only from `approved`; the deemed-approval path is refused
+#'   for it.
+#'
 #' Putting a version into effect supersedes the study's version then
 #' in effect, in the same transaction. Every move writes an event and
 #' a `DSM_PLAN_STATUS` audit record together; a refused move writes
@@ -790,6 +815,17 @@ dsm_transition <- function(conn, plan_id, to_status, user_id,
       }
       if (to_status == "submitted" && as.Date(effective_date) > as.Date(as_of)) {
         stop("The submission date cannot be in the future")
+      }
+      amendment <- .dsm_amendment_class(c, plan_id)
+      if (to_status == "in_effect" && from == "signed" &&
+          !identical(amendment, "report_at_interval")) {
+        stop("Only an amendment reported at the next interval can take ",
+             "effect without the institute's review; submit this plan")
+      }
+      if (to_status == "in_effect" && from == "submitted" &&
+          identical(amendment, "prior_approval")) {
+        stop("An amendment that needs prior approval takes effect only ",
+             "after the institute's approval is recorded")
       }
       if (to_status == "in_effect" && from == "submitted") {
         if (!isTRUE(st$deemed_eligible)) {
@@ -941,4 +977,204 @@ dsm_plan_history <- function(conn, study_id) {
     WHERE v.study_id = ?
     ORDER BY e.event_id
   ", params = list(study_id))
+}
+
+
+# =============================================================================
+# Amendments
+# =============================================================================
+
+#' Amendment Class of a Plan Version (internal)
+#' @param conn A DBI connection.
+#' @param plan_id The plan version.
+#' @return `"prior_approval"`, `"report_at_interval"`, or `NULL` when the
+#'   version is not registered as an amendment.
+#' @keywords internal
+.dsm_amendment_class <- function(conn, plan_id) {
+  if (!DBI::dbExistsTable(conn, "dsm_amendments")) return(NULL)
+  r <- DBI::dbGetQuery(conn, "
+    SELECT amendment_class FROM dsm_amendments WHERE plan_id = ?
+  ", params = list(plan_id))
+  if (nrow(r) == 0) NULL else r$amendment_class[1]
+}
+
+
+#' Register a Draft Plan Version as an Amendment
+#'
+#' An amendment is a new plan version, usually imported from a
+#' workbook generated from the version in effect
+#' ([dsm_generate_workbook()] with `plan_id`), registered here with
+#' its class while it is still a draft. The class decides how it
+#' takes effect (draft notice, Section IV):
+#'
+#' * `"prior_approval"`: a change that needs NIH prior approval and
+#'   amends the plan. The version must be submitted and the institute's
+#'   approval recorded ([dsm_record_ico_decision()]) before it can take
+#'   effect; the deemed-approval path is not available to it.
+#' * `"report_at_interval"`: any other change. The version can take
+#'   effect after the PI's signature, and the amendment is summarized
+#'   at the next reporting interval ([dsm_amendments()]).
+#'
+#' zzedc cannot decide which class applies; that depends on the award's
+#' prior-approval terms, and the rationale is required.
+#'
+#' @param conn A DBI connection or pool.
+#' @param plan_id The new version, in status `draft`.
+#' @param amendment_class `"prior_approval"` or `"report_at_interval"`.
+#' @param summary What changes.
+#' @param rationale Why, including why this class applies.
+#' @param user_id The user registering it.
+#' @return `list(success = TRUE, amendment_id, from_plan_id)` or
+#'   `list(success = FALSE, error)`.
+#' @export
+dsm_register_amendment <- function(conn, plan_id, amendment_class, summary,
+                                   rationale, user_id) {
+  tryCatch({
+    if (!.dsm_tables_exist(conn)) stop("This database has no monitoring plans")
+    if (!amendment_class %in% c("prior_approval", "report_at_interval")) {
+      stop("amendment_class must be 'prior_approval' or 'report_at_interval'")
+    }
+    for (x in list(summary, rationale)) {
+      if (!is.character(x) || length(x) != 1 || !nzchar(trimws(x))) {
+        stop("summary and rationale are required")
+      }
+    }
+    migrate_add_dsm_tables(conn)
+    now <- format(Sys.time(), tz = "UTC", "%Y-%m-%d %H:%M:%S")
+    out <- .with_db_transaction(conn, function(c) {
+      plan <- DBI::dbGetQuery(c, "
+        SELECT study_id FROM dsm_plan_versions WHERE plan_id = ?
+      ", params = list(plan_id))
+      if (nrow(plan) == 0) stop("Plan version ", plan_id, " not found")
+      .lock_dsm_study(c, plan$study_id[1])
+      if (!identical(dsm_plan_status(c, plan_id)$status, "draft")) {
+        stop("Only a draft version can be registered as an amendment")
+      }
+      if (!is.null(.dsm_amendment_class(c, plan_id))) {
+        stop("Plan version ", plan_id, " is already registered as an amendment")
+      }
+      from <- .dsm_in_effect_id(c, plan$study_id[1])
+      if (is.null(from)) {
+        stop("No plan version is in effect, so there is nothing to amend")
+      }
+      id <- DBI::dbGetQuery(c, "
+        INSERT INTO dsm_amendments (
+          plan_id, from_plan_id, amendment_class, summary, rationale,
+          created_by, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        RETURNING amendment_id AS id
+      ", params = list(plan_id, from, amendment_class, summary, rationale,
+                       user_id, now))$id[1]
+      .append_audit_record(
+        c, event_type = "INSERT", table_name = "dsm_amendments",
+        record_id = id,
+        operation = sprintf("Monitoring plan amendment registered (%s)",
+                            amendment_class),
+        details = .dsm_json(list(plan_id = plan_id, from_plan_id = from,
+                                 amendment_class = amendment_class,
+                                 summary = summary)),
+        user_id = user_id
+      )
+      list(amendment_id = id, from_plan_id = from)
+    })
+    list(success = TRUE, amendment_id = out$amendment_id,
+         from_plan_id = out$from_plan_id)
+  }, error = function(e) {
+    list(success = FALSE, error = conditionMessage(e))
+  })
+}
+
+
+#' A Study's Plan Amendments
+#'
+#' Amendments with the date each took effect, for the amendment table of
+#' a periodic monitoring report: an amendment of class
+#' `"report_at_interval"` that took effect within the reporting period
+#' is summarized in that period's report.
+#'
+#' @param conn A DBI connection or pool.
+#' @param study_id The study.
+#' @param from,to Optional dates bounding the date the amendments took
+#'   effect (inclusive); amendments not yet in effect are included only
+#'   when both are `NULL`.
+#' @return A data frame (empty when there are none).
+#' @export
+dsm_amendments <- function(conn, study_id, from = NULL, to = NULL) {
+  empty <- data.frame(amendment_id = integer(0), plan_id = integer(0),
+                      from_plan_id = integer(0),
+                      amendment_class = character(0), summary = character(0),
+                      rationale = character(0), in_effect_from = character(0))
+  if (!.dsm_tables_exist(conn) || !DBI::dbExistsTable(conn, "dsm_amendments")) {
+    return(empty)
+  }
+  a <- DBI::dbGetQuery(conn, "
+    SELECT a.amendment_id, a.plan_id, a.from_plan_id, a.amendment_class,
+           a.summary, a.rationale
+    FROM dsm_amendments a
+    JOIN dsm_plan_versions v ON v.plan_id = a.plan_id
+    WHERE v.study_id = ?
+    ORDER BY a.amendment_id
+  ", params = list(study_id))
+  if (nrow(a) == 0) return(empty)
+  a$in_effect_from <- vapply(a$plan_id, function(id) {
+    v <- dsm_plan_status(conn, id)$in_effect_from
+    if (is.null(v) || is.na(v)) NA_character_ else as.character(v)
+  }, character(1))
+  if (!is.null(from) || !is.null(to)) {
+    d <- as.Date(a$in_effect_from)
+    keep <- !is.na(d)
+    if (!is.null(from)) keep <- keep & d >= as.Date(from)
+    if (!is.null(to)) keep <- keep & d <= as.Date(to)
+    a <- a[keep, , drop = FALSE]
+  }
+  a
+}
+
+
+# =============================================================================
+# Activity gate
+# =============================================================================
+
+#' Is the Activity Gate On? (internal)
+#'
+#' Option `zzedc.dsm_require_plan_in_effect`, `FALSE` by default under
+#' every security profile (owner decision, 2026-11-23).
+#'
+#' @return `TRUE`/`FALSE`.
+#' @keywords internal
+.dsm_gate_on <- function() {
+  isTRUE(getOption("zzedc.dsm_require_plan_in_effect", FALSE))
+}
+
+
+#' Check the Activity Gate (internal)
+#'
+#' When the gate is on, randomization and the first data entry for a
+#' subject need a monitoring-plan version in effect (the draft notice
+#' requires an approved plan before human subject activities begin).
+#' When the gate is off, returns at once, without touching the
+#' database.
+#'
+#' @param conn A DBI connection or pool.
+#' @param action Short description for the message.
+#' @return `NULL` when the action may proceed, otherwise
+#'   `list(success = FALSE, error = ...)`.
+#' @keywords internal
+.dsm_activity_gate <- function(conn, action) {
+  if (!.dsm_gate_on()) return(NULL)
+  in_effect <- tryCatch({
+    if (!.dsm_tables_exist(conn)) {
+      FALSE
+    } else {
+      studies <- DBI::dbGetQuery(conn, "
+        SELECT DISTINCT study_id FROM dsm_plan_versions
+      ")$study_id
+      any(vapply(studies, function(s) !is.null(.dsm_in_effect_id(conn, s)),
+                 logical(1)))
+    }
+  }, error = function(e) FALSE)
+  if (isTRUE(in_effect)) return(NULL)
+  list(success = FALSE, error = paste0(
+    "No data and safety monitoring plan is in effect, so ", action,
+    " is refused (option zzedc.dsm_require_plan_in_effect is on)."))
 }

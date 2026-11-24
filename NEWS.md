@@ -42,12 +42,27 @@
   sheet, row, and column. Thresholds on `percent` rows are entered in
   percent (15 means 15%) and stored as proportions; a value strictly
   between 0 and 1 is refused as ambiguous.
-* Not yet: amendments, the optional activity gate, Google Sheets as a
-  source, risk indicators, and reports. Not supported
+* Amendments: `dsm_register_amendment()` registers a draft version
+  (usually imported from a workbook generated from the version in
+  effect) as an amendment of class `prior_approval` or
+  `report_at_interval`, with a required summary and rationale. A
+  `report_at_interval` amendment takes effect after the PI's signature;
+  a `prior_approval` amendment only after the institute's approval is
+  recorded, with no deemed-approval path. `dsm_amendments()` lists a
+  study's amendments with the date each took effect, optionally within
+  a reporting period.
+* Optional activity gate: with the option
+  `zzedc.dsm_require_plan_in_effect` set to `TRUE`,
+  `randomize_next_subject()` and the first `db_insert_data_entry()`
+  for a subject are refused unless a monitoring-plan version is in
+  effect. The option is off by default under every security profile;
+  when off, the check returns before any database access.
+* Not yet: Google Sheets as a source, risk indicators, and reports. Not supported
   on ClickHouse. The inserts use `RETURNING`, which MySQL/MariaDB does
   not support, as elsewhere in the package's newer modules.
 * Tests: `inst/tinytest/test_dsm_plan.R` (60 assertions),
-  `inst/tinytest/test_dsm_workbook.R` (23), plus 8 in
+  `inst/tinytest/test_dsm_workbook.R` (23),
+  `inst/tinytest/test_dsm_amendments_gate.R` (27), plus 8 in
   `test_migrate-audit-event-types.R`.
 
 ## Electronic signatures: correct passwords were rejected
