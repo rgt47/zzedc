@@ -1,5 +1,37 @@
 # zzedc (development version)
 
+## Adverse events: every write is audited in the same transaction
+
+* **Five of the six adverse event writers wrote no audit record.**
+  `add_ae_followup()`, `update_ae_causality()`, `upgrade_to_sae()`,
+  `record_sae_notification()`, and `resolve_adverse_event()` changed
+  `adverse_events`, `sae_details`, and `ae_followups` without any
+  entry in `audit_log`. `create_adverse_event()` wrote one through
+  `log_audit_event()`, on a separate connection, inside a `tryCatch()`
+  that discarded any error, so a failed audit write (even under the
+  `regulated` profile) left the event stored and reported success.
+  (Verified by execution: zero audit records from the five writers;
+  an event stored with only a warning when the audit tables were
+  absent.)
+* Each writer now makes its changes and their audit records through
+  `.append_audit_record()` inside one `.with_db_transaction()`, so a
+  change commits only with its audit record. Follow-ups written as
+  part of an update (causality, upgrade, notification, resolution)
+  are in the same transaction as the update, and are audited too.
+  A failed audit write now rolls the change back and returns
+  `success = FALSE`, under every security profile.
+* `upgrade_to_sae()` was not atomic: the AE update, the SAE details,
+  and the follow-up were separate statements, the follow-up on its own
+  connection, with its result ignored. A failure part-way could leave
+  an AE marked serious with no SAE details. All three now commit or
+  roll back together, and the update requires the event to be
+  non-serious at the time of writing.
+* `record_sae_notification()` returned `success = TRUE` for an
+  `sae_id` that does not exist. It now returns `success = FALSE` with
+  'SAE not found'.
+* Regression test: `inst/tinytest/test_ae_audit.R` (25 assertions;
+  14 fail on the previous source).
+
 ## Test suite: the `skip()` helpers never skipped
 
 * **Every `skip()` in the test suite was a silent no-op.**
