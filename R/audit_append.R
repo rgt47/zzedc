@@ -49,7 +49,12 @@ NULL
   "AUDIT_REVIEW", "COMPLIANCE_CHECK", "REPORT_GENERATED",
   "INTEGRITY_VERIFIED",
   "MIGRATION_AUDIT_GAP",
-  "RANDOMIZATION", "EMERGENCY_UNBLIND"
+  "RANDOMIZATION", "EMERGENCY_UNBLIND",
+  # Monitoring plans (R/dsm_plan.R): plan lifecycle events, and, from
+  # Phase 2, risk indicator runs and threshold breaches. Existing
+  # databases gain them through migrate_audit_event_types(), which
+  # migrate_add_dsm_tables() calls.
+  "DSM_PLAN_STATUS", "RISK_INDICATOR_RUN", "RISK_THRESHOLD_BREACH"
 )
 
 

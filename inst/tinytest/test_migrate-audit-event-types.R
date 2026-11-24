@@ -309,3 +309,81 @@ if (duck_ok) local({
     info = "foreign key from audit_events to audit_log still enforced after the rebuild"
   )
 })
+
+# DuckDB, the default backend, with a real hash chain (added
+# 2026-11-23, before new audit event types were added for the
+# monitoring plan). The block above checks the DuckDB rebuild with
+# hand-built rows; this one builds the audit tables the way the
+# package does, writes real records through the real writer, and
+# checks that verify_audit_integrity() accepts the chain before and
+# after migrate_audit_event_types(), as the SQLite block does.
+if (duck_ok) local({
+  old_opts <- options(zzedc.security_profile = "development")
+  on.exit(options(old_opts), add = TRUE)
+
+  ns <- asNamespace("zzedc")
+  full_types <- get(".audit_event_types", envir = ns)
+  cache <- get(".db_adapter_cache", envir = ns)
+  had_adapter <- exists("adapter", envir = cache)
+  saved_adapter <- if (had_adapter) cache$adapter else NULL
+  on.exit({
+    if (bindingIsLocked(".audit_event_types", ns)) unlockBinding(".audit_event_types", ns)
+    assign(".audit_event_types", full_types, envir = ns)
+    lockBinding(".audit_event_types", ns)
+    tryCatch(zzedc:::get_db_adapter()$shutdown(), error = function(e) NULL)
+    if (had_adapter) {
+      assign("adapter", saved_adapter, envir = cache)
+    } else if (exists("adapter", envir = cache)) {
+      rm("adapter", envir = cache)
+    }
+  }, add = TRUE)
+
+  dir <- tempfile("duck_chain_")
+  dir.create(dir)
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  db <- file.path(dir, "study.duckdb")
+  config <- list(db_backend = "duckdb", duckdb = list(path = db))
+  adapter <- zzedc:::get_db_adapter(config = config, force_new = TRUE)
+
+  unlockBinding(".audit_event_types", ns)
+  assign(".audit_event_types",
+         setdiff(full_types, c("RANDOMIZATION", "EMERGENCY_UNBLIND")),
+         envir = ns)
+  lockBinding(".audit_event_types", ns)
+
+  setup <- zzedc::init_audit_logging(db_path = db)
+  expect_true(setup$success,
+              info = "DuckDB: init_audit_logging() builds an old-style database")
+  for (u in c("alice", "bob", "carol")) {
+    expect_true(zzedc::log_audit_event(
+      event_type = "LOGIN", table_name = "edc_users", operation = "x",
+      user_id = u, db_path = db),
+      info = paste("DuckDB: pre-migration record for", u))
+  }
+
+  unlockBinding(".audit_event_types", ns)
+  assign(".audit_event_types", full_types, envir = ns)
+  lockBinding(".audit_event_types", ns)
+
+  conn <- zzedc::connect_encrypted_db(db_path = db)
+  pre_chain <- zzedc::verify_audit_integrity(conn = conn)
+  expect_true(isTRUE(pre_chain$valid),
+              info = "DuckDB: real hash chain verifies before migration")
+
+  zzedc:::migrate_audit_event_types(conn, adapter = adapter)
+  DBI::dbDisconnect(conn)
+
+  expect_true(zzedc::log_audit_event(
+    event_type = "RANDOMIZATION", table_name = "randomization_history",
+    operation = "z", user_id = "dave", db_path = db),
+    info = "DuckDB: RANDOMIZATION accepted after migration")
+
+  conn <- zzedc::connect_encrypted_db(db_path = db)
+  post_chain <- zzedc::verify_audit_integrity(conn = conn)
+  n <- DBI::dbGetQuery(conn, "SELECT COUNT(*) AS n FROM audit_log")$n
+  DBI::dbDisconnect(conn)
+  expect_true(isTRUE(post_chain$valid),
+              info = "DuckDB: real hash chain verifies after migration")
+  expect_equal(as.integer(n), 4L,
+               info = "DuckDB: pre-existing records survive the migration")
+})

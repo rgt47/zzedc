@@ -41,7 +41,10 @@ audit_log_viewer_ui <- function(id) {
                                         "PERMISSION_CHANGE"),
                          "System" = c("BACKUP", "RESTORE", "CONFIG_CHANGE",
                                       "COMPLIANCE_CHECK", "ACCESS"),
-                         "Randomization" = c("RANDOMIZATION", "EMERGENCY_UNBLIND")
+                         "Randomization" = c("RANDOMIZATION", "EMERGENCY_UNBLIND"),
+                         "Monitoring plan" = c("DSM_PLAN_STATUS",
+                                               "RISK_INDICATOR_RUN",
+                                               "RISK_THRESHOLD_BREACH")
                        ))
           ),
 

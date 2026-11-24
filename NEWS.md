@@ -1,5 +1,44 @@
 # zzedc (development version)
 
+## Data and safety monitoring plans (Phase 1)
+
+* New: storage, validation, and lifecycle of a study's data and
+  safety monitoring plan, for the draft NIH policy update
+  NOT-OD-27-006 (design: `docs/nih-dsm-monitoring-plan-design-2026-11-23.md`,
+  not shipped). Functions: `dsm_validate_spec()`, `dsm_import_spec()`,
+  `dsm_export_spec()`, `dsm_transition()`, `dsm_record_ico_decision()`,
+  `dsm_plan_status()`, `dsm_plan_in_effect()`, `dsm_plan_history()`,
+  and `migrate_add_dsm_tables()`.
+* A plan version is an immutable row in `dsm_plan_versions`, so an
+  electronic signature on it stays valid (signature verification
+  re-hashes the whole row); the lifecycle is the append-only
+  `dsm_plan_events`, from which the status is derived. Each event and
+  its `DSM_PLAN_STATUS` audit record commit together.
+* Lifecycle: draft, internal review, signed (an `APPROVED_BY`
+  signature by a PI), submitted (with the user-entered submission
+  date), then either the institute's decision as reported by the user
+  (approved or revise) or, after the configured number of days with no
+  decision (`zzedc.dsm_deemed_approval_days`, default 30;
+  `zzedc.dsm_deemed_approval_day_type`, calendar by default), a move
+  into effect that needs a `CERTIFIED_BY` attestation. zzedc never
+  marks a plan approved by itself. A version put into effect
+  supersedes the previous one in the same transaction.
+* Specs are canonical JSON (sorted keys, full-precision numbers), so
+  the spec hash survives export and re-import; YAML is read and
+  written when the `yaml` package is installed. Validation reports
+  every problem with its path. Risk categories are configuration
+  (`zzedc.dsm_risk_categories`).
+* Audit event types `DSM_PLAN_STATUS`, `RISK_INDICATOR_RUN`, and
+  `RISK_THRESHOLD_BREACH` are added; `migrate_add_dsm_tables()` runs
+  `migrate_audit_event_types()` for existing databases. A new test
+  block verifies the migration on DuckDB with a real hash chain.
+* Not yet: the workbook used by plan authors, amendments, the
+  optional activity gate, risk indicators, and reports. Not supported
+  on ClickHouse. The inserts use `RETURNING`, which MySQL/MariaDB does
+  not support, as elsewhere in the package's newer modules.
+* Tests: `inst/tinytest/test_dsm_plan.R` (60 assertions), plus 8 in
+  `test_migrate-audit-event-types.R`.
+
 ## Electronic signatures: correct passwords were rejected
 
 * **Signing rejected every correct password.**
