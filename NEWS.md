@@ -1,5 +1,28 @@
 # zzedc (development version)
 
+## Eligibility: missing data no longer makes a subject eligible
+
+* **`check_subject_eligibility()` reported a subject eligible when
+  the data for a criterion was missing.** A criterion whose field was
+  absent from `subject_data` was skipped, so a subject with no value
+  for an inclusion criterion (or an exclusion criterion) passed. A
+  field present with value `NA` instead made the function fail with
+  an error. (Verified by execution: `eligible = TRUE` for an
+  `age >= 18` inclusion criterion with `subject_data = list()`.)
+* A criterion that names a field is now indeterminate when the value
+  is absent, `NULL`, `NA`, or empty, or the comparison cannot be
+  evaluated. Any indeterminate criterion makes the check
+  indeterminate: `eligible = FALSE`, `indeterminate = TRUE`, and the
+  criteria are listed in `indeterminate_criteria`; the message says
+  eligibility cannot be determined. The stored check records
+  `overall_eligible = 0`.
+* Criteria with no field (manual criteria, such as informed consent)
+  are not evaluated, as before, and are now listed in
+  `manual_criteria`. Each entry of `criteria_results` has a `status`
+  of `EVALUATED`, `INDETERMINATE`, or `MANUAL`.
+* Regression test: `inst/tinytest/test_eligibility_missing.R` (21
+  assertions; 13 fail on the previous source).
+
 ## Test suite: the `skip()` helpers never skipped
 
 * **Every `skip()` in the test suite was a silent no-op.**

@@ -1058,6 +1058,15 @@ add_eligibility_criterion <- function(protocol_id,
 #'
 #' Checks a subject against protocol eligibility criteria.
 #'
+#' A criterion that names a field is evaluated against
+#' `subject_data`. If the field is absent, `NULL`, `NA`, or empty, or
+#' the comparison cannot be evaluated, the criterion is indeterminate,
+#' and so is the check: `eligible` is `FALSE` and `indeterminate` is
+#' `TRUE`, with the criteria concerned in `indeterminate_criteria`.
+#' Missing data never makes a subject eligible. Criteria without a
+#' field are not evaluated automatically and are listed in
+#' `manual_criteria`.
+#'
 #' @param subject_id Character: Subject ID
 #' @param protocol_id Integer: Protocol ID
 #' @param subject_data List: Subject data to check against criteria
@@ -1093,6 +1102,13 @@ check_subject_eligibility <- function(subject_id,
     results <- list()
     all_inclusion_met <- TRUE
     any_exclusion_met <- FALSE
+    indeterminate_criteria <- character(0)
+    manual_criteria <- character(0)
+
+    is_missing <- function(x) {
+      is.null(x) || length(x) == 0 || all(is.na(x)) ||
+        (is.character(x) && all(!nzchar(trimws(x))))
+    }
 
     for (i in seq_len(nrow(criteria))) {
       crit <- criteria[i, ]
@@ -1104,29 +1120,46 @@ check_subject_eligibility <- function(subject_id,
         value_checked = NA
       )
 
-      if (!is.null(crit$field_name) && !is.na(crit$field_name) &&
-          crit$field_name %in% names(subject_data)) {
+      has_field <- !is.null(crit$field_name) && !is.na(crit$field_name) &&
+        nzchar(crit$field_name)
 
-        field_value <- subject_data[[crit$field_name]]
-        crit_result$value_checked <- as.character(field_value)
-
-        criterion_met <- evaluate_criterion(field_value, crit$operator, crit$value)
-        crit_result$met <- criterion_met
-
-        if (crit$criterion_type == "INCLUSION" && !criterion_met) {
-          all_inclusion_met <- FALSE
-        }
-        if (crit$criterion_type == "EXCLUSION" && criterion_met) {
-          any_exclusion_met <- TRUE
-        }
+      if (!has_field) {
+        crit_result$status <- "MANUAL"
+        manual_criteria <- c(manual_criteria, crit$criterion_code)
       } else {
-        crit_result$met <- NA
+        field_value <- subject_data[[crit$field_name]]
+        criterion_met <- if (is_missing(field_value)) {
+          NA
+        } else {
+          crit_result$value_checked <- as.character(field_value)
+          evaluate_criterion(field_value, crit$operator, crit$value)
+        }
+
+        # Missing data, or a comparison that cannot be evaluated, leaves
+        # the criterion unresolved; it must not count as satisfied.
+        if (length(criterion_met) != 1 || is.na(criterion_met)) {
+          crit_result$met <- NA
+          crit_result$status <- "INDETERMINATE"
+          indeterminate_criteria <- c(indeterminate_criteria,
+                                      crit$criterion_code)
+        } else {
+          crit_result$met <- criterion_met
+          crit_result$status <- "EVALUATED"
+          if (crit$criterion_type == "INCLUSION" && !criterion_met) {
+            all_inclusion_met <- FALSE
+          }
+          if (crit$criterion_type == "EXCLUSION" && criterion_met) {
+            any_exclusion_met <- TRUE
+          }
+        }
       }
 
       results[[crit$criterion_code]] <- crit_result
     }
 
-    overall_eligible <- all_inclusion_met && !any_exclusion_met
+    indeterminate <- length(indeterminate_criteria) > 0
+    overall_eligible <- all_inclusion_met && !any_exclusion_met &&
+      !indeterminate
 
     check_id <- DBI::dbGetQuery(conn, "
       INSERT INTO eligibility_checks (
@@ -1146,10 +1179,20 @@ check_subject_eligibility <- function(subject_id,
       success = TRUE,
       check_id = check_id,
       eligible = overall_eligible,
+      indeterminate = indeterminate,
+      indeterminate_criteria = indeterminate_criteria,
+      manual_criteria = manual_criteria,
       all_inclusion_met = all_inclusion_met,
       any_exclusion_met = any_exclusion_met,
       criteria_results = results,
-      message = if (overall_eligible) "Subject is eligible" else "Subject is not eligible"
+      message = if (overall_eligible) {
+        "Subject is eligible"
+      } else if (any_exclusion_met || !all_inclusion_met) {
+        "Subject is not eligible"
+      } else {
+        paste("Eligibility cannot be determined: missing or unevaluable",
+              "data for", paste(indeterminate_criteria, collapse = ", "))
+      }
     )
 
   }, error = function(e) {
