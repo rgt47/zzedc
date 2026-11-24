@@ -1,5 +1,33 @@
 # zzedc (development version)
 
+## Protocol compliance: every write is audited in the same transaction
+
+* **Seven of the eight protocol compliance writers wrote no audit
+  record.** `create_protocol()`, `add_protocol_visit()`,
+  `schedule_subject_visit()`, `complete_subject_visit()`,
+  `review_protocol_deviation()`, `add_eligibility_criterion()`, and
+  `check_subject_eligibility()` wrote to their tables with no entry in
+  `audit_log`. `create_protocol_deviation()` wrote one through
+  `log_audit_event()` on a separate connection, inside a `tryCatch()`
+  that discarded any error. (Verified by execution.)
+* Each writer now makes its changes and their audit records through
+  `.append_audit_record()` in one `.with_db_transaction()`. A failed
+  audit write rolls the change back and returns `success = FALSE`.
+* `complete_subject_visit()` was not atomic. The visit was written
+  first; the timing deviation for an out-of-window visit was created
+  on a separate connection, and if that failed the visit was kept
+  unlinked while the result still reported `deviation_created = TRUE`.
+  The visit, the deviation, and the link now commit together.
+* `review_protocol_deviation()` returned `success = TRUE` for a
+  `deviation_id` that does not exist. It now returns
+  `success = FALSE`.
+* `add_protocol_visit()`, `schedule_subject_visit()`, and
+  `add_eligibility_criterion()` gain an optional last argument
+  (`created_by`, `scheduled_by`, `created_by`) naming the user for the
+  audit record. Existing calls are unaffected.
+* Regression test: `inst/tinytest/test_protocol_audit.R` (26
+  assertions; 15 fail on the previous source).
+
 ## Test suite: the `skip()` helpers never skipped
 
 * **Every `skip()` in the test suite was a silent no-op.**

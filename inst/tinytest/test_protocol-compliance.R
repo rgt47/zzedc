@@ -557,8 +557,11 @@ local({
     expect_true(result$success)
 
     conn <- connect_encrypted_db(db_path = test_db)
+    # create_protocol() is audited too (2026-11-23), so select the
+    # deviation's own record.
     rows <- DBI::dbGetQuery(conn, "
       SELECT event_type, table_name, record_id, user_id FROM audit_log
+      WHERE table_name = 'protocol_deviations'
     ")
     DBI::dbDisconnect(conn)
 
