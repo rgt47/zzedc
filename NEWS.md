@@ -1,5 +1,25 @@
 # zzedc (development version)
 
+## DuckDB: adverse events could not be upgraded or resolved
+
+* **On DuckDB, `upgrade_to_sae()` and `resolve_adverse_event()`
+  failed for any adverse event that had a follow-up, and
+  `review_protocol_deviation()` failed for any deviation linked to a
+  visit,** with "Violates foreign key constraint because key ... is
+  still referenced by a foreign key in a different table". The
+  columns they update (`adverse_events.is_serious`,
+  `adverse_events.status`, `protocol_deviations.review_status`) were
+  indexed, and DuckDB rewrites an update of an indexed column on a
+  row that a foreign key references as a delete followed by an insert,
+  which its foreign-key checking rejects. This is the limitation
+  already worked around for `correction_requests(status)`. (Verified
+  by execution on `main`; SQLite was unaffected.)
+* On DuckDB these three indexes are no longer created, and
+  `init_adverse_events()` and `init_protocol_compliance()` drop them
+  from a database initialized earlier. Other backends keep them.
+* Regression test: `inst/tinytest/test_ae_deviation_duckdb.R` (13
+  assertions; 7 fail on the previous source).
+
 ## Test suite: the `skip()` helpers never skipped
 
 * **Every `skip()` in the test suite was a silent no-op.**

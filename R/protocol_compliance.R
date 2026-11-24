@@ -204,10 +204,11 @@ init_protocol_compliance <- function(db_path = NULL) {
       ON protocol_deviations(protocol_id)
     ")
 
-    DBI::dbExecute(conn, "
-      CREATE INDEX IF NOT EXISTS idx_deviations_status
-      ON protocol_deviations(review_status)
-    ")
+    # review_status is updated by review_protocol_deviation() on rows
+    # that subject_visits references, so it is not indexed on DuckDB
+    # (see .index_updated_fk_column()).
+    .index_updated_fk_column(conn, "idx_deviations_status",
+                             "protocol_deviations(review_status)")
 
     DBI::dbExecute(conn, "
       CREATE INDEX IF NOT EXISTS idx_subject_visits
