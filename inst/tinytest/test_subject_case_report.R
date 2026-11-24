@@ -57,7 +57,8 @@ setup_case_report_db <- function() {
     option_label TEXT, option_order INTEGER)")
 
   db_insert_user(conn, username = "signer1",
-                  password_hash = digest::digest("x", algo = "sha256"),
+                  password_hash = digest::digest(paste0("x", resolve_auth_salt()),
+                                                 algo = "sha256"),
                   full_name = "Dr. Signer", email = "s@example.org",
                   role = "pi", active = TRUE, created_by = "setup")
 
@@ -73,7 +74,9 @@ setup_case_report_db <- function() {
     table_name = "data_entries", record_id = entry$entry_id,
     signer_user_id = "signer1", signer_full_name = "Dr. Signer",
     signature_meaning = "REVIEWED_BY",
-    password = "x", password_hash = digest::digest("x", algo = "sha256"),
+    password = "x",
+    password_hash = digest::digest(paste0("x", resolve_auth_salt()),
+                                   algo = "sha256"),
     db_path = test_db
   )
 

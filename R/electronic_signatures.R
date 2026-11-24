@@ -456,15 +456,22 @@ compute_record_hash <- function(conn, table_name, record_id) {
 
 #' Verify Password for Signature
 #'
-#' Verifies password before allowing signature.
+#' Verifies the signer's password before a signature is applied, with
+#' the same rule the login uses: SHA-256 of the password followed by
+#' the installation salt from [resolve_auth_salt()]. Before 2026-11-23
+#' the salt was omitted, so every correct password was rejected
+#' wherever passwords were stored salted, which is every installation.
 #'
 #' @param password Character: Plain text password
 #' @param stored_hash Character: Stored password hash
+#' @param salt Character: Password salt; defaults to the installation's
+#'   salt, [resolve_auth_salt()]
 #'
 #' @return Logical: TRUE if password matches
 #'
 #' @keywords internal
-verify_password_for_signature <- function(password, stored_hash) {
+verify_password_for_signature <- function(password, stored_hash,
+                                          salt = resolve_auth_salt()) {
   if (is.null(password) || is.null(stored_hash)) {
     return(FALSE)
   }
@@ -473,7 +480,7 @@ verify_password_for_signature <- function(password, stored_hash) {
     return(FALSE)
   }
 
-  computed_hash <- digest::digest(password, algo = "sha256")
+  computed_hash <- digest::digest(paste0(password, salt), algo = "sha256")
   identical(computed_hash, stored_hash)
 }
 

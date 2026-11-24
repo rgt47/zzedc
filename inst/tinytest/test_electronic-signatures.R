@@ -64,8 +64,12 @@ cleanup_test_db <- function(test_db) {
   }
 }
 
+# The stored hash the application writes: SHA-256 of the password and
+# the installation salt (resolve_auth_salt()). This helper hashed the
+# password without the salt until 2026-11-23, matching the signing
+# defect it should have caught.
 get_test_password_hash <- function(password = "testpassword123") {
-  digest::digest(password, algo = "sha256")
+  digest::digest(paste0(password, resolve_auth_salt()), algo = "sha256")
 }
 
 # =============================================================================

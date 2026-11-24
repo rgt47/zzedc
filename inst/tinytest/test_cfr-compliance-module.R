@@ -36,7 +36,8 @@ setup_test_db <- function() {
 
   conn <- DBI::dbConnect(RSQLite::SQLite(), test_db)
   zzedc:::ensure_edc_users_table(conn)
-  password_hash <- digest::digest(paste0("correct-horse", ""), algo = "sha256")
+  password_hash <- digest::digest(paste0("correct-horse", resolve_auth_salt()),
+                                  algo = "sha256")
   zzedc:::db_insert_user(conn, username = "jdoe", password_hash = password_hash,
                   full_name = "Jane Doe", role = "Coordinator",
                   user_id = "USER_TEST_1", created_by = "test")
@@ -137,7 +138,8 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
       table_name = "test_records", record_id = "1",
       signer_user_id = "USER_TEST_1", signer_full_name = "Jane Doe",
       signature_meaning = "CREATED_BY", password = "correct-horse",
-      password_hash = digest::digest(paste0("correct-horse", ""), algo = "sha256"),
+      password_hash = digest::digest(paste0("correct-horse", resolve_auth_salt()),
+                                     algo = "sha256"),
       db_path = ctx$test_db
     )
     expect_true(sig$success)

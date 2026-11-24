@@ -4,17 +4,28 @@
 \alias{verify_password_for_signature}
 \title{Verify Password for Signature}
 \usage{
-verify_password_for_signature(password, stored_hash)
+verify_password_for_signature(
+  password,
+  stored_hash,
+  salt = resolve_auth_salt()
+)
 }
 \arguments{
 \item{password}{Character: Plain text password}
 
 \item{stored_hash}{Character: Stored password hash}
+
+\item{salt}{Character: Password salt; defaults to the installation's
+salt, \code{\link[=resolve_auth_salt]{resolve_auth_salt()}}}
 }
 \value{
 Logical: TRUE if password matches
 }
 \description{
-Verifies password before allowing signature.
+Verifies the signer's password before a signature is applied, with
+the same rule the login uses: SHA-256 of the password followed by
+the installation salt from \code{\link[=resolve_auth_salt]{resolve_auth_salt()}}. Before 2026-11-23
+the salt was omitted, so every correct password was rejected
+wherever passwords were stored salted, which is every installation.
 }
 \keyword{internal}

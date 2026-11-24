@@ -1,5 +1,27 @@
 # zzedc (development version)
 
+## Electronic signatures: correct passwords were rejected
+
+* **Signing rejected every correct password.**
+  `verify_password_for_signature()`, which `apply_electronic_signature()`
+  uses for re-authentication, compared an unsalted SHA-256 of the
+  password with the stored hash, while the login, the setup wizard,
+  and user management store SHA-256 of the password followed by the
+  installation salt (`resolve_auth_salt()`). (Verified by execution
+  with a user hashed by the application's rule, under a configured
+  salt and under the default salt.) The tests did not catch it because
+  their fixtures built unsalted hashes, matching the defect.
+* The verifier now applies the login's rule, with the installation
+  salt by default and an optional `salt` argument. The fixtures in
+  `test_electronic-signatures.R`, `test_cfr-compliance-module.R`, and
+  `test_subject_case_report.R` now build hashes the way the
+  application does.
+* Not changed here: failed signing attempts are logged but still do
+  not count toward account lockout.
+* Regression test: `inst/tinytest/test_signature_salt.R` (9
+  assertions; on the previous source the 4 correct-password checks
+  fail).
+
 ## Adverse events: every write is audited in the same transaction
 
 * **Five of the six adverse event writers wrote no audit record.**
