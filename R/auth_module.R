@@ -249,18 +249,12 @@ authenticate_user <- function(username, password) {
       return(list(success = FALSE, message = "Invalid username or account inactive"))
     }
 
-    # Verify password using configuration
-    # Get salt from environment variable or use default
-    salt_env_var <- if (!is.null(cfg$auth$salt_env_var)) cfg$auth$salt_env_var else "ZZEDC_SALT"
-    salt <- Sys.getenv(salt_env_var, unset = "")
-    if (salt == "" && !is.null(cfg$auth$default_salt)) {
-      salt <- cfg$auth$default_salt
-    }
-    # If still no salt, use the one stored with the user (from security_salt at creation)
-    # For now, we need to retrieve the salt used during user creation
-    # The password was hashed with security_salt during setup_wizard
-    # We'll need to store salt per-user or use a global salt
-    # Temporary fix: try common approach of checking the hash directly
+    # The package's single salt rule, as the application's login and
+    # every password writer use. This fallback used to read ZZEDC_SALT
+    # when the configuration named no salt variable, so on a
+    # launch_zzedc() installation with ZZEDC_SALT set it rejected
+    # every correct password.
+    salt <- resolve_auth_salt(cfg)
     password_hash <- digest::digest(paste0(password, salt), algo = "sha256")
 
     # Compare single values (user_record is a data frame, extract first row value)
