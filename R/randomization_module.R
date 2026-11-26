@@ -441,6 +441,11 @@ set_treatment_arm_labels <- function(conn, labels, study_id = NULL) {
 #' @export
 randomize_next_subject <- function(conn, subject_id, covariates_row = NULL,
                                     study_id = NULL, randomized_by = NULL) {
+  # Optional monitoring-plan gate (R/dsm_plan.R); returns at once,
+  # without database access, unless zzedc.dsm_require_plan_in_effect
+  # is on.
+  gate <- .dsm_activity_gate(conn, "randomization")
+  if (!is.null(gate)) return(gate)
   study_id <- study_id %||% .current_study_id(conn)
 
   config <- get_randomization_config(conn, study_id)

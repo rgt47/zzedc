@@ -18,6 +18,71 @@
 * Regression test: `inst/tinytest/test_fallback_login_salt.R` (5
   assertions; 1 fails on the previous source).
 
+## Data and safety monitoring plans (Phase 1)
+
+* New: storage, validation, and lifecycle of a study's data and
+  safety monitoring plan, for the draft NIH policy update
+  NOT-OD-27-006 (design: `docs/nih-dsm-monitoring-plan-design-2026-11-23.md`,
+  not shipped). Functions: `dsm_validate_spec()`, `dsm_import_spec()`,
+  `dsm_export_spec()`, `dsm_transition()`, `dsm_record_ico_decision()`,
+  `dsm_plan_status()`, `dsm_plan_in_effect()`, `dsm_plan_history()`,
+  and `migrate_add_dsm_tables()`.
+* A plan version is an immutable row in `dsm_plan_versions`, so an
+  electronic signature on it stays valid (signature verification
+  re-hashes the whole row); the lifecycle is the append-only
+  `dsm_plan_events`, from which the status is derived. Each event and
+  its `DSM_PLAN_STATUS` audit record commit together.
+* Lifecycle: draft, internal review, signed (an `APPROVED_BY`
+  signature by a PI), submitted (with the user-entered submission
+  date), then either the institute's decision as reported by the user
+  (approved or revise) or, after the configured number of days with no
+  decision (`zzedc.dsm_deemed_approval_days`, default 30;
+  `zzedc.dsm_deemed_approval_day_type`, calendar by default), a move
+  into effect that needs a `CERTIFIED_BY` attestation. zzedc never
+  marks a plan approved by itself. A version put into effect
+  supersedes the previous one in the same transaction.
+* Specs are canonical JSON (sorted keys, full-precision numbers), so
+  the spec hash survives export and re-import; YAML is read and
+  written when the `yaml` package is installed. Validation reports
+  every problem with its path. Risk categories are configuration
+  (`zzedc.dsm_risk_categories`).
+* Audit event types `DSM_PLAN_STATUS`, `RISK_INDICATOR_RUN`, and
+  `RISK_THRESHOLD_BREACH` are added; `migrate_add_dsm_tables()` runs
+  `migrate_audit_event_types()` for existing databases. A new test
+  block verifies the migration on DuckDB with a real hash chain.
+* Plan authors work in a spreadsheet: `dsm_generate_workbook()` writes
+  an Excel workbook (sheets Plan, Risks, Indicators, Stopping rules,
+  with drop-down lists for categories, levels, yes/no, grains,
+  threshold units, and roles), optionally filled from an existing plan
+  version for an amendment; `dsm_import_workbook()` reads it, or a
+  directory of CSV files with the same names, into a new draft
+  version, storing the file's SHA-256, and reports every problem by
+  sheet, row, and column. Thresholds on `percent` rows are entered in
+  percent (15 means 15%) and stored as proportions; a value strictly
+  between 0 and 1 is refused as ambiguous.
+* Amendments: `dsm_register_amendment()` registers a draft version
+  (usually imported from a workbook generated from the version in
+  effect) as an amendment of class `prior_approval` or
+  `report_at_interval`, with a required summary and rationale. A
+  `report_at_interval` amendment takes effect after the PI's signature;
+  a `prior_approval` amendment only after the institute's approval is
+  recorded, with no deemed-approval path. `dsm_amendments()` lists a
+  study's amendments with the date each took effect, optionally within
+  a reporting period.
+* Optional activity gate: with the option
+  `zzedc.dsm_require_plan_in_effect` set to `TRUE`,
+  `randomize_next_subject()` and the first `db_insert_data_entry()`
+  for a subject are refused unless a monitoring-plan version is in
+  effect. The option is off by default under every security profile;
+  when off, the check returns before any database access.
+* Not yet: Google Sheets as a source, risk indicators, and reports. Not supported
+  on ClickHouse. The inserts use `RETURNING`, which MySQL/MariaDB does
+  not support, as elsewhere in the package's newer modules.
+* Tests: `inst/tinytest/test_dsm_plan.R` (60 assertions),
+  `inst/tinytest/test_dsm_workbook.R` (23),
+  `inst/tinytest/test_dsm_amendments_gate.R` (27), plus 8 in
+  `test_migrate-audit-event-types.R`.
+
 ## Electronic signatures: the application could not sign, and missing records could be signed
 
 * **No signature could be applied through the application.** The

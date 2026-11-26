@@ -244,6 +244,20 @@ db_insert_data_entry <- function(conn,
                                   audit_extra = NULL,
                                   ip_address = NULL,
                                   session_id = NULL) {
+  # Optional monitoring-plan gate (R/dsm_plan.R): a subject's first
+  # entry needs a plan in effect. Skipped, without database access,
+  # unless zzedc.dsm_require_plan_in_effect is on.
+  if (.dsm_gate_on()) {
+    first <- tryCatch(
+      DBI::dbGetQuery(conn, "SELECT COUNT(*) AS n FROM data_entries
+                             WHERE subject_id = ?",
+                      params = list(subject_id))$n[1] == 0,
+      error = function(e) TRUE)
+    if (isTRUE(first)) {
+      gate <- .dsm_activity_gate(conn, "the first data entry for a subject")
+      if (!is.null(gate)) return(gate)
+    }
+  }
   if (is.null(entry_id)) {
     entry_id <- paste0(
       "DE-", format(Sys.time(), "%Y%m%d%H%M%OS3", tz = "UTC"),
