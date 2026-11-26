@@ -206,6 +206,64 @@ get_signature_statement <- function(meaning) {
 }
 
 
+#' Signature meanings offered in the compliance module
+#'
+#' Labels for the user, codes as [get_signature_meanings()] names them.
+#' Before 2026-11-25 the module offered lowercase codes, which
+#' [apply_electronic_signature()] rejected, so no signature could be
+#' applied through the application.
+#'
+#' @keywords internal
+#' @noRd
+.signature_ui_meanings <- c(
+  "Created by" = "CREATED_BY",
+  "Reviewed by" = "REVIEWED_BY",
+  "Approved by" = "APPROVED_BY",
+  "Verified by" = "VERIFIED_BY",
+  "Monitored by" = "MONITORED_BY"
+)
+
+#' Tables whose records can be signed in the compliance module
+#'
+#' The `zzedc.signable_tables` option, or by default the study data
+#' tables. System tables (users, audit trail, signatures) are never
+#' offered.
+#'
+#' @return Character vector of table names.
+#' @keywords internal
+#' @noRd
+.signable_tables <- function() {
+  getOption("zzedc.signable_tables",
+            c("data_entries", "subjects", "adverse_events",
+              "protocol_deviations"))
+}
+
+#' Why a record cannot be signed, or NULL if it can
+#'
+#' A signature binds to a hash of the record. For a missing table or
+#' record, [compute_record_hash()] hashes a placeholder instead, so a
+#' signature would bind to nothing.
+#'
+#' @return `NULL`, or a character message.
+#' @keywords internal
+#' @noRd
+.signature_target_problem <- function(conn, table_name, record_id) {
+  if (!DBI::dbExistsTable(conn, table_name)) {
+    return(paste0("Table '", table_name, "' does not exist"))
+  }
+  pk_col <- resolve_table_pk_column(conn, table_name)
+  n <- DBI::dbGetQuery(conn, sprintf(
+    "SELECT COUNT(*) AS n FROM %s WHERE %s = ?",
+    DBI::dbQuoteIdentifier(conn, table_name),
+    DBI::dbQuoteIdentifier(conn, pk_col)
+  ), list(as.character(record_id)))$n[1]
+  if (n == 0) {
+    return(paste0("Record '", record_id, "' not found in '", table_name, "'"))
+  }
+  NULL
+}
+
+
 # =============================================================================
 # Signature Creation
 # =============================================================================
@@ -292,6 +350,22 @@ apply_electronic_signature <- function(table_name,
   tryCatch({
     conn <- connect_encrypted_db(db_path = db_path)
     on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+    problem <- .signature_target_problem(conn, table_name, record_id)
+    if (!is.null(problem)) {
+      log_signature_attempt(
+        user_id = signer_user_id,
+        table_name = table_name,
+        record_id = record_id,
+        signature_meaning = signature_meaning,
+        result = "FAILED_VALIDATION",
+        reason = problem,
+        ip_address = ip_address,
+        session_id = session_id,
+        db_path = db_path
+      )
+      return(list(success = FALSE, error = problem))
+    }
 
     record_hash <- compute_record_hash(conn, table_name, record_id)
 
@@ -457,10 +531,12 @@ compute_record_hash <- function(conn, table_name, record_id) {
 #' Verify Password for Signature
 #'
 #' Verifies the signer's password before a signature is applied, with
-#' the same rule the login uses: SHA-256 of the password followed by
-#' the installation salt from [resolve_auth_salt()]. Before 2026-11-23
-#' the salt was omitted, so every correct password was rejected
-#' wherever passwords were stored salted, which is every installation.
+#' the rule the application uses to store passwords: SHA-256 of the
+#' password followed by the installation salt from
+#' [resolve_auth_salt()]. Before 2026-11-23 the salt was omitted, so
+#' every correct password was rejected wherever the installation salt
+#' is non-empty, which includes every installation created by
+#' [launch_zzedc()].
 #'
 #' @param password Character: Plain text password
 #' @param stored_hash Character: Stored password hash

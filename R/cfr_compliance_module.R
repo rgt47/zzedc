@@ -90,8 +90,7 @@ cfr_compliance_ui <- function(id) {
                   fluidRow(
                     column(6,
                       selectInput(ns("sig_table"), "Table:",
-                                choices = c("subjects", "demographics", "cognitive_assessments"),
-                                selected = "cognitive_assessments")
+                                choices = .signable_tables())
                     ),
                     column(6,
                       textInput(ns("sig_record_id"), "Record ID:",
@@ -102,13 +101,7 @@ cfr_compliance_ui <- function(id) {
                   fluidRow(
                     column(6,
                       selectInput(ns("sig_meaning"), "Signature Meaning:",
-                                choices = list(
-                                  "Created by" = "created_by",
-                                  "Reviewed by" = "reviewed_by",
-                                  "Approved by" = "approved_by",
-                                  "Verified by" = "verified_by",
-                                  "Monitored by" = "monitored_by"
-                                ))
+                                choices = .signature_ui_meanings)
                     ),
                     column(6,
                       passwordInput(ns("sig_password"), "Confirm Password:")
@@ -363,6 +356,10 @@ cfr_compliance_server <- function(id, user_id = NULL, user_session = NULL) {
       }
       if (exists("db_pool")) {
         isolate(load_compliance_data())
+        present <- tryCatch(DBI::dbListTables(db_pool),
+                            error = function(e) character(0))
+        updateSelectInput(session, "sig_table",
+                          choices = intersect(.signable_tables(), present))
       }
     })
 
@@ -517,6 +514,13 @@ cfr_compliance_server <- function(id, user_id = NULL, user_session = NULL) {
     observeEvent(input$apply_signature, {
       guard$require_action("apply an electronic signature")
       req(input$sig_table, input$sig_record_id, input$sig_meaning, input$sig_password)
+      # The choice list is only a client-side restriction; a crafted
+      # input could name any table, including edc_users.
+      if (!input$sig_table %in% .signable_tables()) {
+        showNotification(paste("Records in", input$sig_table,
+                               "cannot be signed here"), type = "error")
+        return()
+      }
 
       if (exists("db_pool") && !is.null(user_id())) {
         tryCatch({

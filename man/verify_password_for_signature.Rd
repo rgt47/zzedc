@@ -23,9 +23,11 @@ Logical: TRUE if password matches
 }
 \description{
 Verifies the signer's password before a signature is applied, with
-the same rule the login uses: SHA-256 of the password followed by
-the installation salt from \code{\link[=resolve_auth_salt]{resolve_auth_salt()}}. Before 2026-11-23
-the salt was omitted, so every correct password was rejected
-wherever passwords were stored salted, which is every installation.
+the rule the application uses to store passwords: SHA-256 of the
+password followed by the installation salt from
+\code{\link[=resolve_auth_salt]{resolve_auth_salt()}}. Before 2026-11-23 the salt was omitted, so
+every correct password was rejected wherever the installation salt
+is non-empty, which includes every installation created by
+\code{\link[=launch_zzedc]{launch_zzedc()}}.
 }
 \keyword{internal}
