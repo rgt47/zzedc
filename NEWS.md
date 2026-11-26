@@ -26,7 +26,10 @@
 
 ## Electronic signatures: correct passwords were rejected
 
-* **Signing rejected every correct password.**
+* **Signing rejected every correct password wherever the installation
+  salt is non-empty**, which includes every installation created by
+  `launch_zzedc()`. With an empty salt the salted and unsalted hashes
+  coincide, so signing worked there.
   `verify_password_for_signature()`, which `apply_electronic_signature()`
   uses for re-authentication, compared an unsalted SHA-256 of the
   password with the stored hash, while the login, the setup wizard,

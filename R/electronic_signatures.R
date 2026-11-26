@@ -531,10 +531,12 @@ compute_record_hash <- function(conn, table_name, record_id) {
 #' Verify Password for Signature
 #'
 #' Verifies the signer's password before a signature is applied, with
-#' the same rule the login uses: SHA-256 of the password followed by
-#' the installation salt from [resolve_auth_salt()]. Before 2026-11-23
-#' the salt was omitted, so every correct password was rejected
-#' wherever passwords were stored salted, which is every installation.
+#' the rule the application uses to store passwords: SHA-256 of the
+#' password followed by the installation salt from
+#' [resolve_auth_salt()]. Before 2026-11-23 the salt was omitted, so
+#' every correct password was rejected wherever the installation salt
+#' is non-empty, which includes every installation created by
+#' [launch_zzedc()].
 #'
 #' @param password Character: Plain text password
 #' @param stored_hash Character: Stored password hash
