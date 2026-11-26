@@ -1,5 +1,54 @@
 # zzedc (development version)
 
+## Electronic signatures: the application could not sign, and missing records could be signed
+
+* **No signature could be applied through the application.** The
+  Compliance tab offered lowercase meanings (`approved_by`), which
+  `apply_electronic_signature()` rejects as invalid. The module test
+  set `CREATED_BY` directly, so it never exercised the offered
+  choices. The form now offers the codes the function accepts. (Verified
+  by execution.)
+* **Signatures could be applied to records that do not exist.** For a
+  missing table or record, `compute_record_hash()` hashes a placeholder
+  string, and the signature succeeded, bound to nothing.
+  `apply_electronic_signature()` now refuses, writes no signature, and
+  logs the attempt as `FAILED_VALIDATION`. (Verified by execution.)
+* The form offered three fixed tables (`subjects`, `demographics`,
+  `cognitive_assessments`) that a study may not have. It now offers
+  the signable tables that exist in the database: by default
+  `data_entries`, `subjects`, `adverse_events` and
+  `protocol_deviations`, configurable with the
+  `zzedc.signable_tables` option. The server also refuses a table
+  outside that list, since the choice list is only a client-side
+  restriction.
+* Regression test: `inst/tinytest/test_signature_ui_record.R` (13
+  assertions; 9 fail on the previous source).
+
+## Electronic signatures: correct passwords were rejected
+
+* **Signing rejected every correct password wherever the installation
+  salt is non-empty**, which includes every installation created by
+  `launch_zzedc()`. With an empty salt the salted and unsalted hashes
+  coincide, so signing worked there.
+  `verify_password_for_signature()`, which `apply_electronic_signature()`
+  uses for re-authentication, compared an unsalted SHA-256 of the
+  password with the stored hash, while the login, the setup wizard,
+  and user management store SHA-256 of the password followed by the
+  installation salt (`resolve_auth_salt()`). (Verified by execution
+  with a user hashed by the application's rule, under a configured
+  salt and under the default salt.) The tests did not catch it because
+  their fixtures built unsalted hashes, matching the defect.
+* The verifier now applies the login's rule, with the installation
+  salt by default and an optional `salt` argument. The fixtures in
+  `test_electronic-signatures.R`, `test_cfr-compliance-module.R`, and
+  `test_subject_case_report.R` now build hashes the way the
+  application does.
+* Not changed here: failed signing attempts are logged but still do
+  not count toward account lockout.
+* Regression test: `inst/tinytest/test_signature_salt.R` (9
+  assertions; on the previous source the 4 correct-password checks
+  fail).
+
 ## Adverse events: every write is audited in the same transaction
 
 * **Five of the six adverse event writers wrote no audit record.**

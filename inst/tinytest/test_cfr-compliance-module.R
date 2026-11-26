@@ -36,7 +36,8 @@ setup_test_db <- function() {
 
   conn <- DBI::dbConnect(RSQLite::SQLite(), test_db)
   zzedc:::ensure_edc_users_table(conn)
-  password_hash <- digest::digest(paste0("correct-horse", ""), algo = "sha256")
+  password_hash <- digest::digest(paste0("correct-horse", resolve_auth_salt()),
+                                  algo = "sha256")
   zzedc:::db_insert_user(conn, username = "jdoe", password_hash = password_hash,
                   full_name = "Jane Doe", role = "Coordinator",
                   user_id = "USER_TEST_1", created_by = "test")
@@ -48,11 +49,15 @@ setup_test_db <- function() {
   DBI::dbExecute(conn, "INSERT INTO test_records (subject_id, status) VALUES ('S001', 'draft')")
   DBI::dbDisconnect(conn)
 
-  list(test_db = test_db, old_key = old_key)
+  # The module signs only tables in the signable list.
+  old_tables <- options(zzedc.signable_tables = "test_records")
+
+  list(test_db = test_db, old_key = old_key, old_tables = old_tables)
 }
 
 cleanup_test_db <- function(ctx) {
   if (file.exists(ctx$test_db)) unlink(ctx$test_db)
+  options(ctx$old_tables)
   Sys.unsetenv("ZZEDC_DB_PATH")
   if (is.na(ctx$old_key)) Sys.unsetenv("DB_ENCRYPTION_KEY")
   else Sys.setenv(DB_ENCRYPTION_KEY = ctx$old_key)
@@ -137,7 +142,8 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
       table_name = "test_records", record_id = "1",
       signer_user_id = "USER_TEST_1", signer_full_name = "Jane Doe",
       signature_meaning = "CREATED_BY", password = "correct-horse",
-      password_hash = digest::digest(paste0("correct-horse", ""), algo = "sha256"),
+      password_hash = digest::digest(paste0("correct-horse", resolve_auth_salt()),
+                                     algo = "sha256"),
       db_path = ctx$test_db
     )
     expect_true(sig$success)
