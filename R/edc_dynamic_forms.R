@@ -726,6 +726,9 @@ fill_crf_field_inputs <- function(session, metadata, values) {
 #'   [db_insert_data_entry()]; see its own documentation. Used by the
 #'   double-data-entry save path (`R/double_data_entry.R`), `NULL` for
 #'   every ordinary submission.
+#' @param site_id Passed to [db_insert_data_entry()]: the site at which
+#'   a new subject is enrolled. Forms without a `tracking_id`, whose
+#'   subject ID is generated, never enroll a subject.
 #' @param ip_address,session_id Recorded in the entry's audit record
 #'   (see `session_audit_context()`).
 #' @return The `list(success=, entry_id=)` / `list(success=FALSE,
@@ -734,11 +737,16 @@ fill_crf_field_inputs <- function(session, metadata, values) {
 save_crf_entry <- function(conn, crf_code, field_data, created_by,
                            is_complete = TRUE,
                            dde_group_id = NULL, audit_extra = NULL,
-                           ip_address = NULL, session_id = NULL) {
+                           ip_address = NULL, session_id = NULL,
+                           site_id = NULL) {
   ensure_data_entries_table(conn)
 
   subject_id <- field_data$tracking_id
-  if (is.null(subject_id) || !nzchar(trimws(as.character(subject_id)))) {
+  # A generated ID names one submission, not a person, so it never
+  # enrolls a subject.
+  generated <- is.null(subject_id) ||
+    !nzchar(trimws(as.character(subject_id)))
+  if (generated) {
     subject_id <- paste0(
       toupper(crf_code), "-",
       format(Sys.time(), "%Y%m%d%H%M%OS3", tz = "UTC")
@@ -755,7 +763,9 @@ save_crf_entry <- function(conn, crf_code, field_data, created_by,
     dde_group_id = dde_group_id,
     audit_extra  = audit_extra,
     ip_address  = ip_address,
-    session_id  = session_id
+    session_id  = session_id,
+    site_id     = site_id,
+    enroll      = !generated
   )
 }
 

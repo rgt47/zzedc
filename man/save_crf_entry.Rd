@@ -13,7 +13,8 @@ save_crf_entry(
   dde_group_id = NULL,
   audit_extra = NULL,
   ip_address = NULL,
-  session_id = NULL
+  session_id = NULL,
+  site_id = NULL
 )
 }
 \arguments{
@@ -44,6 +45,10 @@ every ordinary submission.}
 
 \item{ip_address, session_id}{Recorded in the entry's audit record
 (see \code{session_audit_context()}).}
+
+\item{site_id}{Passed to \code{\link[=db_insert_data_entry]{db_insert_data_entry()}}: the site at which
+a new subject is enrolled. Forms without a \code{tracking_id}, whose
+subject ID is generated, never enroll a subject.}
 }
 \value{
 The \code{list(success=, entry_id=)} / \code{list(success=FALSE, error=)} result from \code{\link[=db_insert_data_entry]{db_insert_data_entry()}}.

@@ -222,14 +222,23 @@ db_mark_entry_superseded <- function(conn, entry_id, superseded_by) {
 #'   second write.
 #' @param ip_address,session_id Client address and Shiny session token,
 #'   recorded in the audit record when known.
+#' @param site_id Site at which to enroll the subject, when this is
+#'   their first entry; `NULL` (the default) applies the rule in
+#'   [subject_enrollment] (the entering user's site, or the study's
+#'   only site).
+#' @param enroll Whether this entry may enroll a new subject. `FALSE`
+#'   for subject IDs that identify a submission rather than a person.
 #' @return Named list with `success` (logical) and either
-#'   `entry_id` (on success) or `error` (the DBI error message).
+#'   `entry_id`, `enrolled`, and `site_id` (on success) or `error`
+#'   (the DBI error message).
 #'
 #' @details
 #' The row and its audit record (an `INSERT` event on `data_entries`
 #' whose details hold the submitted values) are written in one
 #' transaction: if the audit record cannot be written, the entry is not
-#' saved (21 CFR 11.10(e)).
+#' saved (21 CFR 11.10(e)). A subject's first entry also enrolls them
+#' (a `subjects` row with its site, and its own audit record) in the
+#' same transaction.
 #' @keywords internal
 db_insert_data_entry <- function(conn,
                                   subject_id,
@@ -243,7 +252,9 @@ db_insert_data_entry <- function(conn,
                                   dde_group_id = NULL,
                                   audit_extra = NULL,
                                   ip_address = NULL,
-                                  session_id = NULL) {
+                                  session_id = NULL,
+                                  site_id = NULL,
+                                  enroll = TRUE) {
   # Optional monitoring-plan gate (R/dsm_plan.R): a subject's first
   # entry needs a plan in effect. Skipped, without database access,
   # unless zzedc.dsm_require_plan_in_effect is on.
@@ -266,9 +277,30 @@ db_insert_data_entry <- function(conn,
     entry_id <- gsub("[^A-Za-z0-9-]", "", entry_id)
   }
 
+  # Enrollment tables are created outside the transaction (DDL). If
+  # they cannot be, the entry is still saved, without enrollment.
+  if (isTRUE(enroll)) {
+    enroll <- tryCatch({
+      ensure_subjects_table(conn)
+      ensure_sites_table(conn)
+      TRUE
+    }, error = function(e) {
+      warning("Subject enrollment not recorded: ", conditionMessage(e),
+              call. = FALSE)
+      FALSE
+    })
+  }
+
   data_json <- as.character(jsonlite::toJSON(data, auto_unbox = TRUE, null = "null"))
+  enrolled_site <- NULL
   result <- tryCatch({
     .with_db_transaction(conn, function(c) {
+      if (isTRUE(enroll) && .is_enrollment(c, subject_id)) {
+        enrolled_site <<- .enroll_subject(c, subject_id, created_by,
+                                          site_id = site_id,
+                                          ip_address = ip_address,
+                                          session_id = session_id)
+      }
       has_dde_col <- "dde_group_id" %in% DBI::dbListFields(c, "data_entries")
       if (has_dde_col) {
         DBI::dbExecute(
@@ -329,7 +361,9 @@ db_insert_data_entry <- function(conn,
         user_id = created_by, ip_address = ip_address, session_id = session_id
       )
     })
-    list(success = TRUE, entry_id = entry_id)
+    list(success = TRUE, entry_id = entry_id,
+         enrolled = !is.null(enrolled_site),
+         site_id = if (is.null(enrolled_site)) NULL else enrolled_site)
   }, error = function(e) {
     list(success = FALSE, error = conditionMessage(e))
   })
