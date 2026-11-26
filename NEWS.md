@@ -1,5 +1,23 @@
 # zzedc (development version)
 
+## Fallback login: one salt rule
+
+* **The fallback login rejected correct passwords on launcher
+  installations with `ZZEDC_SALT` set.** `authenticate_user()` in
+  `R/auth_module.R`, which serves logins only when the application's
+  main server fails to load (and never under the `regulated`
+  profile), read `ZZEDC_SALT` when the configuration named no salt
+  variable. `launch_zzedc()` writes such a configuration, and every
+  password writer hashes with `resolve_auth_salt(cfg)`, which then
+  uses `default_salt`. It now calls `resolve_auth_salt(cfg)`. The
+  application's main login (`inst/app/auth.R`) already did, and was
+  not affected. (Verified by execution.)
+* No stored password changes: every path that writes a password hash
+  already used `resolve_auth_salt()`, so only the fallback's check
+  moves to the rule the hashes were written with.
+* Regression test: `inst/tinytest/test_fallback_login_salt.R` (5
+  assertions; 1 fails on the previous source).
+
 ## Electronic signatures: the application could not sign, and missing records could be signed
 
 * **No signature could be applied through the application.** The
