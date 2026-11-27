@@ -514,16 +514,24 @@ crf_dde_flagged <- reactive({
 # The site is asked for only when the subject ID is new, the user has
 # no site, and the study has several: zzedc:::.enrollment_site_choices()
 # returns NULL in every other case, and the drop-down is not shown.
+# The drop-down depends on the subject key alone, not on every field:
+# re-rendering it on each edit cleared the site already chosen (seen in
+# a browser walkthrough, 2026-11-27). A reactiveVal set to an
+# identical value does not invalidate its dependents.
+enroll_subject_key <- shiny::reactiveVal(NULL)
+observe({
+  enroll_subject_key(zzedc:::crf_subject_key(crf_live_field_data()))
+})
+
 output$enroll_site_ui <- renderUI({
-  field_data <- crf_live_field_data()
+  subject_key <- enroll_subject_key()
   username <- user_input$username
   # Re-evaluate after every save: the subject just saved is now
   # enrolled, so the drop-down must disappear (seen in a browser
   # walkthrough, 2026-11-27, where it stayed on screen).
   crf_entries_refresh()
   choices <- tryCatch(
-    zzedc:::.enrollment_site_choices(
-      db_pool, zzedc:::crf_subject_key(field_data), username),
+    zzedc:::.enrollment_site_choices(db_pool, subject_key, username),
     error = function(e) NULL)
   if (is.null(choices)) return(NULL)
   labels <- zzedc:::.site_labels(choices$site_id, choices$site_name)
