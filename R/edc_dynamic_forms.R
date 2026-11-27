@@ -689,6 +689,43 @@ fill_crf_field_inputs <- function(session, metadata, values) {
 }
 
 
+#' The Subject a CRF Submission Belongs To
+#'
+#' The one rule for which form field identifies the subject: the
+#' value of `tracking_id` if the form has that field and it is filled
+#' in, otherwise the value of `subject_id`. Registry forms use
+#' `tracking_id`; clinical forms, including the shipped demonstration
+#' study and the forms described in `vignette("content-author-guide")`,
+#' use `subject_id`.
+#'
+#' @param field_data Named list of submitted field values.
+#' @return The trimmed subject identifier, or `NULL` if neither field
+#'   holds a value.
+#' @keywords internal
+crf_subject_key <- function(field_data) {
+  for (f in .crf_subject_key_fields) {
+    v <- field_data[[f]]
+    if (!is.null(v) && length(v) == 1 && !is.na(v) &&
+        nzchar(trimws(as.character(v)))) {
+      return(trimws(as.character(v)))
+    }
+  }
+  NULL
+}
+
+.crf_subject_key_fields <- c("tracking_id", "subject_id")
+
+#' The Subject-Key Field a Form Has (internal)
+#'
+#' @param field_names The form's field codes.
+#' @return `"tracking_id"`, `"subject_id"`, or `NULL`.
+#' @keywords internal
+crf_subject_key_field <- function(field_names) {
+  hit <- intersect(.crf_subject_key_fields, field_names)
+  if (length(hit) == 0) NULL else hit[1]
+}
+
+
 #' Save a submitted CRF entry to `data_entries`
 #'
 #' Thin wrapper over [ensure_data_entries_table()]/
@@ -697,15 +734,15 @@ fill_crf_field_inputs <- function(session, metadata, values) {
 #' study-specific `forms/save.R` used by the demo scaffold path.
 #'
 #' The `data_entries` table requires a non-empty `subject_id`. The
-#' CRF forms imported by this package track one record per
-#' submission (a manuscript, a course, a committee term, ...), not
-#' a subject's repeated visits, so there is no natural "subject" to
-#' key on. `tracking_id` (present and required on every imported
-#' form seen so far) is used as the `subject_id` surrogate when
-#' present; if a form has no `tracking_id` field, or it was left
-#' blank, a timestamp-based placeholder is used instead so the
-#' insert can still proceed rather than failing the whole
-#' submission over a cosmetic identifier.
+#' entry's subject is the form's subject-key field (see
+#' [crf_subject_key()]): `tracking_id` on registry forms (a
+#' manuscript, a course, a committee term, ...), or `subject_id` on
+#' clinical forms such as the shipped demonstration study's. Before
+#' 2026-11-27 only `tracking_id` was read, so a form keyed by
+#' `subject_id` stored every entry under a generated placeholder. If
+#' the form has neither field, or it was left blank, a timestamp-based
+#' placeholder is still used so the insert can proceed; such an entry
+#' is linked to no subject.
 #'
 #' @param conn A DBI connection (or pool object).
 #' @param crf_code The form's `crf_definitions.crf_code` (used,
@@ -737,8 +774,8 @@ save_crf_entry <- function(conn, crf_code, field_data, created_by,
                            ip_address = NULL, session_id = NULL) {
   ensure_data_entries_table(conn)
 
-  subject_id <- field_data$tracking_id
-  if (is.null(subject_id) || !nzchar(trimws(as.character(subject_id)))) {
+  subject_id <- crf_subject_key(field_data)
+  if (is.null(subject_id)) {
     subject_id <- paste0(
       toupper(crf_code), "-",
       format(Sys.time(), "%Y%m%d%H%M%OS3", tz = "UTC")
