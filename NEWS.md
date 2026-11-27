@@ -56,6 +56,34 @@
   wiring in `inst/app/edc.R` is not covered by a test: no test
   harness runs that file's server code.
 
+## Data entry: forms keyed by `subject_id` are linked to their subject
+
+* **Entries on forms whose subject field is `subject_id` were linked
+  to no subject.** The data-entry path read the subject only from a
+  field named `tracking_id`. The shipped demonstration study
+  (`inst/extdata/adhd_trial`) and the authoring guide both name the
+  field `subject_id`. Each entry on such a form was therefore stored
+  under a generated placeholder such as
+  `SCREENING-20261127183310.094`, with the entered ID only inside
+  `data_json`. (Verified by execution.)
+* **What that broke** (inferred from the code):
+  - per-subject records;
+  - double data entry, which refused to pair without a subject ID;
+  - the monitoring-plan gate, which saw every entry as a new
+    subject's first.
+* **The fix.** One rule, `crf_subject_key()`: the `tracking_id` value
+  if the form has it filled in, otherwise `subject_id`. It is used by
+  `save_crf_entry()`, double-entry pairing, the upload directory, and
+  the draft-resume lock. Registry forms keyed by `tracking_id` are
+  unchanged, except that surrounding spaces are now trimmed.
+* **Not repaired:** entries already saved under generated IDs. Their
+  real subject IDs can be read from `data_json`, but a repair would
+  rewrite `data_entries.subject_id` and needs its own reviewed,
+  audited migration.
+* Regression test: `inst/tinytest/test_subject_key.R` (13 assertions;
+  9 fail on the previous source, including both that check where an
+  entry is stored).
+
 ## Fallback login: one salt rule
 
 * **The fallback login rejected correct passwords on launcher

@@ -47,8 +47,9 @@ every ordinary submission.}
 (see \code{session_audit_context()}).}
 
 \item{site_id}{Passed to \code{\link[=db_insert_data_entry]{db_insert_data_entry()}}: the site at which
-a new subject is enrolled. Forms without a \code{tracking_id}, whose
-subject ID is generated, never enroll a subject.}
+a new subject is enrolled. A form with no subject-key value (see
+\code{\link[=crf_subject_key]{crf_subject_key()}}), whose subject ID is generated, never enrolls
+a subject.}
 }
 \value{
 The \code{list(success=, entry_id=)} / \code{list(success=FALSE, error=)} result from \code{\link[=db_insert_data_entry]{db_insert_data_entry()}}.
@@ -61,14 +62,14 @@ study-specific \code{forms/save.R} used by the demo scaffold path.
 }
 \details{
 The \code{data_entries} table requires a non-empty \code{subject_id}. The
-CRF forms imported by this package track one record per
-submission (a manuscript, a course, a committee term, ...), not
-a subject's repeated visits, so there is no natural "subject" to
-key on. \code{tracking_id} (present and required on every imported
-form seen so far) is used as the \code{subject_id} surrogate when
-present; if a form has no \code{tracking_id} field, or it was left
-blank, a timestamp-based placeholder is used instead so the
-insert can still proceed rather than failing the whole
-submission over a cosmetic identifier.
+entry's subject is the form's subject-key field (see
+\code{\link[=crf_subject_key]{crf_subject_key()}}): \code{tracking_id} on registry forms (a
+manuscript, a course, a committee term, ...), or \code{subject_id} on
+clinical forms such as the shipped demonstration study's. Before
+2026-11-27 only \code{tracking_id} was read, so a form keyed by
+\code{subject_id} stored every entry under a generated placeholder. If
+the form has neither field, or it was left blank, a timestamp-based
+placeholder is still used so the insert can proceed; such an entry
+is linked to no subject.
 }
 \keyword{internal}

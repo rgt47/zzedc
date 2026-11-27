@@ -477,8 +477,9 @@ output$edc_crf_fields <- renderUI({
       # set on the old (now replaced) tracking_id input -- restoring
       # its stored value is not enough on its own, since this is a
       # fresh DOM element that starts enabled again.
-      if (resuming_draft && "tracking_id" %in% names(metadata)) {
-        shinyjs::disable("tracking_id")
+      if (resuming_draft &&
+          !is.null(zzedc:::crf_subject_key_field(names(metadata)))) {
+        shinyjs::disable(zzedc:::crf_subject_key_field(names(metadata)))
       }
     }, once = TRUE)
   }
@@ -517,8 +518,8 @@ output$enroll_site_ui <- renderUI({
   field_data <- crf_live_field_data()
   username <- user_input$username
   choices <- tryCatch(
-    zzedc:::.enrollment_site_choices(db_pool, field_data$tracking_id,
-                                     username),
+    zzedc:::.enrollment_site_choices(
+      db_pool, zzedc:::crf_subject_key(field_data), username),
     error = function(e) NULL)
   if (is.null(choices)) return(NULL)
   labels <- ifelse(is.na(choices$site_name) | !nzchar(choices$site_name),
@@ -734,6 +735,7 @@ dde_pending <- shiny::reactiveVal(NULL)
     crf_submit_attempted(FALSE)
     crf_draft(NULL)
     shinyjs::enable("tracking_id")
+    shinyjs::enable("subject_id")
     if (!is.null(zzedc:::tracking_id_prefix_for_form(crf_code)) &&
           "tracking_id" %in% names(metadata)) {
       metadata$tracking_id$value <- zzedc:::next_manuscript_tracking_id(db_pool)
@@ -766,6 +768,7 @@ observeEvent(input$edc_crf_form, {
   crf_submit_attempted(FALSE)
   crf_draft(NULL)
   shinyjs::enable("tracking_id")
+  shinyjs::enable("subject_id")
 }, ignoreInit = TRUE)
 
 crf_live_field_data <- reactive({
@@ -932,7 +935,8 @@ crf_entries_refresh <- reactiveVal(0)
       field_data[[f]] <- zzedc:::persist_crf_upload(
         tmp_path = upload$datapath[1], original_name = upload$name[1],
         db_path = db_path, crf_code = crf_code,
-        tracking_id = field_data$tracking_id %||% "unknown", field_code = f
+        tracking_id = zzedc:::crf_subject_key(field_data) %||% "unknown",
+        field_code = f
       )
     } else if (!is.null(draft) && length(draft$data[[f]]) > 0) {
       field_data[[f]] <- as.character(unlist(draft$data[[f]]))[1]
@@ -1017,9 +1021,9 @@ observeEvent(input$submitcrf, {
   # for it; enroll_site is NULL otherwise, so a stale drop-down value
   # never overrides the user's own site.
   enroll_site <- if (is.null(draft)) {
-    zzedc:::.enrollment_site_from_form(db_pool, field_data$tracking_id,
-                                       created_by,
-                                       shiny::isolate(input$enroll_site))
+    zzedc:::.enrollment_site_from_form(
+      db_pool, zzedc:::crf_subject_key(field_data), created_by,
+      shiny::isolate(input$enroll_site))
   } else {
     list(error = NULL, site_id = NULL)
   }
@@ -1075,12 +1079,11 @@ observeEvent(input$submitcrf, {
   # never-to-be-completed group. A flagged form depends on subject_id
   # being the one thing the two enterers key identically, so this is
   # refused outright rather than silently skipping DDE.
-  # nzchar(NA) is TRUE (confirmed directly), so is.na() must be
-  # checked explicitly here -- !nzchar(trimws(as.character(NA))) alone
-  # evaluates to FALSE and would let a genuinely missing (NA, not just
-  # "") tracking_id straight through this guard.
-  if (is.null(field_data$tracking_id) || is.na(field_data$tracking_id) ||
-        !nzchar(trimws(as.character(field_data$tracking_id)))) {
+  # The subject is the form's tracking_id or subject_id field
+  # (zzedc:::crf_subject_key(), which also treats NA and blank as
+  # missing).
+  subject_id <- zzedc:::crf_subject_key(field_data)
+  if (is.null(subject_id)) {
     shiny::showNotification(
       "This form requires double data entry, which pairs the two entries by Subject ID; enter a Subject ID before submitting.",
       type = "error", duration = 10
@@ -1094,7 +1097,6 @@ observeEvent(input$submitcrf, {
   # db_get_dde_first_entry(), which never selects data_json), whether
   # this submission is the first or second entry for this
   # subject_id/form_name.
-  subject_id <- as.character(field_data$tracking_id)
   decision <- zzedc:::dde_decide_role(db_pool, subject_id, tolower(crf_code), created_by)
 
   if (isTRUE(decision$blocked_same_user)) {
@@ -1350,9 +1352,9 @@ observeEvent(input$savedraftcrf, {
   # A new draft is the subject's first entry, so it enrolls them; the
   # site rule is the same as at submission.
   enroll_site <- if (is.null(draft)) {
-    zzedc:::.enrollment_site_from_form(db_pool, field_data$tracking_id,
-                                       created_by,
-                                       shiny::isolate(input$enroll_site))
+    zzedc:::.enrollment_site_from_form(
+      db_pool, zzedc:::crf_subject_key(field_data), created_by,
+      shiny::isolate(input$enroll_site))
   } else {
     list(error = NULL, site_id = NULL)
   }
@@ -1387,8 +1389,8 @@ observeEvent(input$savedraftcrf, {
     # had no entry_id to resume until just now) as for a second save
     # of an already-resumed one.
     crf_draft(list(entry_id = result$entry_id, data = field_data))
-    if ("tracking_id" %in% names(metadata)) {
-      shinyjs::disable("tracking_id")
+    if (!is.null(zzedc:::crf_subject_key_field(names(metadata)))) {
+      shinyjs::disable(zzedc:::crf_subject_key_field(names(metadata)))
     }
   } else {
     shiny::showNotification(
@@ -1513,8 +1515,8 @@ shiny::observeEvent(input$edc_continue_draft, {
   # never touches that column); disabling the input here prevents a
   # resumed draft's data_json from recording a different tracking_id
   # than the row's own subject_id actually is.
-  if ("tracking_id" %in% names(metadata)) {
-    shinyjs::disable("tracking_id")
+  if (!is.null(zzedc:::crf_subject_key_field(names(metadata)))) {
+    shinyjs::disable(zzedc:::crf_subject_key_field(names(metadata)))
   }
 
   crf_submit_attempted(FALSE)

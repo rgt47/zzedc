@@ -214,6 +214,13 @@ local({
   expect_true(r$success && r$enrolled)
   expect_equal(.subj(s, "NEW-1")$site_id, "S02",
                info = "the form's choice reaches enrollment")
+
+  r <- save_crf_entry(s$conn, "screening",
+                      list(subject_id = "S01-001", age = 9),
+                      created_by = "site_user")
+  expect_true(r$success && r$enrolled,
+              info = "a form keyed by subject_id enrolls its subject")
+  expect_equal(.subj(s, "S01-001")$site_id, "S01")
 })
 
 # ---------------------------------------------------------------------------
