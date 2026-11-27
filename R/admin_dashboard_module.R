@@ -61,6 +61,13 @@ admin_dashboard_ui <- function(id) {
           )
         ),
 
+        # Subject Sites Tab (site review and transfers)
+        nav_panel("Subject Sites",
+          div(class = "mt-4",
+            subject_sites_admin_ui(ns("subject_sites"))
+          )
+        ),
+
         # System Configuration Tab
         nav_panel("System Configuration",
           div(class = "mt-4",
@@ -174,6 +181,9 @@ admin_dashboard_server <- function(id, db_pool = NULL, user_session = NULL,
 
     randomization_admin_server("randomization", db_pool = db_pool,
                                 user_session = user_session)
+
+    subject_sites_admin_server("subject_sites", db_pool = db_pool,
+                               user_session = user_session)
 
     system_config_results <- system_config_server("system_config", db_pool = db_pool,
                                                   db_path = db_path,

@@ -17,7 +17,9 @@ db_insert_data_entry(
   dde_group_id = NULL,
   audit_extra = NULL,
   ip_address = NULL,
-  session_id = NULL
+  session_id = NULL,
+  site_id = NULL,
+  enroll = TRUE
 )
 }
 \arguments{
@@ -56,10 +58,19 @@ second write.}
 
 \item{ip_address, session_id}{Client address and Shiny session token,
 recorded in the audit record when known.}
+
+\item{site_id}{Site at which to enroll the subject, when this is
+their first entry; \code{NULL} (the default) applies the rule in
+\link{subject_enrollment} (the entering user's site, or the study's
+only site).}
+
+\item{enroll}{Whether this entry may enroll a new subject. \code{FALSE}
+for subject IDs that identify a submission rather than a person.}
 }
 \value{
 Named list with \code{success} (logical) and either
-\code{entry_id} (on success) or \code{error} (the DBI error message).
+\code{entry_id}, \code{enrolled}, and \code{site_id} (on success) or \code{error}
+(the DBI error message).
 }
 \description{
 Insert a single row into \code{data_entries}
@@ -68,6 +79,8 @@ Insert a single row into \code{data_entries}
 The row and its audit record (an \code{INSERT} event on \code{data_entries}
 whose details hold the submitted values) are written in one
 transaction: if the audit record cannot be written, the entry is not
-saved (21 CFR 11.10(e)).
+saved (21 CFR 11.10(e)). A subject's first entry also enrolls them
+(a \code{subjects} row with its site, and its own audit record) in the
+same transaction.
 }
 \keyword{internal}

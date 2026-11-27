@@ -1,5 +1,80 @@
 # zzedc (development version)
 
+## Subjects and sites: a subject's site is recorded at enrollment
+
+* **A subject's first data entry now enrolls them.** In the same
+  transaction as the entry, `db_insert_data_entry()` creates the
+  subject's `subjects` row with its site and writes an audit record.
+  Before this, nothing in the application created `subjects` rows,
+  and no subject had a recorded site. Site-level monitoring
+  indicators need one (monitoring-plan design, decision 9).
+* **The site recorded** is, in order of preference:
+  1. a site passed by the caller (`site_id`);
+  2. the entering user's `edc_users.site_id`;
+  3. the study's only site;
+  4. a default site, `_default_site_`, created for a study with none.
+
+  A study with several sites and a user with none records no site
+  when called from R. The data-entry form asks in that case instead:
+  - a required "Site for this new subject" drop-down appears for a
+    new subject ID, entered by a user with no site, in a study with
+    more than one active site;
+  - submitting or saving a draft without a choice is refused;
+  - the chosen site is passed only when the form asked, so a value
+    left in the hidden drop-down never overrides the user's own site.
+
+  The decision is `.enrollment_site_choices()` and
+  `.enrollment_site_from_form()`. The site is stored once and changed
+  only by `transfer_subject_site()`, which requires a reason and is
+  audited.
+* **Not enrolled:**
+  - subjects who already had entries before this change. They are
+    left for `migrate_add_subject_sites()` rather than given today's
+    user's site.
+  - subject IDs that `save_crf_entry()` generates for forms without a
+    tracking field. Those IDs identify a submission, not a person.
+* **`migrate_add_subject_sites()`** prepares an existing study:
+  - it registers as sites the `site_id` values already used in
+    `edc_users` and `adverse_events`;
+  - it creates a `subjects` row with no site for each existing
+    subject;
+  - it returns those subjects for review, and the generated IDs it
+    skipped.
+* **Review screen.** The Admin tab has a new "Subject Sites" panel.
+  - It lists subjects, by default only those with no site, and
+    records each view with `log_record_read()`.
+  - It records a site or a transfer through `transfer_subject_site()`,
+    with a required reason. This needs the `Admin` or `PI` role.
+  - It registers new sites; this needs `Admin`.
+  - Refused actions are audited as `ACCESS`/`DENIED`.
+
+  Tests: `inst/tinytest/test_subject_sites_module.R` (14 assertions,
+  through `shiny::testServer()`).
+* **New exports:** `add_site()`, `transfer_subject_site()`,
+  `subject_sites()`.
+* **Tables.** `subjects` gains `site_id` and `created_by` by
+  `ALTER TABLE`, so the GDPR tables' foreign keys on it are kept; the
+  `sites` table is new. When `study_info` is empty, enrollment writes
+  one audited placeholder row, `_default_study_`. The `subjects`
+  definition from `initialize_encrypted_database()` references
+  `study_info`, and DuckDB enforces the reference. Without the row,
+  every first entry on a new DuckDB study would fail (verified by
+  execution). `_default_study_` is the value randomization already
+  falls back to.
+* Tests: `inst/tinytest/test_subject_sites.R` (54 assertions,
+  including DuckDB). No existing test needed a change. The form's
+  wiring in `inst/app/edc.R` is not covered by a test, since no test
+  harness runs that file's server code. It was instead checked in a
+  browser walkthrough on 2026-11-27 (demonstration study, SQLite, a
+  user with no site, two sites):
+  - the drop-down appeared only for a new subject ID;
+  - a draft save without a site was refused, and nothing was written;
+  - with a site chosen, the subject was enrolled at that site, the
+    placeholder study row was written, and each write was audited.
+
+  The walkthrough found that the drop-down stayed on screen after a
+  save. It now re-evaluates after every save.
+
 ## Data entry: forms keyed by `subject_id` are linked to their subject
 
 * **Entries on forms whose subject field is `subject_id` were linked
