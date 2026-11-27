@@ -517,6 +517,10 @@ crf_dde_flagged <- reactive({
 output$enroll_site_ui <- renderUI({
   field_data <- crf_live_field_data()
   username <- user_input$username
+  # Re-evaluate after every save: the subject just saved is now
+  # enrolled, so the drop-down must disappear (seen in a browser
+  # walkthrough, 2026-11-27, where it stayed on screen).
+  crf_entries_refresh()
   choices <- tryCatch(
     zzedc:::.enrollment_site_choices(
       db_pool, zzedc:::crf_subject_key(field_data), username),

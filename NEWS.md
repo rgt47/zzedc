@@ -53,8 +53,17 @@
   falls back to.
 * Tests: `inst/tinytest/test_subject_sites.R` (54 assertions,
   including DuckDB). No existing test needed a change. The form's
-  wiring in `inst/app/edc.R` is not covered by a test: no test
-  harness runs that file's server code.
+  wiring in `inst/app/edc.R` is not covered by a test, since no test
+  harness runs that file's server code. It was instead checked in a
+  browser walkthrough on 2026-11-27 (demonstration study, SQLite, a
+  user with no site, two sites):
+  - the drop-down appeared only for a new subject ID;
+  - a draft save without a site was refused, and nothing was written;
+  - with a site chosen, the subject was enrolled at that site, the
+    placeholder study row was written, and each write was audited.
+
+  The walkthrough found that the drop-down stayed on screen after a
+  save. It now re-evaluates after every save.
 
 ## Data entry: forms keyed by `subject_id` are linked to their subject
 
