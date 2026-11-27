@@ -244,6 +244,9 @@ viscode_rv <- shiny::reactiveVal(1L)
         # any form with at least one require_double_entry field,
         # rather than a static actionButton.
         uiOutput("dde_form_banner"),
+        # Shown only when this entry would enroll a new subject whose
+        # site cannot be decided otherwise (output$enroll_site_ui).
+        uiOutput("enroll_site_ui"),
         actionButton("submitcrf", "Submit entry",
                      class = "btn btn-primary mt-3"),
         uiOutput("savedraftcrf_ui"),
@@ -506,6 +509,26 @@ crf_dde_flagged <- reactive({
 # discouraged -- the savedraftcrf observeEvent below also refuses the
 # action server-side, belt-and-suspenders against a crafted
 # Shiny.setInputValue('savedraftcrf', 1) bypassing this hidden button.
+# A subject's first entry enrolls them at a site (R/subject_sites.R).
+# The site is asked for only when the subject ID is new, the user has
+# no site, and the study has several: zzedc:::.enrollment_site_choices()
+# returns NULL in every other case, and the drop-down is not shown.
+output$enroll_site_ui <- renderUI({
+  field_data <- crf_live_field_data()
+  username <- user_input$username
+  choices <- tryCatch(
+    zzedc:::.enrollment_site_choices(db_pool, field_data$tracking_id,
+                                     username),
+    error = function(e) NULL)
+  if (is.null(choices)) return(NULL)
+  labels <- ifelse(is.na(choices$site_name) | !nzchar(choices$site_name),
+                   choices$site_id,
+                   paste0(choices$site_name, " (", choices$site_id, ")"))
+  selectInput("enroll_site", "Site for this new subject",
+              choices = c("Choose a site" = "",
+                          stats::setNames(choices$site_id, labels)))
+})
+
 output$savedraftcrf_ui <- renderUI({
   if (length(crf_dde_flagged()) > 0) return(NULL)
   actionButton("savedraftcrf", "Save and Finish Later",
@@ -990,6 +1013,21 @@ observeEvent(input$submitcrf, {
   audit_ctx <- zzedc::session_audit_context(session)
   flagged <- zzedc:::flagged_dde_fields(metadata)
 
+  # Enrollment site: required only when output$enroll_site_ui asked
+  # for it; enroll_site is NULL otherwise, so a stale drop-down value
+  # never overrides the user's own site.
+  enroll_site <- if (is.null(draft)) {
+    zzedc:::.enrollment_site_from_form(db_pool, field_data$tracking_id,
+                                       created_by,
+                                       shiny::isolate(input$enroll_site))
+  } else {
+    list(error = NULL, site_id = NULL)
+  }
+  if (!is.null(enroll_site$error)) {
+    shiny::showNotification(enroll_site$error, type = "error", duration = 8)
+    return(invisible(NULL))
+  }
+
   # The one bypass db_update_incomplete_data_entry() otherwise opens:
   # completing an already-open draft never goes through
   # save_crf_entry()'s DDE group-linking/diff at all. Forms with a
@@ -1022,7 +1060,8 @@ observeEvent(input$submitcrf, {
       zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
                               created_by = created_by, is_complete = TRUE,
                               ip_address = audit_ctx$ip_address,
-                              session_id = audit_ctx$session_id)
+                              session_id = audit_ctx$session_id,
+                              site_id = enroll_site$site_id)
     }
     .zzedc_finish_submit(result, crf_row, metadata, crf_code)
     return(invisible(NULL))
@@ -1080,7 +1119,8 @@ observeEvent(input$submitcrf, {
     result <- zzedc:::save_crf_entry(
       db_pool, crf_row$crf_code[1], field_data, created_by = created_by,
       is_complete = TRUE, dde_group_id = decision$group_id,
-      ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id
+      ip_address = audit_ctx$ip_address, session_id = audit_ctx$session_id,
+      site_id = enroll_site$site_id
     )
     .zzedc_finish_submit(result, crf_row, metadata, crf_code)
     return(invisible(NULL))
@@ -1307,6 +1347,19 @@ observeEvent(input$savedraftcrf, {
   }
 
   audit_ctx <- zzedc::session_audit_context(session)
+  # A new draft is the subject's first entry, so it enrolls them; the
+  # site rule is the same as at submission.
+  enroll_site <- if (is.null(draft)) {
+    zzedc:::.enrollment_site_from_form(db_pool, field_data$tracking_id,
+                                       created_by,
+                                       shiny::isolate(input$enroll_site))
+  } else {
+    list(error = NULL, site_id = NULL)
+  }
+  if (!is.null(enroll_site$error)) {
+    shiny::showNotification(enroll_site$error, type = "error", duration = 8)
+    return(invisible(NULL))
+  }
   result <- if (!is.null(draft)) {
     zzedc:::db_update_incomplete_data_entry(
       db_pool, entry_id = draft$entry_id, data = field_data,
@@ -1317,7 +1370,8 @@ observeEvent(input$savedraftcrf, {
     zzedc:::save_crf_entry(db_pool, crf_row$crf_code[1], field_data,
                             created_by = created_by, is_complete = FALSE,
                             ip_address = audit_ctx$ip_address,
-                            session_id = audit_ctx$session_id)
+                            session_id = audit_ctx$session_id,
+                            site_id = enroll_site$site_id)
   }
 
   if (isTRUE(result$success)) {

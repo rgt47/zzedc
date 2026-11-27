@@ -14,10 +14,19 @@
   3. the study's only site;
   4. a default site, `_default_site_`, created for a study with none.
 
-  A study with several sites and a user with none records no site.
-  The data-entry form will ask for one in that case; that form change
-  is not yet made. The site is stored once and changed only by
-  `transfer_subject_site()`, which requires a reason and is audited.
+  A study with several sites and a user with none records no site
+  when called from R. The data-entry form asks in that case instead:
+  - a required "Site for this new subject" drop-down appears for a
+    new subject ID, entered by a user with no site, in a study with
+    more than one active site;
+  - submitting or saving a draft without a choice is refused;
+  - the chosen site is passed only when the form asked, so a value
+    left in the hidden drop-down never overrides the user's own site.
+
+  The decision is `.enrollment_site_choices()` and
+  `.enrollment_site_from_form()`. The site is stored once and changed
+  only by `transfer_subject_site()`, which requires a reason and is
+  audited.
 * **Not enrolled:**
   - subjects who already had entries before this change. They are
     left for `migrate_add_subject_sites()` rather than given today's
@@ -42,8 +51,10 @@
   every first entry on a new DuckDB study would fail (verified by
   execution). `_default_study_` is the value randomization already
   falls back to.
-* Tests: `inst/tinytest/test_subject_sites.R` (41 assertions,
-  including DuckDB). No existing test needed a change.
+* Tests: `inst/tinytest/test_subject_sites.R` (54 assertions,
+  including DuckDB). No existing test needed a change. The form's
+  wiring in `inst/app/edc.R` is not covered by a test: no test
+  harness runs that file's server code.
 
 ## Fallback login: one salt rule
 

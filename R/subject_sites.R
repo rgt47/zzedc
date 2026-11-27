@@ -170,6 +170,78 @@ ensure_sites_table <- function(conn) {
 }
 
 
+#' Sites to Offer When Enrolling a Subject (internal)
+#'
+#' The data-entry form asks for a site only when enrollment would
+#' otherwise record none: the subject ID is new, the user has no site,
+#' and the study has more than one active site. In every other case
+#' the rule in [subject_enrollment] decides, and this returns `NULL`.
+#'
+#' @param conn A DBI connection or pool.
+#' @param subject_id The subject ID being entered (`tracking_id`).
+#' @param username The entering user's username.
+#' @return `NULL`, or a data frame of active sites (`site_id`,
+#'   `site_name`) to choose from.
+#' @keywords internal
+.enrollment_site_choices <- function(conn, subject_id, username) {
+  if (is.null(subject_id) || length(subject_id) != 1 || is.na(subject_id) ||
+      !nzchar(trimws(as.character(subject_id)))) {
+    return(NULL)
+  }
+  if (!DBI::dbExistsTable(conn, "sites")) return(NULL)
+  sites <- DBI::dbGetQuery(conn,
+    "SELECT site_id, site_name FROM sites WHERE active = 1
+      ORDER BY site_id")
+  if (nrow(sites) <= 1) return(NULL)
+  if (DBI::dbExistsTable(conn, "edc_users")) {
+    user_site <- DBI::dbGetQuery(conn,
+      "SELECT site_id FROM edc_users WHERE username = ?",
+      params = list(as.character(username)))$site_id
+    if (length(user_site) == 1 && !is.na(user_site) && nzchar(user_site)) {
+      return(NULL)
+    }
+  }
+  if (DBI::dbExistsTable(conn, "subjects")) {
+    known <- DBI::dbGetQuery(conn,
+      "SELECT COUNT(*) AS n FROM subjects WHERE subject_id = ?",
+      params = list(as.character(subject_id)))$n[1]
+    if (known > 0) return(NULL)
+  }
+  if (DBI::dbExistsTable(conn, "data_entries")) {
+    earlier <- DBI::dbGetQuery(conn,
+      "SELECT COUNT(*) AS n FROM data_entries WHERE subject_id = ?",
+      params = list(as.character(subject_id)))$n[1]
+    if (earlier > 0) return(NULL)
+  }
+  sites
+}
+
+
+#' Check the Site Chosen on the Form (internal)
+#'
+#' @inheritParams .enrollment_site_choices
+#' @param chosen The value of the form's site drop-down.
+#' @return `list(error = NULL, site_id = NULL)` when no choice is
+#'   needed; `list(error = NULL, site_id = <chosen>)` for a valid
+#'   choice; `list(error = <message>)` otherwise. `site_id` is `NULL`
+#'   whenever no choice was asked for, so a value left in a hidden
+#'   drop-down never overrides the user's own site.
+#' @keywords internal
+.enrollment_site_from_form <- function(conn, subject_id, username, chosen) {
+  choices <- .enrollment_site_choices(conn, subject_id, username)
+  if (is.null(choices)) return(list(error = NULL, site_id = NULL))
+  if (is.null(chosen) || length(chosen) != 1 || is.na(chosen) ||
+      !nzchar(chosen)) {
+    return(list(error = paste("Subject", subject_id, "is new: choose the",
+                              "site at which they are enrolled.")))
+  }
+  if (!chosen %in% choices$site_id) {
+    return(list(error = paste0("'", chosen, "' is not an active site.")))
+  }
+  list(error = NULL, site_id = chosen)
+}
+
+
 #' Is This Subject's Entry Their Enrollment? (internal)
 #'
 #' True when the subject has neither a `subjects` row nor any earlier

@@ -165,6 +165,58 @@ local({
 })
 
 # ---------------------------------------------------------------------------
+# The data-entry form's site choice (slice 2)
+# ---------------------------------------------------------------------------
+local({
+  choices <- get(".enrollment_site_choices", envir = asNamespace("zzedc"))
+  from_form <- get(".enrollment_site_from_form", envir = asNamespace("zzedc"))
+  s <- .db()
+  on.exit(.close(s))
+  .user(s, "site_user", "S01")
+  .user(s, "central_user")
+
+  expect_null(choices(s$conn, "NEW-1", "central_user"),
+              info = "no sites table yet: no choice asked")
+  .entry(s, "SUBJ-1", "site_user")
+  expect_null(choices(s$conn, "NEW-1", "central_user"),
+              info = "one site: no choice asked")
+  add_site(s$conn, "S02", "Second", "admin")
+
+  ch <- choices(s$conn, "NEW-1", "central_user")
+  expect_equal(ch$site_id, c("S01", "S02"),
+               info = "several sites, user without one, new subject: asked")
+  expect_null(choices(s$conn, "NEW-1", "site_user"),
+              info = "user with a site: not asked")
+  expect_null(choices(s$conn, "SUBJ-1", "central_user"),
+              info = "existing subject: not asked")
+  expect_null(choices(s$conn, "", "central_user"),
+              info = "no subject ID (generated later): not asked")
+  DBI::dbExecute(s$conn,
+    "INSERT INTO data_entries (entry_id, subject_id, form_name, data_json,
+                               is_complete, created_by)
+     VALUES ('E-PRE', 'PRE-1', 'baseline', '{}', 1, 'x')")
+  expect_null(choices(s$conn, "PRE-1", "central_user"),
+              info = "subject with earlier entries: not asked")
+
+  r <- from_form(s$conn, "NEW-1", "central_user", "")
+  expect_true(grepl("choose the site", r$error),
+              info = "a required choice left blank is refused")
+  r <- from_form(s$conn, "NEW-1", "central_user", "S99")
+  expect_false(is.null(r$error), info = "an inactive or unknown site is refused")
+  r <- from_form(s$conn, "NEW-1", "central_user", "S02")
+  expect_equal(r$site_id, "S02", info = "a valid choice is passed on")
+  r <- from_form(s$conn, "NEW-1", "site_user", "S02")
+  expect_true(is.null(r$error) && is.null(r$site_id),
+              info = "a stale drop-down value is ignored when not asked")
+
+  r <- save_crf_entry(s$conn, "demog", list(tracking_id = "NEW-1", age = 40),
+                      created_by = "central_user", site_id = "S02")
+  expect_true(r$success && r$enrolled)
+  expect_equal(.subj(s, "NEW-1")$site_id, "S02",
+               info = "the form's choice reaches enrollment")
+})
+
+# ---------------------------------------------------------------------------
 # DuckDB: subjects.study_id references an empty study_info
 # ---------------------------------------------------------------------------
 if (requireNamespace("duckdb", quietly = TRUE)) local({
