@@ -40,6 +40,16 @@
     subject;
   - it returns those subjects for review, and the generated IDs it
     skipped.
+* **Review screen.** The Admin tab has a new "Subject Sites" panel.
+  - It lists subjects, by default only those with no site, and
+    records each view with `log_record_read()`.
+  - It records a site or a transfer through `transfer_subject_site()`,
+    with a required reason. This needs the `Admin` or `PI` role.
+  - It registers new sites; this needs `Admin`.
+  - Refused actions are audited as `ACCESS`/`DENIED`.
+
+  Tests: `inst/tinytest/test_subject_sites_module.R` (14 assertions,
+  through `shiny::testServer()`).
 * **New exports:** `add_site()`, `transfer_subject_site()`,
   `subject_sites()`.
 * **Tables.** `subjects` gains `site_id` and `created_by` by

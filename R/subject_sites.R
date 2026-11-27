@@ -75,6 +75,21 @@ ensure_sites_table <- function(conn) {
 }
 
 
+#' Display Labels for Sites (internal)
+#'
+#' `"<name> (<id>)"`, or the ID alone when the name is missing or the
+#' same as the ID (sites registered by the migration are named by
+#' their ID).
+#'
+#' @param site_id,site_name Character vectors of equal length.
+#' @return Character vector of labels.
+#' @keywords internal
+.site_labels <- function(site_id, site_name) {
+  plain <- is.na(site_name) | !nzchar(site_name) | site_name == site_id
+  ifelse(plain, site_id, paste0(site_name, " (", site_id, ")"))
+}
+
+
 .site_exists <- function(conn, site_id) {
   DBI::dbGetQuery(conn, "SELECT COUNT(*) AS n FROM sites WHERE site_id = ?",
                   params = list(as.character(site_id)))$n[1] > 0

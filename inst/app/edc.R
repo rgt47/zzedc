@@ -526,9 +526,7 @@ output$enroll_site_ui <- renderUI({
       db_pool, zzedc:::crf_subject_key(field_data), username),
     error = function(e) NULL)
   if (is.null(choices)) return(NULL)
-  labels <- ifelse(is.na(choices$site_name) | !nzchar(choices$site_name),
-                   choices$site_id,
-                   paste0(choices$site_name, " (", choices$site_id, ")"))
+  labels <- zzedc:::.site_labels(choices$site_id, choices$site_name)
   selectInput("enroll_site", "Site for this new subject",
               choices = c("Choose a site" = "",
                           stats::setNames(choices$site_id, labels)))
